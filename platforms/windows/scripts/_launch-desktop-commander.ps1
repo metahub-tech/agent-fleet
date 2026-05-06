@@ -42,9 +42,12 @@ try {
     # Append both stdout and stderr to the log via Tee-Object with explicit
     # UTF-8 (default redirect on PS5.1 would write UTF-16, mojibake-ing the
     # mixed-encoding log).
+    # Note: use --host/--port (the canonical names). The deprecated aliases
+    # --sse-host/--sse-port are silently ignored in mcp-proxy 0.11.0 and the
+    # proxy falls back to bind 127.0.0.1:<random>.
     & $VenvPython -m mcp_proxy `
-        --sse-host 0.0.0.0 `
-        --sse-port 8765 `
+        --host 0.0.0.0 `
+        --port 8765 `
         --log-level INFO `
         -- desktop-commander 2>&1 |
         Tee-Object -FilePath $Log -Append | Out-Null
