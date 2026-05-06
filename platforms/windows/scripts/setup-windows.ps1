@@ -127,6 +127,25 @@ Write-Host "  ok node $(node -v)"
 # restore EAP. Output goes to a temp log so a real failure is debuggable
 # without flooding the console with deprecation noise.
 Write-Host "  installing/updating supergateway + desktop-commander (npm -g)..."
+
+# Skip puppeteer's Chromium download. desktop-commander has puppeteer as a
+# transitive dep; its postinstall fetches chrome-headless-shell from
+# storage.googleapis.com, which fails on restricted networks (e.g. China),
+# and a half-finished download leaves a directory shell that breaks future
+# installs ("browser folder exists but executable is missing"). Our core use
+# case for desktop-commander is shell + file + process tools, not browser
+# automation. For browser automation use the playwright MCP server.
+$env:PUPPETEER_SKIP_DOWNLOAD          = "true"
+$env:PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+
+# Clean any half-installed puppeteer cache from prior failed runs (otherwise
+# puppeteer's check sees the directory and refuses to re-download).
+$puppeteerCache = Join-Path $env:USERPROFILE ".cache\puppeteer"
+if (Test-Path $puppeteerCache) {
+    Write-Host "  cleaning stale puppeteer cache: $puppeteerCache"
+    Remove-Item -Recurse -Force $puppeteerCache -ErrorAction SilentlyContinue
+}
+
 $npmLog = Join-Path $env:TEMP "agent-test-bench-npm-install.log"
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
