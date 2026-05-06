@@ -184,8 +184,8 @@ $dcSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
 Register-ScheduledTask -TaskName "MCP-DesktopCommander" -Action $dcAction -Trigger $dcTrigger `
     -Settings $dcSettings -RunLevel Highest -User $RunUser -Force | Out-Null
 
-# windows-gui: pythonw.exe is the windowless variant of python.exe — same interpreter,
-# no console window. Still runs in the user's interactive session so GUI tools work.
+# windows-gui: pythonw.exe is the windowless variant of python.exe (same interpreter,
+# no console window). Still runs in the user's interactive session so GUI tools work.
 $guiAction = New-ScheduledTaskAction `
     -Execute  $VenvPythonW `
     -Argument $ServerPy `
