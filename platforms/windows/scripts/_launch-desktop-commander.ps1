@@ -37,24 +37,55 @@ $Log = Join-Path $LogsDir "desktop-commander.log"
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" |
     Out-File -FilePath $Log -Append -Encoding utf8
 
+# Restart loop. mcp-proxy 0.11 ties the stdio backend (desktop-commander)
+# lifetime to the SSE client session: when the SSE client disconnects, the
+# stdio child exits cleanly and mcp-proxy's AsyncExitStack tears down the
+# whole proxy with exit code 0. Task Scheduler's -RestartCount only fires
+# on non-zero exit, so a benign Claude Code reconnect leaves the service
+# permanently dead. We wrap the proxy in our own loop here.
+#
+# Bail out only if the proxy fails fast (>=3 quick exits within 6 seconds),
+# which indicates a real config/dependency error rather than a benign
+# client-disconnect cycle.
+$rapidFailWindow = 6
+$rapidFailLimit  = 3
+$rapidFailCount  = 0
+$rapidFailStart  = $null
+
 try {
-    # mcp-proxy --sse-host 0.0.0.0 --sse-port 8765 -- desktop-commander
-    # Append both stdout and stderr to the log via Tee-Object with explicit
-    # UTF-8 (default redirect on PS5.1 would write UTF-16, mojibake-ing the
-    # mixed-encoding log).
-    # Note: use --host/--port (the canonical names). The deprecated aliases
-    # --sse-host/--sse-port are silently ignored in mcp-proxy 0.11.0 and the
-    # proxy falls back to bind 127.0.0.1:<random>.
-    & $VenvPython -m mcp_proxy `
-        --host 0.0.0.0 `
-        --port 8765 `
-        --log-level INFO `
-        -- desktop-commander 2>&1 |
-        Tee-Object -FilePath $Log -Append | Out-Null
-    $code = $LASTEXITCODE
-    "$(Get-Date -Format o) mcp-proxy exited with code $code" |
-        Out-File -FilePath $Log -Append -Encoding utf8
-    exit $code
+    while ($true) {
+        # Use --host/--port (the canonical names). The deprecated aliases
+        # --sse-host/--sse-port are silently ignored in mcp-proxy 0.11.0 and
+        # the proxy falls back to bind 127.0.0.1:<random>.
+        $startedAt = Get-Date
+        & $VenvPython -m mcp_proxy `
+            --host 0.0.0.0 `
+            --port 8765 `
+            --log-level INFO `
+            -- desktop-commander 2>&1 |
+            Tee-Object -FilePath $Log -Append | Out-Null
+        $code = $LASTEXITCODE
+        $ranFor = ((Get-Date) - $startedAt).TotalSeconds
+        "$(Get-Date -Format o) mcp-proxy exited code=$code (ran $([int]$ranFor)s) -- restarting in 3s" |
+            Out-File -FilePath $Log -Append -Encoding utf8
+
+        if ($ranFor -lt 2) {
+            if (-not $rapidFailStart -or ((Get-Date) - $rapidFailStart).TotalSeconds -gt $rapidFailWindow) {
+                $rapidFailStart = Get-Date
+                $rapidFailCount = 0
+            }
+            $rapidFailCount++
+            if ($rapidFailCount -ge $rapidFailLimit) {
+                "$(Get-Date -Format o) FATAL: mcp-proxy crashed $rapidFailCount times in $rapidFailWindow seconds -- giving up" |
+                    Out-File -FilePath $Log -Append -Encoding utf8
+                exit 1
+            }
+        } else {
+            $rapidFailCount = 0
+        }
+
+        Start-Sleep -Seconds 3
+    }
 } catch {
     "$(Get-Date -Format o) launcher exception: $($_.Exception.Message)" |
         Out-File -FilePath $Log -Append -Encoding utf8
