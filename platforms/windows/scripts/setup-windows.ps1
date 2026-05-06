@@ -228,11 +228,22 @@ Stop-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinu
 Stop-ScheduledTask -TaskName "MCP-WindowsGui"        -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Kill any leftover process bound to our ports (e.g. from a previous manual run with a
-# visible console; that process won't be stopped by Stop-ScheduledTask).
+# Kill any leftover MCP service process bound to our ports (e.g. a user-launched
+# instance not tracked by Task Scheduler).
+#
+# CRITICAL: filter by process name. Port 8765 has multiple listeners after
+# 'netsh interface portproxy' is configured: node.exe (supergateway, on ::) AND
+# svchost.exe (IP Helper service hosting the portproxy forwarder, on 0.0.0.0).
+# Force-killing svchost kills every service sharing that svchost host -- this
+# is exactly what stops Tailscale during 'setup-windows.ps1' re-runs (we have
+# the Tailscale daemon log proving the Stop event arrives during this step).
+$ourProcessNames = @("node", "python", "powershell", "cmd")
 foreach ($port in 8765, 8766) {
     Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
-        try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction Stop } catch {}
+        $owner = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
+        if ($owner -and ($ourProcessNames -contains $owner.Name)) {
+            try { Stop-Process -Id $owner.Id -Force -ErrorAction Stop } catch {}
+        }
     }
 }
 
