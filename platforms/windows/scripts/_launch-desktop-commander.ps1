@@ -20,14 +20,17 @@ $Log = Join-Path $LogsDir "desktop-commander.log"
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" | Out-File -FilePath $Log -Append -Encoding utf8
 
 try {
-    & npx -y supergateway `
-        --stdio "npx -y @wonderwhy-er/desktop-commander" `
+    # Use globally installed binaries (npm -g via setup-windows.ps1) instead of
+    # 'npx -y'. 'npx -y' extracts into a per-run cache that races with itself
+    # when Task Scheduler retries fast (ENOTEMPTY rename errors).
+    & supergateway `
+        --stdio "desktop-commander" `
         --port 8765 `
         --baseUrl http://0.0.0.0:8765 `
         --ssePath /sse `
         --messagePath /message `
         --healthEndpoint /healthz `
-        --logLevel debug *>> $Log
+        --logLevel info *>> $Log
     $code = $LASTEXITCODE
     "$(Get-Date -Format o) supergateway exited with code $code" | Out-File -FilePath $Log -Append -Encoding utf8
     exit $code

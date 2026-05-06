@@ -103,9 +103,9 @@ if (Test-PythonOk) {
     Write-Host "  ok $((python --version 2>&1))"
 }
 
-# ---------- 3. Node.js LTS ----------
+# ---------- 3. Node.js LTS + global npm packages ----------
 Write-Host ""
-Write-Host "[3/6] Node.js LTS" -ForegroundColor Yellow
+Write-Host "[3/6] Node.js LTS + global npm packages" -ForegroundColor Yellow
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "  installing Node.js LTS..."
     winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
@@ -113,6 +113,27 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
                 [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 Write-Host "  ok node $(node -v)"
+
+# Global install supergateway + desktop-commander instead of 'npx -y' on every
+# launch. 'npx -y' extracts into a per-run cache; when Task Scheduler retries
+# the launcher quickly, two extracts race on the same dir and one fails with
+# 'ENOTEMPTY: directory not empty, rename ...'. Globals live in %APPDATA%\npm
+# and are stable across runs.
+Write-Host "  installing/updating supergateway + desktop-commander (npm -g)..."
+& npm install -g supergateway @wonderwhy-er/desktop-commander 2>&1 | ForEach-Object {
+    if     ($_ -match "(npm error|ENOENT|ENOTEMPTY|EACCES)") { Write-Host "    $_" -ForegroundColor Red }
+    elseif ($_ -match "^npm warn deprecated") { } # suppress noise
+    else { Write-Host "    $_" }
+}
+if (-not (Get-Command supergateway -ErrorAction SilentlyContinue)) {
+    Write-Host "  ERROR: 'supergateway' not on PATH after install. Check: npm config get prefix" -ForegroundColor Red
+    exit 1
+}
+if (-not (Get-Command desktop-commander -ErrorAction SilentlyContinue)) {
+    Write-Host "  ERROR: 'desktop-commander' not on PATH after install" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  ok supergateway + desktop-commander available on PATH"
 
 # ---------- 4. Python venv + dependencies ----------
 Write-Host ""
