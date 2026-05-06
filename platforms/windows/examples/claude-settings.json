@@ -1,0 +1,13 @@
+{
+  "_comment": "把 mcpServers 段合并进 ~/.claude/settings.json。把 windows-pc 替换为 Tailscale MagicDNS 主机名。",
+  "mcpServers": {
+    "winpc-shell": {
+      "type": "sse",
+      "url": "http://windows-pc:8765/sse"
+    },
+    "winpc-gui": {
+      "type": "sse",
+      "url": "http://windows-pc:8766/sse"
+    }
+  }
+}

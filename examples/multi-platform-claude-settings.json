@@ -1,0 +1,42 @@
+{
+  "_comment_about_this_file": "占位示例：当多个平台桥都部署完成时，把它们一起写进 ~/.claude/settings.json 就能让 Agent 同时驱动所有设备。当前只有 winpc-* 是真实可用的；其他都是 v0.2.0+ 的占位（带 _planned 前缀，不会被 Claude Code 实际加载）。",
+  "_legend": {
+    "winpc": "Windows 11 测试主机（v0.1.0）",
+    "macbox": "macOS 桌面（v0.2.0 计划）",
+    "android": "Android 手机（v0.3.0 计划）",
+    "iphone": "iOS 设备（v0.4.0 计划，必须挂在 macOS 主机上）"
+  },
+  "mcpServers": {
+    "winpc-shell": {
+      "type": "sse",
+      "url": "http://<WINDOWS_HOSTNAME>:8765/sse"
+    },
+    "winpc-gui": {
+      "type": "sse",
+      "url": "http://<WINDOWS_HOSTNAME>:8766/sse"
+    },
+
+    "_planned_macbox-shell": {
+      "_status": "v0.2.0 — not yet implemented",
+      "type": "sse",
+      "url": "http://<MACOS_HOSTNAME>:8765/sse"
+    },
+    "_planned_macbox-gui": {
+      "_status": "v0.2.0 — not yet implemented",
+      "type": "sse",
+      "url": "http://<MACOS_HOSTNAME>:8767/sse"
+    },
+
+    "_planned_android": {
+      "_status": "v0.3.0 — not yet implemented",
+      "type": "sse",
+      "url": "http://<ANDROID_HOST_HOSTNAME>:8768/sse"
+    },
+
+    "_planned_iphone": {
+      "_status": "v0.4.0 — not yet implemented (host: macOS)",
+      "type": "sse",
+      "url": "http://<MACOS_HOSTNAME>:8769/sse"
+    }
+  }
+}
