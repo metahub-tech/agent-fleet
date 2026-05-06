@@ -121,6 +121,16 @@ Remove-Item -Recurse -Force C:\agent-test-bench
 
 ## 7. 排错
 
+### 7.0 一键诊断（先跑这个）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\diagnose.ps1
+```
+
+打印 8 段（监听地址 / 进程 / localhost 自测 / Tailscale IP 自测 / 防火墙规则 / 网卡 / Tailscale 状态 / 任务最后一次运行结果）。把结果发给 Agent 操作员通常 1 分钟就能定位问题。
+
+下面按问题类型对照修。
+
 ### 7.1 8765 / 8766 没在监听
 
 ```powershell
