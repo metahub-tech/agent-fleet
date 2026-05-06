@@ -42,7 +42,7 @@ tailscale ping <DEVICE_HOSTNAME>
 
 ### Claude Code 单设备示例
 
-编辑 `~/.claude/settings.json`，把 `mcpServers` 段合并进去（文件不存在就新建）：
+编辑 `~/.claude.json`（顶级单文件，**不是** `~/.claude/settings.json`），把 `mcpServers` 段合并进去：
 
 ```json
 {
@@ -69,13 +69,16 @@ tailscale ping <DEVICE_HOSTNAME>
 
 ### 其他 MCP client
 
-`url` 与 `type=sse` 的概念其他 MCP client 也用，差异在 settings 文件位置和字段名：
+`url` 与 `type=sse` 的概念其他 MCP client 也用，差异在配置文件位置：
 
 | Client | 配置文件 | 字段名 |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | `mcpServers` |
+| Claude Code（用户级） | `~/.claude.json` | `mcpServers` |
+| Claude Code（项目级） | `<repo>/.mcp.json` | `mcpServers` |
 | Cursor | `~/.cursor/mcp.json` | `mcpServers` |
 | Cline (VS Code) | VS Code Extension settings | `cline.mcpServers` |
+
+> ⚠️ **`~/.claude.json` 不等同于 `~/.claude/settings.json`**——前者是 Claude Code 主状态文件（顶级单文件），MCP 配置只在这里生效；后者是 Claude Code 的偏好/权限/插件设置，MCP 段在这里会被静默忽略。
 
 具体语法以各 client 官方文档为准。
 
@@ -114,7 +117,7 @@ winpc-gui    [sse]  connected
 
 ```bash
 # 1. URL 协议是 http:// 不是 https://
-grep -A 2 "mcpServers" ~/.claude/settings.json
+grep -A 2 "mcpServers" ~/.claude.json
 
 # 2. 主机名能解析
 tailscale status | grep <WIN_HOSTNAME>

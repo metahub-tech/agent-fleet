@@ -71,7 +71,7 @@ The authoritative documentation is currently in Chinese; full English docs ship 
                   cross-LAN     MCP server         pywinauto / AppleScript / adb / xcrun
 ```
 
-工具接口在所有平台保持语义一致（`take_screenshot` / `click` / `launch_app` / ...），切换设备只需在 settings.json 里换 URL。
+工具接口在所有平台保持语义一致（`take_screenshot` / `click` / `launch_app` / ...），切换设备只需在 `~/.claude.json` 里换 URL。
 
 详见 [`docs/architecture.md`](docs/architecture.md)。
 

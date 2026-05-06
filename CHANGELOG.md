@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Documentation pointed at the wrong file for Claude Code MCP config.** `docs/agent-host-setup.md`, `examples/multi-platform-claude-settings.json`, and `platforms/windows/examples/claude-settings.json` all said to merge `mcpServers` into `~/.claude/settings.json`. Claude Code actually reads MCP config from `~/.claude.json` (the top-level single-file state) and `<repo>/.mcp.json` (project-level); `mcpServers` placed in `~/.claude/settings.json` is silently ignored. Verified empirically: editing `settings.json` left `/mcp` showing only built-in plugin servers; moving the same block to `~/.claude.json` made `winpc-shell` and `winpc-gui` connect on next session start. All four files updated, with an added inline warning explaining the trap.
 - **Setup script was killing svchost.exe and taking Tailscale down with it.** The user reported Tailscale stopping every time `setup-windows.ps1` reached step 5/6, with the daemon log showing `Got Windows Service event: Stop`. Root cause traced to step 6's port-cleanup loop:
   ```powershell
   Get-NetTCPConnection -LocalPort 8765,8766 -State Listen | ForEach-Object {

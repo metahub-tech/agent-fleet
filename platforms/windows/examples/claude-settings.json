@@ -1,5 +1,5 @@
 {
-  "_comment": "把 mcpServers 段合并进 ~/.claude/settings.json。把 windows-pc 替换为 Tailscale MagicDNS 主机名。",
+  "_comment": "把 mcpServers 段合并进 ~/.claude.json (顶级单文件，不是 ~/.claude/settings.json)。把 windows-pc 替换为 Tailscale MagicDNS 主机名。",
   "mcpServers": {
     "winpc-shell": {
       "type": "sse",

@@ -1,5 +1,5 @@
 {
-  "_comment_about_this_file": "占位示例：当多个平台桥都部署完成时，把它们一起写进 ~/.claude/settings.json 就能让 Agent 同时驱动所有设备。当前只有 winpc-* 是真实可用的；其他都是 v0.2.0+ 的占位（带 _planned 前缀，不会被 Claude Code 实际加载）。",
+  "_comment_about_this_file": "占位示例：当多个平台桥都部署完成时，把 mcpServers 段合并进 ~/.claude.json（顶级单文件，不是 ~/.claude/settings.json）就能让 Agent 同时驱动所有设备。当前只有 winpc-* 是真实可用的；其他都是 v0.2.0+ 的占位（带 _planned 前缀，不会被 Claude Code 实际加载）。",
   "_legend": {
     "winpc": "Windows 11 测试主机（v0.1.0）",
     "macbox": "macOS 桌面（v0.2.0 计划）",
