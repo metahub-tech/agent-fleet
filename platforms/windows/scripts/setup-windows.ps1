@@ -119,14 +119,33 @@ Write-Host "  ok node $(node -v)"
 # the launcher quickly, two extracts race on the same dir and one fails with
 # 'ENOTEMPTY: directory not empty, rename ...'. Globals live in %APPDATA%\npm
 # and are stable across runs.
+#
+# Why the EAP dance: npm prints deprecation warnings on stderr, and Windows
+# PowerShell 5.1 with $ErrorActionPreference=Stop wraps any native-command
+# stderr as a NativeCommandError exception, terminating the script. We lower
+# EAP to Continue around the npm call, capture exit code explicitly, and
+# restore EAP. Output goes to a temp log so a real failure is debuggable
+# without flooding the console with deprecation noise.
 Write-Host "  installing/updating supergateway + desktop-commander (npm -g)..."
-& npm install -g supergateway @wonderwhy-er/desktop-commander 2>&1 | ForEach-Object {
-    if     ($_ -match "(npm error|ENOENT|ENOTEMPTY|EACCES)") { Write-Host "    $_" -ForegroundColor Red }
-    elseif ($_ -match "^npm warn deprecated") { } # suppress noise
-    else { Write-Host "    $_" }
+$npmLog = Join-Path $env:TEMP "agent-test-bench-npm-install.log"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& npm install -g --loglevel=error supergateway @wonderwhy-er/desktop-commander *>&1 |
+    Tee-Object -FilePath $npmLog | Out-Null
+$npmExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+
+if ($npmExit -ne 0) {
+    Write-Host "  ERROR: npm install -g exited with code $npmExit" -ForegroundColor Red
+    Write-Host "  Last 20 lines of $npmLog :" -ForegroundColor Red
+    Get-Content $npmLog -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "    $_" -ForegroundColor Red
+    }
+    exit 1
 }
 if (-not (Get-Command supergateway -ErrorAction SilentlyContinue)) {
-    Write-Host "  ERROR: 'supergateway' not on PATH after install. Check: npm config get prefix" -ForegroundColor Red
+    Write-Host "  ERROR: 'supergateway' not on PATH after install." -ForegroundColor Red
+    Write-Host "         Open a new PowerShell and re-run this script (PATH may need refresh)." -ForegroundColor Yellow
     exit 1
 }
 if (-not (Get-Command desktop-commander -ErrorAction SilentlyContinue)) {
