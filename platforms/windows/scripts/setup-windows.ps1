@@ -1,83 +1,111 @@
-# Windows MCP 测试主机一键安装脚本
-# 用法（以管理员身份打开 PowerShell）:
-#   cd <脚本所在目录>
-#   powershell -ExecutionPolicy Bypass -File .\setup-windows.ps1
+# agent-test-bench / Windows platform setup
 #
-# 前置：windows_gui_mcp.py 与 requirements.txt 必须与本脚本同目录
+# Run from inside the cloned repo as Administrator:
+#   cd <repo-root>
+#   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
+#
+# What this does:
+#   1. verify Tailscale is logged in
+#   2. install Python 3.12 + Node.js LTS if missing
+#   3. create a Python venv inside server/ and install requirements
+#   4. open firewall ports 8765 / 8766 only on the Tailscale interface
+#   5. register Task Scheduler tasks for the two MCP services (auto-start at logon)
+#   6. start services and verify they listen
+#
+# Idempotent: re-run is safe.
 
 #Requires -RunAsAdministrator
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host "=== Windows MCP 测试主机安装 ===" -ForegroundColor Cyan
+# Auto-discover paths relative to this script (works no matter where the repo lives)
+$ScriptDir  = $PSScriptRoot
+$WindowsDir = Split-Path -Parent $ScriptDir
+$ServerDir  = Join-Path $WindowsDir "server"
+$VenvDir    = Join-Path $ServerDir ".venv"
+$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+$ServerPy   = Join-Path $ServerDir "windows_gui_mcp.py"
+$ReqTxt     = Join-Path $ServerDir "requirements.txt"
+$RepoRoot   = Split-Path -Parent (Split-Path -Parent $WindowsDir)
+$RunUser    = $env:USERNAME
+
+Write-Host "=== agent-test-bench / Windows Bridge Setup ===" -ForegroundColor Cyan
+Write-Host "Repo  : $RepoRoot"
+Write-Host "User  : $RunUser"
+Write-Host ""
 
 # ---------- 1. Tailscale ----------
-Write-Host "`n[1/7] 检查 Tailscale ..." -ForegroundColor Yellow
+Write-Host "[1/6] Tailscale" -ForegroundColor Yellow
 if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
-    Write-Host "    未安装，开始 winget 安装..."
+    Write-Host "  installing Tailscale..."
     winget install --id Tailscale.Tailscale -e --accept-source-agreements --accept-package-agreements
-    Write-Host "    安装完成。请打开托盘的 Tailscale 图标 → Login，登录后再继续。" -ForegroundColor Magenta
-    Read-Host "登录完成后按回车继续"
+    Write-Host "  -> 打开任务栏 Tailscale 托盘图标 -> Login，登录后回来按回车" -ForegroundColor Magenta
+    Read-Host "  enter to continue"
+}
+$tsRaw = tailscale status --json 2>$null
+$tsStatus = $null
+if ($tsRaw) { $tsStatus = $tsRaw | ConvertFrom-Json -ErrorAction SilentlyContinue }
+if (-not $tsStatus -or -not $tsStatus.Self.HostName) {
+    Write-Host "  Tailscale 未登录。请打开托盘图标 -> Login，再重新运行此脚本。" -ForegroundColor Red
+    exit 1
+}
+$tsHost = $tsStatus.Self.HostName
+$tsDNS  = $tsStatus.Self.DNSName.TrimEnd('.')
+Write-Host "  ok logged in"
+Write-Host "     hostname : $tsHost"
+Write-Host "     fqdn     : $tsDNS"
+
+# ---------- 2. Python 3.10+ ----------
+Write-Host "`n[2/6] Python 3.10+" -ForegroundColor Yellow
+function Test-PythonOk {
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { return $false }
+    $v = (python --version 2>&1)
+    if ($v -match "Python (\d+)\.(\d+)\.") {
+        return ([int]$Matches[1] -gt 3) -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -ge 10)
+    }
+    return $false
+}
+if (Test-PythonOk) {
+    Write-Host "  ok $((python --version 2>&1))"
 } else {
-    Write-Host "    已安装：$(tailscale version | Select-Object -First 1)"
+    Write-Host "  installing Python 3.12..."
+    winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
+                [System.Environment]::GetEnvironmentVariable("Path","User")
+    if (-not (Test-PythonOk)) {
+        Write-Host "  Python installed but not on PATH; open a new PowerShell and re-run this script." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  ok $((python --version 2>&1))"
 }
 
-# ---------- 2. OpenSSH Server ----------
-Write-Host "`n[2/7] 配置 OpenSSH Server ..." -ForegroundColor Yellow
-$cap = Get-WindowsCapability -Online -Name "OpenSSH.Server*" | Select-Object -First 1
-if ($cap.State -ne "Installed") {
-    Add-WindowsCapability -Online -Name $cap.Name | Out-Null
-}
-Start-Service sshd
-Set-Service -Name sshd -StartupType Automatic
-
-# 默认 shell 设为 PowerShell
-if (-not (Test-Path "HKLM:\SOFTWARE\OpenSSH")) {
-    New-Item -Path "HKLM:\SOFTWARE\OpenSSH" -Force | Out-Null
-}
-New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
-    -Value "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" `
-    -PropertyType String -Force | Out-Null
-
-# 防火墙
-if (-not (Get-NetFirewallRule -Name "sshd" -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server (sshd)' `
-        -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 | Out-Null
-}
-Write-Host "    OK。SSH 端口 22 已就绪，默认 shell = PowerShell。"
-
-# ---------- 3. Node.js ----------
-Write-Host "`n[3/7] 检查 Node.js ..." -ForegroundColor Yellow
+# ---------- 3. Node.js LTS ----------
+Write-Host "`n[3/6] Node.js LTS" -ForegroundColor Yellow
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Host "  installing Node.js LTS..."
     winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
                 [System.Environment]::GetEnvironmentVariable("Path","User")
+}
+Write-Host "  ok node $(node -v)"
+
+# ---------- 4. Python venv + dependencies ----------
+Write-Host "`n[4/6] GUI MCP venv + deps" -ForegroundColor Yellow
+if (-not (Test-Path $VenvDir)) {
+    Write-Host "  creating venv: $VenvDir"
+    python -m venv $VenvDir
 } else {
-    Write-Host "    已安装：node $(node -v)"
+    Write-Host "  venv exists: $VenvDir"
 }
+& $VenvPython -m pip install --upgrade pip --quiet
+& $VenvPython -m pip install -r $ReqTxt
+Write-Host "  ok"
 
-# ---------- 4. 部署 GUI MCP Python 项目 ----------
-Write-Host "`n[4/7] 部署 GUI MCP（Python 虚拟环境）..." -ForegroundColor Yellow
-$mcpDir = "C:\mcp\gui"
-New-Item -ItemType Directory -Path $mcpDir -Force | Out-Null
-Copy-Item -Path (Join-Path $ScriptDir "windows_gui_mcp.py") -Destination $mcpDir -Force
-Copy-Item -Path (Join-Path $ScriptDir "requirements.txt")    -Destination $mcpDir -Force
-
-Push-Location $mcpDir
-if (-not (Test-Path ".\.venv")) {
-    python -m venv .venv
-}
-& ".\.venv\Scripts\python.exe" -m pip install --upgrade pip | Out-Null
-& ".\.venv\Scripts\python.exe" -m pip install -r requirements.txt
-Pop-Location
-Write-Host "    OK。venv = $mcpDir\.venv"
-
-# ---------- 5. 防火墙：8765 / 8766 仅 Tailscale 接口 ----------
-Write-Host "`n[5/7] 配置 MCP 端口防火墙规则 ..." -ForegroundColor Yellow
+# ---------- 5. Firewall (Tailscale interface only) ----------
+Write-Host "`n[5/6] Firewall" -ForegroundColor Yellow
 $tsAdapter = Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Tailscale*" } | Select-Object -First 1
 
-# 清掉可能的旧规则
+# Clean old rules first (idempotent re-run)
 Get-NetFirewallRule -DisplayName "MCP DesktopCommander*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 Get-NetFirewallRule -DisplayName "MCP WindowsGui*"        -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 
@@ -88,70 +116,66 @@ if ($tsAdapter) {
     New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
         -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
         -InterfaceAlias $tsAdapter.Name | Out-Null
-    Write-Host "    OK。仅 $($tsAdapter.Name) 接口允许 8765/8766。"
+    Write-Host "  ok 8765/8766 allowed on $($tsAdapter.Name)"
 } else {
-    Write-Warning "    未发现 Tailscale 网卡。先放行所有接口（不安全），登录 Tailscale 后重新运行本脚本可收紧。"
+    Write-Warning "  Tailscale 网卡未识别。先放行所有接口（不安全），重跑脚本会自动收紧。"
     New-NetFirewallRule -DisplayName "MCP DesktopCommander (TEMP-ALL)" `
         -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow | Out-Null
     New-NetFirewallRule -DisplayName "MCP WindowsGui (TEMP-ALL)" `
         -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow | Out-Null
 }
 
-# ---------- 6. Task Scheduler 注册自启 ----------
-Write-Host "`n[6/7] 注册登录时自启任务 ..." -ForegroundColor Yellow
+# ---------- 6. Task Scheduler ----------
+Write-Host "`n[6/6] Auto-start tasks (登录 $RunUser 时启动)" -ForegroundColor Yellow
 
-# 6a. desktop-commander：用 supergateway 把 stdio 包成 SSE
 $dcAction = New-ScheduledTaskAction -Execute "cmd.exe" `
     -Argument '/c npx -y supergateway --stdio "npx -y @wonderwhy-er/desktop-commander" --port 8765 --baseUrl http://0.0.0.0:8765 --ssePath /sse --messagePath /message'
-$dcTrigger = New-ScheduledTaskTrigger -AtLogOn -User "Administrator"
+$dcTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
 $dcSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
 Register-ScheduledTask -TaskName "MCP-DesktopCommander" -Action $dcAction -Trigger $dcTrigger `
-    -Settings $dcSettings -RunLevel Highest -User "Administrator" -Force | Out-Null
+    -Settings $dcSettings -RunLevel Highest -User $RunUser -Force | Out-Null
 
-# 6b. GUI MCP
 $guiAction = New-ScheduledTaskAction `
-    -Execute  "$mcpDir\.venv\Scripts\python.exe" `
-    -Argument "$mcpDir\windows_gui_mcp.py" `
-    -WorkingDirectory $mcpDir
-$guiTrigger = New-ScheduledTaskTrigger -AtLogOn -User "Administrator"
+    -Execute  $VenvPython `
+    -Argument $ServerPy `
+    -WorkingDirectory $ServerDir
+$guiTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
 $guiSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
 Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction -Trigger $guiTrigger `
-    -Settings $guiSettings -RunLevel Highest -User "Administrator" -Force | Out-Null
+    -Settings $guiSettings -RunLevel Highest -User $RunUser -Force | Out-Null
+Write-Host "  ok MCP-DesktopCommander, MCP-WindowsGui registered"
 
-Write-Host "    OK。两个任务已注册（登录 Administrator 后自动启动）。"
-
-# ---------- 7. 立即启动 ----------
-Write-Host "`n[7/7] 立即启动一次（用于现场验证）..." -ForegroundColor Yellow
+# ---------- Start now & verify ----------
+Write-Host "`n=== Starting services (first run may take 30-60s while npx downloads packages) ===" -ForegroundColor Cyan
 Start-ScheduledTask -TaskName "MCP-DesktopCommander"
 Start-ScheduledTask -TaskName "MCP-WindowsGui"
-Start-Sleep -Seconds 5
+
+$deadline = (Get-Date).AddSeconds(60)
+$dcOk = $false; $guiOk = $false
+while ((Get-Date) -lt $deadline -and -not ($dcOk -and $guiOk)) {
+    Start-Sleep -Seconds 3
+    $dcOk  = $null -ne (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)
+    $guiOk = $null -ne (Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue)
+}
+if ($dcOk)  { Write-Host "  ok desktop-commander listening on 8765" -ForegroundColor Green }
+else        { Write-Host "  WARN desktop-commander not yet on 8765 (Get-ScheduledTaskInfo MCP-DesktopCommander)" -ForegroundColor Yellow }
+if ($guiOk) { Write-Host "  ok windows-gui        listening on 8766" -ForegroundColor Green }
+else        { Write-Host "  WARN windows-gui not yet on 8766 (Get-ScheduledTaskInfo MCP-WindowsGui)"             -ForegroundColor Yellow }
 
 Write-Host "`n=== 完成 ===" -ForegroundColor Green
-
-$tsName = (tailscale status --json 2>$null | ConvertFrom-Json).Self.HostName
-if (-not $tsName) { $tsName = "<windows-tailscale-name>" }
-
 Write-Host @"
 
-下一步：
-1. 把你 Linux 端的公钥（~/.ssh/id_ed25519_winpc.pub 内容）写入：
-     C:\ProgramData\ssh\administrators_authorized_keys
-   并设置权限：
-     icacls C:\ProgramData\ssh\administrators_authorized_keys /inheritance:r
-     icacls C:\ProgramData\ssh\administrators_authorized_keys /grant "Administrators:F" /grant "SYSTEM:F"
+把以下信息发给 Agent 操作员（如果就是你自己，留着备用）：
 
-2. 在 Linux 端验证：
-     tailscale ping $tsName
-     ssh Administrator@$tsName "Get-Date"
-     curl -N http://${tsName}:8765/sse   # 应保持长连接（desktop-commander）
-     curl -N http://${tsName}:8766/sse   # 应保持长连接（GUI MCP）
+  Tailscale 主机名 : $tsHost
+  Tailscale FQDN   : $tsDNS
+  desktop-commander URL : http://${tsHost}:8765/sse
+  windows-gui URL       : http://${tsHost}:8766/sse
 
-3. 在 Linux 端 ~/.claude/settings.json 加入 mcpServers 段（见 mcp-settings.json）。
-
-排错：
-  Get-ScheduledTaskInfo -TaskName MCP-DesktopCommander
-  Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
-  netstat -ano | findstr "8765 8766"
+后续：
+  - Agent 端配置：见 docs/agent-host-setup.md
+  - GUI 测试要求 $RunUser 一直在登录会话；Windows 重启后请确保自动登录开启
+    （netplwiz 取消勾选"必须输入用户名密码"）
 "@ -ForegroundColor Cyan

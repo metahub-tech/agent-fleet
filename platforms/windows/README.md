@@ -4,19 +4,22 @@ Windows 10/11 device-host bridge for `agent-test-bench`. Enables LLM agents to d
 
 ## Quick Start
 
-完整手册：[`../../docs/platforms/windows.md`](../../docs/platforms/windows.md)（~500 行，14 个章节）。
+完整手册：[`../../docs/platforms/windows.md`](../../docs/platforms/windows.md)。
 
-TL;DR：
+TL;DR（Windows 管理员 PowerShell）：
 
-1. **Linux 端**：`ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_winpc -N ""`
-2. **两端**：装 Tailscale，加入同一 tailnet
-3. **Windows 端**（管理员 PowerShell）：
-   ```powershell
-   # 把本目录拉到 C:\mcp-setup\，然后：
-   powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
-   ```
-4. 把公钥写入 `C:\ProgramData\ssh\administrators_authorized_keys` 并锁权限
-5. **Linux 端**：合并 [`examples/claude-settings.json`](examples/claude-settings.json) 进 `~/.claude/settings.json`
+```powershell
+winget install --id Tailscale.Tailscale -e
+# 任务栏托盘登录 Tailscale
+
+# 拿代码（浏览器下载 ZIP 解压到 C:\agent-test-bench；或 git clone）
+cd C:\agent-test-bench
+
+# 跑安装
+powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
+```
+
+Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setup.md)。
 
 ## 暴露的工具
 
@@ -50,23 +53,22 @@ platforms/windows/
 
 ## 运行依赖
 
-| 组件 | 必须 | 用途 |
-|---|---|---|
-| Tailscale | ✅ | 跨网组网 |
-| OpenSSH Server (Windows feature) | ✅ | CLI 兜底通道 |
-| Node.js LTS | ✅ | 跑 supergateway + desktop-commander |
-| Python 3.10+ | ✅ | 跑 GUI MCP server |
-| Administrator 活动会话 | ✅ | GUI 任务必须在用户会话中执行（推荐自动登录） |
+| 组件 | 必须 | 用途 | 自动安装 |
+|---|---|---|---|
+| Tailscale | ✅ | 跨网组网 | 用户在第 1 步装 |
+| Node.js LTS | ✅ | 跑 supergateway + desktop-commander | setup-windows.ps1 自动装 |
+| Python 3.10+ | ✅ | 跑 windows_gui_mcp.py | setup-windows.ps1 自动装（如缺） |
+| 用户活动登录会话 | ✅ | GUI 任务必须在用户桌面会话中执行 | 启用自动登录（手册 § 5） |
 
 ## 故障排查
 
-完整排错章节见 [`../../docs/platforms/windows.md` § 12](../../docs/platforms/windows.md)：
+完整排错章节见 [`../../docs/platforms/windows.md` § 7](../../docs/platforms/windows.md#7-排错)：
 
-- 自动登录配置（GUI 任务必须有活动用户会话）
+- 端口未监听 / 任务起不来
 - 高 DPI 屏幕坐标错位
-- 端口冲突 / 任务起不来
-- supergateway / desktop-commander 包名变更
+- Windows 重启后 GUI 服务不启
 - Tailscale ACL 加固
+- supergateway / desktop-commander 包名变更
 
 ## Universal Tool Set 兼容
 

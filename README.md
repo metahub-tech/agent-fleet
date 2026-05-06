@@ -40,42 +40,27 @@
 
 ## 快速开始
 
-### 中文（推荐路径）
+按角色查阅对应文档：
 
-完整手册：[`docs/platforms/windows.md`](docs/platforms/windows.md)（~500 行，14 个章节，含一键安装脚本与故障排查清单）
+| 你是 | 看哪个 |
+|---|---|
+| **Windows 测试主机管理员** | [`docs/platforms/windows.md`](docs/platforms/windows.md) |
+| **Agent 操作员**（Linux/Mac/Win，跑 Claude Code 等 MCP client） | [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
 
-三步走：
+典型流程：
 
-1. **网络层**：Linux 与 Windows 各装 Tailscale，加入同一 tailnet
-2. **设备主机**：Windows 上跑 [`platforms/windows/scripts/setup-windows.ps1`](platforms/windows/scripts/setup-windows.ps1) 一键完成 OpenSSH + Node.js + Python venv + Task Scheduler 自启
-3. **Agent 端**：把 [`platforms/windows/examples/claude-settings.json`](platforms/windows/examples/claude-settings.json) 合并进 `~/.claude/settings.json`，重启 Claude Code
+1. **设备管理员** 按 [windows.md](docs/platforms/windows.md) 把 Windows 测试机配好（Tailscale + 一行 PowerShell 跑安装脚本）
+2. 设备管理员把自己的 Tailscale 主机名告诉 Agent 操作员
+3. **Agent 操作员** 按 [agent-host-setup.md](docs/agent-host-setup.md) 在自己的 MCP client 里加这台设备
 
-### English (Quick Start)
+如果两个角色都是同一个人（最常见），按上面顺序自己走两遍即可。
 
-```bash
-# Linux side
-ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_winpc -N ""
-curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
-```
+## English Quick Start
 
-```powershell
-# Windows side (Admin PowerShell)
-winget install --id Tailscale.Tailscale -e
-# Login to Tailscale via tray, then:
-.\platforms\windows\scripts\setup-windows.ps1
-```
+The authoritative documentation is currently in Chinese; full English docs ship with the v1.0 milestone. Two pages cover the entire setup:
 
-```jsonc
-// ~/.claude/settings.json on Linux
-{
-  "mcpServers": {
-    "winpc-shell": { "type": "sse", "url": "http://<WIN_HOSTNAME>:8765/sse" },
-    "winpc-gui":   { "type": "sse", "url": "http://<WIN_HOSTNAME>:8766/sse" }
-  }
-}
-```
-
-Full English documentation is part of the v1.0 milestone. Until then the authoritative guide is in Chinese under `docs/`.
+- Device admin: [`docs/platforms/windows.md`](docs/platforms/windows.md)
+- Agent admin: [`docs/agent-host-setup.md`](docs/agent-host-setup.md)
 
 ## 架构
 

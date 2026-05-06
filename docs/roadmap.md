@@ -20,7 +20,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 ## v0.1.0 — Windows
 **Released 2026-05-06**
 
-- Tailscale + OpenSSH + 双 MCP 服务（desktop-commander 端口 8765 + 自写 GUI MCP 端口 8766）
+- Tailscale + 双 MCP 服务（desktop-commander 端口 8765 + 自写 GUI MCP 端口 8766）
 - 17 个通用工具：屏幕 / 鼠标 / 键盘 / 窗口 / 进程 / PowerShell
 - 一键安装脚本（含 Task Scheduler 自启）
 - 中文 setup guide ~500 行
@@ -114,7 +114,7 @@ Agent 一次提示，串联多设备。例：
 
 ## Out of Scope (for now)
 
-- **Linux 桌面桥** —— 直接 SSH 已够用，目前没 GUI 测试需求
+- **Linux 桌面桥** —— 当前没 GUI 测试需求；命令行任务通过 desktop-commander 已能覆盖
 - **Web 浏览器桥** —— Playwright MCP 已覆盖
 - **嵌入式 / IoT 设备** —— 接口太异构，等实际用例出现再考虑
 - **跨平台 browser extension 测试** —— v1.x 之后再讨论

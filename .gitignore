@@ -61,7 +61,6 @@ Thumbs.db
 **/secrets.json
 *.pem
 *.key
-!**/authorized_keys.example
 
 # Build / coverage
 .coverage
