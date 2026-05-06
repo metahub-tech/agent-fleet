@@ -4,3 +4,4 @@ pywinauto>=0.6.8
 psutil>=5.9
 pillow>=10.0
 pyperclip>=1.8
+mcp-proxy>=0.4

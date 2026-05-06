@@ -107,13 +107,14 @@ if (-not $rules) {
     } | Format-Table -AutoSize -Wrap
 }
 
-# ---------- 5b. IPv4 -> IPv6 port proxy ----------
-Section "5b. IPv4-to-IPv6 portproxy (workaround for supergateway IPv6-only bind)"
+# ---------- 5b. portproxy (legacy; should be empty after migration to mcp-proxy) ----------
+Section "5b. IPv4-to-IPv6 portproxy (legacy; should be empty)"
 $proxyOut = netsh interface portproxy show v4tov6 2>&1
-$proxyOut | ForEach-Object { Write-Host "  $_" }
-if ($proxyOut -join "`n" -notmatch "8765") {
-    Write-Host "  WARN  no v4tov6 entry for port 8765 found" -ForegroundColor Yellow
-    Write-Host "        (re-run setup-windows.ps1 to add it)" -ForegroundColor Yellow
+if ($proxyOut -match "8765") {
+    Write-Host "  found legacy v4tov6 entry for 8765 -- run setup-windows.ps1 to clean up:" -ForegroundColor Yellow
+    $proxyOut | ForEach-Object { Write-Host "  $_" }
+} else {
+    Write-Host "  ok no legacy portproxy entry (mcp-proxy handles 0.0.0.0 binding natively)"
 }
 
 # ---------- 6. Tailscale adapter ----------

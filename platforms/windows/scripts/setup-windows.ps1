@@ -126,7 +126,7 @@ Write-Host "  ok node $(node -v)"
 # EAP to Continue around the npm call, capture exit code explicitly, and
 # restore EAP. Output goes to a temp log so a real failure is debuggable
 # without flooding the console with deprecation noise.
-Write-Host "  installing/updating supergateway + desktop-commander (npm -g)..."
+Write-Host "  installing/updating desktop-commander (npm -g)..."
 
 # Skip puppeteer's Chromium download. desktop-commander has puppeteer as a
 # transitive dep; its postinstall fetches chrome-headless-shell from
@@ -146,10 +146,15 @@ if (Test-Path $puppeteerCache) {
     Remove-Item -Recurse -Force $puppeteerCache -ErrorAction SilentlyContinue
 }
 
+# desktop-commander is a stdio MCP server (Node). We expose it over SSE via
+# Python's mcp-proxy (installed in the Python venv in step 4), not via
+# Node's supergateway -- the latter crashes ("Already connected to a
+# transport") whenever an SSE client reconnects. Only desktop-commander
+# itself stays on npm -g.
 $npmLog = Join-Path $env:TEMP "agent-test-bench-npm-install.log"
 $prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-& npm install -g --loglevel=error supergateway @wonderwhy-er/desktop-commander *>&1 |
+& npm install -g --loglevel=error @wonderwhy-er/desktop-commander *>&1 |
     Tee-Object -FilePath $npmLog | Out-Null
 $npmExit = $LASTEXITCODE
 $ErrorActionPreference = $prevEAP
@@ -162,16 +167,21 @@ if ($npmExit -ne 0) {
     }
     exit 1
 }
-if (-not (Get-Command supergateway -ErrorAction SilentlyContinue)) {
-    Write-Host "  ERROR: 'supergateway' not on PATH after install." -ForegroundColor Red
-    Write-Host "         Open a new PowerShell and re-run this script (PATH may need refresh)." -ForegroundColor Yellow
-    exit 1
-}
 if (-not (Get-Command desktop-commander -ErrorAction SilentlyContinue)) {
     Write-Host "  ERROR: 'desktop-commander' not on PATH after install" -ForegroundColor Red
     exit 1
 }
-Write-Host "  ok supergateway + desktop-commander available on PATH"
+Write-Host "  ok desktop-commander available on PATH"
+
+# Optional cleanup: remove the previously-required supergateway global
+# install if it lingers from older versions of this script.
+if (Get-Command supergateway -ErrorAction SilentlyContinue) {
+    Write-Host "  uninstalling stale supergateway global (replaced by mcp-proxy)..."
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & npm uninstall -g supergateway *>&1 | Out-Null
+    $ErrorActionPreference = $prevEAP
+}
 
 # ---------- 4. Python venv + dependencies ----------
 Write-Host ""
@@ -210,14 +220,11 @@ New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
     -RemoteAddress $tsRanges | Out-Null
 Write-Host "  ok 8765/8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
 
-# supergateway calls app.listen(port) with no host arg. Node on Windows binds
-# this to '::' (IPv6 only, not dual-stack), so external IPv4 clients (e.g.
-# Tailscale-routed connections from Linux) get TCP RST. Built-in Windows
-# 'netsh portproxy v4tov6' bridges 0.0.0.0:8765 -> ::1:8765, kernel-level, no
-# extra deps. (windows-gui already binds 0.0.0.0 via FastMCP, so 8766 is fine.)
+# mcp-proxy binds 0.0.0.0 directly via --sse-host, so the netsh v4tov6
+# portproxy that supergateway needed is no longer required. Clean it up if
+# it's still around from older script versions.
 $null = netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
-$null = netsh interface portproxy add    v4tov6 listenport=8765 listenaddress=0.0.0.0 connectport=8765 connectaddress=::1
-Write-Host "  ok portproxy 0.0.0.0:8765 -> ::1:8765 (workaround for supergateway IPv6-only bind)"
+Write-Host "  ok firewall configured (mcp-proxy binds 0.0.0.0 natively, no portproxy needed)"
 
 # ---------- 6. Task Scheduler ----------
 Write-Host ""

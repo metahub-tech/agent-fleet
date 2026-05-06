@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Replaced supergateway with mcp-proxy** as the stdio→SSE bridge for desktop-commander. supergateway 3.4.3 has a fatal design bug: it tries to reuse the same MCP `Server` (`Protocol`) instance across SSE connections, so the second SSE client gets `Error: Already connected to a transport. Call close() before connecting to a new transport, or use a separate Protocol instance per connection.` and the process exits with code 1. Claude Code reconnects SSE on every session restart, so every restart killed the bridge. mcp-proxy (Python, `sparfenyuk/mcp-proxy`) is designed for repeated client connections, plus it natively binds `0.0.0.0` via `--sse-host` (no more netsh portproxy workaround) and lives in the same Python venv we already maintain for windows-gui (one fewer toolchain).
+- `requirements.txt` adds `mcp-proxy>=0.4`.
+- `setup-windows.ps1` step 3 no longer installs supergateway globally; only desktop-commander stays on `npm -g`. If supergateway is detected from a prior version of the script, it is uninstalled.
+- `setup-windows.ps1` step 5 stops adding the netsh `v4tov6` portproxy entry (and removes any leftover one).
+- `_launch-desktop-commander.ps1` now invokes `python -m mcp_proxy --sse-host 0.0.0.0 --sse-port 8765 -- desktop-commander` and uses `Tee-Object -Append` instead of `*>> $Log` redirection (the latter wrote UTF-16 LE under PowerShell 5.1, mojibake-ing the log so the supergateway crash trace was unreadable until decoded with `[System.Text.Encoding]::Unicode`).
+- `diagnose.ps1` section 5b inverted: now expects "no legacy portproxy entry"; warns if one is left over.
+
 ### Fixed
 - **Documentation pointed at the wrong file for Claude Code MCP config.** `docs/agent-host-setup.md`, `examples/multi-platform-claude-settings.json`, and `platforms/windows/examples/claude-settings.json` all said to merge `mcpServers` into `~/.claude/settings.json`. Claude Code actually reads MCP config from `~/.claude.json` (the top-level single-file state) and `<repo>/.mcp.json` (project-level); `mcpServers` placed in `~/.claude/settings.json` is silently ignored. Verified empirically: editing `settings.json` left `/mcp` showing only built-in plugin servers; moving the same block to `~/.claude.json` made `winpc-shell` and `winpc-gui` connect on next session start. All four files updated, with an added inline warning explaining the trap.
 - **Setup script was killing svchost.exe and taking Tailscale down with it.** The user reported Tailscale stopping every time `setup-windows.ps1` reached step 5/6, with the daemon log showing `Got Windows Service event: Stop`. Root cause traced to step 6's port-cleanup loop:
