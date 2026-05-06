@@ -189,27 +189,26 @@ Write-Host "  ok"
 # ---------- 5. Firewall + IPv4-to-IPv6 port proxy ----------
 Write-Host ""
 Write-Host "[5/6] Firewall + IPv4-to-IPv6 portproxy" -ForegroundColor Yellow
-$tsAdapter = Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Tailscale*" } | Select-Object -First 1
 
 # Clean old rules first (idempotent re-run)
 Get-NetFirewallRule -DisplayName "MCP DesktopCommander*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 Get-NetFirewallRule -DisplayName "MCP WindowsGui*"        -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 
-if ($tsAdapter) {
-    New-NetFirewallRule -DisplayName "MCP DesktopCommander (Tailscale)" `
-        -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow `
-        -InterfaceAlias $tsAdapter.Name | Out-Null
-    New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
-        -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
-        -InterfaceAlias $tsAdapter.Name | Out-Null
-    Write-Host "  ok 8765/8766 allowed on $($tsAdapter.Name)"
-} else {
-    Write-Warning "  Tailscale interface not found. Allowing all interfaces (insecure); re-run this script after Tailscale is up to tighten."
-    New-NetFirewallRule -DisplayName "MCP DesktopCommander (TEMP-ALL)" `
-        -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow | Out-Null
-    New-NetFirewallRule -DisplayName "MCP WindowsGui (TEMP-ALL)" `
-        -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow | Out-Null
-}
+# Filter by Tailscale's IPv4 (100.64.0.0/10 CGNAT range) and IPv6 (fd7a:115c:a1e0::/48
+# Tailscale ULA prefix) instead of binding to the Tailscale adapter alias. Adapter
+# binding stores a GUID at rule-creation time; if the Tailscale service stops or
+# restarts and the adapter gets a new GUID, the rule becomes orphaned. IP-range
+# matching survives all adapter changes and is also semantically tighter (only
+# allows Tailscale-routed traffic, not any traffic that happens to enter via the
+# Tailscale adapter).
+$tsRanges = @("100.64.0.0/10", "fd7a:115c:a1e0::/48")
+New-NetFirewallRule -DisplayName "MCP DesktopCommander (Tailscale)" `
+    -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow `
+    -RemoteAddress $tsRanges | Out-Null
+New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
+    -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
+    -RemoteAddress $tsRanges | Out-Null
+Write-Host "  ok 8765/8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
 
 # supergateway calls app.listen(port) with no host arg. Node on Windows binds
 # this to '::' (IPv6 only, not dual-stack), so external IPv4 clients (e.g.

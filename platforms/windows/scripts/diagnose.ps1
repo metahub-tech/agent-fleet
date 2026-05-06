@@ -15,6 +15,24 @@ function Section($title) {
     Write-Host "=== $title ===" -ForegroundColor Cyan
 }
 
+# ---------- 0. Tailscale daemon (must be up for anything else to matter) ----------
+Section "0. Tailscale daemon (READ THIS FIRST)"
+$tsService = Get-Service Tailscale -ErrorAction SilentlyContinue
+if (-not $tsService) {
+    Write-Host "  ERROR: Tailscale service not installed" -ForegroundColor Red
+} elseif ($tsService.Status -ne "Running") {
+    Write-Host ("  ERROR: Tailscale service is {0} (not Running). Start it: Start-Service Tailscale" -f $tsService.Status) -ForegroundColor Red
+    Write-Host  "         Make it auto-start to survive reboots: Set-Service Tailscale -StartupType Automatic" -ForegroundColor Yellow
+} else {
+    Write-Host ("  ok service Running ({0})" -f $tsService.StartType)
+}
+$tsStatus = tailscale status 2>$null
+if (-not $tsStatus) {
+    Write-Host "  ERROR: 'tailscale status' returned nothing -- daemon down or not logged in" -ForegroundColor Red
+} else {
+    $tsStatus | Select-Object -First 3 | ForEach-Object { Write-Host "  $_" }
+}
+
 # ---------- 1. Listening addresses ----------
 Section "1. Actual listening addresses (KEY: LocalAddress should be 0.0.0.0)"
 $listeners = Get-NetTCPConnection -LocalPort 8765,8766 -State Listen -ErrorAction SilentlyContinue
