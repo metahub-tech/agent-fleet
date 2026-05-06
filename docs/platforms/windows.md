@@ -31,8 +31,9 @@
 | 占位符 | 含义 | 例 |
 |---|---|---|
 | `<WIN_NAME>` | Windows 在 Tailscale 里的 MagicDNS 主机名 | `desktop-abc123` |
-| `<LINUX_NAME>` | Linux 在 Tailscale 里的 MagicDNS 主机名 | `worker-pc` |
+| `<LINUX_NAME>` | Linux 在 Tailscale 里的 MagicDNS 主机名或 IPv4 | `worker-pc` / `100.90.x.x` |
 | `<LINUX_PUBKEY>` | Linux 端生成的 ed25519 公钥**整行内容** | `ssh-ed25519 AAAA... claude-to-winpc` |
+| `<PORT>` | 第 5 步临时 HTTP 服务端口（脚本自动挑选空闲端口） | `43613` |
 
 ---
 
@@ -95,34 +96,47 @@ tailscale ping <WIN_NAME>     # 几次后应出现 via direct/DERP，说明通�
 
 ## 5. 把项目文件传到 Windows
 
-SSH 这时还没配好，最快的方式是**临时 HTTP 服务下载**：
+SSH 这时还没配好，最快的方式是**临时 HTTP 服务下载**。由于项目重组后 `setup-windows.ps1` 与 `server/` 在不同子目录，先用一个暂存目录把三份文件聚到同一处再开服务。
 
-### 5.1 Linux 端起临时服务
+### 5.1 Linux 端起临时服务（自动选空闲端口）
 
 ```bash
-cd ~/claude-test/claude-remote/windows-mcp   # 这三个文件所在目录
-python3 -m http.server 8000
+ATB_REPO=~/agent-test-bench    # 替换为本地仓库根目录
+STAGE=/tmp/atb-staging
+
+mkdir -p $STAGE
+cp $ATB_REPO/platforms/windows/scripts/setup-windows.ps1 $STAGE/
+cp $ATB_REPO/platforms/windows/server/windows_gui_mcp.py $STAGE/
+cp $ATB_REPO/platforms/windows/server/requirements.txt   $STAGE/
+
+# 自动挑选空闲端口（避开 8000 等常被占用端口）
+PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
+echo "==> 选定端口: $PORT  (Windows 端命令里把 <PORT> 替换为此值)"
+
+cd $STAGE
+python3 -m http.server $PORT
 ```
 
-保持窗口开着。
+保持窗口开着，终端会逐条打印 Windows 端的请求日志。
 
 ### 5.2 Windows 端拉文件
 
-在 Windows 管理员 PowerShell 里：
+在 Windows 管理员 PowerShell 里（把 `<PORT>` 替换为 5.1 步打印的端口；`<LINUX_NAME>` 用 Linux 的 Tailscale 主机名或 IPv4）：
 
 ```powershell
 mkdir C:\mcp-setup
 cd C:\mcp-setup
 
-$LINUX = "<LINUX_NAME>"   # 替换占位符
-Invoke-WebRequest -Uri "http://${LINUX}:8000/setup-windows.ps1"  -OutFile setup-windows.ps1
-Invoke-WebRequest -Uri "http://${LINUX}:8000/windows_gui_mcp.py" -OutFile windows_gui_mcp.py
-Invoke-WebRequest -Uri "http://${LINUX}:8000/requirements.txt"   -OutFile requirements.txt
+$LINUX = "<LINUX_NAME>"
+$PORT  = <PORT>
+Invoke-WebRequest -Uri "http://${LINUX}:${PORT}/setup-windows.ps1"  -OutFile setup-windows.ps1
+Invoke-WebRequest -Uri "http://${LINUX}:${PORT}/windows_gui_mcp.py" -OutFile windows_gui_mcp.py
+Invoke-WebRequest -Uri "http://${LINUX}:${PORT}/requirements.txt"   -OutFile requirements.txt
 
 dir   # 应看到三个文件
 ```
 
-拷完回 Linux 终端按 `Ctrl+C` 停掉 HTTP 服务。
+拷完回 Linux 终端按 `Ctrl+C` 停掉 HTTP 服务（暂存目录 `/tmp/atb-staging` 留着，不影响后续）。
 
 > **替代方案**：如果你已经能 RDP 进 Windows，直接拖拽剪贴板复制；或先手动启用一次 OpenSSH，然后 `scp` 过去也行。
 
