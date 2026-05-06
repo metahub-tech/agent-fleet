@@ -56,6 +56,9 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Service log directories (Windows MCP services append stdout/stderr here)
+platforms/*/logs/
+
 # Credentials (defense in depth)
 **/credentials.json
 **/secrets.json

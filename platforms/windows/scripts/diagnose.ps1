@@ -118,6 +118,32 @@ Section "8. Scheduled task last run result"
     }
 } | Format-Table -AutoSize
 
+# ---------- 9. Service log tails ----------
+Section "9. Service log tails (last 25 lines each)"
+$logsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
+foreach ($svc in "desktop-commander", "windows-gui") {
+    $log = Join-Path $logsDir "$svc.log"
+    Write-Host ""
+    Write-Host "  -- $log --" -ForegroundColor Yellow
+    if (Test-Path $log) {
+        Get-Content -Path $log -Tail 25
+    } else {
+        Write-Host "  (no log file yet -- service has not started even once)"
+    }
+}
+
+# ---------- 10. Recent Task Scheduler events ----------
+Section "10. Recent Task Scheduler events for our two tasks"
+try {
+    Get-WinEvent -LogName "Microsoft-Windows-TaskScheduler/Operational" -MaxEvents 100 -ErrorAction Stop |
+        Where-Object { $_.Message -match "MCP-(DesktopCommander|WindowsGui)" } |
+        Select-Object -First 8 -Property TimeCreated, Id, LevelDisplayName, @{Name="MessageHead"; Expression={ ($_.Message -split "`n")[0] }} |
+        Format-Table -AutoSize -Wrap
+} catch {
+    Write-Host "  Could not read Task Scheduler operational log: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  Try running this script in an elevated PowerShell to access it." -ForegroundColor Yellow
+}
+
 # ---------- Summary ----------
 Section "Summary -- read this first"
 Write-Host "  Quick triage:"

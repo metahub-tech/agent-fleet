@@ -35,10 +35,9 @@ $ScriptDir  = $PSScriptRoot
 $WindowsDir = Split-Path -Parent $ScriptDir
 $ServerDir  = Join-Path $WindowsDir "server"
 $VenvDir    = Join-Path $ServerDir ".venv"
-$VenvPython  = Join-Path $VenvDir "Scripts\python.exe"
-$VenvPythonW = Join-Path $VenvDir "Scripts\pythonw.exe"
-$ServerPy    = Join-Path $ServerDir "windows_gui_mcp.py"
-$ReqTxt      = Join-Path $ServerDir "requirements.txt"
+$VenvPython = Join-Path $VenvDir "Scripts\python.exe"
+$ServerPy   = Join-Path $ServerDir "windows_gui_mcp.py"
+$ReqTxt     = Join-Path $ServerDir "requirements.txt"
 $RepoRoot   = Split-Path -Parent (Split-Path -Parent $WindowsDir)
 $RunUser    = $env:USERNAME
 
@@ -170,32 +169,34 @@ foreach ($port in 8765, 8766) {
     }
 }
 
-# desktop-commander: hidden powershell launcher avoids the cmd window
-$DcLauncher = Join-Path $ScriptDir "_launch-desktop-commander.ps1"
-if (-not (Test-Path $DcLauncher)) {
-    Write-Host "  ERROR: launcher missing: $DcLauncher" -ForegroundColor Red
-    exit 1
+# Both services launch via hidden PowerShell wrappers. Children (npx, python.exe)
+# inherit the hidden parent console: no visible window, but real std handles so
+# uvicorn / FastMCP work normally. Each wrapper appends stdout+stderr to a log
+# file under <platform>/logs/ so silent failures are debuggable.
+$DcLauncher  = Join-Path $ScriptDir "_launch-desktop-commander.ps1"
+$GuiLauncher = Join-Path $ScriptDir "_launch-windows-gui.ps1"
+foreach ($p in $DcLauncher, $GuiLauncher) {
+    if (-not (Test-Path $p)) {
+        Write-Host "  ERROR: launcher missing: $p" -ForegroundColor Red
+        exit 1
+    }
 }
+
+$commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
+    -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
+
 $dcAction = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$DcLauncher`""
-$dcTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
-$dcSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
-    -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
-Register-ScheduledTask -TaskName "MCP-DesktopCommander" -Action $dcAction -Trigger $dcTrigger `
-    -Settings $dcSettings -RunLevel Highest -User $RunUser -Force | Out-Null
+Register-ScheduledTask -TaskName "MCP-DesktopCommander" -Action $dcAction `
+    -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
+    -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
 
-# windows-gui: pythonw.exe is the windowless variant of python.exe (same interpreter,
-# no console window). Still runs in the user's interactive session so GUI tools work.
-$guiAction = New-ScheduledTaskAction `
-    -Execute  $VenvPythonW `
-    -Argument $ServerPy `
-    -WorkingDirectory $ServerDir
-$guiTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
-$guiSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
-    -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
-Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction -Trigger $guiTrigger `
-    -Settings $guiSettings -RunLevel Highest -User $RunUser -Force | Out-Null
-Write-Host "  ok MCP-DesktopCommander, MCP-WindowsGui registered (hidden, auto-restart on failure)"
+$guiAction = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuiLauncher`""
+Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction `
+    -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
+    -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
+Write-Host "  ok MCP-DesktopCommander, MCP-WindowsGui registered (hidden, logged, auto-restart on failure)"
 
 # ---------- Start now & verify ----------
 Write-Host ""
