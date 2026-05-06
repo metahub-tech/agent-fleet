@@ -24,6 +24,12 @@
 
 $ErrorActionPreference = "Stop"
 
+# Force UTF-8 for external command stdout. Windows PowerShell 5.1 defaults to the system
+# OEM code page (GBK on zh-CN, etc.), which mangles non-ASCII characters in tool output.
+# Notably 'tailscale status --json' embeds account display names that may contain Chinese.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding           = [System.Text.Encoding]::UTF8
+
 # Auto-discover paths relative to this script (works no matter where the repo lives)
 $ScriptDir  = $PSScriptRoot
 $WindowsDir = Split-Path -Parent $ScriptDir
@@ -49,9 +55,20 @@ if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
     Read-Host "  Press Enter to continue"
 }
 $tsRaw = tailscale status --json 2>$null
-$tsStatus = $null
-if ($tsRaw) { $tsStatus = $tsRaw | ConvertFrom-Json -ErrorAction SilentlyContinue }
-if (-not $tsStatus -or -not $tsStatus.Self.HostName) {
+if (-not $tsRaw) {
+    Write-Host "  'tailscale status --json' returned nothing. Is the Tailscale service running?" -ForegroundColor Red
+    exit 1
+}
+try {
+    $tsStatus = $tsRaw | ConvertFrom-Json -ErrorAction Stop
+} catch {
+    Write-Host "  Failed to parse 'tailscale status --json':" -ForegroundColor Red
+    Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "  This usually means a console encoding mismatch. If you are on PowerShell 5.1," -ForegroundColor Red
+    Write-Host "  consider upgrading to PowerShell 7+: winget install Microsoft.PowerShell" -ForegroundColor Red
+    exit 1
+}
+if (-not $tsStatus.Self -or -not $tsStatus.Self.HostName) {
     Write-Host "  Tailscale is not logged in. Open the tray icon, click Login, then re-run this script." -ForegroundColor Red
     exit 1
 }
