@@ -53,6 +53,8 @@ platforms/<name>/
 ### PowerShell / Shell scripts
 - PowerShell 脚本头加 `$ErrorActionPreference = "Stop"`
 - **PowerShell 脚本必须保持纯 ASCII / 英文**（含注释和 Write-Host 字符串）。Windows PowerShell 5.1 在中文/日文等非 UTF-8 默认 locale 下，会用系统代码页（如 GBK）解析无 BOM 的 .ps1 文件，导致中文乱码 + 解析失败。本地化文案放进 docs/，不放进脚本
+- **改完任何 .ps1 后跑 `./scripts/check-ps-syntax.sh`** 做 AST 校验（需要 pwsh 7+，安装命令在脚本头部注释里）。这能在 push 前抓到 `foreach { } | Format-Table` 之类只在运行时才暴露的语法问题
+- 处理外部命令的 stdout 时，脚本顶部加 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`，避免 Win PS 5.1 用 OEM 代码页误读 UTF-8 输出
 - 任何 destructive 操作前打印确认信息
 - 脚本支持 idempotent 执行（重跑不破坏现有环境）
 
