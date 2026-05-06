@@ -45,7 +45,7 @@ try {
     & $VenvPython -m mcp_proxy `
         --sse-host 0.0.0.0 `
         --sse-port 8765 `
-        --log-level info `
+        --log-level INFO `
         -- desktop-commander 2>&1 |
         Tee-Object -FilePath $Log -Append | Out-Null
     $code = $LASTEXITCODE
