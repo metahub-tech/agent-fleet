@@ -106,13 +106,13 @@ Section "7. Tailscale status (head)"
 
 # ---------- 8. Scheduled tasks ----------
 Section "8. Scheduled task last run result"
-foreach ($t in "MCP-DesktopCommander","MCP-WindowsGui") {
-    $info = Get-ScheduledTaskInfo -TaskName $t -ErrorAction SilentlyContinue
+"MCP-DesktopCommander","MCP-WindowsGui" | ForEach-Object {
+    $info = Get-ScheduledTaskInfo -TaskName $_ -ErrorAction SilentlyContinue
     if ($info) {
         [PSCustomObject]@{
-            Task           = $t
-            LastRunTime    = $info.LastRunTime
-            LastTaskResult = $info.LastTaskResult
+            Task               = $_
+            LastRunTime        = $info.LastRunTime
+            LastTaskResult     = $info.LastTaskResult
             NumberOfMissedRuns = $info.NumberOfMissedRuns
         }
     }
