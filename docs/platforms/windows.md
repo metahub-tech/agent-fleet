@@ -113,6 +113,9 @@ Unregister-ScheduledTask -TaskName MCP-WindowsGui        -Confirm:$false
 # 删防火墙规则
 Get-NetFirewallRule -DisplayName "MCP *" | Remove-NetFirewallRule
 
+# 删 portproxy 转发
+netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0
+
 # 删仓库目录（venv、所有依赖一起删干净）
 Remove-Item -Recurse -Force C:\agent-test-bench
 ```

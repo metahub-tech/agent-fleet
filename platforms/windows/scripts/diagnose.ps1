@@ -89,6 +89,15 @@ if (-not $rules) {
     } | Format-Table -AutoSize -Wrap
 }
 
+# ---------- 5b. IPv4 -> IPv6 port proxy ----------
+Section "5b. IPv4-to-IPv6 portproxy (workaround for supergateway IPv6-only bind)"
+$proxyOut = netsh interface portproxy show v4tov6 2>&1
+$proxyOut | ForEach-Object { Write-Host "  $_" }
+if ($proxyOut -join "`n" -notmatch "8765") {
+    Write-Host "  WARN  no v4tov6 entry for port 8765 found" -ForegroundColor Yellow
+    Write-Host "        (re-run setup-windows.ps1 to add it)" -ForegroundColor Yellow
+}
+
 # ---------- 6. Tailscale adapter ----------
 Section "6. Tailscale network adapter"
 $adapters = Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Tailscale*" }

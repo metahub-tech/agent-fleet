@@ -127,9 +127,9 @@ if (-not (Test-Path $VenvDir)) {
 & $VenvPython -m pip install -r $ReqTxt
 Write-Host "  ok"
 
-# ---------- 5. Firewall (Tailscale interface only) ----------
+# ---------- 5. Firewall + IPv4-to-IPv6 port proxy ----------
 Write-Host ""
-Write-Host "[5/6] Firewall" -ForegroundColor Yellow
+Write-Host "[5/6] Firewall + IPv4-to-IPv6 portproxy" -ForegroundColor Yellow
 $tsAdapter = Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Tailscale*" } | Select-Object -First 1
 
 # Clean old rules first (idempotent re-run)
@@ -151,6 +151,15 @@ if ($tsAdapter) {
     New-NetFirewallRule -DisplayName "MCP WindowsGui (TEMP-ALL)" `
         -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow | Out-Null
 }
+
+# supergateway calls app.listen(port) with no host arg. Node on Windows binds
+# this to '::' (IPv6 only, not dual-stack), so external IPv4 clients (e.g.
+# Tailscale-routed connections from Linux) get TCP RST. Built-in Windows
+# 'netsh portproxy v4tov6' bridges 0.0.0.0:8765 -> ::1:8765, kernel-level, no
+# extra deps. (windows-gui already binds 0.0.0.0 via FastMCP, so 8766 is fine.)
+$null = netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
+$null = netsh interface portproxy add    v4tov6 listenport=8765 listenaddress=0.0.0.0 connectport=8765 connectaddress=::1
+Write-Host "  ok portproxy 0.0.0.0:8765 -> ::1:8765 (workaround for supergateway IPv6-only bind)"
 
 # ---------- 6. Task Scheduler ----------
 Write-Host ""
