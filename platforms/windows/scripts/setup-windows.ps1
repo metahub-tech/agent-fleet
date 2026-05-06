@@ -13,6 +13,12 @@
 #   6. start services and verify they listen
 #
 # Idempotent: re-run is safe.
+#
+# NOTE FOR CONTRIBUTORS: Keep this script ASCII / English only.
+# Windows PowerShell 5.1 reads .ps1 files using the system code page
+# (e.g. GBK on zh-CN Windows) unless a UTF-8 BOM is present, so any
+# non-ASCII text here will be mojibake-parsed and break the script.
+# Localized output belongs in docs, not in this file.
 
 #Requires -RunAsAdministrator
 
@@ -39,14 +45,14 @@ Write-Host "[1/6] Tailscale" -ForegroundColor Yellow
 if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
     Write-Host "  installing Tailscale..."
     winget install --id Tailscale.Tailscale -e --accept-source-agreements --accept-package-agreements
-    Write-Host "  -> 打开任务栏 Tailscale 托盘图标 -> Login，登录后回来按回车" -ForegroundColor Magenta
-    Read-Host "  enter to continue"
+    Write-Host "  -> Open the Tailscale tray icon, click Login, then come back." -ForegroundColor Magenta
+    Read-Host "  Press Enter to continue"
 }
 $tsRaw = tailscale status --json 2>$null
 $tsStatus = $null
 if ($tsRaw) { $tsStatus = $tsRaw | ConvertFrom-Json -ErrorAction SilentlyContinue }
 if (-not $tsStatus -or -not $tsStatus.Self.HostName) {
-    Write-Host "  Tailscale 未登录。请打开托盘图标 -> Login，再重新运行此脚本。" -ForegroundColor Red
+    Write-Host "  Tailscale is not logged in. Open the tray icon, click Login, then re-run this script." -ForegroundColor Red
     exit 1
 }
 $tsHost = $tsStatus.Self.HostName
@@ -56,7 +62,8 @@ Write-Host "     hostname : $tsHost"
 Write-Host "     fqdn     : $tsDNS"
 
 # ---------- 2. Python 3.10+ ----------
-Write-Host "`n[2/6] Python 3.10+" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[2/6] Python 3.10+" -ForegroundColor Yellow
 function Test-PythonOk {
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { return $false }
     $v = (python --version 2>&1)
@@ -80,7 +87,8 @@ if (Test-PythonOk) {
 }
 
 # ---------- 3. Node.js LTS ----------
-Write-Host "`n[3/6] Node.js LTS" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[3/6] Node.js LTS" -ForegroundColor Yellow
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "  installing Node.js LTS..."
     winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
@@ -90,7 +98,8 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 Write-Host "  ok node $(node -v)"
 
 # ---------- 4. Python venv + dependencies ----------
-Write-Host "`n[4/6] GUI MCP venv + deps" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[4/6] GUI MCP venv + deps" -ForegroundColor Yellow
 if (-not (Test-Path $VenvDir)) {
     Write-Host "  creating venv: $VenvDir"
     python -m venv $VenvDir
@@ -102,7 +111,8 @@ if (-not (Test-Path $VenvDir)) {
 Write-Host "  ok"
 
 # ---------- 5. Firewall (Tailscale interface only) ----------
-Write-Host "`n[5/6] Firewall" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[5/6] Firewall" -ForegroundColor Yellow
 $tsAdapter = Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Tailscale*" } | Select-Object -First 1
 
 # Clean old rules first (idempotent re-run)
@@ -118,7 +128,7 @@ if ($tsAdapter) {
         -InterfaceAlias $tsAdapter.Name | Out-Null
     Write-Host "  ok 8765/8766 allowed on $($tsAdapter.Name)"
 } else {
-    Write-Warning "  Tailscale 网卡未识别。先放行所有接口（不安全），重跑脚本会自动收紧。"
+    Write-Warning "  Tailscale interface not found. Allowing all interfaces (insecure); re-run this script after Tailscale is up to tighten."
     New-NetFirewallRule -DisplayName "MCP DesktopCommander (TEMP-ALL)" `
         -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow | Out-Null
     New-NetFirewallRule -DisplayName "MCP WindowsGui (TEMP-ALL)" `
@@ -126,7 +136,8 @@ if ($tsAdapter) {
 }
 
 # ---------- 6. Task Scheduler ----------
-Write-Host "`n[6/6] Auto-start tasks (登录 $RunUser 时启动)" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[6/6] Auto-start tasks (run at logon for $RunUser)" -ForegroundColor Yellow
 
 $dcAction = New-ScheduledTaskAction -Execute "cmd.exe" `
     -Argument '/c npx -y supergateway --stdio "npx -y @wonderwhy-er/desktop-commander" --port 8765 --baseUrl http://0.0.0.0:8765 --ssePath /sse --messagePath /message'
@@ -148,7 +159,8 @@ Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction -Trigger $g
 Write-Host "  ok MCP-DesktopCommander, MCP-WindowsGui registered"
 
 # ---------- Start now & verify ----------
-Write-Host "`n=== Starting services (first run may take 30-60s while npx downloads packages) ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "=== Starting services (first run may take 30-60s while npx downloads packages) ===" -ForegroundColor Cyan
 Start-ScheduledTask -TaskName "MCP-DesktopCommander"
 Start-ScheduledTask -TaskName "MCP-WindowsGui"
 
@@ -160,22 +172,21 @@ while ((Get-Date) -lt $deadline -and -not ($dcOk -and $guiOk)) {
     $guiOk = $null -ne (Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue)
 }
 if ($dcOk)  { Write-Host "  ok desktop-commander listening on 8765" -ForegroundColor Green }
-else        { Write-Host "  WARN desktop-commander not yet on 8765 (Get-ScheduledTaskInfo MCP-DesktopCommander)" -ForegroundColor Yellow }
+else        { Write-Host "  WARN desktop-commander not yet on 8765 (run: Get-ScheduledTaskInfo MCP-DesktopCommander)" -ForegroundColor Yellow }
 if ($guiOk) { Write-Host "  ok windows-gui        listening on 8766" -ForegroundColor Green }
-else        { Write-Host "  WARN windows-gui not yet on 8766 (Get-ScheduledTaskInfo MCP-WindowsGui)"             -ForegroundColor Yellow }
+else        { Write-Host "  WARN windows-gui not yet on 8766 (run: Get-ScheduledTaskInfo MCP-WindowsGui)"             -ForegroundColor Yellow }
 
-Write-Host "`n=== 完成 ===" -ForegroundColor Green
-Write-Host @"
-
-把以下信息发给 Agent 操作员（如果就是你自己，留着备用）：
-
-  Tailscale 主机名 : $tsHost
-  Tailscale FQDN   : $tsDNS
-  desktop-commander URL : http://${tsHost}:8765/sse
-  windows-gui URL       : http://${tsHost}:8766/sse
-
-后续：
-  - Agent 端配置：见 docs/agent-host-setup.md
-  - GUI 测试要求 $RunUser 一直在登录会话；Windows 重启后请确保自动登录开启
-    （netplwiz 取消勾选"必须输入用户名密码"）
-"@ -ForegroundColor Cyan
+Write-Host ""
+Write-Host "=== Done ===" -ForegroundColor Green
+Write-Host ""
+Write-Host "Send these to the agent operator (or keep them yourself):"
+Write-Host ""
+Write-Host "  Tailscale hostname    : $tsHost"
+Write-Host "  Tailscale FQDN        : $tsDNS"
+Write-Host "  desktop-commander URL : http://${tsHost}:8765/sse"
+Write-Host "  windows-gui URL       : http://${tsHost}:8766/sse"
+Write-Host ""
+Write-Host "Next steps:"
+Write-Host "  - Agent host config : see docs/agent-host-setup.md"
+Write-Host "  - GUI tests require '$RunUser' to remain logged in. Enable auto-login"
+Write-Host "    after reboot via 'netplwiz' (uncheck 'Users must enter a user name and password')."

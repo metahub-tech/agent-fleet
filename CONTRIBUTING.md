@@ -52,6 +52,7 @@ platforms/<name>/
 
 ### PowerShell / Shell scripts
 - PowerShell 脚本头加 `$ErrorActionPreference = "Stop"`
+- **PowerShell 脚本必须保持纯 ASCII / 英文**（含注释和 Write-Host 字符串）。Windows PowerShell 5.1 在中文/日文等非 UTF-8 默认 locale 下，会用系统代码页（如 GBK）解析无 BOM 的 .ps1 文件，导致中文乱码 + 解析失败。本地化文案放进 docs/，不放进脚本
 - 任何 destructive 操作前打印确认信息
 - 脚本支持 idempotent 执行（重跑不破坏现有环境）
 
