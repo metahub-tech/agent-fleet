@@ -25,7 +25,9 @@ try {
         --port 8765 `
         --baseUrl http://0.0.0.0:8765 `
         --ssePath /sse `
-        --messagePath /message *>> $Log
+        --messagePath /message `
+        --healthEndpoint /healthz `
+        --logLevel debug *>> $Log
     $code = $LASTEXITCODE
     "$(Get-Date -Format o) supergateway exited with code $code" | Out-File -FilePath $Log -Append -Encoding utf8
     exit $code
