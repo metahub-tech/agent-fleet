@@ -151,6 +151,28 @@ rm -rf ~/agent-test-bench
 
 ## 7. 排错
 
+### 7.0 setup-macos.sh 静默退出 / 退到 brew 那一步
+
+**症状**：脚本跑到 `[2/5] Python 3.10+` 然后输出一段 brew 警告或安装信息，回到 shell 提示符，没有 `[3/5]` 出现。
+
+**常见根因**：
+
+1. **brew 目录权限被 root 抢走**（最常见，macOS 12 多年使用后的副产品）
+   ```
+   Error: The following directories are not writable by your user:
+   /usr/local/share/man/man8
+   ```
+   修复（**不要用 sudo 跑脚本** —— brew 拒绝以 root 运行）：
+   ```bash
+   sudo chown -R $(whoami) /usr/local/share /usr/local/lib /usr/local/Cellar /usr/local/var/homebrew
+   bash platforms/macos/scripts/setup-macos.sh        # 重跑
+   ```
+   v0.3.1+ 的 setup 脚本会在 `[0/5]` 预检并打印精确的 chown 命令。
+
+2. **brew install 在 macOS 12 (Tier 3) exit 非 0 但其实装好了**：v0.3.1+ 的脚本对此有容错，并直接验证 `python3.12` 二进制是否存在；老版本会 `set -e` 静默死亡。重跑脚本第二次通常就过 —— 因为这次 for-loop 直接探测到已装好的 `python3.12`，跳过 brew 步骤。
+
+3. **anaconda `(base)` 抢了 PATH**：脚本对 brew 装的 python 用绝对路径，不受影响；但如果你卡在 `python3 -c '...'` 的版本探测且 anaconda 是 3.9，for-loop 不会选中它，然后会进 brew install 分支（正常行为，不是 bug）。
+
 ### 7.1 8767 没在监听
 
 ```bash

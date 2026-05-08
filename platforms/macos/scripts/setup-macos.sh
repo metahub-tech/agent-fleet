@@ -23,6 +23,13 @@
 
 set -euo pipefail
 
+# Friendly failure trap. set -e otherwise dies silently which is brutal for
+# first-time setup on a Tier-3 macOS (12.x): brew permission glitches,
+# Python download blips, etc. With this trap, the user at least sees WHICH
+# step exploded and can act.
+trap 'rc=$?; echo; echo "ERROR: setup-macos.sh failed at line $LINENO (exit=$rc)" >&2; echo "       Last step header was: $LAST_STEP" >&2; echo "       See docs/platforms/macos.md section 7 for common fixes." >&2; exit $rc' ERR
+LAST_STEP="(before any step)"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVER_DIR="$PLATFORM_DIR/server"
@@ -42,8 +49,46 @@ echo "Repo  : $(cd "$PLATFORM_DIR/../.." && pwd)"
 echo "User  : $(whoami)"
 echo
 
+# ---------- 0. Pre-flight: brew dir permissions ----------
+# On macOS 12 the most common silent-failure trap is /usr/local/* dirs that
+# are owned by root from some prior install. brew install will then exit
+# non-zero with a "directories not writable" message, but `set -e` will
+# kill us before the user gets a chance to read it as actionable.
+# Check up front and tell the user the exact chown command.
+LAST_STEP="[0/5] brew dir permission pre-flight"
+echo "$LAST_STEP"
+if command -v brew >/dev/null 2>&1; then
+    BREW_PREFIX="$(brew --prefix)"
+    NEED_CHOWN=()
+    for d in \
+        "$BREW_PREFIX/share/man/man1" \
+        "$BREW_PREFIX/share/man/man8" \
+        "$BREW_PREFIX/lib" \
+        "$BREW_PREFIX/Cellar" \
+        "$BREW_PREFIX/var/homebrew"; do
+        if [ -d "$d" ] && [ ! -w "$d" ]; then
+            NEED_CHOWN+=("$d")
+        fi
+    done
+    if [ ${#NEED_CHOWN[@]} -gt 0 ]; then
+        echo "  ERROR: these brew directories are not writable by $(whoami):"
+        for d in "${NEED_CHOWN[@]}"; do echo "    $d"; done
+        echo
+        echo "  Fix (one-liner; takes ownership of brew prefix):"
+        echo "    sudo chown -R $(whoami) $BREW_PREFIX/share $BREW_PREFIX/lib $BREW_PREFIX/Cellar $BREW_PREFIX/var/homebrew"
+        echo
+        echo "  DO NOT re-run this script with sudo -- brew will refuse."
+        exit 1
+    fi
+    echo "  ok brew prefix writable: $BREW_PREFIX"
+else
+    echo "  (brew not yet installed; will install in step 1 if needed)"
+fi
+echo
+
 # ---------- 1. Tailscale ----------
-echo "[1/5] Tailscale"
+LAST_STEP="[1/5] Tailscale"
+echo "$LAST_STEP"
 if ! command -v tailscale >/dev/null 2>&1; then
     # Tailscale may be installed via Mac App Store (CLI not symlinked) or via brew cask
     if [ -x "/Applications/Tailscale.app/Contents/MacOS/Tailscale" ]; then
@@ -75,7 +120,8 @@ echo "     fqdn     : $TS_DNS"
 
 # ---------- 2. Python 3.10+ ----------
 echo
-echo "[2/5] Python 3.10+"
+LAST_STEP="[2/5] Python 3.10+"
+echo "$LAST_STEP"
 PYTHON_BIN=""
 for candidate in python3.12 python3.11 python3.10 python3; do
     if command -v "$candidate" >/dev/null 2>&1; then
@@ -95,14 +141,34 @@ if [ -z "$PYTHON_BIN" ]; then
         exit 1
     fi
     echo "  installing python@3.12 via brew..."
-    brew install python@3.12
-    PYTHON_BIN="$(brew --prefix python@3.12)/bin/python3.12"
+    # `brew install` on macOS 12 (Tier 3) sometimes exits non-zero even when
+    # the install actually succeeded (post-install link warnings, man-page
+    # symlink conflicts, etc.). Tolerate the non-zero exit and verify by
+    # checking the binary directly afterward.
+    brew install python@3.12 || true
+    PYTHON_BIN="$(brew --prefix python@3.12 2>/dev/null)/bin/python3.12"
+    if [ ! -x "$PYTHON_BIN" ]; then
+        # Fallback: brew may have linked it as /usr/local/bin/python3.12
+        if [ -x "/usr/local/bin/python3.12" ]; then
+            PYTHON_BIN="/usr/local/bin/python3.12"
+        elif [ -x "/opt/homebrew/bin/python3.12" ]; then
+            PYTHON_BIN="/opt/homebrew/bin/python3.12"
+        else
+            echo "  ERROR: brew install python@3.12 did not produce a usable python3.12 binary."
+            echo "         Tried: $(brew --prefix python@3.12 2>/dev/null)/bin/python3.12"
+            echo "                /usr/local/bin/python3.12"
+            echo "                /opt/homebrew/bin/python3.12"
+            echo "         Try manually: brew install python@3.12 && which python3.12"
+            exit 1
+        fi
+    fi
     echo "  ok using $PYTHON_BIN"
 fi
 
 # ---------- 3. venv + deps ----------
 echo
-echo "[3/5] macbox-gui venv + deps"
+LAST_STEP="[3/5] macbox-gui venv + deps"
+echo "$LAST_STEP"
 if [ ! -d "$VENV_DIR" ]; then
     echo "  creating venv: $VENV_DIR"
     "$PYTHON_BIN" -m venv "$VENV_DIR"
@@ -116,7 +182,8 @@ echo "  ok"
 
 # ---------- 4. launchd plist ----------
 echo
-echo "[4/5] launchd plist (auto-start at login + restart on crash)"
+LAST_STEP="[4/5] launchd plist (auto-start at login + restart on crash)"
+echo "$LAST_STEP"
 
 # Make launcher executable
 chmod +x "$LAUNCHER"
@@ -183,7 +250,8 @@ echo "  ok loaded"
 
 # ---------- 5. start + verify ----------
 echo
-echo "[5/5] Verify"
+LAST_STEP="[5/5] Verify"
+echo "$LAST_STEP"
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 sleep 5
 
