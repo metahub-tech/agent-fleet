@@ -60,7 +60,10 @@ $rapidFailStart  = $null
 try {
     while ($true) {
         $startedAt = Get-Date
-        & $Python $Server *>> $Log
+        # *>&1 merges all streams to stdout; Out-File -Encoding utf8 forces UTF-8.
+        # The naive `*>> $Log` shortcut writes UTF-16 LE on PowerShell 5.1
+        # (Out-File's default encoding there), which mojibakes the log.
+        & $Python $Server *>&1 | Out-File -FilePath $Log -Append -Encoding utf8
         $code = $LASTEXITCODE
         $ranFor = ((Get-Date) - $startedAt).TotalSeconds
         "$(Get-Date -Format o) python exited code=$code (ran $([int]$ranFor)s) -- restarting in 3s" |
