@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-test-bench-macos"
+version = "0.3.0"
+description = "macOS platform MCP bridge for agent-test-bench"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "MetaHub Tech" }
+]
+keywords = ["mcp", "claude", "agent", "macos", "test-automation", "gui-testing", "tailscale"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "fastmcp>=2.0",
+    "pyautogui>=0.9.54",
+    "psutil>=5.9",
+    "pillow>=10.0",
+    "pyperclip>=1.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/metahub-tech/agent-test-bench"
+Repository = "https://github.com/metahub-tech/agent-test-bench"
+Issues = "https://github.com/metahub-tech/agent-test-bench/issues"
+
+[tool.setuptools]
+py-modules = ["macos_gui_mcp"]

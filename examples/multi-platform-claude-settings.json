@@ -1,8 +1,8 @@
 {
-  "_comment_about_this_file": "Reference for connecting one MCP client to multiple platform bridges at once. Merge the mcpServers block into ~/.claude.json (NOT ~/.claude/settings.json). Today only winpc-gui is real; entries prefixed with _planned are roadmap placeholders and won't be loaded by Claude Code (the prefix is illegal in MCP server names).",
+  "_comment_about_this_file": "Reference for connecting one MCP client to multiple platform bridges at once. Merge the mcpServers block into ~/.claude.json (NOT ~/.claude/settings.json). winpc-gui (v0.2) and macbox-gui (v0.3) are real; entries prefixed with _planned are roadmap placeholders and won't be loaded by Claude Code (the prefix is illegal in MCP server names).",
   "_legend": {
     "winpc": "Windows 11 test host (v0.1.0; v0.2.0 consolidated winpc-shell tools into winpc-gui)",
-    "macbox": "macOS desktop (v0.3.0 planned)",
+    "macbox": "macOS desktop (v0.3.0; macbox-gui MCP on port 8767)",
     "android": "Android phone (v0.4.0 planned)",
     "iphone": "iOS device (v0.5.0 planned; host on macOS)"
   },
@@ -12,8 +12,7 @@
       "url": "http://<WINDOWS_HOSTNAME>:8766/sse"
     },
 
-    "_planned_macbox-gui": {
-      "_status": "v0.3.0 -- not yet implemented",
+    "macbox-gui": {
       "type": "sse",
       "url": "http://<MACOS_HOSTNAME>:8767/sse"
     },

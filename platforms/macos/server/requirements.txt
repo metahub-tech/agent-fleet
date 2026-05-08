@@ -1,0 +1,5 @@
+fastmcp>=2.0
+pyautogui>=0.9.54
+psutil>=5.9
+pillow>=10.0
+pyperclip>=1.8
