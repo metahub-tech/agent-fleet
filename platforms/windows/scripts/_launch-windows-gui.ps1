@@ -12,6 +12,17 @@
 # All stdout / stderr is appended to <repo>/platforms/windows/logs/windows-gui.log
 # so silent failures are debuggable.
 #
+# RESTART LOOP (since v0.2.1):
+# Task Scheduler's -RestartCount only fires when the task action itself exits
+# non-zero. But Windows can kill our python.exe externally (session lock,
+# modern standby, log-off, OOM) producing exit code 1067 (ERROR_PROCESS_ABORTED)
+# yet the task is then marked failed and never retries because the AtLogOn
+# trigger doesn't re-fire on lock/unlock. To survive these system events we
+# wrap python.exe in a launcher-internal while-loop that respawns it within
+# a few seconds. Rapid-fail safety: if python crashes 3 times within 6
+# seconds (config error, missing dep, port conflict) we give up so failures
+# stay observable rather than thrashing forever.
+#
 # Not for direct user invocation.
 
 $ErrorActionPreference = "Continue"
@@ -40,12 +51,40 @@ if (-not (Test-Path $Server)) {
     exit 1
 }
 
+# Rapid-fail detection (config error vs benign external kill).
+$rapidFailWindow = 6
+$rapidFailLimit  = 3
+$rapidFailCount  = 0
+$rapidFailStart  = $null
+
 try {
-    & $Python $Server *>> $Log
-    $code = $LASTEXITCODE
-    "$(Get-Date -Format o) python exited with code $code" | Out-File -FilePath $Log -Append -Encoding utf8
-    exit $code
+    while ($true) {
+        $startedAt = Get-Date
+        & $Python $Server *>> $Log
+        $code = $LASTEXITCODE
+        $ranFor = ((Get-Date) - $startedAt).TotalSeconds
+        "$(Get-Date -Format o) python exited code=$code (ran $([int]$ranFor)s) -- restarting in 3s" |
+            Out-File -FilePath $Log -Append -Encoding utf8
+
+        if ($ranFor -lt 2) {
+            if (-not $rapidFailStart -or ((Get-Date) - $rapidFailStart).TotalSeconds -gt $rapidFailWindow) {
+                $rapidFailStart = Get-Date
+                $rapidFailCount = 0
+            }
+            $rapidFailCount++
+            if ($rapidFailCount -ge $rapidFailLimit) {
+                "$(Get-Date -Format o) FATAL: python crashed $rapidFailCount times in $rapidFailWindow seconds -- giving up to keep failure observable" |
+                    Out-File -FilePath $Log -Append -Encoding utf8
+                exit 1
+            }
+        } else {
+            $rapidFailCount = 0
+        }
+
+        Start-Sleep -Seconds 3
+    }
 } catch {
-    "$(Get-Date -Format o) launcher exception: $($_.Exception.Message)" | Out-File -FilePath $Log -Append -Encoding utf8
+    "$(Get-Date -Format o) launcher exception: $($_.Exception.Message)" |
+        Out-File -FilePath $Log -Append -Encoding utf8
     exit 1
 }
