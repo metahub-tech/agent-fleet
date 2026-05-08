@@ -4,15 +4,22 @@
 #   cd <repo-root>
 #   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
 #
-# What this does:
+# What this does (5 steps):
 #   1. verify Tailscale is logged in
-#   2. install Python 3.12 + Node.js LTS if missing
+#   2. install Python 3.12 if missing
 #   3. create a Python venv inside server/ and install requirements
-#   4. open firewall ports 8765 / 8766 only on the Tailscale interface
-#   5. register Task Scheduler tasks for the two MCP services (auto-start at logon)
-#   6. start services and verify they listen
+#   4. open firewall port 8766 only on the Tailscale interface
+#   5. register Task Scheduler task MCP-WindowsGui (auto-start at logon)
+#   6. start service and verify it listens
 #
 # Idempotent: re-run is safe.
+#
+# History note: earlier versions had a second service MCP-DesktopCommander
+# on port 8765 (mcp-proxy + npm desktop-commander). That stack hit several
+# single-client / npm cache / network issues, so it was consolidated into
+# MCP-WindowsGui (FastMCP, multi-client native). This script will clean
+# up old artifacts (npm globals, scheduled task, firewall rule, portproxy)
+# if they exist from previous runs.
 #
 # NOTE FOR CONTRIBUTORS: Keep this script ASCII / English only.
 # Windows PowerShell 5.1 reads .ps1 files using the system code page
@@ -24,13 +31,14 @@
 
 $ErrorActionPreference = "Stop"
 
-# Force UTF-8 for external command stdout. Windows PowerShell 5.1 defaults to the system
-# OEM code page (GBK on zh-CN, etc.), which mangles non-ASCII characters in tool output.
-# Notably 'tailscale status --json' embeds account display names that may contain Chinese.
+# Force UTF-8 for external command stdout. Windows PowerShell 5.1 defaults to
+# the system OEM code page (GBK on zh-CN, etc.), which mangles non-ASCII in
+# tool output. 'tailscale status --json' embeds account display names that
+# may contain CJK.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding           = [System.Text.Encoding]::UTF8
 
-# Auto-discover paths relative to this script (works no matter where the repo lives)
+# Auto-discover paths relative to this script (works from any clone location).
 $ScriptDir  = $PSScriptRoot
 $WindowsDir = Split-Path -Parent $ScriptDir
 $ServerDir  = Join-Path $WindowsDir "server"
@@ -46,8 +54,47 @@ Write-Host "Repo  : $RepoRoot"
 Write-Host "User  : $RunUser"
 Write-Host ""
 
+# ---------- 0. Cleanup legacy desktop-commander / mcp-proxy stack ----------
+# Older versions of this repo ran a second MCP service on port 8765 backed by
+# the npm package @wonderwhy-er/desktop-commander wrapped by mcp-proxy. We've
+# folded those tools into windows_gui_mcp.py; remove the old artifacts.
+
+Write-Host "[0/5] Cleanup legacy MCP-DesktopCommander stack (if present)" -ForegroundColor DarkYellow
+Stop-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinue
+$dcTask = Get-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinue
+if ($dcTask) {
+    Unregister-ScheduledTask -TaskName "MCP-DesktopCommander" -Confirm:$false
+    Write-Host "  removed scheduled task MCP-DesktopCommander"
+}
+Get-NetFirewallRule -DisplayName "MCP DesktopCommander*" -ErrorAction SilentlyContinue | ForEach-Object {
+    Remove-NetFirewallRule -InputObject $_
+    Write-Host "  removed firewall rule $($_.DisplayName)"
+}
+$null = netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
+if (Get-Command desktop-commander -ErrorAction SilentlyContinue) {
+    Write-Host "  uninstalling old npm package @wonderwhy-er/desktop-commander..."
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & npm uninstall -g @wonderwhy-er/desktop-commander *>&1 | Out-Null
+    $ErrorActionPreference = $prevEAP
+}
+if (Get-Command supergateway -ErrorAction SilentlyContinue) {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    & npm uninstall -g supergateway *>&1 | Out-Null
+    $ErrorActionPreference = $prevEAP
+    Write-Host "  uninstalled stale supergateway global"
+}
+$DcLauncher = Join-Path $ScriptDir "_launch-desktop-commander.ps1"
+if (Test-Path $DcLauncher) {
+    Remove-Item $DcLauncher -Force
+    Write-Host "  removed _launch-desktop-commander.ps1"
+}
+Write-Host "  ok"
+
 # ---------- 1. Tailscale ----------
-Write-Host "[1/6] Tailscale" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[1/5] Tailscale" -ForegroundColor Yellow
 if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
     Write-Host "  installing Tailscale..."
     winget install --id Tailscale.Tailscale -e --accept-source-agreements --accept-package-agreements
@@ -80,7 +127,7 @@ Write-Host "     fqdn     : $tsDNS"
 
 # ---------- 2. Python 3.10+ ----------
 Write-Host ""
-Write-Host "[2/6] Python 3.10+" -ForegroundColor Yellow
+Write-Host "[2/5] Python 3.10+" -ForegroundColor Yellow
 function Test-PythonOk {
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { return $false }
     $v = (python --version 2>&1)
@@ -103,89 +150,9 @@ if (Test-PythonOk) {
     Write-Host "  ok $((python --version 2>&1))"
 }
 
-# ---------- 3. Node.js LTS + global npm packages ----------
+# ---------- 3. Python venv + dependencies ----------
 Write-Host ""
-Write-Host "[3/6] Node.js LTS + global npm packages" -ForegroundColor Yellow
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "  installing Node.js LTS..."
-    winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
-                [System.Environment]::GetEnvironmentVariable("Path","User")
-}
-Write-Host "  ok node $(node -v)"
-
-# Global install supergateway + desktop-commander instead of 'npx -y' on every
-# launch. 'npx -y' extracts into a per-run cache; when Task Scheduler retries
-# the launcher quickly, two extracts race on the same dir and one fails with
-# 'ENOTEMPTY: directory not empty, rename ...'. Globals live in %APPDATA%\npm
-# and are stable across runs.
-#
-# Why the EAP dance: npm prints deprecation warnings on stderr, and Windows
-# PowerShell 5.1 with $ErrorActionPreference=Stop wraps any native-command
-# stderr as a NativeCommandError exception, terminating the script. We lower
-# EAP to Continue around the npm call, capture exit code explicitly, and
-# restore EAP. Output goes to a temp log so a real failure is debuggable
-# without flooding the console with deprecation noise.
-Write-Host "  installing/updating desktop-commander (npm -g)..."
-
-# Skip puppeteer's Chromium download. desktop-commander has puppeteer as a
-# transitive dep; its postinstall fetches chrome-headless-shell from
-# storage.googleapis.com, which fails on restricted networks (e.g. China),
-# and a half-finished download leaves a directory shell that breaks future
-# installs ("browser folder exists but executable is missing"). Our core use
-# case for desktop-commander is shell + file + process tools, not browser
-# automation. For browser automation use the playwright MCP server.
-$env:PUPPETEER_SKIP_DOWNLOAD          = "true"
-$env:PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
-
-# Clean any half-installed puppeteer cache from prior failed runs (otherwise
-# puppeteer's check sees the directory and refuses to re-download).
-$puppeteerCache = Join-Path $env:USERPROFILE ".cache\puppeteer"
-if (Test-Path $puppeteerCache) {
-    Write-Host "  cleaning stale puppeteer cache: $puppeteerCache"
-    Remove-Item -Recurse -Force $puppeteerCache -ErrorAction SilentlyContinue
-}
-
-# desktop-commander is a stdio MCP server (Node). We expose it over SSE via
-# Python's mcp-proxy (installed in the Python venv in step 4), not via
-# Node's supergateway -- the latter crashes ("Already connected to a
-# transport") whenever an SSE client reconnects. Only desktop-commander
-# itself stays on npm -g.
-$npmLog = Join-Path $env:TEMP "agent-test-bench-npm-install.log"
-$prevEAP = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-& npm install -g --loglevel=error @wonderwhy-er/desktop-commander *>&1 |
-    Tee-Object -FilePath $npmLog | Out-Null
-$npmExit = $LASTEXITCODE
-$ErrorActionPreference = $prevEAP
-
-if ($npmExit -ne 0) {
-    Write-Host "  ERROR: npm install -g exited with code $npmExit" -ForegroundColor Red
-    Write-Host "  Last 20 lines of $npmLog :" -ForegroundColor Red
-    Get-Content $npmLog -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Host "    $_" -ForegroundColor Red
-    }
-    exit 1
-}
-if (-not (Get-Command desktop-commander -ErrorAction SilentlyContinue)) {
-    Write-Host "  ERROR: 'desktop-commander' not on PATH after install" -ForegroundColor Red
-    exit 1
-}
-Write-Host "  ok desktop-commander available on PATH"
-
-# Optional cleanup: remove the previously-required supergateway global
-# install if it lingers from older versions of this script.
-if (Get-Command supergateway -ErrorAction SilentlyContinue) {
-    Write-Host "  uninstalling stale supergateway global (replaced by mcp-proxy)..."
-    $prevEAP = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    & npm uninstall -g supergateway *>&1 | Out-Null
-    $ErrorActionPreference = $prevEAP
-}
-
-# ---------- 4. Python venv + dependencies ----------
-Write-Host ""
-Write-Host "[4/6] GUI MCP venv + deps" -ForegroundColor Yellow
+Write-Host "[3/5] winpc-gui venv + deps" -ForegroundColor Yellow
 if (-not (Test-Path $VenvDir)) {
     Write-Host "  creating venv: $VenvDir"
     python -m venv $VenvDir
@@ -196,120 +163,84 @@ if (-not (Test-Path $VenvDir)) {
 & $VenvPython -m pip install -r $ReqTxt
 Write-Host "  ok"
 
-# ---------- 5. Firewall + IPv4-to-IPv6 port proxy ----------
+# ---------- 4. Firewall ----------
 Write-Host ""
-Write-Host "[5/6] Firewall + IPv4-to-IPv6 portproxy" -ForegroundColor Yellow
+Write-Host "[4/5] Firewall" -ForegroundColor Yellow
 
-# Clean old rules first (idempotent re-run)
-Get-NetFirewallRule -DisplayName "MCP DesktopCommander*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-Get-NetFirewallRule -DisplayName "MCP WindowsGui*"        -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+# Clean old rules first (idempotent re-run).
+Get-NetFirewallRule -DisplayName "MCP WindowsGui*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 
-# Filter by Tailscale's IPv4 (100.64.0.0/10 CGNAT range) and IPv6 (fd7a:115c:a1e0::/48
-# Tailscale ULA prefix) instead of binding to the Tailscale adapter alias. Adapter
-# binding stores a GUID at rule-creation time; if the Tailscale service stops or
-# restarts and the adapter gets a new GUID, the rule becomes orphaned. IP-range
-# matching survives all adapter changes and is also semantically tighter (only
-# allows Tailscale-routed traffic, not any traffic that happens to enter via the
-# Tailscale adapter).
+# Filter by Tailscale's CGNAT IPv4 (100.64.0.0/10) and Tailscale ULA IPv6
+# prefix (fd7a:115c:a1e0::/48). IP-range matching survives Tailscale service
+# restarts (interface GUID changes) and is tighter than adapter binding.
 $tsRanges = @("100.64.0.0/10", "fd7a:115c:a1e0::/48")
-New-NetFirewallRule -DisplayName "MCP DesktopCommander (Tailscale)" `
-    -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow `
-    -RemoteAddress $tsRanges | Out-Null
 New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
     -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
     -RemoteAddress $tsRanges | Out-Null
-Write-Host "  ok 8765/8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
+Write-Host "  ok 8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
 
-# mcp-proxy binds 0.0.0.0 directly via --sse-host, so the netsh v4tov6
-# portproxy that supergateway needed is no longer required. Clean it up if
-# it's still around from older script versions.
-$null = netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
-Write-Host "  ok firewall configured (mcp-proxy binds 0.0.0.0 natively, no portproxy needed)"
-
-# ---------- 6. Task Scheduler ----------
+# ---------- 5. Task Scheduler ----------
 Write-Host ""
-Write-Host "[6/6] Auto-start tasks (run at logon for $RunUser, hidden)" -ForegroundColor Yellow
+Write-Host "[5/5] Auto-start task (run at logon for $RunUser, hidden)" -ForegroundColor Yellow
 
-# Stop any existing instances (so we can re-register cleanly across re-runs)
-Stop-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinue
-Stop-ScheduledTask -TaskName "MCP-WindowsGui"        -ErrorAction SilentlyContinue
+# Stop existing instance so we can re-register cleanly.
+Stop-ScheduledTask -TaskName "MCP-WindowsGui" -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Kill any leftover MCP service process bound to our ports (e.g. a user-launched
-# instance not tracked by Task Scheduler).
-#
-# CRITICAL: filter by process name. Port 8765 has multiple listeners after
-# 'netsh interface portproxy' is configured: node.exe (supergateway, on ::) AND
-# svchost.exe (IP Helper service hosting the portproxy forwarder, on 0.0.0.0).
-# Force-killing svchost kills every service sharing that svchost host -- this
-# is exactly what stops Tailscale during 'setup-windows.ps1' re-runs (we have
-# the Tailscale daemon log proving the Stop event arrives during this step).
-$ourProcessNames = @("node", "python", "powershell", "cmd")
-foreach ($port in 8765, 8766) {
-    Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
-        $owner = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
-        if ($owner -and ($ourProcessNames -contains $owner.Name)) {
-            try { Stop-Process -Id $owner.Id -Force -ErrorAction Stop } catch {}
-        }
+# Kill leftover python.exe holding port 8766 (from prior visible-window run
+# or stale launcher).
+# IMPORTANT: filter by process name -- never blanket-kill listeners on a port
+# because system-level listeners (svchost-hosted services) would crash all
+# co-hosted services.
+$ourProcessNames = @("python", "powershell", "cmd")
+Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue | ForEach-Object {
+    $owner = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
+    if ($owner -and ($ourProcessNames -contains $owner.Name)) {
+        try { Stop-Process -Id $owner.Id -Force -ErrorAction Stop } catch {}
     }
 }
 
-# Both services launch via hidden PowerShell wrappers. Children (npx, python.exe)
-# inherit the hidden parent console: no visible window, but real std handles so
-# uvicorn / FastMCP work normally. Each wrapper appends stdout+stderr to a log
-# file under <platform>/logs/ so silent failures are debuggable.
-$DcLauncher  = Join-Path $ScriptDir "_launch-desktop-commander.ps1"
 $GuiLauncher = Join-Path $ScriptDir "_launch-windows-gui.ps1"
-foreach ($p in $DcLauncher, $GuiLauncher) {
-    if (-not (Test-Path $p)) {
-        Write-Host "  ERROR: launcher missing: $p" -ForegroundColor Red
-        exit 1
-    }
+if (-not (Test-Path $GuiLauncher)) {
+    Write-Host "  ERROR: launcher missing: $GuiLauncher" -ForegroundColor Red
+    exit 1
 }
 
 $commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
     -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
-
-$dcAction = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$DcLauncher`""
-Register-ScheduledTask -TaskName "MCP-DesktopCommander" -Action $dcAction `
-    -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
-    -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
 
 $guiAction = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuiLauncher`""
 Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction `
     -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
     -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
-Write-Host "  ok MCP-DesktopCommander, MCP-WindowsGui registered (hidden, logged, auto-restart on failure)"
+Write-Host "  ok MCP-WindowsGui registered (hidden, logged, auto-restart on failure)"
 
 # ---------- Start now & verify ----------
 Write-Host ""
-Write-Host "=== Starting services (first run may take 30-60s while npx downloads packages) ===" -ForegroundColor Cyan
-Start-ScheduledTask -TaskName "MCP-DesktopCommander"
+Write-Host "=== Starting service ===" -ForegroundColor Cyan
 Start-ScheduledTask -TaskName "MCP-WindowsGui"
 
-$deadline = (Get-Date).AddSeconds(60)
-$dcOk = $false; $guiOk = $false
-while ((Get-Date) -lt $deadline -and -not ($dcOk -and $guiOk)) {
-    Start-Sleep -Seconds 3
-    $dcOk  = $null -ne (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue)
+$deadline = (Get-Date).AddSeconds(30)
+$guiOk = $false
+while ((Get-Date) -lt $deadline -and -not $guiOk) {
+    Start-Sleep -Seconds 2
     $guiOk = $null -ne (Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue)
 }
-if ($dcOk)  { Write-Host "  ok desktop-commander listening on 8765" -ForegroundColor Green }
-else        { Write-Host "  WARN desktop-commander not yet on 8765 (run: Get-ScheduledTaskInfo MCP-DesktopCommander)" -ForegroundColor Yellow }
-if ($guiOk) { Write-Host "  ok windows-gui        listening on 8766" -ForegroundColor Green }
-else        { Write-Host "  WARN windows-gui not yet on 8766 (run: Get-ScheduledTaskInfo MCP-WindowsGui)"             -ForegroundColor Yellow }
+if ($guiOk) {
+    Write-Host "  ok winpc-gui listening on 8766" -ForegroundColor Green
+} else {
+    Write-Host "  WARN winpc-gui not yet on 8766 (run: Get-ScheduledTaskInfo MCP-WindowsGui)" -ForegroundColor Yellow
+}
 
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "Send these to the agent operator (or keep them yourself):"
 Write-Host ""
-Write-Host "  Tailscale hostname    : $tsHost"
-Write-Host "  Tailscale FQDN        : $tsDNS"
-Write-Host "  desktop-commander URL : http://${tsHost}:8765/sse"
-Write-Host "  windows-gui URL       : http://${tsHost}:8766/sse"
+Write-Host "  Tailscale hostname : $tsHost"
+Write-Host "  Tailscale FQDN     : $tsDNS"
+Write-Host "  winpc-gui URL      : http://${tsHost}:8766/sse"
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  - Agent host config : see docs/agent-host-setup.md"

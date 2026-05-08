@@ -1,10 +1,7 @@
 {
-  "_comment": "把 mcpServers 段合并进 ~/.claude.json (顶级单文件，不是 ~/.claude/settings.json)。把 windows-pc 替换为 Tailscale MagicDNS 主机名。",
+  "_comment": "Merge the mcpServers block into ~/.claude.json (the top-level single-file state, NOT ~/.claude/settings.json). Replace 'windows-pc' with the Tailscale MagicDNS hostname of your Windows test machine.",
+  "_v0_2_note": "winpc-shell was removed in v0.2. All shell / file / process tools moved into winpc-gui. If you have a winpc-shell entry from an older version, delete it.",
   "mcpServers": {
-    "winpc-shell": {
-      "type": "sse",
-      "url": "http://windows-pc:8765/sse"
-    },
     "winpc-gui": {
       "type": "sse",
       "url": "http://windows-pc:8766/sse"

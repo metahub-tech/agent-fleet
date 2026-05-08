@@ -23,18 +23,22 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ## 暴露的工具
 
-`windows-gui` MCP server 通过 SSE 监听 `0.0.0.0:8766`：
+`winpc-gui` MCP server（FastMCP，原生多客户端）通过 SSE 监听 `0.0.0.0:8766`：
 
 | 类别 | 工具 |
 |---|---|
+| **使用状态** | `acquire_winpc`, `release_winpc`, `get_winpc_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 窗口 | `list_windows`, `inspect_window`, `focus_window` |
 | 鼠标 | `click`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
-| 进程 | `launch_app`, `kill_process`, `list_processes` |
+| 进程（一次性） | `launch_app`, `kill_process`, `list_processes` |
+| 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
+| 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
+| 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_powershell` |
 
-外加 `desktop-commander`（社区 MCP）通过 supergateway stdio→SSE 桥接，监听 `0.0.0.0:8765`，提供：shell 命令执行、文件读写、目录搜索、grep、文件 diff、进程管理等。
+> **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `winpc-gui`。`setup-windows.ps1` 会自动清理老版本残留。
 
 ## 目录布局
 
@@ -56,9 +60,10 @@ platforms/windows/
 | 组件 | 必须 | 用途 | 自动安装 |
 |---|---|---|---|
 | Tailscale | ✅ | 跨网组网 | 用户在第 1 步装 |
-| Node.js LTS | ✅ | 跑 supergateway + desktop-commander | setup-windows.ps1 自动装 |
 | Python 3.10+ | ✅ | 跑 windows_gui_mcp.py | setup-windows.ps1 自动装（如缺） |
 | 用户活动登录会话 | ✅ | GUI 任务必须在用户桌面会话中执行 | 启用自动登录（手册 § 5） |
+
+> v0.2 之后**不再需要 Node.js / npm**——所有工具都用 Python 实现。
 
 ## 故障排查
 
@@ -68,7 +73,7 @@ platforms/windows/
 - 高 DPI 屏幕坐标错位
 - Windows 重启后 GUI 服务不启
 - Tailscale ACL 加固
-- supergateway / desktop-commander 包名变更
+- 旧版 desktop-commander/mcp-proxy 残留清理（diagnose.ps1 § 0a 自动检测）
 
 ## Universal Tool Set 兼容
 

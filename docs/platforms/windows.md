@@ -57,20 +57,20 @@ cd C:\agent-test-bench
 powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
 ```
 
-脚本依次做 6 件事，每步打印进度：
+脚本依次做 5 件事（外加 0/5 自动清理 v0.1 旧版残留），每步打印进度：
 
 | 步骤 | 内容 |
 |---|---|
-| 1/6 | 检查 Tailscale 已登录 |
-| 2/6 | 装 Python 3.12（若未装或版本 < 3.10） |
-| 3/6 | 装 Node.js LTS（若未装） |
-| 4/6 | 在 `platforms\windows\server\.venv` 建虚拟环境，装依赖 |
-| 5/6 | 防火墙：8765 / 8766 仅 Tailscale 接口入站允许 |
-| 6/6 | 注册 Task Scheduler 任务（登录时自启），立刻启动并自检端口 |
+| 0/5 | 自动清理 v0.1 残留（旧 task `MCP-DesktopCommander` / 旧防火墙规则 / npm 全局 `desktop-commander` / portproxy 项） |
+| 1/5 | 检查 Tailscale 已登录 |
+| 2/5 | 装 Python 3.12（若未装或版本 < 3.10） |
+| 3/5 | 在 `platforms\windows\server\.venv` 建虚拟环境，装依赖 |
+| 4/5 | 防火墙：8766 仅 Tailscale IP 段（100.64.0.0/10 + fd7a:115c:a1e0::/48）入站允许 |
+| 5/5 | 注册 Task Scheduler 任务 `MCP-WindowsGui`（登录时自启），立刻启动并自检端口 |
 
-**首次运行**最后一步会停在等待端口阶段最长 60 秒——`npx` 第一次跑要下载 supergateway 和 desktop-commander。
+脚本结束时会打印你的 **Tailscale 主机名** 和 **winpc-gui 的 SSE URL**，把这两条信息发给 Agent 操作员（或自己留着）。
 
-脚本结束时会打印你的 **Tailscale 主机名** 和 **MCP URL**，把这两条信息发给 Agent 操作员（或自己留着）。
+> v0.1 还有第二个服务 `MCP-DesktopCommander`（端口 8765，npm + mcp-proxy 栈），v0.2 起合并进 winpc-gui。setup 脚本会把老版本残留全部清理掉。
 
 > **脚本可重复运行**：如果第一次有问题（比如 Tailscale 没登录），修复后直接再跑一次即可，不会破坏已有配置。
 
@@ -80,11 +80,10 @@ powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windo
 
 ```powershell
 # 任务运行状态
-Get-ScheduledTaskInfo -TaskName MCP-DesktopCommander
 Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
 
 # 端口监听
-Get-NetTCPConnection -LocalPort 8765,8766 -State Listen
+Get-NetTCPConnection -LocalPort 8766 -State Listen
 ```
 
 ## 5. 自动登录（GUI 测试必需）
@@ -107,14 +106,15 @@ netplwiz
 
 ```powershell
 # 取消任务
-Unregister-ScheduledTask -TaskName MCP-DesktopCommander -Confirm:$false
-Unregister-ScheduledTask -TaskName MCP-WindowsGui        -Confirm:$false
+Unregister-ScheduledTask -TaskName MCP-WindowsGui -Confirm:$false
+# 如果是 v0.1 升级来的，可能还有：
+Unregister-ScheduledTask -TaskName MCP-DesktopCommander -Confirm:$false -ErrorAction SilentlyContinue
 
 # 删防火墙规则
 Get-NetFirewallRule -DisplayName "MCP *" | Remove-NetFirewallRule
 
-# 删 portproxy 转发
-netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0
+# 删 v0.1 portproxy 残留（如果还在）
+netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
 
 # 删仓库目录（venv、所有依赖一起删干净）
 Remove-Item -Recurse -Force C:\agent-test-bench
@@ -134,22 +134,18 @@ powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\diagnose.ps
 
 下面按问题类型对照修。
 
-### 7.1 8765 / 8766 没在监听
+### 7.1 8766 没在监听
 
 ```powershell
 # 看任务最近一次执行结果
 Get-ScheduledTaskInfo -TaskName MCP-WindowsGui | Format-List
 
-# 手动跑 GUI MCP 看实际错
+# 手动跑 winpc-gui 看实际错
 $ServerDir = "C:\agent-test-bench\platforms\windows\server"
 & "$ServerDir\.venv\Scripts\python.exe" "$ServerDir\windows_gui_mcp.py"
 ```
 
-如果是 desktop-commander 没起：
-
-```powershell
-npx -y supergateway --stdio "npx -y @wonderwhy-er/desktop-commander" --port 8765 --baseUrl http://0.0.0.0:8765 --ssePath /sse --messagePath /message
-```
+主要会卡在 pip 装依赖（`pyautogui` / `pywinauto` / `fastmcp`）失败 → 看 venv 输出。
 
 ### 7.2 高 DPI 屏点击坐标错位
 
@@ -176,37 +172,46 @@ Start-ScheduledTask -TaskName MCP-WindowsGui
 
 ### 7.4 Tailscale ACL 加固
 
-默认 tailnet 内全互通。如果你的 tailnet 还有其他人，建议在 [Tailscale Admin Console](https://login.tailscale.com/admin/acls) 加规则，限定只有 Agent 主机能访问 8765 / 8766。
+默认 tailnet 内全互通。如果你的 tailnet 还有其他人，建议在 [Tailscale Admin Console](https://login.tailscale.com/admin/acls) 加规则，限定只有 Agent 主机能访问 8766。
 
-### 7.5 supergateway / desktop-commander 包名变更
+### 7.5 多 Agent 协作下的"使用状态"管理
 
-Task 调用 `npx -y @wonderwhy-er/desktop-commander`。如该包改名，更新任务参数：
+winpc-gui 是 FastMCP 原生 SSE，**支持多客户端并发连接**——所以多个 agent 同时连不会互相挤掉（这是相比 v0.1 的 winpc-shell 大的改进）。
 
-```powershell
-# 看当前命令
-Get-ScheduledTask -TaskName MCP-DesktopCommander | Select-Object -ExpandProperty Actions
+但 GUI 操作（鼠标、键盘、截屏）有共享物理资源的风险——agent A 在打字时 agent B 抢着点鼠标会互相干扰。所以 winpc-gui 引入了**advisory 单持有者**模式：
 
-# 重建（替换 <NEW_PACKAGE>）
-$action = New-ScheduledTaskAction -Execute "cmd.exe" `
-    -Argument '/c npx -y supergateway --stdio "npx -y <NEW_PACKAGE>" --port 8765 --baseUrl http://0.0.0.0:8765 --ssePath /sse --messagePath /message'
-Set-ScheduledTask -TaskName MCP-DesktopCommander -Action $action
-Stop-ScheduledTask  -TaskName MCP-DesktopCommander
-Start-ScheduledTask -TaskName MCP-DesktopCommander
 ```
+Agent A: acquire_winpc(holder_name="agent-A")     # 声明独占
+Agent A: take_screenshot()                         # 干活
+Agent A: type_text(...)
+Agent A: release_winpc(holder_name="agent-A")     # 显式释放
+
+Agent B: get_winpc_status()                        # 查谁在用
+  → {"in_use": true, "holder": "agent-A", "idle_seconds": 3, ...}
+```
+
+- **advisory**：工具不强制阻止——anyone can call tools。但 `get_winpc_status` 显示当前持有者，agent 应该礼貌等待
+- **idle 超时 10 分钟**自动释放（防止 holder 忘了 release 锁住设备）
+- 持有者每次调用工具都会刷新 last_used_at
+- 计划在 v0.5 加入强制模式（rejected if not holder）
 
 ---
 
 ## 附录 · 工具列表
 
-`windows-gui` MCP 暴露的工具（监听 `0.0.0.0:8766/sse`）：
+`winpc-gui` MCP（FastMCP 原生 SSE，监听 `0.0.0.0:8766/sse`）暴露的全部工具：
 
 | 类别 | 工具 |
 |---|---|
+| **使用状态** | `acquire_winpc`, `release_winpc`, `get_winpc_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 窗口 | `list_windows`, `inspect_window`, `focus_window` |
 | 鼠标 | `click`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
-| 进程 | `launch_app`, `kill_process`, `list_processes` |
+| 进程（一次性） | `launch_app`, `kill_process`, `list_processes` |
+| 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
+| 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
+| 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_powershell` |
 
-`desktop-commander` 是社区 MCP（端口 8765），提供 shell 命令执行、文件读写、目录搜索、grep、文件 diff、进程管理等。文档见 https://github.com/wonderwhy-er/DesktopCommanderMCP。
+> v0.1 还有一个独立的 `winpc-shell` MCP（端口 8765，npm `desktop-commander` + Python `mcp-proxy`），由于 single-client 限制 + npm 缓存竞争 + IPv6-only 绑定 + Windows ENOTEMPTY 等等多个上游问题，v0.2 整层并入 winpc-gui。原来 desktop-commander 的工具按等价语义重写为 Python，FastMCP 原生支持多客户端，且不再依赖 Node.js / npm。

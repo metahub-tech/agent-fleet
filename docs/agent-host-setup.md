@@ -47,10 +47,6 @@ tailscale ping <DEVICE_HOSTNAME>
 ```json
 {
   "mcpServers": {
-    "winpc-shell": {
-      "type": "sse",
-      "url": "http://<WIN_HOSTNAME>:8765/sse"
-    },
     "winpc-gui": {
       "type": "sse",
       "url": "http://<WIN_HOSTNAME>:8766/sse"
@@ -62,6 +58,8 @@ tailscale ping <DEVICE_HOSTNAME>
 把 `<WIN_HOSTNAME>` 替换为设备管理员告诉你的 Tailscale 主机名。
 
 > 也可以从 [`../platforms/windows/examples/claude-settings.json`](../platforms/windows/examples/claude-settings.json) 直接复制片段。
+>
+> **v0.2 历史变更**：旧版还有 `winpc-shell`（端口 8765），现已合并到 `winpc-gui`。如果 `~/.claude.json` 里还有 `winpc-shell` 条目，删掉它即可。
 
 ### 多设备
 
@@ -93,11 +91,22 @@ tailscale ping <DEVICE_HOSTNAME>
 Claude Code 中运行 `/mcp`，应看到：
 
 ```
-winpc-shell  [sse]  connected
-winpc-gui    [sse]  connected
+winpc-gui  [sse]  connected
 ```
 
-### 3.3 调一个工具
+### 3.3 多 Agent 协作（v0.2 新增）
+
+如果团队里多个 agent 共用同一台 Windows，**先 acquire 再用**：
+
+```
+> 帮我 acquire winpc 用 holder_name="agent-A"
+> （干活...）
+> 用完了，release winpc holder_name="agent-A"
+```
+
+任何 agent 在 `acquire_winpc` / `release_winpc` / `get_winpc_status` 中查询 / 声明 / 释放使用权。10 分钟无活动会自动 release。详见 [`platforms/windows.md`](platforms/windows.md) 状态管理章节。
+
+### 3.4 调一个工具
 
 让 Agent 跑：
 
@@ -105,7 +114,7 @@ winpc-gui    [sse]  connected
 
 应能看到截图返回。再试：
 
-> 用 winpc-shell 跑 `Get-Date` 看一下 Windows 当前时间
+> 用 winpc-gui 跑 `Get-Date` 看一下 Windows 当前时间
 
 应能看到 PowerShell 输出。
 
@@ -124,7 +133,6 @@ tailscale status | grep <WIN_HOSTNAME>
 ping <WIN_HOSTNAME>
 
 # 3. 端口可达
-curl -sI http://<WIN_HOSTNAME>:8765/sse --max-time 5
 curl -sI http://<WIN_HOSTNAME>:8766/sse --max-time 5
 
 # 都通了还失败 -> 重启 Claude Code
@@ -150,7 +158,7 @@ tailscale status        # 找设备主机的 100.x.x.x IP
 
 ```powershell
 # Windows 端
-Get-NetTCPConnection -LocalPort 8765,8766 -State Listen
+Get-NetTCPConnection -LocalPort 8766 -State Listen
 Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
 ```
 
@@ -171,16 +179,14 @@ Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
 ```json
 {
   "mcpServers": {
-    "winpc-shell": { "type": "sse", "url": "http://win-test:8765/sse" },
-    "winpc-gui":   { "type": "sse", "url": "http://win-test:8766/sse" },
-    "macbox-shell": { "type": "sse", "url": "http://mac-test:8765/sse" },
-    "macbox-gui":   { "type": "sse", "url": "http://mac-test:8767/sse" },
-    "android":      { "type": "sse", "url": "http://lin-host:8768/sse" }
+    "winpc-gui":  { "type": "sse", "url": "http://win-test:8766/sse" },
+    "macbox-gui": { "type": "sse", "url": "http://mac-test:8767/sse" },
+    "android":    { "type": "stdio", "command": "python", "args": ["-m", "atb_android.server"] }
   }
 }
 ```
 
-Agent 通过工具名前缀（`winpc-` / `macbox-` / `android-`）选择设备。
+Agent 通过 server 名（`winpc-gui` / `macbox-gui` / `android`）选择设备。
 
 ### 5.2 限定哪些 Agent 主机能连设备
 
@@ -192,7 +198,7 @@ Agent 通过工具名前缀（`winpc-` / `macbox-` / `android-`）选择设备�
     {
       "action": "accept",
       "src":    ["tag:agent-host"],
-      "dst":    ["tag:test-device:8765,8766,8767,8768,8769"]
+      "dst":    ["tag:test-device:8766,8767,8768,8769"]
     }
   ]
 }

@@ -1,10 +1,13 @@
 # agent-test-bench / Windows MCP service diagnostic
 #
-# Read-only checks for triaging "the agent host cannot reach my MCP services."
+# Read-only checks for triaging "the agent host cannot reach my MCP service."
 # Does not require Administrator. Run from anywhere inside the cloned repo:
 #   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\diagnose.ps1
 #
 # Paste the full output back to the agent operator for triage.
+#
+# Single-service since v0.2.0 (was 8765 + 8766; now only 8766 winpc-gui).
+# Section 0a checks for legacy 8765 / MCP-DesktopCommander leftovers.
 
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -33,16 +36,37 @@ if (-not $tsStatus) {
     $tsStatus | Select-Object -First 3 | ForEach-Object { Write-Host "  $_" }
 }
 
-# ---------- 1. Listening addresses ----------
-Section "1. Actual listening addresses (KEY: LocalAddress should be 0.0.0.0)"
-$listeners = Get-NetTCPConnection -LocalPort 8765,8766 -State Listen -ErrorAction SilentlyContinue
+# ---------- 0a. Legacy stack leftover check ----------
+Section "0a. Legacy desktop-commander / mcp-proxy leftover check"
+$legacyTask = Get-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinue
+if ($legacyTask) {
+    Write-Host "  WARN  legacy task MCP-DesktopCommander still exists -- run setup-windows.ps1 to clean up" -ForegroundColor Yellow
+} else {
+    Write-Host "  ok no legacy MCP-DesktopCommander task"
+}
+$legacy8765 = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue
+if ($legacy8765) {
+    Write-Host "  WARN  port 8765 still has a listener -- legacy stack not fully removed" -ForegroundColor Yellow
+} else {
+    Write-Host "  ok port 8765 not listening (consolidated into 8766)"
+}
+$legacyProxy = netsh interface portproxy show v4tov6 2>&1
+if ($legacyProxy -match "8765") {
+    Write-Host "  WARN  legacy v4tov6 portproxy entry for 8765 still present -- run setup-windows.ps1 to clean" -ForegroundColor Yellow
+} else {
+    Write-Host "  ok no legacy v4tov6 portproxy entries"
+}
+
+# ---------- 1. Listening address ----------
+Section "1. Listening address (KEY: LocalAddress should be 0.0.0.0)"
+$listeners = Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue
 if (-not $listeners) {
-    Write-Host "  No process is listening on 8765 or 8766. Services are not running." -ForegroundColor Red
+    Write-Host "  No process is listening on 8766. winpc-gui service is not running." -ForegroundColor Red
 } else {
     $listeners | Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize
 }
 
-# ---------- 2. Owning processes ----------
+# ---------- 2. Owning process ----------
 Section "2. Owning process details"
 if ($listeners) {
     $listeners | ForEach-Object {
@@ -59,11 +83,9 @@ if ($listeners) {
 
 # ---------- 3. Localhost self-test ----------
 Section "3. Localhost self-test (127.0.0.1)"
-foreach ($port in 8765,8766) {
-    $r = Test-NetConnection -ComputerName 127.0.0.1 -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet
-    $color = if ($r) { "Green" } else { "Red" }
-    Write-Host ("  127.0.0.1:{0,-5} -> {1}" -f $port, $r) -ForegroundColor $color
-}
+$r = Test-NetConnection -ComputerName 127.0.0.1 -Port 8766 -WarningAction SilentlyContinue -InformationLevel Quiet
+$color = if ($r) { "Green" } else { "Red" }
+Write-Host ("  127.0.0.1:8766 -> {0}" -f $r) -ForegroundColor $color
 
 # ---------- 4. Tailscale IP self-test ----------
 Section "4. Tailscale IP self-test (this Windows host's own Tailscale IPv4)"
@@ -78,11 +100,9 @@ if (-not $tsIp) {
     Write-Host "  Tailscale IPv4 unknown. Skipping section 4." -ForegroundColor Yellow
 } else {
     Write-Host "  Tailscale IPv4: $tsIp"
-    foreach ($port in 8765,8766) {
-        $r = Test-NetConnection -ComputerName $tsIp -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet
-        $color = if ($r) { "Green" } else { "Red" }
-        Write-Host ("  {0}:{1,-5} -> {2}" -f $tsIp, $port, $r) -ForegroundColor $color
-    }
+    $r = Test-NetConnection -ComputerName $tsIp -Port 8766 -WarningAction SilentlyContinue -InformationLevel Quiet
+    $color = if ($r) { "Green" } else { "Red" }
+    Write-Host ("  {0}:8766 -> {1}" -f $tsIp, $r) -ForegroundColor $color
 }
 
 # ---------- 5. Firewall rules ----------
@@ -93,28 +113,17 @@ if (-not $rules) {
 } else {
     $rules | ForEach-Object {
         $port  = ($_ | Get-NetFirewallPortFilter).LocalPort
-        $iface = ($_ | Get-NetFirewallInterfaceFilter).InterfaceAlias
-        if (-not $iface) { $iface = "(any)" }
+        $remoteAddr = ($_ | Get-NetFirewallAddressFilter).RemoteAddress
+        if (-not $remoteAddr) { $remoteAddr = "(any)" }
         [PSCustomObject]@{
             Name      = $_.DisplayName
             Enabled   = $_.Enabled
             Action    = $_.Action
             Direction = $_.Direction
-            Profile   = $_.Profile
             Port      = $port
-            Interface = $iface
+            RemoteIP  = ($remoteAddr -join ",")
         }
     } | Format-Table -AutoSize -Wrap
-}
-
-# ---------- 5b. portproxy (legacy; should be empty after migration to mcp-proxy) ----------
-Section "5b. IPv4-to-IPv6 portproxy (legacy; should be empty)"
-$proxyOut = netsh interface portproxy show v4tov6 2>&1
-if ($proxyOut -match "8765") {
-    Write-Host "  found legacy v4tov6 entry for 8765 -- run setup-windows.ps1 to clean up:" -ForegroundColor Yellow
-    $proxyOut | ForEach-Object { Write-Host "  $_" }
-} else {
-    Write-Host "  ok no legacy portproxy entry (mcp-proxy handles 0.0.0.0 binding natively)"
 }
 
 # ---------- 6. Tailscale adapter ----------
@@ -128,43 +137,36 @@ if (-not $adapters) {
     $adapters | Select-Object Name, InterfaceDescription, Status, MacAddress | Format-Table -AutoSize -Wrap
 }
 
-# ---------- 7. Tailscale daemon ----------
-Section "7. Tailscale status (head)"
-& tailscale status 2>$null | Select-Object -First 5
-
-# ---------- 8. Scheduled tasks ----------
-Section "8. Scheduled task last run result"
-"MCP-DesktopCommander","MCP-WindowsGui" | ForEach-Object {
-    $info = Get-ScheduledTaskInfo -TaskName $_ -ErrorAction SilentlyContinue
-    if ($info) {
-        [PSCustomObject]@{
-            Task               = $_
-            LastRunTime        = $info.LastRunTime
-            LastTaskResult     = $info.LastTaskResult
-            NumberOfMissedRuns = $info.NumberOfMissedRuns
-        }
-    }
-} | Format-Table -AutoSize
-
-# ---------- 9. Service log tails ----------
-Section "9. Service log tails (last 25 lines each)"
-$logsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
-foreach ($svc in "desktop-commander", "windows-gui") {
-    $log = Join-Path $logsDir "$svc.log"
-    Write-Host ""
-    Write-Host "  -- $log --" -ForegroundColor Yellow
-    if (Test-Path $log) {
-        Get-Content -Path $log -Tail 25
-    } else {
-        Write-Host "  (no log file yet -- service has not started even once)"
-    }
+# ---------- 7. Scheduled task ----------
+Section "7. Scheduled task last run result"
+$info = Get-ScheduledTaskInfo -TaskName "MCP-WindowsGui" -ErrorAction SilentlyContinue
+if ($info) {
+    [PSCustomObject]@{
+        Task               = "MCP-WindowsGui"
+        LastRunTime        = $info.LastRunTime
+        LastTaskResult     = $info.LastTaskResult
+        NumberOfMissedRuns = $info.NumberOfMissedRuns
+    } | Format-List
+} else {
+    Write-Host "  WARN MCP-WindowsGui task not registered. Run setup-windows.ps1." -ForegroundColor Yellow
 }
 
-# ---------- 10. Recent Task Scheduler events ----------
-Section "10. Recent Task Scheduler events for our two tasks"
+# ---------- 8. Service log tail ----------
+Section "8. Service log tail (last 30 lines)"
+$logsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
+$log = Join-Path $logsDir "windows-gui.log"
+Write-Host "  -- $log --" -ForegroundColor Yellow
+if (Test-Path $log) {
+    Get-Content -Path $log -Tail 30
+} else {
+    Write-Host "  (no log file yet -- service has not started even once)"
+}
+
+# ---------- 9. Recent Task Scheduler events ----------
+Section "9. Recent Task Scheduler events for MCP-WindowsGui"
 try {
     Get-WinEvent -LogName "Microsoft-Windows-TaskScheduler/Operational" -MaxEvents 100 -ErrorAction Stop |
-        Where-Object { $_.Message -match "MCP-(DesktopCommander|WindowsGui)" } |
+        Where-Object { $_.Message -match "MCP-WindowsGui" } |
         Select-Object -First 8 -Property TimeCreated, Id, LevelDisplayName, @{Name="MessageHead"; Expression={ ($_.Message -split "`n")[0] }} |
         Format-Table -AutoSize -Wrap
 } catch {
@@ -179,7 +181,7 @@ Write-Host "    section 1 LocalAddress = 127.0.0.1   -> server bound to localhos
 Write-Host "    section 1 LocalAddress = 0.0.0.0     -> server bound to all interfaces (good)"
 Write-Host "    section 3 = False                    -> service is not actually running"
 Write-Host "    section 3 = True, section 4 = False  -> Windows firewall is blocking inbound"
-Write-Host "    section 5 Interface != section 6 Name -> firewall rule attached to wrong NIC"
-Write-Host "    sections 3 and 4 both True           -> services healthy; problem is on agent side"
+Write-Host "    sections 3 and 4 both True           -> service healthy; problem is on agent side"
+Write-Host "    section 0a has WARN                  -> legacy stack not fully cleaned, run setup-windows.ps1"
 Write-Host ""
 Write-Host "  Paste the entire output above back to the agent operator."
