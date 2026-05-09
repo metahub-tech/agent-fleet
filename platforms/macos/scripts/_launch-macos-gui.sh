@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Internal launcher for the macOS GUI MCP service.
+# CLI debugger for the macOS GUI MCP service. NOT invoked by launchd.
 #
-# Invoked by launchd via the cc.metahub.macbox-gui.plist (StandardOutPath
-# and StandardErrorPath of the plist redirect this script's stdout/stderr
-# into platforms/macos/logs/macos-gui.log -- so we just exec the python
-# server directly without any redirection plumbing).
+# As of v0.3.2, the launchd plist invokes the venv python directly
+# (no bash hop) so macOS TCC's responsible-process chain stays as
+# launchd -> python and the Accessibility / Screen Recording panes
+# only need an entry for Python.app -- not for /bin/bash on top.
 #
-# launchd's KeepAlive=true (with Crashed=true) handles auto-restart on
-# crash; the equivalent of the Windows launcher's while-loop is built
-# into launchd itself. ThrottleInterval=3 in the plist throttles to
-# at most one restart every 3 seconds (rapid-fail safety baked in by
-# launchd; we don't need the rapid-fail-counter logic the Windows
-# launcher has).
+# This script stays in the repo for one-off manual launches when
+# debugging crashes / permission issues / dependency resolution
+# without going through launchd. Run it as:
 #
-# Not for direct user invocation.
+#     bash platforms/macos/scripts/_launch-macos-gui.sh
+#
+# It will print server output to your terminal so you can see
+# tracebacks live. Ctrl-C to stop.
 
 set -e
 

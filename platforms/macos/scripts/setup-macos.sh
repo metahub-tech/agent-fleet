@@ -201,10 +201,19 @@ cat > "$PLIST_PATH" <<EOF
   <key>Label</key>
   <string>$LABEL</string>
 
+  <!-- Run venv python directly (no bash wrapper). Reason: macOS TCC
+       (Privacy & Security) walks the responsible-process chain when
+       deciding which binary needs Accessibility / Screen Recording
+       permission. With a bash wrapper, the chain is launchd -> bash
+       -> python, and TCC asks the user to grant bash permission too
+       (in addition to Python.app). Calling python directly removes
+       that hop -- only Python.app's framework binary needs perms.
+       _launch-macos-gui.sh stays in the repo for ad-hoc CLI debugging
+       but is no longer in the launchd path. -->
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>$LAUNCHER</string>
+    <string>$VENV_PY</string>
+    <string>$SERVER_PY</string>
   </array>
 
   <key>RunAtLoad</key>
