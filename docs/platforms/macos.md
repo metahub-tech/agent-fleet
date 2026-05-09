@@ -146,8 +146,10 @@ tail -20 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
 
 ## 6. 卸载
 
+> ⚠️ **`launchctl bootout` 必须带 plist 路径**，单独写 `launchctl bootout "gui/$(id -u)"` 会卸载该用户域下**所有** LaunchAgent，触发立刻注销 + 黑屏 + 重新登录界面。重登录可恢复所有 agent，但当前会话的未保存工作会丢。**整条命令必须单行**，不要在 `gui/$(id -u)` 后断行。
+
 ```bash
-# 卸载 launchd 服务
+# 卸载 launchd 服务（注意：整条命令一行）
 launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
 rm ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
 
@@ -183,6 +185,19 @@ rm -rf ~/agent-test-bench
 2. **brew install 在 macOS 12 (Tier 3) exit 非 0 但其实装好了**：v0.3.1+ 的脚本对此有容错，并直接验证 `python3.12` 二进制是否存在；老版本会 `set -e` 静默死亡。重跑脚本第二次通常就过 —— 因为这次 for-loop 直接探测到已装好的 `python3.12`，跳过 brew 步骤。
 
 3. **anaconda `(base)` 抢了 PATH**：脚本对 brew 装的 python 用绝对路径，不受影响；但如果你卡在 `python3 -c '...'` 的版本探测且 anaconda 是 3.9，for-loop 不会选中它，然后会进 brew install 分支（正常行为，不是 bug）。
+
+### 7.0.5 重启 macbox-gui 服务的正确姿势
+
+```bash
+# 优先方案：kickstart 重启（保持 plist 不变）
+launchctl kickstart -k "gui/$(id -u)/cc.metahub.macbox-gui"
+
+# 如果 plist 内容改了（重跑了 setup-macos.sh），先 bootout 再 bootstrap：
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
+```
+
+> ⚠️ 上面每条命令都**必须单行**，特别是 `bootout`：缺了 plist 路径会卸掉整个用户 GUI 域（注销级灾难）。复制粘贴时如果终端把行折断了，先在终端里 `Cmd+A` 全选确认是单行再回车。
 
 ### 7.1 8767 没在监听
 
