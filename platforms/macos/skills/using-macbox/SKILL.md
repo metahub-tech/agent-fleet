@@ -5,7 +5,7 @@ description: Use when invoking macbox-gui MCP tools to drive a Mac test machine 
 
 # Using macbox-gui
 
-Drive a remote Mac test machine via the `macbox-gui` MCP server (FastMCP, SSE transport on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; ~30 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
+Drive a remote Mac test machine via the `macbox-gui` MCP server (FastMCP, SSE transport on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 31 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
 
 ## Critical patterns
 
@@ -84,6 +84,33 @@ Best practice for macbox-gui workflows:
 - Scope `start_search` and `list_directory` to the project's actual workspace dir (e.g. `~/qjl-workspace/...`, `~/code/...`).
 - Use `run_zsh "ls -d ~/*workspace* ~/code 2>/dev/null"` to discover candidate roots before scanning.
 - If broad access is genuinely needed, ask the operator to grant Python.app **Full Disk Access** once -- it covers Documents/Desktop/Downloads/all of ~/Library, but NOT Photos / Calendar / Reminders / Contacts (which agents shouldn't touch anyway).
+
+### Recipe: smoke-test a GUI .app bundle
+
+The canonical end-to-end pattern after the operator hands you an .app path:
+
+```
+# 1. Strip Gatekeeper quarantine if downloaded via browser/Safari (curl
+#    via API doesn't set it; AirDrop / Safari / DMG-mount do).
+run_zsh("xattr -dr com.apple.quarantine /path/to/Foo.app 2>/dev/null || true")
+
+# 2. Launch
+open_app(app="/path/to/Foo.app")            # uses macOS `open -a` semantics
+
+# 3. Confirm process tree (Electron typically spawns Helper / GPU / Renderer)
+run_zsh("pgrep -fl 'Foo' | head -10")
+
+# 4. First screenshot once UI settles
+sleep ~3-5s server-side or wait briefly client-side
+take_screenshot()
+
+# 5. Discover the window via System Events (verifies app is visible)
+run_applescript("tell application \"System Events\" to get name of every window of process \"Foo\"")
+
+# 6. Click / type / press_key as needed for flows
+```
+
+If the app is unsigned and HAS a quarantine xattr, `open` will be blocked by Gatekeeper. Either remove the xattr (above) or `spctl --add /path/to/Foo.app`. For repeat-use test machines, removing quarantine once is fine; for prod-user simulation, leave it on to verify the dialog works.
 
 ### Multi-agent coordination (advisory)
 
