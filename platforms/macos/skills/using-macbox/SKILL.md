@@ -76,6 +76,15 @@ run_applescript(script='''
 
 Don't use `start_search` for known single-file content lookups -- use `read_file` directly.
 
+### Avoid scanning protected user-data directories
+
+macOS Privacy independently gates each of: `~/Documents`, `~/Desktop`, `~/Downloads`, `~/Pictures/Photos Library`, `~/Library/Calendars`, `~/Library/Reminders`, `~/Library/AddressBook`. Each first access triggers a separate prompt. **Don't `find ~ -maxdepth N` blindly** -- it'll fan out into all of them.
+
+Best practice for macbox-gui workflows:
+- Scope `start_search` and `list_directory` to the project's actual workspace dir (e.g. `~/qjl-workspace/...`, `~/code/...`).
+- Use `run_zsh "ls -d ~/*workspace* ~/code 2>/dev/null"` to discover candidate roots before scanning.
+- If broad access is genuinely needed, ask the operator to grant Python.app **Full Disk Access** once -- it covers Documents/Desktop/Downloads/all of ~/Library, but NOT Photos / Calendar / Reminders / Contacts (which agents shouldn't touch anyway).
+
 ### Multi-agent coordination (advisory)
 
 Tools work for everyone regardless of who claims the device, but `get_mac_status` reports the current holder:

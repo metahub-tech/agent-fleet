@@ -123,6 +123,30 @@ macOS 强制：除非用户在系统设置中显式授权，否则脚本控制�
 
 这是 macOS 12+ 加严屏幕录制权限校验留下的历史包袱，所有调用 `pyautogui` / `Pillow.ImageGrab` 的非签名 Python 程序都会遇到。
 
+### 4.3.8 用户数据类弹窗（文稿 / 桌面 / 照片 / 日历 / 提醒事项）—— 一招制敌：完全磁盘访问
+
+除了能力权限（辅助功能 / 屏幕录制 / 自动化），macOS 还把若干"用户数据"目录单独列出权限：
+
+| 目录类别 | 触发条件 | 测试 agent 是否需要 |
+|---|---|---|
+| 文稿 / 桌面 / 下载 | `~/Documents`、`~/Desktop`、`~/Downloads` 任何读写 | **通常需要**（项目代码可能放这里）|
+| 网络宗卷 | 访问 SMB / AFP 共享 | 偶尔需要 |
+| 照片 (Photos Library) | 访问 `~/Pictures/Photos Library.photoslibrary` | ❌ 不需要 |
+| 日历 / 提醒事项 / 通讯录 | 访问 `~/Library/Calendars` 等 | ❌ 不需要 |
+
+**统一解法：给 Python.app 一次"完全磁盘访问"授权**。
+
+```
+System Settings → Privacy & Security → Full Disk Access (完全磁盘访问)
+→ 解锁 → + → 拖入 Python.framework/.../Resources/Python.app
+```
+
+完全磁盘访问覆盖：文稿 / 桌面 / 下载 / ~/Library/* 全部子目录 / Time Machine / Mail / Cookies。授权后 `find ~`、读取应用日志、读项目代码全部不再弹窗。
+
+**永远不要授权**照片 / 日历 / 提醒事项 / 通讯录给 Python——agent 自动化测试用不到，授权徒增个人数据暴露面。这些类别的弹窗一律点"不允许"。
+
+> 有时 Python 用 `find ~` 触发的弹窗是"想访问您的桌面 / 文稿"——授了 Full Disk Access 之后这种就不再出现。已经误授权过的可以在对应面板把那条 entry 删掉，FDA 接管之。
+
 ### 4.3.7 你会看到 `Python` 和 `python3.12` 两个条目——两个都要勾
 
 部署完成后，辅助功能 / 屏幕录制 / 自动化 面板里会**各自出现两条 entry**：
