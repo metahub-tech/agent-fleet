@@ -97,6 +97,7 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 | Click landed wrong place / no effect | Accessibility permission not granted. The .app must be `<brew_prefix>/opt/python@3.12/Frameworks/Python.framework/.../Resources/Python.app` (NOT the venv's bin/python3 symlink, which macOS rejects) |
 | `take_screenshot` returns black image | Screen Recording permission not granted; same `.app` rule as Accessibility |
 | `run_applescript` returns `execution error -1743 (errAEEventNotPermitted)` | Automation permission missing -- expand python3 in Privacy & Security > Automation, tick the controlled app |
+| `run_applescript` returns `osascript 不允许辅助访问 (-25211)` | The script enumerates window properties of *other* apps (e.g. `count windows of process X`). That requires the executing binary (`/usr/bin/osascript`) to have Accessibility, but osascript is a CLI binary macOS won't accept into the Accessibility pane. Workaround: use simpler AppleScript that doesn't enumerate cross-app windows (e.g. `name of first process whose frontmost is true`), or shell out via `run_zsh` with osascript and accept the limitation. v0.4 plans a native `list_windows` tool using Quartz CGWindowListCopyWindowInfo to bypass osascript entirely. |
 | Service not on port 8767 after Mac wake | launchd should auto-restart with KeepAlive. If not: `launchctl kickstart -k gui/$(id -u)/cc.metahub.macbox-gui` |
 | `mcp__macbox-gui__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__macbox-gui__<name>` first |
 
