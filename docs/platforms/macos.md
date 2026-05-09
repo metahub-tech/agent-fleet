@@ -123,6 +123,21 @@ macOS 强制：除非用户在系统设置中显式授权，否则脚本控制�
 
 这是 macOS 12+ 加严屏幕录制权限校验留下的历史包袱，所有调用 `pyautogui` / `Pillow.ImageGrab` 的非签名 Python 程序都会遇到。
 
+### 4.3.7 你会看到 `Python` 和 `python3.12` 两个条目——两个都要勾
+
+部署完成后，辅助功能 / 屏幕录制 / 自动化 面板里会**各自出现两条 entry**：
+
+| 条目 | TCC key（解析路径） |
+|---|---|
+| `Python` | `/usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app` （brew 符号链接） |
+| `python3.12` | `/usr/local/Cellar/python@3.12/<ver>/Frameworks/Python.framework/Versions/3.12/Resources/Python.app/Contents/MacOS/Python` （真实路径）|
+
+它们指向**同一个二进制**，但 macOS TCC 用解析后的绝对路径做 key。第一次你从 Privacy 面板手动拖 `.app` 进去时，记的是 brew 符号链接路径；运行时内核报告 Cellar 真实路径，TCC 不匹配，**会再弹一次 prompt 让你授权"python3.12"**。点 Allow 后，第二个 entry 就会出现。
+
+**两个 entry 都勾上才是完整授权**——只勾一个就漏了某些代码路径。
+
+`brew upgrade python@3.12` 升级到新次要版本（如 3.12.13 → 3.12.14）后，Cellar 路径会变，但 brew opt 符号链接保持不变。届时**只有 `python3.12` 那条 entry 失效，需要重新授权**；`Python` 那条仍然有效但实际匹配不到运行时进程。
+
 ### 4.3.6 一次同意 = 永久生效（除非...）
 
 权限第一次弹窗、点 Allow 后**永久持久**，重启 / 重 launchd / git pull / 重新连接 SSE 都不会再问。会重新触发弹窗的情况：
