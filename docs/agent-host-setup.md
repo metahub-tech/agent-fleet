@@ -94,17 +94,41 @@ Claude Code 中运行 `/mcp`，应看到：
 winpc-gui  [sse]  connected
 ```
 
-### 3.3 多 Agent 协作（v0.2 新增）
+### 3.3 多 Agent 协作（v0.2+）
 
-如果团队里多个 agent 共用同一台 Windows，**先 acquire 再用**：
+如果团队里多个 agent 共用同一台设备，**先 acquire 再用**：
 
 ```
+# Windows
 > 帮我 acquire winpc 用 holder_name="agent-A"
 > （干活...）
 > 用完了，release winpc holder_name="agent-A"
+
+# macOS
+> 帮我 acquire mac 用 holder_name="agent-A"
+> （干活...）
+> release mac holder_name="agent-A"
 ```
 
-任何 agent 在 `acquire_winpc` / `release_winpc` / `get_winpc_status` 中查询 / 声明 / 释放使用权。10 分钟无活动会自动 release。详见 [`platforms/windows.md`](platforms/windows.md) 状态管理章节。
+每平台有自己的状态工具：
+
+| 平台 | acquire | release | status |
+|---|---|---|---|
+| Windows v0.2+ | `acquire_winpc` | `release_winpc` | `get_winpc_status` |
+| macOS v0.3+ | `acquire_mac` | `release_mac` | `get_mac_status` |
+
+10 分钟无活动会自动 release。详见各平台 setup 文档的状态管理章节。
+
+### 3.4 一行命令装 MCP + skill
+
+如果你嫌手动改 `~/.claude.json` + 拉 skill 软链麻烦，仓库提供：
+
+```bash
+python3 scripts/install-agent-side.py --platform macbox-gui --hostname <DEVICE_HOSTNAME>
+# 也支持 --platform winpc-gui
+```
+
+会自动备份 `~/.claude.json` → 把 mcpServers 条目 merge 进去 → 把 `platforms/<name>/skills/using-<name>` 软链到 `~/.claude/skills/`。幂等，重复跑无害。详见 [`install-pattern.md`](install-pattern.md)。
 
 ### 3.4 调一个工具
 

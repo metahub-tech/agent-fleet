@@ -1,0 +1,4 @@
+# v0.4.0 placeholder. Real server lands here:
+#   android_mcp.py      — FastMCP server on port 8768
+#   requirements.txt    — uiautomator2, adbutils, fastmcp, pillow
+#   pyproject.toml      — package metadata

@@ -14,14 +14,13 @@
 
 ```
 ┌─────────────────┐                              ┌──────────────┐
-│  Agent (Linux)  │ ──── Tailscale Mesh ─────>  │ Windows PC   │
-│  Claude Code /  │                              │ (8766 MCP)   │
-│  Cursor / Cline │                              ├──────────────┤
-│                 │                              │ macOS box    │ (planned)
-│   MCP client    │                              ├──────────────┤
-└─────────────────┘                              │ Android phone│ (planned)
-                                                 ├──────────────┤
-                                                 │ iPhone       │ (planned)
+│  Agent (Linux)  │ ──── Tailscale Mesh ─────>  │ Windows PC   │ winpc-gui  :8766 ✅
+│  Claude Code /  │                              ├──────────────┤
+│  Cursor / Cline │                              │ macOS box    │ macbox-gui :8767 ✅
+│                 │                              ├──────────────┤
+│   MCP client    │                              │ Android phone│ android    :8768 (planned)
+│                 │                              ├──────────────┤
+└─────────────────┘                              │ iPhone       │ iphone     :8769 (planned)
                                                  └──────────────┘
 ```
 
@@ -29,11 +28,11 @@
 
 | Platform | Version | Status |
 |---|---|---|
-| Windows 10/11 | `0.1.0` | ✅ Released (this repo) |
-| macOS | `0.2.0` | 📋 Planned |
-| Android | `0.3.0` | 📋 Planned |
-| iOS | `0.4.0` | 📋 Planned |
-| Cross-device coord | `0.5.0` | 🔭 Future |
+| Windows 10/11 | `0.2.0` | ✅ Released (winpc-gui consolidated, multi-client native) |
+| macOS 12+ | `0.3.0` | ✅ Released (macbox-gui, launchd, GUI-permission flow) |
+| Android | `0.4.0` | 📋 Planned |
+| iOS | `0.5.0` | 📋 Planned |
+| Cross-device coord | `0.6.0` | 🔭 Future |
 | Public OSS release | `1.0.0` | 🔭 Future |
 
 详见 [`docs/roadmap.md`](docs/roadmap.md)。
@@ -44,16 +43,23 @@
 
 | 你是 | 看哪个 |
 |---|---|
+| **新接手仓库的开发者**（想搞清楚装什么、装到哪） | [`docs/install-pattern.md`](docs/install-pattern.md) ← **从这开始** |
 | **Windows 测试主机管理员** | [`docs/platforms/windows.md`](docs/platforms/windows.md) |
+| **macOS 测试主机管理员** | [`docs/platforms/macos.md`](docs/platforms/macos.md) |
 | **Agent 操作员**（Linux/Mac/Win，跑 Claude Code 等 MCP client） | [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
 
-典型流程：
+典型流程（设备管理员 + Agent 操作员两条线，最常见同一个人）：
 
-1. **设备管理员** 按 [windows.md](docs/platforms/windows.md) 把 Windows 测试机配好（Tailscale + 一行 PowerShell 跑安装脚本）
+1. **设备管理员** 按对应平台手册把测试机配好（Tailscale + 一行命令跑安装脚本）
 2. 设备管理员把自己的 Tailscale 主机名告诉 Agent 操作员
-3. **Agent 操作员** 按 [agent-host-setup.md](docs/agent-host-setup.md) 在自己的 MCP client 里加这台设备
+3. **Agent 操作员** 在 Agent 主机一行命令装好 MCP + skill：
+   ```bash
+   python3 scripts/install-agent-side.py --platform macbox-gui --hostname <DEVICE_HOSTNAME>
+   # 或 winpc-gui
+   ```
+4. 重启 Claude Code 让 MCP 加载
 
-如果两个角色都是同一个人（最常见），按上面顺序自己走两遍即可。
+详细机制见 [`docs/install-pattern.md`](docs/install-pattern.md)。
 
 ## English Quick Start
 
@@ -80,19 +86,27 @@ The authoritative documentation is currently in Chinese; full English docs ship 
 ```
 agent-test-bench/
 ├── docs/                          # 通用文档
+│   ├── install-pattern.md         # 开发者基准：两个角色 / 两条安装路径 / 目录契约
 │   ├── architecture.md            # 通用桥架构
+│   ├── agent-host-setup.md        # Agent 端配置（~/.claude.json + skill 软链）
 │   ├── roadmap.md                 # 平台路线图
-│   └── platforms/<name>.md        # 各平台详细手册
+│   └── platforms/<name>.md        # 各平台详细手册（设备端）
 ├── platforms/                     # 每平台一舱，自包含
-│   └── windows/
-│       ├── server/                # MCP server 源码 + 依赖
-│       ├── scripts/               # 安装脚本
-│       └── examples/              # 参考配置
-└── examples/                      # 跨平台示例
-    └── multi-platform-claude-settings.json
+│   ├── windows/
+│   │   ├── README.md              # 速览
+│   │   ├── server/                # MCP server 源码 + 依赖
+│   │   ├── scripts/               # 安装 / 启动 / 排错脚本
+│   │   ├── skills/using-winpc/    # 给 agent 用的 skill 文档
+│   │   └── examples/              # claude-settings.json 片段
+│   └── macos/                     # 同样子结构
+├── scripts/                       # 仓库级脚本
+│   └── install-agent-side.py      # 一行命令把 MCP + skill 装到 ~/.claude.json
+├── examples/                      # 跨平台示例
+│   └── multi-platform-claude-settings.json
+└── CHANGELOG.md
 ```
 
-新增平台 → 在 `platforms/<name>/` 下落入同样的子结构。
+新增平台 → 在 `platforms/<name>/` 下落入同样的子结构。范式见 [`docs/install-pattern.md` § 添加新平台](docs/install-pattern.md)。
 
 ## License
 

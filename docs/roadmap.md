@@ -2,22 +2,23 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-06*
+*Last updated: 2026-05-09*
 
 | Version | Platform | Status |
 |---|---|---|
-| 0.1.0 | Windows 10/11 | ✅ Released |
-| 0.2.0 | macOS (12+) | 📋 Planned |
-| 0.3.0 | Android | 📋 Planned |
-| 0.4.0 | iOS (Simulator + real device) | 📋 Planned |
-| 0.5.0 | Cross-device coordination | 🔭 Future |
+| 0.1.0 | Windows 10/11 (initial) | ✅ Released |
+| 0.2.0 | Windows 10/11 (winpc-gui consolidated) | ✅ Released |
+| 0.3.0 | macOS (12+) | ✅ Released |
+| 0.4.0 | Android | 📋 Planned |
+| 0.5.0 | iOS (Simulator + real device) | 📋 Planned |
+| 0.6.0 | Cross-device coordination | 🔭 Future |
 | 1.0.0 | Public open-source release | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.1.0 — Windows
+## v0.1.0 — Windows (initial)
 **Released 2026-05-06**
 
 - Tailscale + 双 MCP 服务（desktop-commander 端口 8765 + 自写 GUI MCP 端口 8766）
@@ -27,25 +28,31 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.2.0 — macOS
-**Target: TBD**
+## v0.2.0 — Windows (winpc-gui consolidated)
+**Released 2026-05-08**
 
-### 范围
-- macOS 12+ 设备主机桥
-- 驱动栈：AppleScript + pyobjc + Accessibility API
-- 复用 Universal Tool Set；`run_powershell` → `run_shell`（zsh）
-- launchd 服务自启
-- zsh 安装脚本 / 可选 pkg installer
-- 端口 8767
-
-### 待解决问题
-- Accessibility API 需要逐二进制授权（"系统设置 → 隐私与安全性 → 辅助功能"），自动化此授权困难，文档化为主
-- Dock / Mission Control / 多桌面切换需要补额外工具
-- 如何在 Apple Silicon / Intel 双架构下统一打包
+- 把 v0.1 的两服务（winpc-shell mcp-proxy + winpc-gui FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
+- 新增 `acquire_winpc` / `release_winpc` / `get_winpc_status` 多 agent 协作的状态模型
+- 启动器加 restart loop，遇 session lock kill python 后自动恢复
+- 日志改 UTF-8（PS 5.1 默认 UTF-16 LE 的坑）
 
 ---
 
-## v0.3.0 — Android
+## v0.3.0 — macOS
+**Released 2026-05-09**
+
+- macOS 12+ 设备主机桥（Intel + Apple Silicon 通用）
+- 驱动栈：FastMCP + pyautogui + ImageGrab + AppleScript（osascript）
+- 31 个工具，跨 9 类（state / screen / mouse / keyboard / process / file / search / zsh / AppleScript）
+- launchd 服务自启 + KeepAlive，无需 while-loop launcher
+- 一键 setup-macos.sh：brew Tier-3 容错、ERR trap、目录写权限预检
+- 完整 GUI 权限文档：Python.app 拖入 + python3.12 自动二次授权 + Full Disk Access 一招覆盖文稿/桌面/Library
+- `take_screenshot` server 端 resize 到 logical-px，screenshot 像素 = click 像素
+- `using-macbox` skill 含 GUI 烟测 recipe
+
+---
+
+## v0.4.0 — Android
 **Target: TBD**
 
 ### 范围
@@ -62,7 +69,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.4.0 — iOS
+## v0.5.0 — iOS
 **Target: TBD**
 
 ### 范围
@@ -78,7 +85,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.5.0 — Cross-device Coordination
+## v0.6.0 — Cross-device Coordination
 **Future**
 
 Agent 一次提示，串联多设备。例：

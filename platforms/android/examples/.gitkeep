@@ -1,0 +1,9 @@
+# v0.4.0 placeholder. Real claude-settings.json:
+#   {
+#     "mcpServers": {
+#       "android": {
+#         "type": "sse",
+#         "url": "http://android-host:8768/sse"
+#       }
+#     }
+#   }

@@ -19,10 +19,9 @@
 
     "_planned_android": {
       "_status": "v0.4.0 -- not yet implemented",
-      "type": "stdio",
-      "command": "python",
-      "args": ["-m", "atb_android.server"],
-      "_note": "Android driver runs on the agent host directly; stdio is simpler than SSE for same-machine."
+      "type": "sse",
+      "url": "http://<ANDROID_HOST>:8768/sse",
+      "_note": "Android MCP server runs on a Linux/Mac HOST (not the phone itself); host bridges via ADB to one or more attached phones."
     },
 
     "_planned_iphone": {

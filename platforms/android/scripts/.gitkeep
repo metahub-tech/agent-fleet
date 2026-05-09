@@ -1,0 +1,4 @@
+# v0.4.0 placeholder. Real scripts:
+#   setup-android.sh        — installs adb, uiautomator2 deps, scrcpy; registers systemd/launchd service
+#   _launch-android.sh      — invoked by service unit
+#   diagnose-android.sh     — adb devices / port-listen / scrcpy probe (mirrors windows diagnose.ps1)
