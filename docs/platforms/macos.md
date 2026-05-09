@@ -109,6 +109,30 @@ macOS 强制：除非用户在系统设置中显式授权，否则脚本控制�
 
 > ⚠️ 这些列表里的 entry 是按**完整可执行路径**记录的。如果你删了 venv 重建，新 venv 的 python3 路径相同，但 hash 可能变，macOS 通常会让你重新授权。
 
+### 4.3.5 同一个 Python 在不同面板显示成不同的名字（不是 bug，是 macOS 设计）
+
+授权完成后，你会发现：
+
+| 面板 | 看到的条目名 | 图标 |
+|---|---|---|
+| 辅助功能 (Accessibility) | **Python** | Python.app 的火箭图标 |
+| 屏幕录制 (Screen Recording) | **python3.12** | 通用二进制图标 |
+| 自动化 (Automation) | **Python** | 同辅助功能 |
+
+它们指向的是**同一个二进制**（`Python.framework/.../MacOS/Python`），只是 TCC 在屏幕录制面板用 binary basename 命名、其他面板用 `.app` 的 bundle name。**两个条目都勾上即可，不需要担心是不是漏了一项**。
+
+这是 macOS 12+ 加严屏幕录制权限校验留下的历史包袱，所有调用 `pyautogui` / `Pillow.ImageGrab` 的非签名 Python 程序都会遇到。
+
+### 4.3.6 一次同意 = 永久生效（除非...）
+
+权限第一次弹窗、点 Allow 后**永久持久**，重启 / 重 launchd / git pull / 重新连接 SSE 都不会再问。会重新触发弹窗的情况：
+
+- macOS 大版本升级（12 → 13 → 14），TCC 数据库迁移偶尔失败
+- `brew upgrade python@3.12` 把 binary 换成新的（次要版本变化）
+- 升级 Python 主版本（3.12 → 3.13），路径整个变了
+- 手动 reset：`tccutil reset Accessibility / ScreenCapture / AppleEvents`
+- 删除 .venv 重建——bin/python3 符号链接的 inode 哈希变了
+
 ### 4.4 验证授权生效
 
 回到 Terminal（请把 `<repo>` 换成你 clone 的实际路径，setup 脚本结束时也会打印这两条命令）：
