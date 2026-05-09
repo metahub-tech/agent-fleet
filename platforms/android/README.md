@@ -7,11 +7,23 @@ Android 测试设备桥，让 LLM agent 通过 ADB + uiautomator2 + scrcpy 驱�
 ## 计划架构
 
 ```
-[Agent (Linux/Mac)] ──Tailscale──> [Device Host (Linux/Mac)] ──USB/wifi adb──> [Android Device]
-                                       MCP server :8768                            (P30 Pro / Pixel / 模拟器)
+[Agent (any OS)] ──Tailscale──> [Device Host: Win/Linux/Mac] ──ADB──> [Android Device]
+                                  MCP server :8768                       (USB OR Wireless OR Hybrid)
 ```
 
-**设备主机不必是 Android 设备本身**——Android 不能跑 Python MCP server，所以 host 是普通 Linux/Mac，通过 ADB 桥到一台或多台真实手机。
+**设备主机不必是 Android 设备本身**——Android 不能跑 Python MCP server，所以 host 是任意 OS（Win/Linux/Mac 都行），通过 ADB 桥到一台或多台真实手机。Win/Linux/Mac 都有 `adb` 二进制（来自 Android platform-tools），跨平台行为一致。
+
+**Host 与现有桥共存**：完全允许在已经跑 winpc-gui (8766) 的 Win11 上叠加 Android server (8768)——两个 service 互不干扰，端口不冲突，分别有自己的 venv 和 scheduled task。这是项目"平台 silo"设计有意支持的多桥共存场景。
+
+## ADB 连接模式：USB ≠ 强制
+
+| 模式 | Android 兼容 | 步骤 | 说明 |
+|---|---|---|---|
+| **Wireless Debugging（推荐）** | Android 11+ / HarmonyOS 4+ | 手机 设置 → 开发者 → 无线调试 → 配对码 → host `adb pair` + `adb connect` | 一次配对，永久连。不需要 USB 线。 |
+| **USB 调试** | 全版本 | 插线 → 手机授权 → `adb devices` | 每次插线都要在手机弹窗点信任。OEM 驱动是常见痛点（华为需 HiSuite，小米需开发版）。 |
+| **Hybrid（legacy tcpip）** | Android 5-10 | 插一次 USB → `adb tcpip 5555` → 拔线 → `adb connect <ip>:5555` | 重启手机后失效，需重新插线。仅向后兼容 |
+
+`setup-android` 安装脚本应当**让用户显式选择**这三种模式，不要 hardcode USB。MCP server 内部模式无关——只要 `adb devices` 能列出设备就能驱动。
 
 ## 计划工具集（Universal + Android-specific）
 
@@ -28,11 +40,11 @@ Android 测试设备桥，让 LLM agent 通过 ADB + uiautomator2 + scrcpy 驱�
 
 ## 计划开发难点
 
-- 国内厂商定制 ROM 的 USB 调试授权（华为 / 小米 / OPPO / vivo）行为差异
+- 国内厂商定制 ROM 的 USB 调试授权（华为 / 小米 / OPPO / vivo）行为差异——**用 Wireless Debugging 能绕开大半**
 - HarmonyOS 4.0+ 与原生 AOSP 的 ADB 兼容性（首批测试机 P30 Pro 用 HarmonyOS 4.0.0）
-- 多设备：一个 host 接多台手机时按 serial number 命名空间隔离（`acquire_android(device_serial="...")`）
+- 多设备：一个 host 接多台手机时按 serial number 命名空间隔离（`acquire_android(device_serial="...")`）；单设备自动选默认
 - scrcpy 视频流的 SSE 兼容性（可能不直接 stream，转 frame snapshot）
-- USB 唤醒 / wifi adb 切换 (`adb tcpip 5555`) 自动化
+- 多桥共存：host 同时跑 winpc-gui (8766) + android (8768) 时的资源 / 日志隔离
 
 ## 当前结构
 

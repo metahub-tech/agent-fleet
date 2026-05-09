@@ -150,6 +150,19 @@ python3 scripts/install-agent-side.py --platform linux-gui --hostname linux-test
 
 应该和现有平台行为完全对称。
 
+### 多模式接入：让 setup 脚本问，不要 hardcode
+
+某些平台**接入路径不止一种**——典型是 Android 的 USB / Wireless / Hybrid 三模式。原则：
+
+- setup 脚本**显式询问**模式，把选择权交给设备管理员
+- MCP server 内部应当**模式无关**——只关心"设备已连接"，不关心通过什么协议连的
+- 文档为每种模式给一段独立 walkthrough，不要让用户从一个模式的步骤里推导另一种
+
+错误做法：在 setup-android.sh 第一行就 `adb push`，假设 USB 已插。
+正确做法：先 `read -p "Mode? (wireless/usb/hybrid): "`，再分支。
+
+这条原则也适用于：iOS（模拟器 vs 真机 + WebDriverAgent）、Linux（X11 vs Wayland），凡是接入方式有真实分歧的地方。
+
 ---
 
 ## 6. 不要做的事
