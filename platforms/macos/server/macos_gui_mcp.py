@@ -16,10 +16,13 @@ let agents coordinate explicitly; get_mac_status reports current state.
 Idle timeout (10 min) auto-clears stale holders.
 
 GUI permissions (one-time manual grant in System Settings):
-  - Privacy & Security > Accessibility       -> the venv's python3
-  - Privacy & Security > Screen Recording    -> the venv's python3
+  - Privacy & Security > Accessibility       -> Python.framework's Python.app
+  - Privacy & Security > Screen Recording    -> Python.framework's Python.app
   - Privacy & Security > Automation          -> python3 controlling
                                                 System Events / Finder
+  Use the .app bundle inside the brew Python framework (NOT the venv's
+  bin/python3 symlink -- macOS rejects symlinks and CLI binaries in
+  these panes). setup-macos.sh prints the exact path on the host.
   Without these, click / type / take_screenshot / list_windows fail
   silently or with PermissionError.
 """
@@ -191,11 +194,24 @@ def get_screen_size() -> dict:
 def take_screenshot(
     region: Annotated[
         Optional[tuple[int, int, int, int]],
-        Field(description="(left, top, right, bottom); None = full screen"),
+        Field(description="(left, top, right, bottom) in logical pixels; None = full screen"),
     ] = None,
 ) -> Image:
-    """Capture the screen and return a PNG."""
+    """Capture the screen and return a PNG sized to LOGICAL pixels.
+
+    On Retina, ImageGrab returns physical pixels (e.g. 2880x1800) while
+    pyautogui clicks use logical pixels (e.g. 1440x900). We resize the
+    grab to logical size so screenshot pixel coordinates can be passed
+    directly to `click(x, y)` without scaling math.
+    """
     img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
+    if region is None:
+        target = pyautogui.size()
+    else:
+        target = (region[2] - region[0], region[3] - region[1])
+    if img.size != target:
+        from PIL import Image as PILImage
+        img = img.resize(target, PILImage.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return Image(data=buf.getvalue(), format="png")

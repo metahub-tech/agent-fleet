@@ -9,17 +9,17 @@ Drive a remote Mac test machine via the `macbox-gui` MCP server (FastMCP, SSE tr
 
 ## Critical patterns
 
-### Screenshot click coordinates are SCREEN pixels, NOT image-display pixels
+### Screenshot pixels == click pixels (logical / point space)
 
-`take_screenshot` returns a PNG of the actual screen (e.g. 2880x1800 on Retina). The viewer (Read tool, image preview, etc.) MAY downscale for display. **Always use the actual screen resolution for click coordinates.**
+`take_screenshot` is sized to **logical pixels** (e.g. 1440x900 on a Retina MacBook), matching `click(x, y)` and `get_screen_size`. So coordinates from a screenshot can be passed directly to `click` without scaling. This is implemented server-side: the raw `ImageGrab` capture is physical (2880x1800) but the tool resizes before returning.
 
 ```
-get_screen_size                       # returns {"width": 2880, "height": 1800}
-take_screenshot                        # PNG of full screen; rendered display may be smaller
-click(x=1440, y=900)                   # MUST be in 2880x1800 space
+get_screen_size                       # {"width": 1440, "height": 900}  -- logical
+take_screenshot                        # PNG also at 1440x900
+click(x=720, y=450)                    # center; same space as screenshot
 ```
 
-If clicks miss: call `get_screen_size` first. Note that on Retina displays `pyautogui.size()` returns logical pixels (not physical), and `ImageGrab.grab()` returns physical pixels — they may differ by 2x. Trust `get_screen_size`.
+If clicks miss anyway: usually a permission issue, NOT a coordinate issue. Verify Accessibility is granted (System Settings > Privacy & Security > Accessibility shows Python.app, switch on).
 
 ### macOS modifiers: `cmd`, not `ctrl`
 
@@ -94,8 +94,8 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 | Symptom | Cause / fix |
 |---|---|
 | `MCP error -32602: Invalid request parameters` on every tool | SSE session corrupted -- often after a long-running tool blocking the caller. Recovery: `/exit` + reopen Claude Code |
-| Click landed wrong place / no effect | Either Accessibility permission not granted, OR coordinate-system confusion. Check `get_screen_size`; verify `Privacy & Security > Accessibility` includes the venv's python3 |
-| `take_screenshot` returns black image | Screen Recording permission not granted for the venv's python3 |
+| Click landed wrong place / no effect | Accessibility permission not granted. The .app must be `<brew_prefix>/opt/python@3.12/Frameworks/Python.framework/.../Resources/Python.app` (NOT the venv's bin/python3 symlink, which macOS rejects) |
+| `take_screenshot` returns black image | Screen Recording permission not granted; same `.app` rule as Accessibility |
 | `run_applescript` returns `execution error -1743 (errAEEventNotPermitted)` | Automation permission missing -- expand python3 in Privacy & Security > Automation, tick the controlled app |
 | Service not on port 8767 after Mac wake | launchd should auto-restart with KeepAlive. If not: `launchctl kickstart -k gui/$(id -u)/cc.metahub.macbox-gui` |
 | `mcp__macbox-gui__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__macbox-gui__<name>` first |

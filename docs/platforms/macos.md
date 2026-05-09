@@ -79,15 +79,29 @@ bash platforms/macos/scripts/setup-macos.sh
 
 macOS 强制：除非用户在系统设置中显式授权，否则脚本控制鼠标、键盘、屏幕、其他 App 都会被静默拒绝。
 
+> **关键陷阱**：辅助功能 / 屏幕录制面板**拒绝符号链接和 CLI 可执行文件**。venv 里的 `bin/python3` 是符号链接，往面板里拖会显示灰色不可选。**必须拖 `.app` 包**——brew 装的 framework Python 自带一个：
+>
+> ```
+> Intel:  /usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+> ARM:    /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+> ```
+>
+> v0.3.1+ 的 `setup-macos.sh` 在结束时会直接打印你这台机器上的实际路径。
+>
+> 找不到时可用：
+> ```bash
+> find $(brew --prefix python@3.12) -name 'Python.app' -type d
+> ```
+
 打开 **苹果菜单 → 系统设置 → 隐私与安全性**，依次进入：
 
 ### 4.1 辅助功能 (Accessibility)
-点 +，添加 `~/agent-test-bench/platforms/macos/server/.venv/bin/python3`，确保开关 ON。
+点 +，把上面那个 `Python.app` 拖进去，确保开关 ON。
 （控制鼠标 / 键盘 / `pyautogui` 一切都需要这个）
 
 ### 4.2 屏幕录制 (Screen Recording)
-同样添加 venv 的 python3。
-（`take_screenshot` 需要这个；macOS 13+ 新增的限制）
+同样把 `Python.app` 拖进去。
+（`take_screenshot` 需要这个；macOS 13+ 新增的限制；macOS 12 上仍需要）
 
 ### 4.3 自动化 (Automation)
 展开 `python3` 这一行——会列出它请求控制的所有 App（如 System Events / Finder / Safari）。**给每个想脚本控制的 App 打勾**。
@@ -97,26 +111,23 @@ macOS 强制：除非用户在系统设置中显式授权，否则脚本控制�
 
 ### 4.4 验证授权生效
 
-回到 Terminal：
+回到 Terminal（请把 `<repo>` 换成你 clone 的实际路径，setup 脚本结束时也会打印这两条命令）：
 
 ```bash
-~/agent-test-bench/platforms/macos/server/.venv/bin/python3 -c "
-import pyautogui
-print('mouse pos:', pyautogui.position())
-"
+VENV_PY=<repo>/platforms/macos/server/.venv/bin/python3
+
+$VENV_PY -c "import pyautogui; print('mouse pos:', pyautogui.position())"
 ```
 
-如果输出鼠标位置坐标 → 辅助功能 OK。如果报 `OSError` 或 hang → 没给权限。
+输出鼠标坐标 → 辅助功能 OK。报 `OSError` 或 hang → 没给权限。
 
 ```bash
-~/agent-test-bench/platforms/macos/server/.venv/bin/python3 -c "
-from PIL import ImageGrab
-img = ImageGrab.grab()
-print('screen:', img.size)
-"
+$VENV_PY -c "from PIL import ImageGrab; print('screen:', ImageGrab.grab().size)"
 ```
 
-如果输出尺寸（如 `(2880, 1800)`）→ 屏幕录制 OK。如果输出全黑或失败 → 没给权限。
+输出尺寸（如 `(2880, 1800)`，物理像素）→ 屏幕录制 OK。报错或全黑 → 没给权限。
+
+> 注意输出的尺寸是**物理像素**（Retina 上 2x），但 `take_screenshot` 工具会把图缩到**逻辑像素**（与 `click(x,y)` 同坐标系），所以 agent 看到的截图直接 `click(x,y)` 即可，不用再做 2x 换算。
 
 ## 5. 验证
 

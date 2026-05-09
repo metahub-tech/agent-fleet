@@ -279,20 +279,53 @@ echo "  Tailscale hostname : $TS_HOST"
 echo "  Tailscale FQDN     : $TS_DNS"
 echo "  macbox-gui URL     : http://${TS_HOST}:8767/sse"
 echo
+# Resolve the framework Python.app that macOS Privacy panes will accept.
+# The venv's bin/python3 is a symlink — System Settings refuses symlinks
+# and CLI binaries; only .app bundles are draggable. The brew framework
+# Python ships a Python.app inside Resources that IS such a bundle.
+PYTHON_APP=""
+if [ -n "${PYTHON_BIN:-}" ]; then
+    REAL_PY="$(readlink -f "$PYTHON_BIN" 2>/dev/null || echo "$PYTHON_BIN")"
+    case "$REAL_PY" in
+        */Python.framework/*)
+            FRAMEWORK_BASE="${REAL_PY%/Python.framework/*}/Python.framework"
+            CAND="$(find "$FRAMEWORK_BASE" -maxdepth 6 -type d -name 'Python.app' 2>/dev/null | head -1)"
+            [ -n "$CAND" ] && PYTHON_APP="$CAND"
+            ;;
+    esac
+fi
+
 echo "PERMISSIONS (one-time, manual; macOS won't grant them on its own):"
 echo
 echo "  System Settings > Privacy & Security > ..."
 echo
-echo "    [Accessibility]    add: $VENV_PY"
-echo "    [Screen Recording] add: $VENV_PY"
+echo "  IMPORTANT: macOS rejects symlinks and CLI binaries in the Accessibility"
+echo "  and Screen Recording panes. Use the .app bundle below, NOT the venv's"
+echo "  bin/python3 symlink (it appears greyed out / undraggable)."
+echo
+if [ -n "$PYTHON_APP" ] && [ -e "$PYTHON_APP" ]; then
+    echo "    [Accessibility]    drag in: $PYTHON_APP"
+    echo "    [Screen Recording] drag in: $PYTHON_APP"
+else
+    echo "    [Accessibility]    drag in: <Python.framework>/Versions/3.12/Resources/Python.app"
+    echo "    [Screen Recording] drag in: <same path>"
+    echo "    (find it: find \$(brew --prefix python@3.12) -name Python.app -type d)"
+fi
 echo "    [Automation]       expand python3 entry; tick System Events,"
 echo "                        Finder, Safari, ... (whatever apps you script)"
+echo "                        First call to a new app triggers a permission"
+echo "                        prompt automatically; click Allow."
 echo
 echo "  Without these, click / type / take_screenshot / run_applescript"
 echo "  fail silently or with an OS error. Test by running:"
 echo
 echo "    curl -sN http://${TS_HOST}:8767/sse | head -1"
-echo "    # then from agent: take_screenshot tool"
+echo
+echo "  And to validate Screen Recording / Accessibility:"
+echo
+echo "    $VENV_PY -c \"from PIL import ImageGrab; print(ImageGrab.grab().size)\""
+echo "    $VENV_PY -c \"import pyautogui; print(pyautogui.position())\""
+echo "    # both should print sensible values (size, x/y); errors -> permissions missing"
 echo
 echo "Service auto-starts at every login. Check status anytime:"
 echo
