@@ -84,6 +84,73 @@ pull_file(device_path="/sdcard/screenshots/foo.png", host_path="/tmp/foo.png")
 
 Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs use `install_apk` instead, which is APK-aware).
 
+## Recipes (battle-tested on real deploys)
+
+### Recipe: when 2+ blind taps miss, dump UI -- don't keep guessing
+
+**The single biggest time-saver.** Visual coordinate estimation from a screenshot is ±50px at best (especially when the screenshot is rendered at thumbnail size). Modern apps' touch targets are often smaller. If your first 1-2 taps don't produce a state change, **stop tapping and dump the UI hierarchy** to get exact bounds:
+
+```
+adb_shell("uiautomator dump /sdcard/ui.xml")
+adb_shell("cat /sdcard/ui.xml | tr '>' '\n' | grep -E 'TARGET_TEXT|TARGET_RESOURCE_ID' | head -5")
+```
+
+The XML gives `bounds="[L,T][R,B]"` for every clickable element. Compute center `((L+R)/2, (T+B)/2)`. Real example from a Kuaishou login flow:
+
+- I tapped a checkbox at (135, 2090) — missed (was unchecked still)
+- Dumped UI: `protocol_checkbox bounds=[120,2105][168,2153]` → real center (144, 2129)
+- Re-tapped at (144, 2129) → checkbox became ✓
+
+Native UI tools (`dump_ui_xml`, `find_by_resource_id`) ship in v0.4.1; until then this two-line shell pattern is the workaround.
+
+### Recipe: read SMS verification code via dual channels
+
+The SMS provider on EMUI / MIUI is permission-gated for `adb shell` — but the notification provider often isn't. Try BOTH; at least one usually works:
+
+```
+# Channel 1: notification dump (fast; works even when SMS provider is locked)
+adb_shell("dumpsys notification --noredact | grep -A 1 -E 'mms|sms|验证码|verification' | head -20")
+
+# Channel 2: SMS provider (works on most ROMs once an SMS has actually arrived)
+adb_shell("content query --uri content://sms/inbox --projection address:body --sort 'date DESC' | head -3")
+```
+
+Wait ~5-10s after triggering the SMS before querying. Provider returns "No result found" if there is no message yet — not the same as denial.
+
+### Recipe: hardware health snapshot
+
+One adb_shell call per subsystem. Use to verify a freshly-deployed test box, or as a sanity check before / after a long test run:
+
+```
+adb_shell("dumpsys battery | head -16")                                       # level/voltage/temp/health
+adb_shell("wm size; wm density; dumpsys display | grep mScreenBrightness")   # screen
+adb_shell("cat /proc/meminfo | head -4")                                      # RAM
+adb_shell("nproc; cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq") # CPU cores+freq
+adb_shell("df -h /data /sdcard 2>&1 | head -5")                               # storage
+adb_shell("dumpsys wifi | grep -E 'mWifiInfo|RSSI|LinkSpeed' | head -5")      # WiFi
+adb_shell("dumpsys telephony.registry | grep mServiceState= | head -1")       # cellular
+adb_shell("getprop gsm.sim.state; getprop gsm.operator.alpha")                # SIM
+adb_shell("dumpsys sensorservice | grep -oE 'android\\.sensor\\.[a-z_]+' | sort -u")  # sensor list
+```
+
+### Recipe: active hardware drive (vibrate as proof-of-execution)
+
+When you need a physically-perceptible signal that the agent is actually driving the device (e.g. demo, post-deploy verify, "ping" between agent and device admin):
+
+```
+adb_shell("cmd vibrator vibrate 800 atb-test")    # 800ms; the second arg is the reason logged
+```
+
+Returncode 0 + empty stdout = vibration triggered. The reason string shows up in `dumpsys vibrator` history.
+
+For sensor liveness without raw values (EMUI redacts the values but keeps timestamps):
+
+```
+adb_shell("dumpsys sensorservice | grep -A 6 'Recent Sensor events' | head -30")
+```
+
+Recent event timestamps prove the sensor is actively sampling; useful for sanity-checking that step counter / accelerometer hardware is alive even when content is `[value masked]`.
+
 ## Common failures and recovery
 
 | Symptom | Cause / fix |
@@ -93,6 +160,7 @@ Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs 
 | `take_screenshot` returns garbage / fallback path used | Some Huawei / OEM ROMs corrupt `exec-out screencap`. Fallback to `screencap -p /sdcard/...` + `adb pull` is automatic. If that also fails, ROM is locked down -- need to grant Developer Options > "Disable permission monitoring". |
 | Phone locked (lock screen) | `press_key("wake")` then swipe up via `swipe(540, 1800, 540, 600, 300)` (calibrate to your screen). For PIN-locked phones, type the PIN via `type_text("1234")` after swipe-up. |
 | `type_text` Chinese / emoji silently dropped | `adb input text` ASCII-only on most ROMs. v0.4 doesn't ship a Unicode workaround; for now copy text via `push_file` to clipboard or use a third-party IME. |
+| `type_text` into a verify-code field gets eaten; permission dialog from IME pops up | OEM-bundled IMEs (Baidu / Sogou on Huawei / Xiaomi) intercept SMS-code fields to ask for SMS read permission. The dialog steals focus before your text reaches the field. Fix: tap "禁止" (~305, 2192 -- size depends on dialog) on the IME permission dialog, dismiss any follow-up "去设置" prompt with "取消", THEN re-issue `type_text`. We already have the code via the SMS recipe above; the IME doesn't need its own SMS access. |
 | `MCP error -32602` on every tool | SSE session corrupted. Recovery: `/exit` + reopen Claude Code. |
 | Service not on 8768 (host = Windows) | `Stop-ScheduledTask MCP-AndroidGui; Start-ScheduledTask MCP-AndroidGui` |
 | Service not on 8768 (host = macOS) | `launchctl kickstart -k gui/$(id -u)/cc.metahub.android-gui` |
@@ -107,7 +175,8 @@ Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs 
 
 ## Roadmap notes
 
-- v0.4.1 will add uiautomator2-backed UI introspection (`dump_ui_xml`, `find_by_resource_id`) behind a feature flag (avoids breaking deploys on locked-down OEM ROMs).
+- v0.4.1 will add native UI introspection tools (`dump_ui_xml`, `find_by_resource_id`) wrapping the `uiautomator dump` recipe above; until then the two-line shell form is fully usable.
+- v0.4.1 will also ship `vibrate(ms, reason)` and `read_sms_inbox(limit)` as first-class tools (the recipes above formalized).
 - v0.5 will add multi-device routing (`acquire_android(serial=...)` + per-tool serial param).
 - Long-running ops (`start_logcat` / `start_recording`) are planned; until then use `adb_shell("logcat -d")` for one-shot dumps.
 
@@ -118,3 +187,5 @@ Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs 
 - "I'll skip acquire/release for one tap" -> fine for one-off; required for multi-step automated tests where another agent might intervene
 - "I'll send Chinese text via type_text" -> silently dropped on most ROMs, plan around it (clipboard paste / IME / hardcoded test data)
 - "MCP errors are intermittent" -> -32602 means session is dead; `/exit` and reopen
+- "I'll keep tapping at slightly different coords until something happens" -> after 2 misses, dump UI; visual estimation rarely beats ±50px and modern targets are smaller
+- "I'll just type the verify code, the IME won't care" -> on Huawei/Xiaomi the OEM IME WILL pop a permission dialog and eat your input; expect it
