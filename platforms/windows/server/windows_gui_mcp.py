@@ -9,7 +9,7 @@ mcp-proxy + desktop-commander chain on port 8765. That stack hit several
 single-client / npm / IPv6 issues, so we consolidated into one FastMCP
 server (multi-client native, all-in-one venv).
 
-Transport: SSE on 0.0.0.0:8766. Windows Firewall + Tailscale ACL gate
+Transport: streamable-http on 0.0.0.0:8766/mcp. Windows Firewall + Tailscale ACL gate
 who can reach it.
 
 In-use state model: advisory single-holder. acquire_winpc / release_winpc
@@ -934,4 +934,12 @@ def stop_search(
 
 if __name__ == "__main__":
     # Bind 0.0.0.0; Windows Firewall scoped to Tailscale IP range gates access.
-    mcp.run(transport="sse", host="0.0.0.0", port=8766)
+    #
+    # Transport: streamable-http (FastMCP's "http" alias). Migrated from
+    # SSE in v0.2.x; SSE long-lived event channels timed out at middle-
+    # boxes during long tool calls (>60s) and every subsequent call hit
+    # -32602 with a stale session_id. streamable-http is per-request and
+    # auto-reconnects.
+    #
+    # Endpoint: http://<host>:8766/mcp  (was /sse)
+    mcp.run(transport="http", host="0.0.0.0", port=8766)

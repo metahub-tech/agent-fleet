@@ -64,7 +64,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 
 | Symptom | Cause / fix |
 |---|---|
-| `MCP error -32602: Invalid request parameters` on every tool | SSE session corrupted -- often after a long-running tool blocking the caller. Recovery: `/exit` + reopen Claude Code |
+| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen on v0.2.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform winpc-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | `edit_block` returns `old_string not unique` | Pass `replace_all=True`, or extend `old_string` with surrounding context to make it unique |
 | Click landed wrong place | Coordinate system confusion -- call `get_screen_size`; treat displayed image as thumbnail; don't compute coords from rendered dimensions |
 | Service not listening on 8766 | Restart task: `run_powershell` calling `Stop-ScheduledTask MCP-WindowsGui; Start-ScheduledTask MCP-WindowsGui` |
@@ -82,4 +82,4 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 - "I'll just use the displayed image's pixel position" → wrong, use `get_screen_size`
 - "I'll bump `run_powershell` timeout to 600 for this big install" → fragile, use `start_process` + poll
 - "I'll skip acquire/release, this is just one tool call" → fine for single calls; required for multi-step flows
-- "MCP errors are intermittent, I'll retry" → -32602 means session is dead, restart Claude Code
+- "MCP errors are intermittent, I'll retry" → on streamable-http transport this is rare; if persists, client config is still on legacy SSE -- re-run install-agent-side.py + restart

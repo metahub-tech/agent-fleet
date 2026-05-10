@@ -1,5 +1,6 @@
 {
   "_comment_about_this_file": "Reference for connecting one MCP client to multiple platform bridges at once. Merge the mcpServers block into ~/.claude.json (NOT ~/.claude/settings.json). winpc-gui (v0.2), macbox-gui (v0.3), and android-gui (v0.4) are real; entries prefixed with _planned are roadmap placeholders and won't be loaded by Claude Code (the prefix is illegal in MCP server names).",
+  "_v0_4_transport": "Migrated SSE -> streamable-http for all platforms in v0.4.x. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases); URL path is /mcp. SSE long-lived event channels were timing out at middle-boxes (Tailscale DERP, NAT) during long tool calls (>60s), leaving the client with a stale session_id and every subsequent call returning -32602 until /exit + reopen. streamable-http uses per-request streams with auto-reconnect.",
   "_legend": {
     "winpc-gui":   "Windows 11 test host (v0.2.0; consolidated FastMCP)",
     "macbox-gui":  "macOS desktop (v0.3.0; FastMCP on port 8767)",
@@ -8,25 +9,25 @@
   },
   "mcpServers": {
     "winpc-gui": {
-      "type": "sse",
-      "url": "http://<WINDOWS_HOSTNAME>:8766/sse"
+      "type": "http",
+      "url": "http://<WINDOWS_HOSTNAME>:8766/mcp"
     },
 
     "macbox-gui": {
-      "type": "sse",
-      "url": "http://<MACOS_HOSTNAME>:8767/sse"
+      "type": "http",
+      "url": "http://<MACOS_HOSTNAME>:8767/mcp"
     },
 
     "android-gui": {
-      "type": "sse",
-      "url": "http://<ANDROID_HOST>:8768/sse",
+      "type": "http",
+      "url": "http://<ANDROID_HOST>:8768/mcp",
       "_note": "v0.4.0; android MCP server runs on a Win11/macOS HOST (not the phone). Host bridges via ADB to one phone (USB or Wireless)."
     },
 
     "_planned_iphone": {
       "_status": "v0.5.0 -- not yet implemented (host: macOS)",
-      "type": "sse",
-      "url": "http://<MACOS_HOSTNAME>:8769/sse"
+      "type": "http",
+      "url": "http://<MACOS_HOSTNAME>:8769/mcp"
     }
   }
 }

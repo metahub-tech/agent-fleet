@@ -13,7 +13,7 @@
 │  Agent Host          │ ──── Tailscale / Internet ──> │  Device Host        │
 │  Linux/Mac/Win 开发机 │                             │  Win/Mac/Android/iOS │
 │                      │                             │                      │
-│  跑 Claude Code 等    │   MCP over SSE              │  跑 MCP server      │
+│  跑 Claude Code 等    │   MCP streamable-http       │  跑 MCP server      │
 │  MCP client          │   ──────────────>           │  (FastMCP / 自写)   │
 └──────────────────────┘                             └──────────────────────┘
         ↑                                                       ↑
@@ -72,7 +72,7 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
    ```json
    {
      "mcpServers": {
-       "macbox-gui": { "type": "sse", "url": "http://mac-test:8767/sse" }
+       "macbox-gui": { "type": "http", "url": "http://mac-test:8767/mcp" }
      }
    }
    ```
@@ -174,6 +174,7 @@ python3 scripts/install-agent-side.py --platform linux-gui --hostname linux-test
 | 在 setup-macos.sh 里加 Windows-only 逻辑 | 平台 silo，每个 setup 只动自己平台的东西 |
 | 给 setup 脚本加 sudo / Administrator 跑 | brew 拒绝 root；Windows Task Scheduler 装在用户级；MCP server 必须以登录用户身份跑 |
 | 多个平台共用同一端口 | 8766/8767/8768/8769 各占一个，跨平台同时监听才能并行用 |
+| 用 SSE 跑长任务（>60s） | v0.4.x 已迁到 streamable-http；新部署不要再选 sse 路径。原 SSE 长连接被 Tailscale DERP / NAT 中间盒切断后会留下 stale session_id，所有调用 `-32602` 直至重启 client。streamable-http 是 per-request stream，自动续连。 |
 
 ---
 

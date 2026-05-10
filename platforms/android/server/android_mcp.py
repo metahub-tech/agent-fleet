@@ -2,8 +2,8 @@
 
 FastMCP server bridging an LLM agent to one Android device via raw ADB.
 Mirrors the architecture of winpc-gui / macbox-gui (state model, FastMCP,
-SSE on Tailscale, advisory single-holder coordination), with platform-
-specific tools for touch / keys / app management / shell-on-device.
+streamable-http on Tailscale, advisory single-holder coordination), with
+platform-specific tools for touch / keys / app management / shell-on-device.
 
 v0.4.0 design: pure adb commands, no uiautomator2 / scrcpy dependency.
 This avoids pushing a JSON-RPC server APK to OEM-locked-down ROMs (Huawei
@@ -11,7 +11,7 @@ HarmonyOS / MIUI / etc.) on first deploy. UI introspection (`dump_xml`,
 `find_by_resource_id`) is deferred to v0.4.1 when uiautomator2 will land
 behind a feature flag.
 
-Transport: SSE on 0.0.0.0:8768.
+Transport: streamable-http on 0.0.0.0:8768/mcp.
 
 Single-device assumption: the host running this server has exactly one
 authorized device in `adb devices`. If 0 or >1 devices are present, tools
@@ -677,5 +677,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"  device    = NONE  ({e})")
         print(f"  WARNING: server will start but tools will fail until a device appears.")
-    print(f"  transport = sse on 0.0.0.0:8768")
-    mcp.run(transport="sse", host="0.0.0.0", port=8768)
+    # Transport: streamable-http (FastMCP "http" alias). Migrated from
+    # SSE for the same reason as macbox-gui / winpc-gui: long tool calls
+    # broke SSE keep-alive and yielded -32602 forever after.
+    # Endpoint: http://<host>:8768/mcp  (was /sse)
+    print(f"  transport = http (streamable) on 0.0.0.0:8768/mcp")
+    mcp.run(transport="http", host="0.0.0.0", port=8768)

@@ -185,7 +185,7 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 | Phone locked (lock screen) | `press_key("wake")` then swipe up via `swipe(540, 1800, 540, 600, 300)` (calibrate to your screen). For PIN-locked phones, type the PIN via `type_text("1234")` after swipe-up. |
 | `type_text` Chinese / emoji silently dropped | `adb input text` ASCII-only on most ROMs. v0.4 doesn't ship a Unicode workaround; for now copy text via `push_file` to clipboard or use a third-party IME. |
 | `type_text` into a verify-code field gets eaten; permission dialog from IME pops up | OEM-bundled IMEs (Baidu / Sogou on Huawei / Xiaomi) intercept SMS-code fields to ask for SMS read permission. The dialog steals focus before your text reaches the field. Fix: tap "禁止" (~305, 2192 -- size depends on dialog) on the IME permission dialog, dismiss any follow-up "去设置" prompt with "取消", THEN re-issue `type_text`. We already have the code via the SMS recipe above; the IME doesn't need its own SMS access. |
-| `MCP error -32602` on every tool | SSE session corrupted. Recovery: `/exit` + reopen Claude Code. |
+| `MCP error -32602` on every tool | **Should not happen on v0.4.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform android-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | Service not on 8768 (host = Windows) | `Stop-ScheduledTask MCP-AndroidGui; Start-ScheduledTask MCP-AndroidGui` |
 | Service not on 8768 (host = macOS) | `launchctl kickstart -k gui/$(id -u)/cc.metahub.android-gui` |
 
@@ -210,6 +210,6 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 - "I'll just bump the timeout for this APK install" -> `install_apk` already has 120s; a slow ADB connection means USB or driver issue, not timeout
 - "I'll skip acquire/release for one tap" -> fine for one-off; required for multi-step automated tests where another agent might intervene
 - "I'll send Chinese text via type_text" -> silently dropped on most ROMs, plan around it (clipboard paste / IME / hardcoded test data)
-- "MCP errors are intermittent" -> -32602 means session is dead; `/exit` and reopen
+- "MCP errors are intermittent" -> on streamable-http transport this is rare; if it persists, your client config is still on legacy SSE -- re-run install-agent-side.py + restart Claude Code
 - "I'll keep tapping at slightly different coords until something happens" -> after 2 misses, dump UI; visual estimation rarely beats ±50px and modern targets are smaller
 - "I'll just type the verify code, the IME won't care" -> on Huawei/Xiaomi the OEM IME WILL pop a permission dialog and eat your input; expect it

@@ -8,7 +8,7 @@ Mirrors the architecture of the Windows winpc-gui server. Same tool
 contract for cross-platform Universal Tool Set compliance, with macOS-
 specific extensions (run_applescript, open_app).
 
-Transport: SSE on 0.0.0.0:8767. macOS Application Firewall (or pf, if
+Transport: streamable-http on 0.0.0.0:8767/mcp. macOS Application Firewall (or pf, if
 enabled) + Tailscale ACL gate who can reach it.
 
 In-use state model: advisory single-holder. acquire_mac / release_mac
@@ -925,4 +925,16 @@ def stop_search(
 if __name__ == "__main__":
     # Bind 0.0.0.0; the macOS Application Firewall (off by default on most
     # setups) and Tailscale ACL gate access.
-    mcp.run(transport="sse", host="0.0.0.0", port=8767)
+    #
+    # Transport: streamable-http (FastMCP's "http" alias). Replaces the
+    # legacy SSE transport in v0.3.0 because long tool calls (>60s,
+    # take_screenshot under load, run_zsh installs) caused the SSE keep-
+    # alive to time out at intermediate hops; the client kept the old
+    # session_id, the server no longer knew it, and every subsequent call
+    # returned -32602 until the user did /exit + reopen Claude Code.
+    # streamable-http uses per-request streams instead of a long-lived
+    # event channel, so a stale connection is just one bad request --
+    # auto-reconnect on the next call.
+    #
+    # Endpoint: http://<host>:8767/mcp  (was /sse)
+    mcp.run(transport="http", host="0.0.0.0", port=8767)

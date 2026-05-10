@@ -48,12 +48,14 @@ tailscale ping <DEVICE_HOSTNAME>
 {
   "mcpServers": {
     "winpc-gui": {
-      "type": "sse",
-      "url": "http://<WIN_HOSTNAME>:8766/sse"
+      "type": "http",
+      "url": "http://<WIN_HOSTNAME>:8766/mcp"
     }
   }
 }
 ```
+
+> **历史变更（v0.4.x）**：之前用 SSE（`"type": "sse"` + `/sse`），但长任务（>60s）会让 SSE 心跳超时被 Tailscale DERP / NAT 中转切断，client 留旧 session_id，server 不认 → `-32602` 至 `/exit` 重启。已迁到 streamable-http (`"type": "http"` + `/mcp`)，per-request 自动重连，问题根除。如果你的 `~/.claude.json` 仍是 `sse`/`/sse`，跑 `install-agent-side.py` 自动覆写。
 
 把 `<WIN_HOSTNAME>` 替换为设备管理员告诉你的 Tailscale 主机名。
 
@@ -156,8 +158,8 @@ grep -A 2 "mcpServers" ~/.claude.json
 tailscale status | grep <WIN_HOSTNAME>
 ping <WIN_HOSTNAME>
 
-# 3. 端口可达
-curl -sI http://<WIN_HOSTNAME>:8766/sse --max-time 5
+# 3. 端口可达（streamable-http 端点）
+curl -sI http://<WIN_HOSTNAME>:8766/mcp --max-time 5
 
 # 都通了还失败 -> 重启 Claude Code
 ```
@@ -203,9 +205,9 @@ Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
 ```json
 {
   "mcpServers": {
-    "winpc-gui":  { "type": "sse", "url": "http://win-test:8766/sse" },
-    "macbox-gui": { "type": "sse", "url": "http://mac-test:8767/sse" },
-    "android":    { "type": "stdio", "command": "python", "args": ["-m", "atb_android.server"] }
+    "winpc-gui":   { "type": "http", "url": "http://win-test:8766/mcp" },
+    "macbox-gui":  { "type": "http", "url": "http://mac-test:8767/mcp" },
+    "android-gui": { "type": "http", "url": "http://win-test:8768/mcp" }
   }
 }
 ```

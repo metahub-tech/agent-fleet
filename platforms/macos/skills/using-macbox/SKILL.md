@@ -129,7 +129,7 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 
 | Symptom | Cause / fix |
 |---|---|
-| `MCP error -32602: Invalid request parameters` on every tool | SSE session corrupted -- often after a long-running tool blocking the caller. Recovery: `/exit` + reopen Claude Code |
+| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen anymore as of v0.4.x** -- the SSE→streamable-http migration eliminated the long-task / middle-box keepalive failure mode that caused this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform macbox-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | Click landed wrong place / no effect | Accessibility permission not granted. The .app must be `<brew_prefix>/opt/python@3.12/Frameworks/Python.framework/.../Resources/Python.app` (NOT the venv's bin/python3 symlink, which macOS rejects) |
 | `take_screenshot` returns black image | Screen Recording permission not granted; same `.app` rule as Accessibility |
 | `run_applescript` returns `execution error -1743 (errAEEventNotPermitted)` | Automation permission missing -- expand python3 in Privacy & Security > Automation, tick the controlled app |
@@ -150,5 +150,5 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 - "I'll just use the displayed image's pixel position" -> wrong, use `get_screen_size`
 - "I'll bump `run_zsh` timeout to 600 for this big install" -> fragile, use `start_process` + poll
 - "I'll skip acquire/release, this is just one tool call" -> fine for single calls; required for multi-step flows
-- "MCP errors are intermittent, I'll retry" -> -32602 means session is dead, restart Claude Code
+- "MCP errors are intermittent, I'll retry" -> on v0.4.x+ streamable-http transport this is rare; if it persists, your client config is still on legacy SSE -- re-run install-agent-side.py and restart Claude Code
 - "I'll keep clicking, maybe permission will magically appear" -> macOS won't grant silently. Check the permission panes.

@@ -8,7 +8,10 @@ Usage:
 What this does (idempotent):
     1. Validate inputs (platform name + repo layout).
     2. Backup ~/.claude.json with timestamped filename.
-    3. Merge {platform}: {type=sse, url=http://{hostname}:{port}/sse} into mcpServers.
+    3. Merge {platform}: {type=http, url=http://{hostname}:{port}/mcp} into mcpServers.
+       (Migrated from SSE in v0.4.x; streamable-http is more resilient to long
+        tool calls and middle-box keepalive timeouts. Endpoint path is /mcp
+        instead of /sse.)
     4. Symlink ~/.claude/skills/using-{shortname} to platforms/{platform_dir}/skills/using-{shortname}.
     5. Print next steps.
 
@@ -76,7 +79,7 @@ def merge_mcp_entry(config_path: Path, name: str, url: str, dry_run: bool) -> st
         data = {}
 
     servers = data.setdefault("mcpServers", {})
-    new_entry = {"type": "sse", "url": url}
+    new_entry = {"type": "http", "url": url}
     prev = servers.get(name)
     servers[name] = new_entry
 
@@ -128,7 +131,7 @@ def main() -> None:
                  f"       Are you running from inside the agent-test-bench repo?")
     config_path = Path(args.config).expanduser()
     skills_dir = Path(args.skills_dir).expanduser()
-    url = f"http://{args.hostname}:{spec['port']}/sse"
+    url = f"http://{args.hostname}:{spec['port']}/mcp"
 
     print(f"=== install-agent-side ===")
     print(f"  repo     : {REPO_ROOT}")
@@ -164,7 +167,7 @@ def main() -> None:
     print()
     print("Next steps:")
     print("  1. Restart your MCP client (Claude Code: /exit then reopen)")
-    print(f"  2. Run /mcp -- you should see '{args.platform} [sse] connected'")
+    print(f"  2. Run /mcp -- you should see '{args.platform} [http] connected'")
     print(f"  3. Skill 'using-{args.platform.replace('-gui', '')}' is now")
     print(f"     auto-loaded by the client; ask the agent to drive the device.")
     print()
