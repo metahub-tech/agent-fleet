@@ -35,7 +35,7 @@ Phones use touchscreens. The tool is `tap`, not `click`. Calling `click` will fa
 
 | What | Tool | Note |
 |---|---|---|
-| Type into a focused input | `type_text("hello world")` | Spaces auto-escaped to `%s`. Newlines / Chinese / emoji NOT supported by `adb input text` -- skip these for v0.4. |
+| Type into a focused input | `type_text("hello world")` | Spaces auto-escaped to `%s`. Newlines / Chinese / emoji NOT supported by `adb input text`. For SMS specifically, use the intent-extra workaround in Recipes; for in-app search / share, look for an intent the target app accepts with a string extra. |
 | System buttons | `press_key("back")`, `press_key("home")`, `press_key("recent")` | Aliases for KEYCODE_BACK / HOME / APP_SWITCH |
 | Volume / power | `press_key("volume_up")`, `press_key("power")`, `press_key("wake")` | Useful for wakelock testing |
 
@@ -117,6 +117,30 @@ adb_shell("content query --uri content://sms/inbox --projection address:body --s
 
 Wait ~5-10s after triggering the SMS before querying. Provider returns "No result found" if there is no message yet — not the same as denial.
 
+### Recipe: send SMS (Unicode-clean) via SENDTO intent
+
+`adb input text` is ASCII-only on most ROMs (Chinese / emoji silently dropped). For SMS specifically, **route around the IME entirely** by passing the body as an Intent extra — bytes go directly from adb to the SMS app via Binder IPC, no keyboard involved:
+
+```
+adb_shell("am start -a android.intent.action.SENDTO -d 'smsto:13800138000' --es sms_body '你好，这是中文短信'")
+```
+
+The default SMS app opens with recipient + body pre-filled. Then tap the send button (use the UI-dump recipe to find exact bounds — on EMUI 14 / Android 10 it's `button_singlesim_model_parent` at [924,2196][1044,2236] → center (984, 2216)):
+
+```
+tap(x=984, y=2216)
+```
+
+Verify via the sent provider:
+
+```
+adb_shell("content query --uri content://sms/sent --projection address:body:date --sort 'date DESC' | head -3")
+```
+
+If a fresh SENDTO arrives while the SMS app is already open on another conversation, you may see `Activity not started, intent has been delivered to currently running top-most instance` — informational, not an error; the composer's recipient + body do swap to the new intent.
+
+**General principle**: Intent extras are a Unicode-safe data channel into Android apps. When you need non-ASCII text in an app's input field and the IME is in the way, look for an intent the app responds to with the right extra (`sms_body`, `android.intent.extra.TEXT` for share intents, `query` for search intents, etc.).
+
 ### Recipe: hardware health snapshot
 
 One adb_shell call per subsystem. Use to verify a freshly-deployed test box, or as a sanity check before / after a long test run:
@@ -176,7 +200,7 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 ## Roadmap notes
 
 - v0.4.1 will add native UI introspection tools (`dump_ui_xml`, `find_by_resource_id`) wrapping the `uiautomator dump` recipe above; until then the two-line shell form is fully usable.
-- v0.4.1 will also ship `vibrate(ms, reason)` and `read_sms_inbox(limit)` as first-class tools (the recipes above formalized).
+- v0.4.1 will also ship `vibrate(ms, reason)`, `read_sms_inbox(limit)`, and `send_sms(to, body)` as first-class tools (the recipes above formalized; `send_sms` will wrap SENDTO + send-button-tap to handle the OEM-specific button bounds).
 - v0.5 will add multi-device routing (`acquire_android(serial=...)` + per-tool serial param).
 - Long-running ops (`start_logcat` / `start_recording`) are planned; until then use `adb_shell("logcat -d")` for one-shot dumps.
 
