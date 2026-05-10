@@ -220,8 +220,8 @@ $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -RestartCount 99 `
-    -RestartInterval (New-TimeSpan -Seconds 30) `
+    -RestartCount 5 `
+    -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit (New-TimeSpan -Days 365)
 $principal = New-ScheduledTaskPrincipal -UserId $RunUser -RunLevel Limited
 Register-ScheduledTask -TaskName $TaskName `
