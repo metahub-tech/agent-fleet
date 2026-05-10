@@ -17,12 +17,12 @@ Android 测试设备桥，让 LLM agent 通过 ADB 驱动一台 Android 手机�
 2. **Server 通过 ADB 连手机**（不是直连），所以 PC 上要有 `adb` 二进制（platform-tools 的一部分）
 3. **USB / WiFi 是 ADB → 手机的连接方式选项**，与 host OS 无关；server 内部模式无关，只关心 `adb devices` 能列出设备
 
-## Host 安装矩阵（共 4 条独立 walkthrough）
+## Host 安装矩阵
 
-| Host OS | Setup 脚本 | 装 ADB 的方式 |
-|---|---|---|
-| Windows 10/11 | `platforms/android/scripts/setup-android.ps1` | `winget install Google.PlatformTools` |
-| macOS 12+ | `platforms/android/scripts/setup-android.sh` | `brew install android-platform-tools` |
+| Host OS | Setup 脚本 | 装 ADB 的方式 | 服务托管 |
+|---|---|---|---|
+| Windows 10/11 | `platforms/android/scripts/setup-android.ps1` | `winget install Google.PlatformTools` | Task Scheduler `MCP-AndroidGui` |
+| macOS 12+ | `platforms/android/scripts/setup-android.sh` | `brew install --cask android-platform-tools` | launchd `cc.metahub.android-gui` |
 
 setup 脚本会**问一次** ADB 连接模式，并据此走对应分支。模式选了之后写入 `~/.atb-android/config.toml`，之后 server 启动就用该模式。改模式只需改配置文件 + 重启 service。
 
