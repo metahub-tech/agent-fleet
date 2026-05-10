@@ -255,17 +255,22 @@ def list_devices() -> dict:
     r = _adb_run(["devices", "-l"], timeout=10)
     if r["returncode"] != 0:
         return {"error": r["stderr"], "stdout": r["stdout"]}
+    # `adb devices -l` output uses whitespace alignment (not tabs):
+    #   List of devices attached
+    #   MQS0219A10009471       device product:VOG-AL00 model:VOG_AL00 ...
+    valid_states = {"device", "offline", "unauthorized", "authorizing", "no permissions"}
     out = []
     for ln in r["stdout"].splitlines():
-        if "\t" in ln:
-            parts = ln.split()
-            if len(parts) >= 2:
-                rec = {"serial": parts[0], "state": parts[1]}
-                for kv in parts[2:]:
-                    if ":" in kv:
-                        k, v = kv.split(":", 1)
-                        rec[k] = v
-                out.append(rec)
+        if not ln.strip() or ln.startswith("List of devices"):
+            continue
+        parts = ln.split()
+        if len(parts) >= 2 and parts[1] in valid_states:
+            rec = {"serial": parts[0], "state": parts[1]}
+            for kv in parts[2:]:
+                if ":" in kv:
+                    k, v = kv.split(":", 1)
+                    rec[k] = v
+            out.append(rec)
     ver = _adb_run(["version"], timeout=5)
     return {"devices": out, "adb_version": ver["stdout"].splitlines()[0] if ver["stdout"] else ""}
 
@@ -560,21 +565,33 @@ def kill_app(
 @mcp.tool
 @with_touch
 def current_app() -> dict:
-    """Return the package name of the currently focused app on the device."""
+    """Return the package name of the currently focused app on the device.
+
+    Tries multiple dumpsys commands since the format varies across Android
+    versions and OEM ROMs (EMUI, MIUI, OneUI, etc.).
+    """
     _ensure_one_device()
-    # dumpsys window  has "mCurrentFocus" and "mFocusedApp" lines
-    r = _adb_shell("dumpsys window windows", timeout=10)
-    if r["returncode"] != 0:
-        return {"error": r["stderr"]}
-    for ln in r["stdout"].splitlines():
-        if "mCurrentFocus" in ln or "mFocusedApp" in ln:
-            # Examples:
-            #   mCurrentFocus=Window{abc1234 u0 com.android.settings/com.android.settings.MainActivity}
-            import re
-            m = re.search(r"([\w.]+)/[\w.]+", ln)
-            if m:
-                return {"package": m.group(1), "raw": ln.strip()}
-    return {"error": "could not find current focus", "raw": r["stdout"][:500]}
+    import re
+    pkg_pattern = re.compile(r"([a-zA-Z][\w.]+\.[\w.]+)/[\w.$]+")
+
+    # Strategy 1: dumpsys window (compact, has mCurrentFocus near top)
+    for cmd, key in [
+        ("dumpsys window", "mCurrentFocus"),
+        ("dumpsys window", "mFocusedApp"),
+        ("dumpsys activity activities", "mResumedActivity"),
+        ("dumpsys activity activities", "topResumedActivity"),
+        ("dumpsys window windows", "mCurrentFocus"),
+    ]:
+        r = _adb_shell(cmd, timeout=10)
+        if r["returncode"] != 0:
+            continue
+        for ln in r["stdout"].splitlines():
+            if key in ln:
+                m = pkg_pattern.search(ln)
+                if m:
+                    return {"package": m.group(1), "via": f"{cmd} -> {key}", "raw": ln.strip()}
+
+    return {"error": "could not find current focus", "tried": "dumpsys window/activity"}
 
 
 # ============================================================

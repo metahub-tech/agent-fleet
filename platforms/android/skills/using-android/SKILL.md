@@ -5,7 +5,7 @@ description: Use when invoking android-gui MCP tools to drive a real Android dev
 
 # Using android-gui
 
-Drive a remote Android device via the `android-gui` MCP server (FastMCP, SSE on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 16 tools across 7 categories.
+Drive a remote Android device via the `android-gui` MCP server (FastMCP, SSE on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
 
 ## Mental model
 
@@ -103,7 +103,7 @@ Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs 
 - Source code: `platforms/android/server/android_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-gui.log`
 - Service log (Mac): same path
-- Tool surface: 16 tools across 7 categories (state / device-info / screen / touch / keyboard / app / shell / file-transfer)
+- Tool surface: 20 tools across 8 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2)
 
 ## Roadmap notes
 
