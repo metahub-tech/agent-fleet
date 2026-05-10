@@ -1,6 +1,0 @@
-# v0.4.0 placeholder. Real SKILL.md ports patterns from using-macbox + adds:
-#   - tap vs click (Android touchscreen vs cursor)
-#   - app/intent semantics (vs open_app)
-#   - apk install/uninstall flows
-#   - Multi-device serial-number namespacing
-#   - HarmonyOS / vendor-ROM USB-debug authorization quirks

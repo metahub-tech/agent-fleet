@@ -1,10 +1,10 @@
-# Android Platform Bridge — v0.4 (Planned)
+# Android Platform Bridge — v0.4.0
 
-> 🚧 **状态：未实现**。这个目录目前是骨架占位，对应 [roadmap.md v0.4.0](../../docs/roadmap.md#v040--android)。文件结构和 windows / macos 平台严格对称，等真实实现填进来。
+> ✅ **状态：已实现**（v0.4.0）。pure-ADB 实现，无 uiautomator2 / scrcpy 依赖。首批验证机型：华为 P30 Pro (HarmonyOS 4.0 / EMUI 14 / 实际 Android 10 SDK 29)。
 
-Android 测试设备桥，让 LLM agent 通过 ADB + uiautomator2 + scrcpy 驱动一台 Android 手机或模拟器。
+Android 测试设备桥，让 LLM agent 通过 ADB 驱动一台 Android 手机或模拟器。
 
-## 计划架构
+## 架构
 
 ```
 [Agent (any OS)]  ──Tailscale──>  [Host PC (Win/Mac)]:8768  ──ADB──>  [Android Phone]
@@ -73,7 +73,9 @@ setup 脚本会：
 2. 手机弹**「允许此电脑进行 USB 调试」** → 勾选「始终允许」+ 点确定
 3. PC 上 `adb devices` 应能列出手机 serial number
 
-#### C-2：Wireless Debugging 模式（推荐）
+#### C-2：Wireless Debugging 模式（**仅 Android 11+ / SDK 30+**）
+
+> ⚠️ HarmonyOS 4.0 部分机型（如 P30 Pro VOG-AL00）`ro.build.version.release` 实测为 **10**，对应 SDK 29，**没有原生无线调试**。先 `adb shell getprop ro.build.version.release` 确认 ≥11 再选这条路；不到就走 C-1 USB 或 C-3 Hybrid。
 
 1. 手机 设置 → 开发者 → **无线调试 → 使用配对码配对设备**
 2. 手机屏幕显示一个**配对码**（6 位数）和**手机 IP:端口**（IP 和 port 临时随机生成）
@@ -100,41 +102,27 @@ setup 脚本会：
 
 > 手机重启后失效，需重新插 USB。仅 Android 5-10 推荐。
 
-## 计划工具集（Universal + Android-specific）
+## 工具集（v0.4.0 实际暴露）
 
-| 类别 | 工具（计划） | 备注 |
+| 类别 | 工具 | 备注 |
 |---|---|---|
 | 状态 | `acquire_android` / `release_android` / `get_android_status` | 多 agent 协作 |
-| 屏幕 | `take_screenshot` | scrcpy snapshot 优先，回退 uiautomator2 |
-| 触控 | `tap` / `swipe` / `long_press` | 比 Windows/macOS 多手势类型 |
-| 键盘 | `type_text` / `press_key` (back/home/menu/recent/volume_up/...) | Android 物理 key 语义 |
-| 应用 | `install_apk` / `uninstall_app` / `start_app` (intent) / `kill_app` | apk 文件管理 |
-| Shell | `adb_shell` (在设备上)，`run_bash` / `run_powershell` (在 host 上) | 区分两个执行域 |
-| UI 内省 | `dump_uiautomator_xml` / `find_by_resource_id` | accessibility tree 查询 |
-| 录像 | `start_recording` / `stop_recording` | scrcpy --record 长任务 |
+| 设备 | `list_devices` | 列出 host 上 adb 看到的所有设备 |
+| 屏幕 | `take_screenshot` / `get_screen_size` | screencap 直读，1:1 像素，不缩放 |
+| 触控 | `tap` / `swipe` / `long_press` | 物理屏幕坐标系 |
+| 键盘 | `type_text` / `press_key` | press_key 别名：back/home/menu/recent/power/volume_up 等 |
+| 应用 | `list_packages` / `install_apk` / `uninstall_app` / `start_app` / `kill_app` / `current_app` | apk 安装走 host->phone push |
+| Shell | `adb_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
+| 文件 | `push_file` / `pull_file` | host ↔ device |
 
-## 计划开发难点（按优先级）
+> 16 个工具。`type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行；UI 内省（`dump_xml` / `find_by_resource_id`）走 v0.4.1 在 uiautomator2 后再加；视频录制走 v0.5（scrcpy --record 流式回传方案待定）。
 
-1. **国内厂商定制 ROM 的 USB 调试授权差异**——华为 / 小米 / OPPO / vivo 各家弹窗时机和措辞不一；**Wireless Debugging 模式下基本绕开**
-2. **HarmonyOS 4.0+ 与原生 AOSP 的 ADB 兼容性**（首批测试机 P30 Pro 用 HarmonyOS 4.0.0；底层 Android 12 但 EMUI/HarmonyOS 加了若干限制）
-3. **多设备**：一个 host 接多台手机时按 serial number 命名空间隔离（`acquire_android(device_serial="...")`）；单设备自动选默认
-4. **scrcpy 视频流的 SSE 兼容性**（可能不直接 stream，转 frame snapshot）
-5. **多桥共存**：host 同时跑 winpc-gui (8766) + android (8768) 时的 scheduled task / venv / 日志隔离
+## 已知限制
 
-## 当前结构
-
-```
-platforms/android/
-├── README.md                       # 本文件
-├── server/                         # （空）将来放 android_mcp.py + 依赖
-├── scripts/                        # （空）将来放 setup-android.ps1 + setup-android.sh
-├── skills/using-android/           # （空）将来放 SKILL.md
-└── examples/                       # （空）将来放 claude-settings.json
-```
-
-## 启动开发
-
-按 [`docs/install-pattern.md` § 5（添加新平台·范式）](../../docs/install-pattern.md#5-添加新平台--范式) 八步走起。从 macOS 平台 port，把 pyautogui / ImageGrab 替换成 uiautomator2 + scrcpy。
+1. **`type_text` 不支持中文 / emoji** —— `adb input text` 在大多数 ROM 上是 ASCII-only
+2. **单设备**：v0.4 只支持一个 device，多设备情况下要 unplug 其他或 set `ATB_ANDROID_SERIAL`
+3. **OEM 截屏拦截**：Huawei / Xiaomi 部分 ROM 在 `exec-out screencap` 上有问题；我们有 `/sdcard` push-pull fallback，但更顽固的需要在 Developer Options 关闭"权限监控"
+4. **Wireless Debugging 不通用**：HarmonyOS 4.0 P30 Pro 实际报 Android 10 / SDK 29，无原生无线调试。Hybrid 模式（USB enroll + tcpip 5555）是变通方案。
 
 ## License
 

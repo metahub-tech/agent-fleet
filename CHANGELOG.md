@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **🆕 Android platform bridge (v0.4.0).** Single-device pure-ADB implementation. No uiautomator2 / scrcpy dependency in v0.4 -- avoided to keep first deploys working on locked-down OEM ROMs (Huawei HarmonyOS / MIUI etc.). Tools: 16 across 7 categories (state 3 / device 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file 2). Works on either Windows (PowerShell setup script) or macOS (bash setup script, lands in v0.4.1) host. ADB connection mode (USB / Wireless Debugging / Hybrid) is operator's choice at install, persisted to `~/.atb-android/config.toml`; the server itself is mode-agnostic. First validation: Huawei P30 Pro VOG-AL00 (HarmonyOS 4.0 / EMUI 14, reports as Android 10 / SDK 29 -- meaning native Wireless Debugging is unavailable on this phone, USB or Hybrid only).
+- `platforms/android/server/{android_mcp.py, requirements.txt, pyproject.toml}` (~600 lines server, deps: fastmcp + pillow + pydantic only).
+- `platforms/android/scripts/setup-android.ps1` (Win11 host) + `_launch-android.ps1` -- 9-stage setup, idempotent, mirrors winpc-gui's Task Scheduler + restart-loop pattern. Asks ADB mode and writes `~/.atb-android/config.toml`.
+- `platforms/android/skills/using-android/SKILL.md` -- mental model (you drive server, server drives ADB, ADB drives phone), tap-not-click, app lifecycle pattern, multi-agent coord.
+- `platforms/android/examples/claude-settings.json` mirrors the windows / macos pattern.
+- `scripts/install-agent-side.py` PLATFORMS dict gains `android-gui`.
+- `examples/multi-platform-claude-settings.json`: `_planned_android` is now real `android-gui`; legend updated.
+
+### Added
 - **🎯 Developer-facing baseline doc + one-command agent-side installer.** New repo-level entrypoints that let someone who just cloned the repo install the MCP server and skill correctly without reading 5 platform docs first:
   - `docs/install-pattern.md` (~200 lines): two roles, two install paths, directory contract, "add new platform in 8 steps" recipe, anti-patterns, recommended reading order.
   - `scripts/install-agent-side.py`: cross-platform Python script. `python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test` does (1) timestamped backup of `~/.claude.json` (2) merges the SSE entry into `mcpServers` (3) symlinks `platforms/<dir>/skills/using-<name>` into `~/.claude/skills/`. Idempotent (re-run reports "ok already configured"). `--dry-run` previews without writing. Refuses to overwrite invalid JSON or non-symlink files at the skill destination.
