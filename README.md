@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.5.0--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.5.0-alpha)
+[![Status](https://img.shields.io/badge/status-v0.6.0--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.0-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.5.0-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.0-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -18,13 +18,13 @@
 
 ```
 ┌─────────────────┐                              ┌──────────────┐
-│  Agent (any OS) │ ──── Tailscale Mesh ─────>  │ Windows PC   │ winpc-gui   :8766 ✅
+│  Agent (any OS) │ ──── Tailscale Mesh ─────>  │ Windows PC   │ win-device     :8766 ✅
 │  Claude Code /  │                              ├──────────────┤
-│  Cursor / Cline │                              │ macOS box    │ macbox-gui  :8767 ✅
+│  Cursor / Cline │                              │ macOS box    │ mac-device     :8767 ✅
 │  / OpenClaw /   │                              ├──────────────┤
-│  Antigravity /  │                              │ Android phone│ android-gui :8768 ✅
+│  Antigravity /  │                              │ Android phone│ android-device :8768 ✅
 │  Hermes / ...   │                              ├──────────────┤
-└─────────────────┘                              │ iPhone       │ iphone      :8769 (v0.6 planned)
+└─────────────────┘                              │ iPhone       │ ios-device     :8769 (v0.7 planned)
                                                  └──────────────┘
             ↑                                                ↑
    uvx agent-fleet setup           generates 6 frameworks' configs
@@ -35,12 +35,13 @@
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (winpc-gui consolidated, 33 tools, streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (macbox-gui, launchd, 31 tools, GUI-permission flow) |
-| Android bridge | `0.4.0` | ✅ Released (android-gui, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
-| **agent-fleet CLI wizard** | **`0.5.0-alpha`** | ✅ **Released** (`uvx agent-fleet setup` 一键安装；6 框架配置生成；公开 alpha) |
-| iOS bridge | `0.6.0` | 📋 Planned (macOS host + WebDriverAgent) |
-| Cross-device coordination | `0.7.0` | 🔭 Future |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device consolidated, 33 tools, streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
+| Android bridge | `0.4.0` | ✅ Released (android-device, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
+| agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` 一键安装；6 框架配置生成) |
+| **role rename → `<os>-device` + macOS permission primer** | **`0.6.0-alpha`** | ✅ **Released** (mac-device/win-device/android-device；wizard 自动触发 TCC 对话框，用户只需勾开关) |
+| iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
+| Cross-device coordination | `0.8.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
 
 详见 [`docs/roadmap.md`](docs/roadmap.md)。
@@ -61,10 +62,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.5.0-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.6.0-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.5.0-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.0-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。
@@ -115,7 +116,7 @@ agent-test-bench/
 │   │   ├── README.md              # 速览
 │   │   ├── server/                # MCP server 源码 + 依赖
 │   │   ├── scripts/               # 安装 / 启动 / 排错脚本
-│   │   ├── skills/using-winpc/    # 给 agent 用的 skill 文档
+│   │   ├── skills/using-win/    # 给 agent 用的 skill 文档
 │   │   └── examples/              # claude-settings.json 片段
 │   └── macos/                     # 同样子结构
 ├── scripts/                       # 仓库级脚本

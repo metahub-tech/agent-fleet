@@ -2,17 +2,19 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-09*
+*Last updated: 2026-05-12*
 
-| Version | Platform | Status |
+| Version | Theme | Status |
 |---|---|---|
 | 0.1.0 | Windows 10/11 (initial) | ✅ Released |
-| 0.2.0 | Windows 10/11 (winpc-gui consolidated) | ✅ Released |
+| 0.2.0 | Windows 10/11 (win-device consolidated) | ✅ Released |
 | 0.3.0 | macOS (12+) | ✅ Released |
-| 0.4.0 | Android | 📋 Planned |
-| 0.5.0 | iOS (Simulator + real device) | 📋 Planned |
-| 0.6.0 | Cross-device coordination | 🔭 Future |
-| 1.0.0 | Public open-source release | 🔭 Future |
+| 0.4.0 | Android | ✅ Released |
+| 0.5.0-alpha | `agent-fleet setup` wizard | ✅ Released |
+| **0.6.0-alpha** | **role rename to `<os>-device` + macOS permission primer** | ✅ Released |
+| 0.7.0 | iOS (Simulator + real device) | 📋 Planned |
+| 0.8.0 | Cross-device coordination | 🔭 Future |
+| 1.0.0 | Public open-source stable | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
@@ -28,10 +30,10 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.2.0 — Windows (winpc-gui consolidated)
+## v0.2.0 — Windows (win-device consolidated)
 **Released 2026-05-08**
 
-- 把 v0.1 的两服务（winpc-shell mcp-proxy + winpc-gui FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
+- 把 v0.1 的两服务（winpc-shell mcp-proxy + win-device FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
 - 新增 `acquire_winpc` / `release_winpc` / `get_winpc_status` 多 agent 协作的状态模型
 - 启动器加 restart loop，遇 session lock kill python 后自动恢复
 - 日志改 UTF-8（PS 5.1 默认 UTF-16 LE 的坑）
@@ -48,7 +50,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - 一键 setup-macos.sh：brew Tier-3 容错、ERR trap、目录写权限预检
 - 完整 GUI 权限文档：Python.app 拖入 + python3.12 自动二次授权 + Full Disk Access 一招覆盖文稿/桌面/Library
 - `take_screenshot` server 端 resize 到 logical-px，screenshot 像素 = click 像素
-- `using-macbox` skill 含 GUI 烟测 recipe
+- `using-mac` skill 含 GUI 烟测 recipe
 
 ---
 
@@ -69,7 +71,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.5.0 — iOS
+## v0.7.0 — iOS
 **Target: TBD**
 
 ### 范围
@@ -85,7 +87,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.6.0 — Cross-device Coordination
+## v0.8.0 — Cross-device Coordination
 **Future**
 
 Agent 一次提示，串联多设备。例：

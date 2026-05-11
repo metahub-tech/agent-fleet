@@ -1,7 +1,7 @@
 step:
   title: "Windows 部署后注意事项"
   default_description: |
-    winpc-gui 一般不需要额外权限授权，但提醒：
+    win-device 一般不需要额外权限授权，但提醒：
     1. 测试期间用户会话必须解锁（屏幕锁定时 take_screenshot 拿到的是锁屏图）。
        如果是远程部署 / 长期 unattended，建议配置 autologon。
     2. Windows Defender SmartScreen 可能在首次启动 python.exe 时弹窗，点"仍要运行"即可。

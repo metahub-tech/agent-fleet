@@ -2,8 +2,8 @@
 """Install one device's MCP server + skill into the local Claude Code config.
 
 Usage:
-    python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
-    python3 scripts/install-agent-side.py --platform winpc-gui  --hostname win-test
+    python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
+    python3 scripts/install-agent-side.py --platform win-device  --hostname win-test
 
 What this does (idempotent):
     1. Validate inputs (platform name + repo layout).
@@ -36,9 +36,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Each platform: (mcp-name in ~/.claude.json, repo-dir under platforms/, skill name, default port)
 PLATFORMS = {
-    "winpc-gui":   {"dir": "windows", "skill": "using-winpc",   "port": 8766},
-    "macbox-gui":  {"dir": "macos",   "skill": "using-macbox",  "port": 8767},
-    "android-gui": {"dir": "android", "skill": "using-android", "port": 8768},
+    "win-device":   {"dir": "windows", "skill": "using-win",   "port": 8766},
+    "mac-device":  {"dir": "macos",   "skill": "using-mac",  "port": 8767},
+    "android-device": {"dir": "android", "skill": "using-android", "port": 8768},
     # Future entries land here as platforms ship.
     # "iphone":   {"dir": "ios",     "skill": "using-iphone",  "port": 8769},
 }

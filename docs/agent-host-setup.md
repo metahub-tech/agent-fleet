@@ -47,7 +47,7 @@ tailscale ping <DEVICE_HOSTNAME>
 ```json
 {
   "mcpServers": {
-    "winpc-gui": {
+    "win-device": {
       "type": "http",
       "url": "http://<WIN_HOSTNAME>:8766/mcp"
     }
@@ -61,11 +61,11 @@ tailscale ping <DEVICE_HOSTNAME>
 
 > 也可以从 [`../platforms/windows/examples/claude-settings.json`](../platforms/windows/examples/claude-settings.json) 直接复制片段。
 >
-> **v0.2 历史变更**：旧版还有 `winpc-shell`（端口 8765），现已合并到 `winpc-gui`。如果 `~/.claude.json` 里还有 `winpc-shell` 条目，删掉它即可。
+> **v0.2 历史变更**：旧版还有 `winpc-shell`（端口 8765），现已合并到 `win-device`。如果 `~/.claude.json` 里还有 `winpc-shell` 条目，删掉它即可。
 
 ### 多设备
 
-参考 [`../examples/multi-platform-claude-settings.json`](../examples/multi-platform-claude-settings.json)。把多个设备桥的 `mcpServers` 条目都列进去，命名建议 `<role>-<service>` 形式（例：`winpc-gui` / `macbox-gui` / `android-test1`）。
+参考 [`../examples/multi-platform-claude-settings.json`](../examples/multi-platform-claude-settings.json)。把多个设备桥的 `mcpServers` 条目都列进去，命名建议 `<role>-<service>` 形式（例：`win-device` / `mac-device` / `android-test1`）。
 
 ### 其他 MCP client
 
@@ -93,7 +93,7 @@ tailscale ping <DEVICE_HOSTNAME>
 Claude Code 中运行 `/mcp`，应看到：
 
 ```
-winpc-gui  [sse]  connected
+win-device  [sse]  connected
 ```
 
 ### 3.3 多 Agent 协作（v0.2+）
@@ -126,8 +126,8 @@ winpc-gui  [sse]  connected
 如果你嫌手动改 `~/.claude.json` + 拉 skill 软链麻烦，仓库提供：
 
 ```bash
-python3 scripts/install-agent-side.py --platform macbox-gui --hostname <DEVICE_HOSTNAME>
-# 也支持 --platform winpc-gui
+python3 scripts/install-agent-side.py --platform mac-device --hostname <DEVICE_HOSTNAME>
+# 也支持 --platform win-device
 ```
 
 会自动备份 `~/.claude.json` → 把 mcpServers 条目 merge 进去 → 把 `platforms/<name>/skills/using-<name>` 软链到 `~/.claude/skills/`。幂等，重复跑无害。详见 [`install-pattern.md`](install-pattern.md)。
@@ -136,11 +136,11 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname <DEVICE_H
 
 让 Agent 跑：
 
-> 用 winpc-gui 截一下当前 Windows 屏幕
+> 用 win-device 截一下当前 Windows 屏幕
 
 应能看到截图返回。再试：
 
-> 用 winpc-gui 跑 `Get-Date` 看一下 Windows 当前时间
+> 用 win-device 跑 `Get-Date` 看一下 Windows 当前时间
 
 应能看到 PowerShell 输出。
 
@@ -185,7 +185,7 @@ tailscale status        # 找设备主机的 100.x.x.x IP
 ```powershell
 # Windows 端
 Get-NetTCPConnection -LocalPort 8766 -State Listen
-Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
+Get-ScheduledTaskInfo -TaskName MCP-WinDevice
 ```
 
 详见对应平台的 setup guide § 7（排错段）。
@@ -205,14 +205,14 @@ Get-ScheduledTaskInfo -TaskName MCP-WindowsGui
 ```json
 {
   "mcpServers": {
-    "winpc-gui":   { "type": "http", "url": "http://win-test:8766/mcp" },
-    "macbox-gui":  { "type": "http", "url": "http://mac-test:8767/mcp" },
-    "android-gui": { "type": "http", "url": "http://win-test:8768/mcp" }
+    "win-device":   { "type": "http", "url": "http://win-test:8766/mcp" },
+    "mac-device":  { "type": "http", "url": "http://mac-test:8767/mcp" },
+    "android-device": { "type": "http", "url": "http://win-test:8768/mcp" }
   }
 }
 ```
 
-Agent 通过 server 名（`winpc-gui` / `macbox-gui` / `android`）选择设备。
+Agent 通过 server 名（`win-device` / `mac-device` / `android`）选择设备。
 
 ### 5.2 限定哪些 Agent 主机能连设备
 

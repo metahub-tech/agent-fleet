@@ -31,7 +31,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ## 暴露的工具
 
-`macbox-gui` MCP server (FastMCP, native multi-client) 通过 SSE 监听 `0.0.0.0:8767`：
+`mac-device` MCP server (FastMCP, native multi-client) 通过 SSE 监听 `0.0.0.0:8767`：
 
 | 类别 | 工具 |
 |---|---|
@@ -45,7 +45,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_zsh`, `run_applescript` |
 
-> **与 Windows winpc-gui 的差异**：
+> **与 Windows win-device 的差异**：
 > - 没有 `list_windows` / `inspect_window` / `focus_window`（Windows 用 pywinauto，macOS 等价物用 AppleScript / NSAccessibility，v0.3.0 暂未实现，可通过 `run_applescript` 间接达成）
 > - `launch_app` → `open_app`（macOS 习惯用 `open -a`）
 > - `run_powershell` → `run_zsh` + 新增 `run_applescript`
@@ -64,7 +64,7 @@ platforms/macos/
 │   ├── setup-macos.sh
 │   └── _launch-macos-gui.sh
 └── skills/
-    └── using-macbox/SKILL.md     # 给 agent 的使用规则
+    └── using-mac/SKILL.md     # 给 agent 的使用规则
 ```
 
 ## 运行依赖

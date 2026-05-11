@@ -1,4 +1,4 @@
-"""Windows MCP Server (winpc-gui).
+"""Windows MCP Server (win-device).
 
 Single FastMCP server exposing all Windows control: GUI (screenshot / mouse /
 keyboard / windows) + shell (PowerShell / processes) + filesystem (read /
@@ -50,7 +50,7 @@ pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.05
 
 
-mcp = FastMCP("winpc-gui")
+mcp = FastMCP("win-device")
 
 
 # ============================================================

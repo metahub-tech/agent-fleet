@@ -1,16 +1,16 @@
 ---
 name: using-android
-description: Use when invoking android-gui MCP tools to drive a real Android device or emulator over ADB (agent-test-bench project) -- screen capture, tap/swipe/keyboard, app install/launch/kill, on-device shell, host<->device file transfer, multi-agent coordination.
+description: Use when invoking android-device MCP tools to drive a real Android device or emulator over ADB (agent-test-bench project) -- screen capture, tap/swipe/keyboard, app install/launch/kill, on-device shell, host<->device file transfer, multi-agent coordination.
 ---
 
-# Using android-gui
+# Using android-device
 
-Drive a remote Android device via the `android-gui` MCP server (FastMCP, SSE on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
+Drive a remote Android device via the `android-device` MCP server (FastMCP, SSE on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
 
 ## Mental model
 
 ```
-[You / Agent]  -- SSE -->  [PC Host running android-gui MCP]  -- ADB --> [Android Phone]
+[You / Agent]  -- SSE -->  [PC Host running android-device MCP]  -- ADB --> [Android Phone]
 ```
 
 You drive the SERVER. The server drives ADB. ADB drives the PHONE. You don't touch the phone directly.
@@ -58,7 +58,7 @@ uninstall_app(package="com.example.foo")
 | Need | Tool | Runs on |
 |---|---|---|
 | `getprop`, `dumpsys`, `pm`, `am`, `settings`, `cmd` on the phone | `adb_shell("getprop ro.build.version.release")` | Phone |
-| `dir`, `Get-Process`, `python` on the host PC | NOT EXPOSED in this server -- use winpc-gui's `run_powershell` if the Android host is Windows; macbox-gui's `run_zsh` if macOS | Host |
+| `dir`, `Get-Process`, `python` on the host PC | NOT EXPOSED in this server -- use win-device's `run_powershell` if the Android host is Windows; mac-device's `run_zsh` if macOS | Host |
 
 Mixing these is the #1 mistake. `adb_shell` always means "on the phone".
 
@@ -185,15 +185,15 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 | Phone locked (lock screen) | `press_key("wake")` then swipe up via `swipe(540, 1800, 540, 600, 300)` (calibrate to your screen). For PIN-locked phones, type the PIN via `type_text("1234")` after swipe-up. |
 | `type_text` Chinese / emoji silently dropped | `adb input text` ASCII-only on most ROMs. v0.4 doesn't ship a Unicode workaround; for now copy text via `push_file` to clipboard or use a third-party IME. |
 | `type_text` into a verify-code field gets eaten; permission dialog from IME pops up | OEM-bundled IMEs (Baidu / Sogou on Huawei / Xiaomi) intercept SMS-code fields to ask for SMS read permission. The dialog steals focus before your text reaches the field. Fix: tap "禁止" (~305, 2192 -- size depends on dialog) on the IME permission dialog, dismiss any follow-up "去设置" prompt with "取消", THEN re-issue `type_text`. We already have the code via the SMS recipe above; the IME doesn't need its own SMS access. |
-| `MCP error -32602` on every tool | **Should not happen on v0.4.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform android-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
-| Service not on 8768 (host = Windows) | `Stop-ScheduledTask MCP-AndroidGui; Start-ScheduledTask MCP-AndroidGui` |
-| Service not on 8768 (host = macOS) | `launchctl kickstart -k gui/$(id -u)/cc.metahub.android-gui` |
+| `MCP error -32602` on every tool | **Should not happen on v0.4.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform android-device --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
+| Service not on 8768 (host = Windows) | `Stop-ScheduledTask MCP-AndroidDevice; Start-ScheduledTask MCP-AndroidDevice` |
+| Service not on 8768 (host = macOS) | `launchctl kickstart -k gui/$(id -u)/cc.metahub.android-device` |
 
 ## Reference
 
 - Setup: `docs/platforms/android.md` in agent-test-bench repo (planned)
 - Source code: `platforms/android/server/android_mcp.py`
-- Service log (Win): `<repo>/platforms/android/logs/android-gui.log`
+- Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
 - Tool surface: 20 tools across 8 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2)
 

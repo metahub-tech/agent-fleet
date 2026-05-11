@@ -1,11 +1,11 @@
 ---
-name: using-winpc
-description: Use when invoking winpc-gui MCP tools to drive a Windows test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell commands, file or process operations, or coordinating exclusive device use across multiple agents.
+name: using-win
+description: Use when invoking win-device MCP tools to drive a Windows test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell commands, file or process operations, or coordinating exclusive device use across multiple agents.
 ---
 
-# Using winpc-gui
+# Using win-device
 
-Drive a remote Windows test machine via the `winpc-gui` MCP server (FastMCP, SSE transport on Tailscale). Multi-client native; advisory single-holder coordination; ~33 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
+Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, SSE transport on Tailscale). Multi-client native; advisory single-holder coordination; ~33 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
 
 ## Critical patterns
 
@@ -64,11 +64,11 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 
 | Symptom | Cause / fix |
 |---|---|
-| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen on v0.2.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform winpc-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
+| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen on v0.2.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform win-device --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | `edit_block` returns `old_string not unique` | Pass `replace_all=True`, or extend `old_string` with surrounding context to make it unique |
 | Click landed wrong place | Coordinate system confusion -- call `get_screen_size`; treat displayed image as thumbnail; don't compute coords from rendered dimensions |
-| Service not listening on 8766 | Restart task: `run_powershell` calling `Stop-ScheduledTask MCP-WindowsGui; Start-ScheduledTask MCP-WindowsGui` |
-| `mcp__winpc-gui__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__winpc-gui__<name>` first |
+| Service not listening on 8766 | Restart task: `run_powershell` calling `Stop-ScheduledTask MCP-WinDevice; Start-ScheduledTask MCP-WinDevice` |
+| `mcp__win-device__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__win-device__<name>` first |
 
 ## Reference
 

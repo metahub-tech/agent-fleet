@@ -27,6 +27,7 @@ def load_guidance_yaml(filename: str) -> GuidanceStep:
     for vid, vdata in (step.get("variants") or {}).items():
         variants[vid] = GuidanceVariant(label=vdata["label"], description=vdata["description"])
     return GuidanceStep(
+        id=step.get("id", ""),
         title=step["title"],
         default_description=step["default_description"],
         variant_label=step.get("variant_label", ""),

@@ -62,7 +62,7 @@ setup 脚本做的事大同小异：
 cd ~/code/agent-test-bench    # 或你 clone 的位置
 
 # 把一台设备的 MCP + skill 一起装好
-python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
+python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
 ```
 
 脚本会原子地做三件事：
@@ -72,11 +72,11 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
    ```json
    {
      "mcpServers": {
-       "macbox-gui": { "type": "http", "url": "http://mac-test:8767/mcp" }
+       "mac-device": { "type": "http", "url": "http://mac-test:8767/mcp" }
      }
    }
    ```
-3. **建 skill 符号链接**：`~/.claude/skills/using-macbox` → `platforms/macos/skills/using-macbox`
+3. **建 skill 符号链接**：`~/.claude/skills/using-mac` → `platforms/macos/skills/using-mac`
 
 幂等：同一命令重跑只报 "ok already exists"，不会破坏现有配置。
 
@@ -88,7 +88,7 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
 # 然后再启动 Claude Code
 
 # 验证
-/mcp           # 应看到 macbox-gui [sse] connected
+/mcp           # 应看到 mac-device [sse] connected
 ```
 
 > **多设备**：每台设备跑一次 install-agent-side.py，`~/.claude.json` 会逐步累加 server 条目。
@@ -121,7 +121,7 @@ platforms/<name>/
 
 - 所有平台的工具命名共享 [Universal Tool Set](architecture.md) 公约：`take_screenshot`、`click`、`run_shell` 等同名跨平台
 - 平台相关的工具命名带平台前缀或采用平台原生名：`run_powershell`（Windows）/ `run_zsh` + `run_applescript`（macOS）
-- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`winpc-gui`、`macbox-gui`、`android`、`iphone`
+- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`win-device`、`mac-device`、`android`、`iphone`
 
 ---
 
@@ -132,7 +132,7 @@ platforms/<name>/
 1. **建骨架**：`mkdir -p platforms/linux/{server,scripts,skills/using-linuxbox,examples}`
 2. **port server**：从最近的平台（macOS 最近）port `<name>_gui_mcp.py`，把平台特定 API 替换掉（pyautogui 在 X11 也能用；shell 由 `run_zsh` 改 `run_bash`；`run_applescript` 替换为 `run_dbus` / 删除）
 3. **port setup script**：从 setup-macos.sh 改造，brew 改 apt，launchd 改 systemd
-4. **port skill**：从 using-macbox 复制，把 macOS 特定坑（TCC 双 entry / FDA / `osascript` 责任链）替换为 Linux 等价物（X11 vs Wayland 的差异）
+4. **port skill**：从 using-mac 复制，把 macOS 特定坑（TCC 双 entry / FDA / `osascript` 责任链）替换为 Linux 等价物（X11 vs Wayland 的差异）
 5. **port examples**：claude-settings.json 改 hostname + 端口
 6. **写 README**：列工具差异表（与 macOS 比少了什么、多了什么）
 7. **加 PLATFORMS dict**：在 `scripts/install-agent-side.py` 顶部 `PLATFORMS` 加一行

@@ -127,14 +127,34 @@ def _run_install(roles, ctx):
     return deployed
 
 
-def _run_guidance(roles):
+def _run_guidance(roles, ctx):
+    """For each role, optionally invoke the macOS primer (registers Python.app
+    in TCC + opens the Settings pane), then print the guidance step and wait
+    for user keystroke."""
+    from . import macos_perm
+
+    macos_primer = {
+        "macos_accessibility": lambda p: macos_perm.prime_accessibility(p),
+        "macos_screen_recording": lambda p: macos_perm.prime_screen_recording(p),
+        "macos_automation": lambda p: macos_perm.prime_automation(),
+        "macos_full_disk_access": lambda p: macos_perm.prime_full_disk_access(),
+    }
+
+    venv_py = Path(ctx.repo_root) / "platforms" / "macos" / "server" / ".venv" / "bin" / "python3"
+    venv_ready = venv_py.exists()
+
     for r in roles:
         steps = r.guidance_steps()
         if not steps:
             continue
         console.print(f"\n[bold magenta]🔓 Operation guidance for {r.role_id}[/bold magenta]")
+        if any(s.id in macos_primer for s in steps) and not venv_ready:
+            console.print(f"  [yellow]↪ venv not found at {venv_py}; primers will be skipped.[/yellow]")
         for i, s in enumerate(steps, 1):
             console.print(f"\n  [bold]Step {i}/{len(steps)}: {s.title}[/bold]")
+            if s.id in macos_primer and venv_ready:
+                console.print(f"  [dim]↪ Triggering {s.id} ...[/dim]")
+                macos_primer[s.id](venv_py)
             console.print(f"  {s.default_description}")
             if s.variants:
                 console.print(f"\n  [dim]{s.variant_label} 变体：[/dim]")
@@ -164,7 +184,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if args.dry_run:
         console.print("\n[dim]↪ Skipping operation guidance (dry-run).[/dim]")
     else:
-        _run_guidance(roles)
+        _run_guidance(roles, ctx)
 
     frameworks = _select_frameworks()
     if frameworks:

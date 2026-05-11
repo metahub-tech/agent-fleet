@@ -1,6 +1,18 @@
 step:
+  id: "macos_automation"
   title: "自动化 (Automation) 权限"
   default_description: |
-    无需现在操作。下次 agent 调 run_applescript 控制其他 app（System Events / Finder / Safari）时，
-    macOS 会自动弹窗"允许 Python 控制 XXX"——点同意即永久生效。
-    可选：预先在 隐私与安全性 → 自动化 里展开 python3，勾选 System Events 等。
+    我已经触发了自动化授权对话框。系统应该已经询问 "Terminal 想控制 System Events"。
+
+    在弹出的对话框点击「好」(OK)。然后在自动打开的 System Settings → Privacy & Security → Automation 里，
+    你会看到 Terminal 下面挂着 System Events —— 确保开关是打开的。
+  variant_label: "macOS 版本"
+  variants:
+    ventura_plus:
+      label: "macOS 13 Ventura+ (System Settings)"
+      description: |
+        System Settings → Privacy & Security → Automation
+    monterey_minus:
+      label: "macOS 12 Monterey-"
+      description: |
+        System Preferences → Security & Privacy → Privacy → Automation

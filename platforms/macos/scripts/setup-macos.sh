@@ -38,9 +38,9 @@ VENV_DIR="$SERVER_DIR/.venv"
 VENV_PY="$VENV_DIR/bin/python3"
 SERVER_PY="$SERVER_DIR/macos_gui_mcp.py"
 REQ_TXT="$SERVER_DIR/requirements.txt"
-LAUNCHER="$SCRIPT_DIR/_launch-macos-gui.sh"
-PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.macbox-gui.plist"
-LABEL="cc.metahub.macbox-gui"
+LAUNCHER="$SCRIPT_DIR/_launch-mac-device.sh"
+PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.mac-device.plist"
+LABEL="cc.metahub.mac-device"
 
 mkdir -p "$LOGS_DIR"
 
@@ -167,7 +167,7 @@ fi
 
 # ---------- 3. venv + deps ----------
 echo
-LAST_STEP="[3/5] macbox-gui venv + deps"
+LAST_STEP="[3/5] mac-device venv + deps"
 echo "$LAST_STEP"
 if [ ! -d "$VENV_DIR" ]; then
     echo "  creating venv: $VENV_DIR"
@@ -208,7 +208,7 @@ cat > "$PLIST_PATH" <<EOF
        -> python, and TCC asks the user to grant bash permission too
        (in addition to Python.app). Calling python directly removes
        that hop -- only Python.app's framework binary needs perms.
-       _launch-macos-gui.sh stays in the repo for ad-hoc CLI debugging
+       _launch-mac-device.sh stays in the repo for ad-hoc CLI debugging
        but is no longer in the launchd path. -->
   <key>ProgramArguments</key>
   <array>
@@ -267,7 +267,7 @@ sleep 5
 attempts=0
 while [ $attempts -lt 8 ]; do
     if lsof -nP -iTCP:8767 -sTCP:LISTEN >/dev/null 2>&1; then
-        echo "  ok macbox-gui listening on 8767"
+        echo "  ok mac-device listening on 8767"
         break
     fi
     sleep 2
@@ -275,7 +275,7 @@ while [ $attempts -lt 8 ]; do
 done
 
 if [ $attempts -ge 8 ]; then
-    echo "  WARN macbox-gui not yet on 8767 after 16s"
+    echo "  WARN mac-device not yet on 8767 after 16s"
     echo "  Check: tail $LOGS_DIR/macos-gui.log"
 fi
 
@@ -286,7 +286,7 @@ echo "Send these to the agent operator (or keep them yourself):"
 echo
 echo "  Tailscale hostname : $TS_HOST"
 echo "  Tailscale FQDN     : $TS_DNS"
-echo "  macbox-gui URL     : http://${TS_HOST}:8767/sse"
+echo "  mac-device URL     : http://${TS_HOST}:8767/sse"
 echo
 # Resolve the framework Python.app that macOS Privacy panes will accept.
 # The venv's bin/python3 is a symlink — System Settings refuses symlinks

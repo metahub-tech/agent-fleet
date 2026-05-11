@@ -26,7 +26,7 @@ class OSInfo:
 
 @dataclass
 class ServerRole:
-    role_id: str               # "macbox-gui" / "winpc-gui" / "android-gui"
+    role_id: str               # "mac-device" / "win-device" / "android-device"
     display_name: str
     hostname: str
     port: int
@@ -76,3 +76,4 @@ class GuidanceStep:
     variant_label: str = ""    # e.g. "Android 品牌"
     verify_fn: Optional[Callable[[], bool]] = None
     verify_label: str = ""     # e.g. "wizard runs pyautogui.position()"
+    id: str = ""               # YAML key; used to dispatch primers (e.g. "macos_accessibility")

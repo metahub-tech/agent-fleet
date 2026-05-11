@@ -1,11 +1,11 @@
 ---
-name: using-macbox
-description: Use when invoking macbox-gui MCP tools to drive a Mac test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell or zsh commands, file or process operations, AppleScript automation, or coordinating exclusive device use across multiple agents.
+name: using-mac
+description: Use when invoking mac-device MCP tools to drive a Mac test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell or zsh commands, file or process operations, AppleScript automation, or coordinating exclusive device use across multiple agents.
 ---
 
-# Using macbox-gui
+# Using mac-device
 
-Drive a remote Mac test machine via the `macbox-gui` MCP server (FastMCP, SSE transport on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 31 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
+Drive a remote Mac test machine via the `mac-device` MCP server (FastMCP, SSE transport on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 31 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
 
 ## Critical patterns
 
@@ -80,7 +80,7 @@ Don't use `start_search` for known single-file content lookups -- use `read_file
 
 macOS Privacy independently gates each of: `~/Documents`, `~/Desktop`, `~/Downloads`, `~/Pictures/Photos Library`, `~/Library/Calendars`, `~/Library/Reminders`, `~/Library/AddressBook`. Each first access triggers a separate prompt. **Don't `find ~ -maxdepth N` blindly** -- it'll fan out into all of them.
 
-Best practice for macbox-gui workflows:
+Best practice for mac-device workflows:
 - Scope `start_search` and `list_directory` to the project's actual workspace dir (e.g. `~/qjl-workspace/...`, `~/code/...`).
 - Use `run_zsh "ls -d ~/*workspace* ~/code 2>/dev/null"` to discover candidate roots before scanning.
 - If broad access is genuinely needed, ask the operator to grant Python.app **Full Disk Access** once -- it covers Documents/Desktop/Downloads/all of ~/Library, but NOT Photos / Calendar / Reminders / Contacts (which agents shouldn't touch anyway).
@@ -129,19 +129,19 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 
 | Symptom | Cause / fix |
 |---|---|
-| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen anymore as of v0.4.x** -- the SSE→streamable-http migration eliminated the long-task / middle-box keepalive failure mode that caused this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform macbox-gui --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
+| `MCP error -32602: Invalid request parameters` on every tool | **Should not happen anymore as of v0.4.x** -- the SSE→streamable-http migration eliminated the long-task / middle-box keepalive failure mode that caused this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform mac-device --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | Click landed wrong place / no effect | Accessibility permission not granted. The .app must be `<brew_prefix>/opt/python@3.12/Frameworks/Python.framework/.../Resources/Python.app` (NOT the venv's bin/python3 symlink, which macOS rejects) |
 | `take_screenshot` returns black image | Screen Recording permission not granted; same `.app` rule as Accessibility |
 | `run_applescript` returns `execution error -1743 (errAEEventNotPermitted)` | Automation permission missing -- expand python3 in Privacy & Security > Automation, tick the controlled app |
 | `run_applescript` returns `osascript 不允许辅助访问 (-25211)` | TCC traced responsibility back to python (osascript inherits from parent). Fix: System Settings > Privacy & Security > Accessibility, ensure BOTH `Python` (symlink-path entry) AND `python3.12` (Cellar-path entry) are ticked. The first prompt only adds one of them; the cross-app accessibility query triggers a second prompt for the other. After both are granted, cross-app window enumeration (`count windows of process X`, etc.) works. |
-| Service not on port 8767 after Mac wake | launchd should auto-restart with KeepAlive. If not: `launchctl kickstart -k gui/$(id -u)/cc.metahub.macbox-gui` |
-| `mcp__macbox-gui__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__macbox-gui__<name>` first |
+| Service not on port 8767 after Mac wake | launchd should auto-restart with KeepAlive. If not: `launchctl kickstart -k gui/$(id -u)/cc.metahub.mac-device` |
+| `mcp__mac-device__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__mac-device__<name>` first |
 
 ## Reference
 
 - Setup: `docs/platforms/macos.md` in agent-test-bench repo
 - Source code: `platforms/macos/server/macos_gui_mcp.py`
-- launchd plist: `~/Library/LaunchAgents/cc.metahub.macbox-gui.plist`
+- launchd plist: `~/Library/LaunchAgents/cc.metahub.mac-device.plist`
 - Service log: `platforms/macos/logs/macos-gui.log`
 - Tool surface: ~30 tools across 9 categories (no `list_windows` family yet -- use `run_applescript` instead)
 

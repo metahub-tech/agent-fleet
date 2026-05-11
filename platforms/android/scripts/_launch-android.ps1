@@ -8,7 +8,7 @@
 # externally (session lock, modern standby, log-off). We wrap python
 # in a while-loop with rapid-fail safety so the service auto-recovers.
 #
-# All stdout/stderr appends to <repo>/platforms/android/logs/android-gui.log
+# All stdout/stderr appends to <repo>/platforms/android/logs/android-device.log
 # in UTF-8 (PowerShell 5.1's default file encoding is UTF-16 LE which
 # mojibakes the log; we force utf8 explicitly).
 #
@@ -26,7 +26,7 @@ $null = New-Item -ItemType Directory -Path $LogsDir -Force -ErrorAction Silently
 
 $Python = Join-Path $ServerDir ".venv\Scripts\python.exe"
 $Server = Join-Path $ServerDir "android_mcp.py"
-$Log    = Join-Path $LogsDir "android-gui.log"
+$Log    = Join-Path $LogsDir "android-device.log"
 
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" | Out-File -FilePath $Log -Append -Encoding utf8
 "  python = $Python"  | Out-File -FilePath $Log -Append -Encoding utf8
