@@ -54,3 +54,14 @@ def prime_accessibility(venv_python: Path) -> None:
     )
     subprocess.run([str(venv_python), "-c", snippet], check=False)
     open_settings_pane(SettingsPane.ACCESSIBILITY)
+
+
+def prime_screen_recording(venv_python: Path) -> None:
+    """Trigger Screen Recording permission registration.
+
+    Quartz.CGRequestScreenCaptureAccess() — macOS 11+ API that pops the
+    system dialog and registers Python.app in the Screen Recording list.
+    """
+    snippet = "import Quartz; Quartz.CGRequestScreenCaptureAccess()"
+    subprocess.run([str(venv_python), "-c", snippet], check=False)
+    open_settings_pane(SettingsPane.SCREEN_RECORDING)

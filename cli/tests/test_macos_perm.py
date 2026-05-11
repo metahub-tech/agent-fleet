@@ -34,3 +34,15 @@ def test_prime_accessibility_calls_venv_python_then_opens_pane():
         second_args = mock_run.call_args_list[1].args[0]
         assert second_args[0] == "open"
         assert "Privacy_Accessibility" in second_args[1]
+
+
+def test_prime_screen_recording():
+    from fleet.macos_perm import prime_screen_recording
+    venv_py = Path("/tmp/venv/bin/python3")
+    with patch("fleet.macos_perm.subprocess.run") as mock_run:
+        prime_screen_recording(venv_py)
+        first_args = mock_run.call_args_list[0].args[0]
+        assert first_args[0] == str(venv_py)
+        assert "CGRequestScreenCaptureAccess" in first_args[-1]
+        second_args = mock_run.call_args_list[1].args[0]
+        assert "Privacy_ScreenCapture" in second_args[1]
