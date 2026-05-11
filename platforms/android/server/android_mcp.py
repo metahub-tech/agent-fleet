@@ -1,7 +1,7 @@
-"""Android MCP Server (android-gui).
+"""Android MCP Server (android-device).
 
 FastMCP server bridging an LLM agent to one Android device via raw ADB.
-Mirrors the architecture of winpc-gui / macbox-gui (state model, FastMCP,
+Mirrors the architecture of win-device / mac-device (state model, FastMCP,
 streamable-http on Tailscale, advisory single-holder coordination), with
 platform-specific tools for touch / keys / app management / shell-on-device.
 
@@ -50,7 +50,7 @@ from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
 
 
-mcp = FastMCP("android-gui")
+mcp = FastMCP("android-device")
 
 
 # ============================================================
@@ -668,7 +668,7 @@ def pull_file(
 # ============================================================
 
 if __name__ == "__main__":
-    print(f"android-gui MCP server starting")
+    print(f"android-device MCP server starting")
     print(f"  adb       = {_ADB}")
     print(f"  host      = {host_platform.system()} {host_platform.release()}")
     try:
@@ -678,7 +678,7 @@ if __name__ == "__main__":
         print(f"  device    = NONE  ({e})")
         print(f"  WARNING: server will start but tools will fail until a device appears.")
     # Transport: streamable-http (FastMCP "http" alias). Migrated from
-    # SSE for the same reason as macbox-gui / winpc-gui: long tool calls
+    # SSE for the same reason as mac-device / win-device: long tool calls
     # broke SSE keep-alive and yielded -32602 forever after.
     # Endpoint: http://<host>:8768/mcp  (was /sse)
     print(f"  transport = http (streamable) on 0.0.0.0:8768/mcp")

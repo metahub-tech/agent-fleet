@@ -33,7 +33,7 @@ VENV_DIR="$SERVER_DIR/.venv"
 VENV_PY="$VENV_DIR/bin/python3"
 SERVER_PY="$SERVER_DIR/android_mcp.py"
 REQ_TXT="$SERVER_DIR/requirements.txt"
-UNIT_PATH="$HOME/.config/systemd/user/atb-android-gui.service"
+UNIT_PATH="$HOME/.config/systemd/user/agent-fleet-android-device.service"
 PORT=8768
 CONFIG_DIR="$HOME/.atb-android"
 CONFIG_PATH="$CONFIG_DIR/config.toml"
@@ -102,7 +102,7 @@ fi
 echo
 
 # ---------- 4. venv + deps ----------
-LAST_STEP="[4/8] android-gui venv + deps"
+LAST_STEP="[4/8] android-device venv + deps"
 echo "$LAST_STEP"
 if [ ! -d "$VENV_DIR" ]; then
     echo "  creating venv: $VENV_DIR"
@@ -144,7 +144,7 @@ if [ "$REUSE" -eq 0 ]; then
         esac
     done
     cat > "$CONFIG_PATH" <<EOF
-# agent-test-bench / android-gui server config (Linux host)
+# agent-test-bench / android-device server config (Linux host)
 mode = "$MODE_NAME"
 
 [host]
@@ -170,12 +170,22 @@ echo
 LAST_STEP="[7/8] systemd user unit"
 echo "$LAST_STEP"
 
-systemctl --user stop atb-android-gui.service 2>/dev/null || true
+systemctl --user stop agent-fleet-android-device.service 2>/dev/null || true
+
+# Migrate / cleanup: remove the legacy atb-android-gui.service if present
+LEGACY_UNIT="atb-android-gui.service"
+if systemctl --user list-unit-files 2>/dev/null | grep -q "$LEGACY_UNIT"; then
+    systemctl --user stop "$LEGACY_UNIT" 2>/dev/null || true
+    systemctl --user disable "$LEGACY_UNIT" 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/$LEGACY_UNIT"
+    systemctl --user daemon-reload 2>/dev/null || true
+    echo "  removed legacy unit $LEGACY_UNIT"
+fi
 
 mkdir -p "$(dirname "$UNIT_PATH")"
 cat > "$UNIT_PATH" <<EOF
 [Unit]
-Description=agent-test-bench android-gui MCP server
+Description=agent-test-bench android-device MCP server
 After=network.target
 
 [Service]
@@ -185,35 +195,35 @@ Restart=on-failure
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1
 Environment=ATB_ANDROID_ADB=$ADB_PATH
-StandardOutput=append:$LOGS_DIR/android-gui.log
-StandardError=append:$LOGS_DIR/android-gui.log
+StandardOutput=append:$LOGS_DIR/android-device.log
+StandardError=append:$LOGS_DIR/android-device.log
 
 [Install]
 WantedBy=default.target
 EOF
 echo "  wrote $UNIT_PATH"
 systemctl --user daemon-reload
-systemctl --user enable atb-android-gui.service
+systemctl --user enable agent-fleet-android-device.service
 echo "  ok enabled"
 echo
 
 # ---------- 8. start + verify ----------
 LAST_STEP="[8/8] verify"
 echo "$LAST_STEP"
-systemctl --user start atb-android-gui.service
+systemctl --user start agent-fleet-android-device.service
 sleep 4
 attempts=0
 while [ $attempts -lt 8 ]; do
     if ss -tlnp 2>/dev/null | grep -q ":$PORT"; then
-        echo "  ok android-gui listening on :$PORT"
+        echo "  ok android-device listening on :$PORT"
         break
     fi
     sleep 2
     attempts=$((attempts + 1))
 done
 if [ $attempts -ge 8 ]; then
-    echo "  WARN android-gui not yet on :$PORT after 16s"
-    echo "  Check: journalctl --user -u atb-android-gui.service"
+    echo "  WARN android-device not yet on :$PORT after 16s"
+    echo "  Check: journalctl --user -u agent-fleet-android-device.service"
 fi
 
 echo
@@ -226,13 +236,13 @@ echo "  Tailscale FQDN     : $TS_DNS"
 echo "  android URL        : http://${TS_HOST}:${PORT}/mcp"
 echo
 echo "On the agent host:"
-echo "  python3 scripts/install-agent-side.py --platform android-gui --hostname $TS_HOST"
+echo "  python3 scripts/install-agent-side.py --platform android-device --hostname $TS_HOST"
 echo
 echo "Service control:"
 echo "  systemctl --user list-unit-files | grep android"
-echo "  systemctl --user restart atb-android-gui.service"
-echo "  journalctl --user -u atb-android-gui.service -f"
+echo "  systemctl --user restart agent-fleet-android-device.service"
+echo "  journalctl --user -u agent-fleet-android-device.service -f"
 echo
-echo "NOTE: Linux does NOT need special permissions for android-gui --"
+echo "NOTE: Linux does NOT need special permissions for android-device --"
 echo "      this server only shells out to adb; no GUI capture / mouse / keyboard"
-echo "      on the Linux machine itself. (Those are only relevant for macbox-gui.)"
+echo "      on the Linux machine itself. (Those are only relevant for mac-device.)"

@@ -13,7 +13,7 @@
 #   4. create Python venv + install requirements
 #   5. ask ADB connection mode (USB / Wireless / Hybrid) -> ~/.atb-android/config.toml
 #   6. verify `adb devices` shows at least one authorized device
-#   7. install launchd plist (~/Library/LaunchAgents/cc.metahub.android-gui.plist)
+#   7. install launchd plist (~/Library/LaunchAgents/cc.metahub.android-device.plist)
 #   8. start service and verify port 8768 listens
 #
 # Idempotent: re-run is safe.
@@ -35,8 +35,8 @@ VENV_PY="$VENV_DIR/bin/python3"
 SERVER_PY="$SERVER_DIR/android_mcp.py"
 REQ_TXT="$SERVER_DIR/requirements.txt"
 LAUNCHER="$SCRIPT_DIR/_launch-android.sh"
-PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.android-gui.plist"
-LABEL="cc.metahub.android-gui"
+PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.android-device.plist"
+LABEL="cc.metahub.android-device"
 PORT=8768
 CONFIG_DIR="$HOME/.atb-android"
 CONFIG_PATH="$CONFIG_DIR/config.toml"
@@ -169,7 +169,7 @@ fi
 echo
 
 # ---------- 4. venv + deps ----------
-LAST_STEP="[4/8] android-gui venv + deps"
+LAST_STEP="[4/8] android-device venv + deps"
 echo "$LAST_STEP"
 if [ ! -d "$VENV_DIR" ]; then
     echo "  creating venv: $VENV_DIR"
@@ -211,7 +211,7 @@ if [ "$REUSE" -eq 0 ]; then
         esac
     done
     cat > "$CONFIG_PATH" <<EOF
-# agent-test-bench / android-gui server config (macOS host)
+# agent-test-bench / android-device server config (macOS host)
 mode = "$MODE_NAME"
 
 [host]
@@ -250,7 +250,7 @@ cat > "$PLIST_PATH" <<EOF
   <string>$LABEL</string>
 
   <!-- Run venv python directly (no bash wrapper). Reasoning identical to
-       macbox-gui: TCC walks the responsible-process chain and granting
+       mac-device: TCC walks the responsible-process chain and granting
        permission to /bin/bash is wrong granularity. Direct invocation
        keeps the chain at launchd -> python only.
        _launch-android.sh stays in the repo as CLI debugger; not in the
@@ -276,9 +276,9 @@ cat > "$PLIST_PATH" <<EOF
   <integer>3</integer>
 
   <key>StandardOutPath</key>
-  <string>$LOGS_DIR/android-gui.log</string>
+  <string>$LOGS_DIR/android-device.log</string>
   <key>StandardErrorPath</key>
-  <string>$LOGS_DIR/android-gui.log</string>
+  <string>$LOGS_DIR/android-device.log</string>
 
   <key>WorkingDirectory</key>
   <string>$SERVER_DIR</string>
@@ -305,15 +305,15 @@ sleep 5
 attempts=0
 while [ $attempts -lt 8 ]; do
     if lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
-        echo "  ok android-gui listening on :$PORT"
+        echo "  ok android-device listening on :$PORT"
         break
     fi
     sleep 2
     attempts=$((attempts + 1))
 done
 if [ $attempts -ge 8 ]; then
-    echo "  WARN android-gui not yet on :$PORT after 16s"
-    echo "  Check: tail $LOGS_DIR/android-gui.log"
+    echo "  WARN android-device not yet on :$PORT after 16s"
+    echo "  Check: tail $LOGS_DIR/android-device.log"
 fi
 
 echo
@@ -326,13 +326,13 @@ echo "  Tailscale FQDN     : $TS_DNS"
 echo "  android URL        : http://${TS_HOST}:${PORT}/sse"
 echo
 echo "On the agent host:"
-echo "  python3 scripts/install-agent-side.py --platform android-gui --hostname $TS_HOST"
+echo "  python3 scripts/install-agent-side.py --platform android-device --hostname $TS_HOST"
 echo
 echo "Service control:"
 echo "  launchctl list | grep $LABEL"
 echo "  launchctl kickstart -k gui/\$(id -u)/$LABEL"
-echo "  tail -f $LOGS_DIR/android-gui.log"
+echo "  tail -f $LOGS_DIR/android-device.log"
 echo
-echo "NOTE: macOS does NOT need Accessibility / Screen Recording grants for android-gui --"
+echo "NOTE: macOS does NOT need Accessibility / Screen Recording grants for android-device --"
 echo "      this server only shells out to adb; no GUI capture / mouse / keyboard events"
-echo "      on the Mac itself. (Those are only relevant for macbox-gui.)"
+echo "      on the Mac itself. (Those are only relevant for mac-device.)"

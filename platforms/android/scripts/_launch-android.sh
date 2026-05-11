@@ -2,7 +2,7 @@
 # CLI debugger for the Android MCP service (macOS host). NOT invoked by launchd.
 #
 # As of v0.4.0, the launchd plist invokes the venv python directly (same
-# reasoning as macbox-gui: TCC responsible-process chain stays clean).
+# reasoning as mac-device: TCC responsible-process chain stays clean).
 # This script remains in the repo for one-off manual launches when
 # debugging crashes outside launchd:
 #
@@ -29,7 +29,7 @@ if [ ! -f "$SERVER_PY" ]; then
     exit 1
 fi
 
-echo "=== $(date -u +%FT%TZ) launching android-gui (pid=$$) ==="
+echo "=== $(date -u +%FT%TZ) launching android-device (pid=$$) ==="
 echo "  python = $VENV_PY"
 echo "  server = $SERVER_PY"
 cd "$SERVER_DIR"
