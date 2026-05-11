@@ -48,17 +48,18 @@ def _select_roles(osi):
 
 
 def _network_choices(ts):
-    """Build the (choices, default_title) pair for the network-mode prompt.
+    """Build the (choices, default_value) pair for the network-mode prompt.
 
-    Extracted so tests can assert the default title is always present in the
-    choices list — questionary.select validates this at construction time and
-    raises ValueError on mismatch.
+    questionary.select validates `default` against `[c.value for c in choices]`
+    (NOT against titles — verified in questionary/prompts/common.py:30-31), so
+    we must pass a value here.  Extracted so tests can assert the default is
+    always one of the available values.
     """
     lan = questionary.Choice("LAN / same WiFi", value="lan")
     ts_suffix = " [logged in]" if ts else " [not detected]"
     tch = questionary.Choice("Tailscale (recommended)" + ts_suffix, value="tailscale")
-    default_title = tch.title if ts else lan.title
-    return [lan, tch], default_title
+    default_value = tch.value if ts else lan.value
+    return [lan, tch], default_value
 
 
 def _select_network(ts):
