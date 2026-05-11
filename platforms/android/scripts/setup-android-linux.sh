@@ -223,7 +223,7 @@ echo "Send these to the agent operator:"
 echo
 echo "  Tailscale hostname : $TS_HOST"
 echo "  Tailscale FQDN     : $TS_DNS"
-echo "  android URL        : http://${TS_HOST}:${PORT}/sse"
+echo "  android URL        : http://${TS_HOST}:${PORT}/mcp"
 echo
 echo "On the agent host:"
 echo "  python3 scripts/install-agent-side.py --platform android-gui --hostname $TS_HOST"

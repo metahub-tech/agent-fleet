@@ -85,9 +85,17 @@ def _run_install(roles, ctx):
         for ev in r.install(ctx):
             color = "red" if ev.level == "error" else ("yellow" if ev.level == "warn" else "white")
             console.print(f"  [{color}]{ev.message}[/{color}]")
-    # Verify each
+    # Verify each. dry_run installs don't actually start anything, so verify
+    # would always fail -- skip in that case and emit the snippet anyway so
+    # operators can preview the final config.
     deployed = []
+    failed_roles = []
     for r in roles:
+        if ctx.dry_run:
+            console.print(f"  [dim]↪ {r.role_id} verify skipped (dry-run)[/dim]")
+            deployed.append(ServerRole(role_id=r.role_id, display_name=r.display_name,
+                                       hostname=ctx.tailscale_hostname or "127.0.0.1", port=r.port))
+            continue
         result = r.verify()
         if result.ok:
             console.print(f"  [green]✓[/green] {r.role_id} verified ({result.tool_count} tools)")
@@ -95,6 +103,15 @@ def _run_install(roles, ctx):
                                        hostname=ctx.tailscale_hostname or "127.0.0.1", port=r.port))
         else:
             console.print(f"  [red]✗[/red] {r.role_id} verify failed: {result.error}")
+            failed_roles.append((r, result))
+    if failed_roles:
+        console.print()
+        console.print(f"[yellow]⚠ {len(failed_roles)} role(s) failed verification — "
+                      f"NOT included in framework config snippets below:[/yellow]")
+        for r, res in failed_roles:
+            console.print(f"  [yellow]·[/yellow] {r.role_id}: {res.error}")
+        console.print("[yellow]  Re-run `uvx agent-fleet setup` after fixing the service "
+                      "(check logs / port).[/yellow]")
     return deployed
 
 
@@ -132,7 +149,10 @@ def cmd_setup(args: argparse.Namespace) -> int:
     )
 
     deployed = _run_install(roles, ctx)
-    _run_guidance(roles)
+    if args.dry_run:
+        console.print("\n[dim]↪ Skipping operation guidance (dry-run).[/dim]")
+    else:
+        _run_guidance(roles)
 
     frameworks = _select_frameworks()
     if frameworks:
