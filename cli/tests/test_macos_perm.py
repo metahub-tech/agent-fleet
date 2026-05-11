@@ -46,3 +46,15 @@ def test_prime_screen_recording():
         assert "CGRequestScreenCaptureAccess" in first_args[-1]
         second_args = mock_run.call_args_list[1].args[0]
         assert "Privacy_ScreenCapture" in second_args[1]
+
+
+def test_prime_automation_uses_osascript():
+    from fleet.macos_perm import prime_automation
+    with patch("fleet.macos_perm.subprocess.run") as mock_run:
+        prime_automation()
+        first_args = mock_run.call_args_list[0].args[0]
+        assert first_args[0] == "osascript"
+        assert "-e" in first_args
+        assert "System Events" in first_args[-1]
+        second_args = mock_run.call_args_list[1].args[0]
+        assert "Privacy_Automation" in second_args[1]

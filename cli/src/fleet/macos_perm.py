@@ -65,3 +65,17 @@ def prime_screen_recording(venv_python: Path) -> None:
     snippet = "import Quartz; Quartz.CGRequestScreenCaptureAccess()"
     subprocess.run([str(venv_python), "-c", snippet], check=False)
     open_settings_pane(SettingsPane.SCREEN_RECORDING)
+
+
+def prime_automation() -> None:
+    """Trigger Automation/AppleScript permission registration.
+
+    First-time use of `tell application "System Events"` triggers the
+    Automation prompt for the calling app (Terminal, in this context — the
+    parent of the wizard process).  This is different from the others: it
+    grants Terminal the right to control System Events, which transitively
+    lets python subprocesses spawned from Terminal control GUI apps.
+    """
+    script = 'tell application "System Events" to count of processes'
+    subprocess.run(["osascript", "-e", script], check=False)
+    open_settings_pane(SettingsPane.AUTOMATION)
