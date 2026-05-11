@@ -115,7 +115,7 @@ agent-test-bench/
 │   │   ├── README.md              # 速览
 │   │   ├── server/                # MCP server 源码 + 依赖
 │   │   ├── scripts/               # 安装 / 启动 / 排错脚本
-│   │   ├── skills/using-winpc/    # 给 agent 用的 skill 文档
+│   │   ├── skills/using-win/    # 给 agent 用的 skill 文档
 │   │   └── examples/              # claude-settings.json 片段
 │   └── macos/                     # 同样子结构
 ├── scripts/                       # 仓库级脚本

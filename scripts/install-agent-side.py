@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Each platform: (mcp-name in ~/.claude.json, repo-dir under platforms/, skill name, default port)
 PLATFORMS = {
-    "winpc-gui":   {"dir": "windows", "skill": "using-winpc",   "port": 8766},
+    "winpc-gui":   {"dir": "windows", "skill": "using-win",   "port": 8766},
     "macbox-gui":  {"dir": "macos",   "skill": "using-mac",  "port": 8767},
     "android-gui": {"dir": "android", "skill": "using-android", "port": 8768},
     # Future entries land here as platforms ship.
