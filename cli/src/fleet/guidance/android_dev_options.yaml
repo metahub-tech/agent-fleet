@@ -1,0 +1,28 @@
+step:
+  title: "开启开发者选项"
+  default_description: |
+    通用：找到带"版本号"或"Build number"的字段连按 7 次。
+    成功后会弹"已开启开发者选项"提示。
+  variant_label: "Android 品牌 (各家路径不同)"
+  variants:
+    huawei:
+      label: "华为 / HarmonyOS / EMUI"
+      description: '设置 → 关于手机 → 连按"版本号" 7 次'
+    xiaomi:
+      label: "小米 / MIUI / HyperOS"
+      description: '设置 → 我的设备 → 全部参数 → 连按"MIUI 版本" 7 次'
+    samsung:
+      label: "Samsung / One UI"
+      description: 'Settings → About phone → Software information → tap "Build number" 7×'
+    oppo:
+      label: "OPPO / realme / ColorOS"
+      description: '设置 → 关于本机 → 连按"版本号"'
+    vivo:
+      label: "vivo / OriginOS / Funtouch"
+      description: '设置 → 我的设备 → 连按"软件版本"'
+    pixel:
+      label: "Pixel / 原生 AOSP"
+      description: 'Settings → About phone → tap "Build number" 7×'
+    fallback:
+      label: "找不到 / 其他"
+      description: '通用规律：找到带"版本号" 或 "Build number" 字段连按 7 次。'

@@ -1,0 +1,13 @@
+step:
+  title: "屏幕录制 (Screen Recording) 权限"
+  default_description: |
+    同样的面板，左栏选 屏幕录制；拖入同一个 Python.app。
+    没有这个权限时 take_screenshot 返回黑图。
+  variant_label: "macOS 版本"
+  variants:
+    ventura_plus:
+      label: "macOS 13 Ventura+"
+      description: "System Settings → Privacy & Security → Screen Recording → +"
+    monterey_minus:
+      label: "macOS 12 Monterey-"
+      description: "System Preferences → Security & Privacy → Privacy → Screen Recording"
