@@ -47,15 +47,26 @@ def _select_roles(osi):
     return answer or []
 
 
+def _network_choices(ts):
+    """Build the (choices, default_title) pair for the network-mode prompt.
+
+    Extracted so tests can assert the default title is always present in the
+    choices list — questionary.select validates this at construction time and
+    raises ValueError on mismatch.
+    """
+    lan = questionary.Choice("LAN / same WiFi", value="lan")
+    ts_suffix = " [logged in]" if ts else " [not detected]"
+    tch = questionary.Choice("Tailscale (recommended)" + ts_suffix, value="tailscale")
+    default_title = tch.title if ts else lan.title
+    return [lan, tch], default_title
+
+
 def _select_network(ts):
-    default = "tailscale" if ts else "lan"
+    choices, default = _network_choices(ts)
     choice = questionary.select(
         "Network mode:",
-        choices=[
-            questionary.Choice("LAN / same WiFi", value="lan"),
-            questionary.Choice("Tailscale (recommended)" + (" [logged in]" if ts else " [not detected]"), value="tailscale"),
-        ],
-        default="LAN / same WiFi" if default == "lan" else "Tailscale (recommended)",
+        choices=choices,
+        default=default,
     ).ask()
     return choice or "lan"
 
