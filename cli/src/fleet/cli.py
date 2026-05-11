@@ -132,7 +132,6 @@ def _run_guidance(roles, ctx):
     in TCC + opens the Settings pane), then print the guidance step and wait
     for user keystroke."""
     from . import macos_perm
-    from pathlib import Path
 
     macos_primer = {
         "macos_accessibility": lambda p: macos_perm.prime_accessibility(p),
@@ -141,24 +140,21 @@ def _run_guidance(roles, ctx):
         "macos_full_disk_access": lambda p: macos_perm.prime_full_disk_access(),
     }
 
+    venv_py = Path(ctx.repo_root) / "platforms" / "macos" / "server" / ".venv" / "bin" / "python3"
+    venv_ready = venv_py.exists()
+
     for r in roles:
         steps = r.guidance_steps()
         if not steps:
             continue
         console.print(f"\n[bold magenta]🔓 Operation guidance for {r.role_id}[/bold magenta]")
+        if any(s.id in macos_primer for s in steps) and not venv_ready:
+            console.print(f"  [yellow]↪ venv not found at {venv_py}; primers will be skipped.[/yellow]")
         for i, s in enumerate(steps, 1):
             console.print(f"\n  [bold]Step {i}/{len(steps)}: {s.title}[/bold]")
-            # Run primer if this is a mac-device guidance step we know about.
-            # role_id is still "macbox-gui" pre-Task-7; the dispatch is keyed on the
-            # guidance step's id, not role_id, so it works either way.  Restrict to
-            # macos installers by checking display_name contains "macOS".
-            if s.id in macos_primer:
-                venv_py = Path(ctx.repo_root) / "platforms" / "macos" / "server" / ".venv" / "bin" / "python3"
-                if venv_py.exists():
-                    console.print(f"  [dim]↪ Triggering {s.id} ...[/dim]")
-                    macos_primer[s.id](venv_py)
-                else:
-                    console.print(f"  [yellow]↪ venv not found at {venv_py}; skipping primer.[/yellow]")
+            if s.id in macos_primer and venv_ready:
+                console.print(f"  [dim]↪ Triggering {s.id} ...[/dim]")
+                macos_primer[s.id](venv_py)
             console.print(f"  {s.default_description}")
             if s.variants:
                 console.print(f"\n  [dim]{s.variant_label} 变体：[/dim]")

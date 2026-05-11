@@ -72,8 +72,8 @@ class GuidanceVariant:
 class GuidanceStep:
     title: str
     default_description: str
-    id: str = ""               # YAML key; used to dispatch primers (e.g. "macos_accessibility")
     variants: dict[str, GuidanceVariant] = field(default_factory=dict)
     variant_label: str = ""    # e.g. "Android 品牌"
     verify_fn: Optional[Callable[[], bool]] = None
     verify_label: str = ""     # e.g. "wizard runs pyautogui.position()"
+    id: str = ""               # YAML key; used to dispatch primers (e.g. "macos_accessibility")
