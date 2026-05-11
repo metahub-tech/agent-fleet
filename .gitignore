@@ -72,3 +72,7 @@ platforms/*/logs/
 .ruff_cache/
 htmlcov/
 .tox/
+
+# v0.5 CLI dev artifacts
+cli/test_env/
+cli/.venv/
