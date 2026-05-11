@@ -1,4 +1,4 @@
-"""macOS MCP Server (macbox-gui).
+"""macOS MCP Server (mac-device).
 
 Single FastMCP server exposing macOS control: GUI (screenshot / mouse /
 keyboard) + shell (zsh / processes / AppleScript) + filesystem (read /
@@ -56,7 +56,7 @@ pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.05
 
 
-mcp = FastMCP("macbox-gui")
+mcp = FastMCP("mac-device")
 
 
 # ============================================================
