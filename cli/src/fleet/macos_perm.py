@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import enum
 import subprocess
+from pathlib import Path
 
 
 class SettingsPane(enum.Enum):
@@ -36,3 +37,20 @@ def open_settings_pane(pane: SettingsPane) -> None:
     """
     url = f"x-apple.systempreferences:com.apple.preference.security?{pane.url_suffix}"
     subprocess.run(["open", url], check=False)
+
+
+def prime_accessibility(venv_python: Path) -> None:
+    """Trigger Accessibility permission registration for Python.app.
+
+    Calls AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})
+    via the macOS server's venv python (which has pyobjc installed).  This
+    pops the system dialog AND registers Python.app in the Accessibility list
+    even if denied.  Then opens the Accessibility pane so user can toggle.
+    """
+    snippet = (
+        "from ApplicationServices import "
+        "AXIsProcessTrustedWithOptions, kAXTrustedCheckOptionPrompt; "
+        "AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})"
+    )
+    subprocess.run([str(venv_python), "-c", snippet], check=False)
+    open_settings_pane(SettingsPane.ACCESSIBILITY)
