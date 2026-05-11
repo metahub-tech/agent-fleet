@@ -48,7 +48,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - 一键 setup-macos.sh：brew Tier-3 容错、ERR trap、目录写权限预检
 - 完整 GUI 权限文档：Python.app 拖入 + python3.12 自动二次授权 + Full Disk Access 一招覆盖文稿/桌面/Library
 - `take_screenshot` server 端 resize 到 logical-px，screenshot 像素 = click 像素
-- `using-macbox` skill 含 GUI 烟测 recipe
+- `using-mac` skill 含 GUI 烟测 recipe
 
 ---
 

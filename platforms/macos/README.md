@@ -64,7 +64,7 @@ platforms/macos/
 │   ├── setup-macos.sh
 │   └── _launch-macos-gui.sh
 └── skills/
-    └── using-macbox/SKILL.md     # 给 agent 的使用规则
+    └── using-mac/SKILL.md     # 给 agent 的使用规则
 ```
 
 ## 运行依赖

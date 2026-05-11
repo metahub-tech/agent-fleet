@@ -303,7 +303,7 @@ tail -50 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
 
 ### 7.7 多 Agent 协作
 
-参见 [`platforms/macos/skills/using-macbox/SKILL.md`](../../platforms/macos/skills/using-macbox/SKILL.md)。基本流程：
+参见 [`platforms/macos/skills/using-mac/SKILL.md`](../../platforms/macos/skills/using-mac/SKILL.md)。基本流程：
 
 ```
 Agent A: get_mac_status                  # 看是否空闲
