@@ -29,7 +29,7 @@ def _banner():
         f"agent-fleet v{fleet.__version__}",
         f"  OS         : {osi.system} {osi.version} ({osi.arch})",
         f"  uv         : {'ok' if uv else 'missing'}",
-        f"  Tailscale  : {'logged in as ' + ts.hostname if ts else 'not detected'}",
+        f"  Tailscale  : {'ok, hostname=' + ts.hostname if ts else 'not detected'}",
     ]
     console.print(Panel("\n".join(lines), title="🚢 agent-fleet"))
     return osi, ts
@@ -73,9 +73,20 @@ def _select_network(ts):
 
 
 def _select_frameworks():
+    # Claude Code is pre-checked.  Users who press <enter> without space-toggling
+    # any item still get the most common config snippet (rather than no output at
+    # all, which was a silent UX dead-end before this change).
+    choices = [
+        questionary.Choice(
+            f"{fw.framework_id}  ({fw.display_name})",
+            value=fw,
+            checked=(fw.framework_id == "claude-code"),
+        )
+        for fw in FRAMEWORK_REGISTRY
+    ]
     return questionary.checkbox(
-        "Which agent frameworks to generate config for?",
-        choices=[questionary.Choice(f"{fw.framework_id}  ({fw.display_name})", value=fw) for fw in FRAMEWORK_REGISTRY],
+        "Which agent frameworks to generate config for? (space to toggle, enter to confirm)",
+        choices=choices,
     ).ask() or []
 
 
@@ -189,6 +200,12 @@ def cmd_setup(args: argparse.Namespace) -> int:
     frameworks = _select_frameworks()
     if frameworks:
         _print_framework_snippets(frameworks, deployed)
+    else:
+        console.print(
+            "\n[yellow]No agent frameworks selected — skipping config snippets.[/yellow]\n"
+            "[dim]Endpoints are listed in the summary below. Re-run `agent-fleet setup`\n"
+            "and press <space> on each framework you want to generate snippets for.[/dim]"
+        )
 
     console.print(Panel(render_install_summary(tailscale_hostname=hostname, deployed_roles=deployed)))
     return 0
