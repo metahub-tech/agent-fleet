@@ -2,7 +2,11 @@
 # One-shot installer for agent-fleet.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh | bash
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
+#
+# NOT `curl ... | bash`: bash piped from curl reads the script FROM stdin, so the
+# interactive wizard can't read from stdin either.  The `bash -c "$(...)"` form
+# puts the script in argv and leaves stdin = the user's terminal.
 #
 # Behavior:
 #   1. Install uv if missing (via astral's official one-liner).
@@ -26,12 +30,33 @@ AGENT_FLEET_CLONE_DIR="${AGENT_FLEET_CLONE_DIR:-$HOME/agent-fleet}"
 
 echo "🚢 agent-fleet one-shot installer (target: ${AGENT_FLEET_VERSION})"
 
-# When invoked via `curl ... | bash`, stdin is the pipe from curl (already EOF
-# after the script bytes are consumed), so the wizard's interactive prompts
-# would die with EOFError.  Re-bind stdin to the controlling terminal so
-# questionary / prompt_toolkit can read keystrokes.
-if [ ! -t 0 ] && [ -r /dev/tty ]; then
-    exec </dev/tty
+# Hard-fail on curl|bash invocation: bash piped from curl reads the script body
+# from stdin, so the wizard's interactive prompts have nothing to read from
+# (questionary dies with EOFError on the first key).  `exec </dev/tty` does not
+# fix this -- once we redirect, bash itself can't read further script bytes.
+# The only reliable form is `bash -c "$(curl ...)"`, which puts the script in
+# argv and leaves stdin = terminal.
+if [ ! -t 0 ]; then
+    cat >&2 <<'ERROEOF'
+
+ERROR: agent-fleet's installer is interactive but stdin is not a TTY.
+
+  You probably invoked it as:
+      curl -fsSL .../install.sh | bash       ← stdin is the pipe, not a terminal
+
+  The wizard needs to read keystrokes for role selection, framework choice, etc.,
+  but bash is itself reading the script from that same pipe.  Use this form
+  instead (script in argv, stdin stays = terminal):
+
+      bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
+
+  Or, since v0.5.0-alpha already cloned the repo for you in a prior attempt:
+
+      cd ~/agent-fleet
+      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.5.0-alpha#subdirectory=cli" agent-fleet setup
+
+ERROEOF
+    exit 1
 fi
 
 # ---------- 1. uv ----------
