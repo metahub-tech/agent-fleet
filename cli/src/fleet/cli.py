@@ -127,7 +127,20 @@ def _run_install(roles, ctx):
     return deployed
 
 
-def _run_guidance(roles):
+def _run_guidance(roles, ctx):
+    """For each role, optionally invoke the macOS primer (registers Python.app
+    in TCC + opens the Settings pane), then print the guidance step and wait
+    for user keystroke."""
+    from . import macos_perm
+    from pathlib import Path
+
+    macos_primer = {
+        "macos_accessibility": lambda p: macos_perm.prime_accessibility(p),
+        "macos_screen_recording": lambda p: macos_perm.prime_screen_recording(p),
+        "macos_automation": lambda p: macos_perm.prime_automation(),
+        "macos_full_disk_access": lambda p: macos_perm.prime_full_disk_access(),
+    }
+
     for r in roles:
         steps = r.guidance_steps()
         if not steps:
@@ -135,6 +148,17 @@ def _run_guidance(roles):
         console.print(f"\n[bold magenta]🔓 Operation guidance for {r.role_id}[/bold magenta]")
         for i, s in enumerate(steps, 1):
             console.print(f"\n  [bold]Step {i}/{len(steps)}: {s.title}[/bold]")
+            # Run primer if this is a mac-device guidance step we know about.
+            # role_id is still "macbox-gui" pre-Task-7; the dispatch is keyed on the
+            # guidance step's id, not role_id, so it works either way.  Restrict to
+            # macos installers by checking display_name contains "macOS".
+            if s.id in macos_primer:
+                venv_py = Path(ctx.repo_root) / "platforms" / "macos" / "server" / ".venv" / "bin" / "python3"
+                if venv_py.exists():
+                    console.print(f"  [dim]↪ Triggering {s.id} ...[/dim]")
+                    macos_primer[s.id](venv_py)
+                else:
+                    console.print(f"  [yellow]↪ venv not found at {venv_py}; skipping primer.[/yellow]")
             console.print(f"  {s.default_description}")
             if s.variants:
                 console.print(f"\n  [dim]{s.variant_label} 变体：[/dim]")
@@ -164,7 +188,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if args.dry_run:
         console.print("\n[dim]↪ Skipping operation guidance (dry-run).[/dim]")
     else:
-        _run_guidance(roles)
+        _run_guidance(roles, ctx)
 
     frameworks = _select_frameworks()
     if frameworks:

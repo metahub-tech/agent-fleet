@@ -1,7 +1,20 @@
 step:
-  title: "完全磁盘访问 (Full Disk Access) 可选"
+  id: "macos_full_disk_access"
+  title: "完全磁盘访问 (Full Disk Access) 权限"
   default_description: |
-    如果 agent 需要读 ~/Documents / ~/Library/Logs 等，给 Python.app 一份 Full Disk Access：
-    System Settings → Privacy & Security → Full Disk Access → +
-    拖入同一个 Python.app。
-    永远不要授权：照片 / 日历 / 提醒事项 / 通讯录——agent 不需要也不该有这些数据。
+    System Settings 已经自动打开到 隐私与安全性 → 完全磁盘访问。
+
+    ⚠️ 这一项 macOS 没有 API 能预触发 —— 需要你手工添加 Python.app（拖入 + 号）或 Terminal。
+      Intel:   /usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+      ARM:     /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+    完全磁盘访问主要影响 ~/Documents, ~/Downloads, ~/Desktop 下的文件操作。不开通也可以用，但部分工具会拒绝读取这些位置。
+  variant_label: "macOS 版本"
+  variants:
+    ventura_plus:
+      label: "macOS 13 Ventura+ (System Settings)"
+      description: |
+        System Settings → Privacy & Security → Full Disk Access
+    monterey_minus:
+      label: "macOS 12 Monterey-"
+      description: |
+        System Preferences → Security & Privacy → Privacy → Full Disk Access
