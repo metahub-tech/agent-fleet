@@ -6,7 +6,7 @@
 #
 # Paste the full output back to the agent operator for triage.
 #
-# Single-service since v0.2.0 (was 8765 + 8766; now only 8766 winpc-gui).
+# Single-service since v0.2.0 (was 8765 + 8766; now only 8766 win-device).
 # Section 0a checks for legacy 8765 / MCP-DesktopCommander leftovers.
 
 $ErrorActionPreference = "Continue"
@@ -61,7 +61,7 @@ if ($legacyProxy -match "8765") {
 Section "1. Listening address (KEY: LocalAddress should be 0.0.0.0)"
 $listeners = Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue
 if (-not $listeners) {
-    Write-Host "  No process is listening on 8766. winpc-gui service is not running." -ForegroundColor Red
+    Write-Host "  No process is listening on 8766. win-device service is not running." -ForegroundColor Red
 } else {
     $listeners | Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize
 }
@@ -139,16 +139,16 @@ if (-not $adapters) {
 
 # ---------- 7. Scheduled task ----------
 Section "7. Scheduled task last run result"
-$info = Get-ScheduledTaskInfo -TaskName "MCP-WindowsGui" -ErrorAction SilentlyContinue
+$info = Get-ScheduledTaskInfo -TaskName "MCP-WinDevice" -ErrorAction SilentlyContinue
 if ($info) {
     [PSCustomObject]@{
-        Task               = "MCP-WindowsGui"
+        Task               = "MCP-WinDevice"
         LastRunTime        = $info.LastRunTime
         LastTaskResult     = $info.LastTaskResult
         NumberOfMissedRuns = $info.NumberOfMissedRuns
     } | Format-List
 } else {
-    Write-Host "  WARN MCP-WindowsGui task not registered. Run setup-windows.ps1." -ForegroundColor Yellow
+    Write-Host "  WARN MCP-WinDevice task not registered. Run setup-windows.ps1." -ForegroundColor Yellow
 }
 
 # ---------- 8. Service log tail ----------
@@ -163,10 +163,10 @@ if (Test-Path $log) {
 }
 
 # ---------- 9. Recent Task Scheduler events ----------
-Section "9. Recent Task Scheduler events for MCP-WindowsGui"
+Section "9. Recent Task Scheduler events for MCP-WinDevice"
 try {
     Get-WinEvent -LogName "Microsoft-Windows-TaskScheduler/Operational" -MaxEvents 100 -ErrorAction Stop |
-        Where-Object { $_.Message -match "MCP-WindowsGui" } |
+        Where-Object { $_.Message -match "MCP-WinDevice" } |
         Select-Object -First 8 -Property TimeCreated, Id, LevelDisplayName, @{Name="MessageHead"; Expression={ ($_.Message -split "`n")[0] }} |
         Format-Table -AutoSize -Wrap
 } catch {

@@ -9,7 +9,7 @@
 #   2. install Python 3.12 if missing
 #   3. create a Python venv inside server/ and install requirements
 #   4. open firewall port 8766 only on the Tailscale interface
-#   5. register Task Scheduler task MCP-WindowsGui (auto-start at logon)
+#   5. register Task Scheduler task MCP-WinDevice (auto-start at logon)
 #   6. start service and verify it listens
 #
 # Idempotent: re-run is safe.
@@ -17,7 +17,7 @@
 # History note: earlier versions had a second service MCP-DesktopCommander
 # on port 8765 (mcp-proxy + npm desktop-commander). That stack hit several
 # single-client / npm cache / network issues, so it was consolidated into
-# MCP-WindowsGui (FastMCP, multi-client native). This script will clean
+# MCP-WinDevice (FastMCP, multi-client native). This script will clean
 # up old artifacts (npm globals, scheduled task, firewall rule, portproxy)
 # if they exist from previous runs.
 #
@@ -152,7 +152,7 @@ if (Test-PythonOk) {
 
 # ---------- 3. Python venv + dependencies ----------
 Write-Host ""
-Write-Host "[3/5] winpc-gui venv + deps" -ForegroundColor Yellow
+Write-Host "[3/5] win-device venv + deps" -ForegroundColor Yellow
 if (-not (Test-Path $VenvDir)) {
     Write-Host "  creating venv: $VenvDir"
     python -m venv $VenvDir
@@ -184,7 +184,7 @@ Write-Host ""
 Write-Host "[5/5] Auto-start task (run at logon for $RunUser, hidden)" -ForegroundColor Yellow
 
 # Stop existing instance so we can re-register cleanly.
-Stop-ScheduledTask -TaskName "MCP-WindowsGui" -ErrorAction SilentlyContinue
+Stop-ScheduledTask -TaskName "MCP-WinDevice" -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
 # Kill leftover python.exe holding port 8766 (from prior visible-window run
@@ -200,7 +200,7 @@ Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue
     }
 }
 
-$GuiLauncher = Join-Path $ScriptDir "_launch-windows-gui.ps1"
+$GuiLauncher = Join-Path $ScriptDir "_launch-win-device.ps1"
 if (-not (Test-Path $GuiLauncher)) {
     Write-Host "  ERROR: launcher missing: $GuiLauncher" -ForegroundColor Red
     exit 1
@@ -211,15 +211,25 @@ $commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
 
 $guiAction = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuiLauncher`""
-Register-ScheduledTask -TaskName "MCP-WindowsGui" -Action $guiAction `
+
+# Migrate / cleanup: remove the legacy MCP-WindowsGui task if present
+$legacyTaskName = "MCP-WindowsGui"
+$legacyTask = Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+if ($legacyTask) {
+    Stop-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false
+    Write-Host "  removed legacy task $legacyTaskName" -ForegroundColor Yellow
+}
+
+Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
     -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
     -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
-Write-Host "  ok MCP-WindowsGui registered (hidden, logged, auto-restart on failure)"
+Write-Host "  ok MCP-WinDevice registered (hidden, logged, auto-restart on failure)"
 
 # ---------- Start now & verify ----------
 Write-Host ""
 Write-Host "=== Starting service ===" -ForegroundColor Cyan
-Start-ScheduledTask -TaskName "MCP-WindowsGui"
+Start-ScheduledTask -TaskName "MCP-WinDevice"
 
 $deadline = (Get-Date).AddSeconds(30)
 $guiOk = $false
@@ -228,9 +238,9 @@ while ((Get-Date) -lt $deadline -and -not $guiOk) {
     $guiOk = $null -ne (Get-NetTCPConnection -LocalPort 8766 -State Listen -ErrorAction SilentlyContinue)
 }
 if ($guiOk) {
-    Write-Host "  ok winpc-gui listening on 8766" -ForegroundColor Green
+    Write-Host "  ok win-device listening on 8766" -ForegroundColor Green
 } else {
-    Write-Host "  WARN winpc-gui not yet on 8766 (run: Get-ScheduledTaskInfo MCP-WindowsGui)" -ForegroundColor Yellow
+    Write-Host "  WARN win-device not yet on 8766 (run: Get-ScheduledTaskInfo MCP-WinDevice)" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -240,7 +250,7 @@ Write-Host "Send these to the agent operator (or keep them yourself):"
 Write-Host ""
 Write-Host "  Tailscale hostname : $tsHost"
 Write-Host "  Tailscale FQDN     : $tsDNS"
-Write-Host "  winpc-gui URL      : http://${tsHost}:8766/sse"
+Write-Host "  win-device URL      : http://${tsHost}:8766/sse"
 Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  - Agent host config : see docs/agent-host-setup.md"

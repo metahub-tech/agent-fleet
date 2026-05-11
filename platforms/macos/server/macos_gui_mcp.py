@@ -4,7 +4,7 @@ Single FastMCP server exposing macOS control: GUI (screenshot / mouse /
 keyboard) + shell (zsh / processes / AppleScript) + filesystem (read /
 write / list / search) for agent-driven testing and remote operation.
 
-Mirrors the architecture of the Windows winpc-gui server. Same tool
+Mirrors the architecture of the Windows win-device server. Same tool
 contract for cross-platform Universal Tool Set compliance, with macOS-
 specific extensions (run_applescript, open_app).
 

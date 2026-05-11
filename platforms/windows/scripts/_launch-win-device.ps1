@@ -1,7 +1,7 @@
 # Internal launcher for the Windows GUI MCP service.
 #
 # Invoked by Task Scheduler via:
-#   powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File _launch-windows-gui.ps1
+#   powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File _launch-win-device.ps1
 #
 # We deliberately use python.exe (not pythonw.exe). pythonw binds std{in,out,err}
 # to NUL, which breaks uvicorn / FastMCP startup on Windows. Instead, the parent
