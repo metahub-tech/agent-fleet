@@ -1,10 +1,10 @@
 {
   "_comment": "Merge the mcpServers block into ~/.claude.json (the top-level single-file state, NOT ~/.claude/settings.json). Replace 'windows-pc' with the Tailscale MagicDNS hostname of your Windows test machine.",
-  "_v0_2_note": "winpc-shell was removed in v0.2. All shell / file / process tools moved into winpc-gui. If you have a winpc-shell entry from an older version, delete it.",
+  "_v0_2_note": "winpc-shell was removed in v0.2. All shell / file / process tools moved into win-device. If you have a winpc-shell entry from an older version, delete it.",
   "_v0_4_transport": "Migrated SSE -> streamable-http: long tool calls broke SSE keep-alive and yielded -32602 forever. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases). Endpoint path is /mcp instead of /sse.",
-  "_recommended_install": "Use scripts/install-agent-side.py --platform winpc-gui --hostname <DEVICE_HOSTNAME> instead of editing this file by hand.",
+  "_recommended_install": "Use scripts/install-agent-side.py --platform win-device --hostname <DEVICE_HOSTNAME> instead of editing this file by hand.",
   "mcpServers": {
-    "winpc-gui": {
+    "win-device": {
       "type": "http",
       "url": "http://windows-pc:8766/mcp"
     }
