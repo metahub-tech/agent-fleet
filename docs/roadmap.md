@@ -2,17 +2,19 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-09*
+*Last updated: 2026-05-12*
 
-| Version | Platform | Status |
+| Version | Theme | Status |
 |---|---|---|
 | 0.1.0 | Windows 10/11 (initial) | ✅ Released |
 | 0.2.0 | Windows 10/11 (win-device consolidated) | ✅ Released |
 | 0.3.0 | macOS (12+) | ✅ Released |
-| 0.4.0 | Android | 📋 Planned |
-| 0.5.0 | iOS (Simulator + real device) | 📋 Planned |
-| 0.6.0 | Cross-device coordination | 🔭 Future |
-| 1.0.0 | Public open-source release | 🔭 Future |
+| 0.4.0 | Android | ✅ Released |
+| 0.5.0-alpha | `agent-fleet setup` wizard | ✅ Released |
+| **0.6.0-alpha** | **role rename to `<os>-device` + macOS permission primer** | ✅ Released |
+| 0.7.0 | iOS (Simulator + real device) | 📋 Planned |
+| 0.8.0 | Cross-device coordination | 🔭 Future |
+| 1.0.0 | Public open-source stable | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
@@ -69,7 +71,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.5.0 — iOS
+## v0.7.0 — iOS
 **Target: TBD**
 
 ### 范围
@@ -85,7 +87,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.6.0 — Cross-device Coordination
+## v0.8.0 — Cross-device Coordination
 **Future**
 
 Agent 一次提示，串联多设备。例：
