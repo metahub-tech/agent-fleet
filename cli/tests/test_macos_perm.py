@@ -58,3 +58,14 @@ def test_prime_automation_uses_osascript():
         assert "System Events" in first_args[-1]
         second_args = mock_run.call_args_list[1].args[0]
         assert "Privacy_Automation" in second_args[1]
+
+
+def test_prime_full_disk_access_only_opens_pane():
+    from fleet.macos_perm import prime_full_disk_access
+    with patch("fleet.macos_perm.subprocess.run") as mock_run:
+        prime_full_disk_access()
+        # No API-trigger call possible — only the open-pane call
+        assert len(mock_run.call_args_list) == 1
+        args = mock_run.call_args_list[0].args[0]
+        assert args[0] == "open"
+        assert "Privacy_AllFiles" in args[1]

@@ -79,3 +79,13 @@ def prime_automation() -> None:
     script = 'tell application "System Events" to count of processes'
     subprocess.run(["osascript", "-e", script], check=False)
     open_settings_pane(SettingsPane.AUTOMATION)
+
+
+def prime_full_disk_access() -> None:
+    """Open the Full Disk Access pane.
+
+    Unlike the other three permissions, macOS provides no public API to
+    pre-trigger FDA's TCC entry, so this just opens the pane.  The user
+    needs to drag-add Python.app or Terminal manually.
+    """
+    open_settings_pane(SettingsPane.FULL_DISK_ACCESS)
