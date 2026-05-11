@@ -46,4 +46,5 @@ class LinuxAndroidBridge(BaseInstaller):
         return [
             load_guidance_yaml("android_dev_options.yaml"),
             load_guidance_yaml("android_usb_debug.yaml"),
+            load_guidance_yaml("android_wireless_pair.yaml"),
         ]
