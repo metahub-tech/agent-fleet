@@ -1,0 +1,20 @@
+step:
+  title: "辅助功能 (Accessibility) 权限"
+  default_description: |
+    打开 System Settings → 隐私与安全性 → 辅助功能。
+    点 + 拖入 Python.framework 的 Python.app：
+      Intel: /usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+      ARM:   /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+    打开开关。
+    ⚠️ 不要拖 venv 的 bin/python3（macOS 拒绝符号链接）。
+  variant_label: "macOS 版本"
+  variants:
+    ventura_plus:
+      label: "macOS 13 Ventura+ (System Settings)"
+      description: |
+        System Settings → Privacy & Security → Accessibility → +
+    monterey_minus:
+      label: "macOS 12 Monterey-"
+      description: |
+        System Preferences → Security & Privacy → Privacy → Accessibility
+        （界面布局不同，但功能一致）

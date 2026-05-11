@@ -1,0 +1,7 @@
+step:
+  title: "完全磁盘访问 (Full Disk Access) 可选"
+  default_description: |
+    如果 agent 需要读 ~/Documents / ~/Library/Logs 等，给 Python.app 一份 Full Disk Access：
+    System Settings → Privacy & Security → Full Disk Access → +
+    拖入同一个 Python.app。
+    永远不要授权：照片 / 日历 / 提醒事项 / 通讯录——agent 不需要也不该有这些数据。

@@ -1,0 +1,6 @@
+step:
+  title: "自动化 (Automation) 权限"
+  default_description: |
+    无需现在操作。下次 agent 调 run_applescript 控制其他 app（System Events / Finder / Safari）时，
+    macOS 会自动弹窗"允许 Python 控制 XXX"——点同意即永久生效。
+    可选：预先在 隐私与安全性 → 自动化 里展开 python3，勾选 System Events 等。
