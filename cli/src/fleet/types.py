@@ -26,7 +26,7 @@ class OSInfo:
 
 @dataclass
 class ServerRole:
-    role_id: str               # "macbox-gui" / "winpc-gui" / "android-gui"
+    role_id: str               # "mac-device" / "win-device" / "android-device"
     display_name: str
     hostname: str
     port: int

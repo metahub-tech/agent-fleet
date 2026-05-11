@@ -11,8 +11,8 @@ from ..types import (
 
 
 class MacosDesktop(BaseInstaller):
-    role_id = "macbox-gui"
-    display_name = "macOS desktop (macbox-gui)"
+    role_id = "mac-device"
+    display_name = "macOS desktop (mac-device)"
     port = 8767
 
     def is_supported_on(self, os_info: OSInfo) -> bool:
@@ -62,8 +62,8 @@ class MacosDesktop(BaseInstaller):
 
 
 class MacosAndroidBridge(BaseInstaller):
-    role_id = "android-gui"
-    display_name = "Android bridge on macOS"
+    role_id = "android-device"
+    display_name = "Android bridge on macOS (android-device)"
     port = 8768
 
     def is_supported_on(self, os_info: OSInfo) -> bool:

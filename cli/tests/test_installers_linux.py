@@ -4,7 +4,7 @@ from fleet.types import OSInfo, InstallContext
 
 def test_linux_android_metadata():
     m = LinuxAndroidBridge()
-    assert m.role_id == "android-gui"
+    assert m.role_id == "android-device"
     assert m.port == 8768
 
 
@@ -21,3 +21,8 @@ def test_dry_run_skips_subprocess():
     ctx = InstallContext(repo_root="/tmp/repo", os_info=osl, dry_run=True)
     events = list(LinuxAndroidBridge().install(ctx))
     assert any("DRY RUN" in e.message for e in events)
+
+
+def test_linux_android_bridge_role_id_is_android_device():
+    from fleet.installers.linux import LinuxAndroidBridge
+    assert LinuxAndroidBridge.role_id == "android-device"

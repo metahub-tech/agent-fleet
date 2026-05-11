@@ -17,7 +17,7 @@ def test_os_info_kind_linux():
 
 
 def test_server_role_url():
-    r = ServerRole(role_id="macbox-gui", display_name="macOS desktop", hostname="mac-test", port=8767)
+    r = ServerRole(role_id="mac-device", display_name="macOS desktop", hostname="mac-test", port=8767)
     assert r.url == "http://mac-test:8767/mcp"
 
 

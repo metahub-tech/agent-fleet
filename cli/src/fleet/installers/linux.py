@@ -9,8 +9,8 @@ from ..types import GuidanceStep, InstallContext, InstallEvent, OSInfo, VerifyRe
 
 
 class LinuxAndroidBridge(BaseInstaller):
-    role_id = "android-gui"
-    display_name = "Android bridge on Linux"
+    role_id = "android-device"
+    display_name = "Android bridge on Linux (android-device)"
     port = 8768
 
     def is_supported_on(self, os_info: OSInfo) -> bool:

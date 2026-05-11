@@ -1,7 +1,7 @@
 """Per-(OS, role) installers."""
 from .base import BaseInstaller
 from .macos import MacosDesktop, MacosAndroidBridge
-from .windows import WindowsTestPC, WindowsAndroidBridge
+from .windows import WindowsDesktop, WindowsTestPC, WindowsAndroidBridge
 from .linux import LinuxAndroidBridge
 from ..types import OSInfo
 
@@ -9,7 +9,7 @@ from ..types import OSInfo
 INSTALLER_REGISTRY: list[BaseInstaller] = [
     MacosDesktop(),
     MacosAndroidBridge(),
-    WindowsTestPC(),
+    WindowsDesktop(),
     WindowsAndroidBridge(),
     LinuxAndroidBridge(),
 ]
@@ -22,6 +22,6 @@ def filter_for_os(os_info: OSInfo) -> list[BaseInstaller]:
 __all__ = [
     "BaseInstaller", "INSTALLER_REGISTRY", "filter_for_os",
     "MacosDesktop", "MacosAndroidBridge",
-    "WindowsTestPC", "WindowsAndroidBridge",
+    "WindowsDesktop", "WindowsTestPC", "WindowsAndroidBridge",
     "LinuxAndroidBridge",
 ]

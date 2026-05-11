@@ -29,9 +29,9 @@ def _run_setup_ps1(ctx: InstallContext, script_path: Path, role_id: str) -> Iter
         yield InstallEvent(role_id, "install", f"setup script exited rc={proc.returncode}", level="error")
 
 
-class WindowsTestPC(BaseInstaller):
-    role_id = "winpc-gui"
-    display_name = "Windows testable desktop (winpc-gui)"
+class WindowsDesktop(BaseInstaller):
+    role_id = "win-device"
+    display_name = "Windows desktop (win-device)"
     port = 8766
 
     def is_supported_on(self, os_info: OSInfo) -> bool:
@@ -56,9 +56,12 @@ class WindowsTestPC(BaseInstaller):
         return [load_guidance_yaml("windows_postinstall.yaml")]
 
 
+WindowsTestPC = WindowsDesktop  # backward-compat alias
+
+
 class WindowsAndroidBridge(BaseInstaller):
-    role_id = "android-gui"
-    display_name = "Android bridge on Windows"
+    role_id = "android-device"
+    display_name = "Android bridge on Windows (android-device)"
     port = 8768
 
     def is_supported_on(self, os_info: OSInfo) -> bool:

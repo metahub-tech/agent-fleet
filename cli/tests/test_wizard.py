@@ -13,8 +13,8 @@ def test_build_install_context_macos():
 
 def test_render_install_summary():
     roles = [
-        ServerRole(role_id="macbox-gui", display_name="macOS desktop", hostname="mac-test", port=8767),
-        ServerRole(role_id="android-gui", display_name="Android bridge", hostname="mac-test", port=8768),
+        ServerRole(role_id="mac-device", display_name="macOS desktop", hostname="mac-test", port=8767),
+        ServerRole(role_id="android-device", display_name="Android bridge", hostname="mac-test", port=8768),
     ]
     out = render_install_summary(tailscale_hostname="mac-test", deployed_roles=roles)
     assert "mac-test" in out

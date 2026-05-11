@@ -7,7 +7,7 @@ from ..types import InstallContext, InstallEvent, OSInfo, VerifyResult, Guidance
 
 
 class BaseInstaller(ABC):
-    role_id: str = ""        # e.g. "macbox-gui" / "android-gui-win"
+    role_id: str = ""        # e.g. "mac-device" / "win-device" / "android-device"
     display_name: str = ""
     port: int = 0
 
