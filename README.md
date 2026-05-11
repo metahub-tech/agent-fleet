@@ -50,10 +50,14 @@
 **新手 / 一键流**：在被控设备（PC / 接了手机的 PC）上：
 
 ```bash
-# macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh | bash
+# macOS / Linux  —  NOT `curl ... | bash`!  The wizard is interactive and bash
+# piped from curl uses stdin for the script itself, so questionary's prompts
+# die with EOFError.  The `bash -c "$(...)"` form puts the script in argv and
+# leaves stdin = terminal.
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
 
-# Windows
+# Windows  —  `irm | iex` is fine on PowerShell because iex runs the script in
+# the current session and Read-Host reads from the console host, not stdin.
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
