@@ -26,6 +26,14 @@ AGENT_FLEET_CLONE_DIR="${AGENT_FLEET_CLONE_DIR:-$HOME/agent-fleet}"
 
 echo "🚢 agent-fleet one-shot installer (target: ${AGENT_FLEET_VERSION})"
 
+# When invoked via `curl ... | bash`, stdin is the pipe from curl (already EOF
+# after the script bytes are consumed), so the wizard's interactive prompts
+# would die with EOFError.  Re-bind stdin to the controlling terminal so
+# questionary / prompt_toolkit can read keystrokes.
+if [ ! -t 0 ] && [ -r /dev/tty ]; then
+    exec </dev/tty
+fi
+
 # ---------- 1. uv ----------
 if ! command -v uv >/dev/null 2>&1; then
     echo "  uv not installed; bootstrapping via astral.sh ..."
