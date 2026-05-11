@@ -4,13 +4,17 @@ step:
   default_description: |
     我已经触发了辅助功能授权对话框。系统设置已自动打开到 隐私与安全性 → 辅助功能。
 
-    你应该看到 **python3.12**（或 **Python**）已经出现在列表里 —— **只需打开开关**即可。
-    列表里显示的名字通常是 `python3.12`（venv 直接调用了 brew 的 python3.12 二进制，
-    TCC 按二进制名跟踪，所以不是 "Python.app" 而是版本号）。
+    列表里你应该会看到**两条**：
+      ✅ **Python**（Python.app 图标，蛇 logo） —— pyobjc 通过 Python.app 调用 AX API 时注册
+      ✅ **python3.12**（普通文件图标） —— launchd 直接启 brew 的 python3.12 二进制时注册
 
-    如果列表里没看到，请按 + 手动添加 Python.app：
-      Intel:   /usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
-      ARM:     /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+    **请把两条都打勾**。两套代码路径用的是不同的可执行体，TCC 按二进制独立跟踪。
+    只勾一个的话，另一边的 GUI 操作会被系统拒绝。
+
+    如果某一条没自动出现，按 + 手动添加：
+      Python.app 路径：
+        Intel:   /usr/local/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
+        ARM:     /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/Resources/Python.app
 
     ⚠️ 不要拖 venv 的 bin/python3（macOS 拒绝符号链接）。
   variant_label: "macOS 版本"

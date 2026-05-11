@@ -4,7 +4,8 @@ step:
   default_description: |
     我已经触发了屏幕录制授权对话框。系统设置已自动打开到 隐私与安全性 → 屏幕录制。
 
-    你应该看到 **python3.12**（或 **Python**）已经出现在列表里 —— **只需打开开关**即可，然后按系统提示重启相关进程。
+    列表里可能出现**两条**：**Python**（Python.app 图标）和 **python3.12**（普通图标）。
+    **两条都打勾**（不同代码路径调用不同二进制，TCC 独立跟踪）。然后按系统提示重启相关进程。
   variant_label: "macOS 版本"
   variants:
     ventura_plus:

@@ -3,3 +3,7 @@ pyautogui>=0.9.54
 psutil>=5.9
 pillow>=10.0
 pyperclip>=1.8
+# Required by the agent-fleet permission primer (prime_accessibility).
+# pyautogui already pulls pyobjc-core + pyobjc-framework-Quartz on macOS, but
+# ApplicationServices is a separate framework wheel.
+pyobjc-framework-ApplicationServices>=10.0; sys_platform == "darwin"
