@@ -50,7 +50,9 @@ if (-not $inClone) {
     if (Test-Path (Join-Path $AGENT_FLEET_CLONE_DIR ".git")) {
         Write-Host "  existing clone found; updating + checking out $AGENT_FLEET_VERSION"
         Set-Location $AGENT_FLEET_CLONE_DIR
-        git fetch --tags --quiet origin 2>$null
+        # --force needed so retagged refs (common for alpha tags) overwrite the
+        # local tag pointer instead of silently keeping the stale sha.
+        git fetch --tags --force --quiet origin 2>$null
         $checkoutOk = $false
         git checkout $AGENT_FLEET_VERSION --quiet 2>$null
         if ($LASTEXITCODE -eq 0) { $checkoutOk = $true }

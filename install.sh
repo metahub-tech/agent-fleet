@@ -98,7 +98,9 @@ if [ ! -f "platforms/macos/scripts/setup-macos.sh" ] && [ ! -f "platforms/window
     if [ -d "$AGENT_FLEET_CLONE_DIR/.git" ]; then
         echo "  existing clone found; updating + checking out ${AGENT_FLEET_VERSION}"
         cd "$AGENT_FLEET_CLONE_DIR"
-        git fetch --tags --quiet origin || true
+        # --force needed so retagged refs (common for alpha tags) overwrite the
+        # local tag pointer instead of silently keeping the stale sha.
+        git fetch --tags --force --quiet origin || true
         git checkout "${AGENT_FLEET_VERSION}" --quiet 2>/dev/null \
             || git checkout main --quiet 2>/dev/null \
             || true
