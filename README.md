@@ -39,27 +39,32 @@
 
 ## 快速开始
 
-按角色查阅对应文档：
+**新手 / 一键流**：在被控设备（PC / 接了手机的 PC）上：
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh | bash
+
+# Windows
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
+```
+
+或，如果已经有 uv：
+
+```bash
+uvx agent-fleet setup
+```
+
+wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 权限 / ADB 授权交互式引导 → 自动健康检测 → 输出 6 个 agent 框架的配置片段。
+
+**老手**：仍可直接调底层脚本——`docs/install-pattern.md` 仍有效（"高级用户手册"）。
 
 | 你是 | 看哪个 |
 |---|---|
-| **新接手仓库的开发者**（想搞清楚装什么、装到哪） | [`docs/install-pattern.md`](docs/install-pattern.md) ← **从这开始** |
-| **Windows 测试主机管理员** | [`docs/platforms/windows.md`](docs/platforms/windows.md) |
-| **macOS 测试主机管理员** | [`docs/platforms/macos.md`](docs/platforms/macos.md) |
-| **Agent 操作员**（Linux/Mac/Win，跑 Claude Code 等 MCP client） | [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
-
-典型流程（设备管理员 + Agent 操作员两条线，最常见同一个人）：
-
-1. **设备管理员** 按对应平台手册把测试机配好（Tailscale + 一行命令跑安装脚本）
-2. 设备管理员把自己的 Tailscale 主机名告诉 Agent 操作员
-3. **Agent 操作员** 在 Agent 主机一行命令装好 MCP + skill：
-   ```bash
-   python3 scripts/install-agent-side.py --platform macbox-gui --hostname <DEVICE_HOSTNAME>
-   # 或 winpc-gui
-   ```
-4. 重启 Claude Code 让 MCP 加载
-
-详细机制见 [`docs/install-pattern.md`](docs/install-pattern.md)。
+| **新手**（让 wizard 带你走） | 跑上面那行命令，跟着提示选 |
+| **设备管理员，要自己写脚本编排部署** | [`docs/install-pattern.md`](docs/install-pattern.md)（底层脚本契约）|
+| **Agent 操作员** | wizard 输出的 snippet 直接 paste 到对应 agent 配置；也可参考 [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
+| **设计文档**（贡献者） | [`docs/design/2026-05-11-agent-fleet-cli.md`](docs/design/2026-05-11-agent-fleet-cli.md) |
 
 ## English Quick Start
 
