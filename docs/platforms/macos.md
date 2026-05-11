@@ -67,12 +67,12 @@ bash platforms/macos/scripts/setup-macos.sh
 | 1/5 | 检查 Tailscale 已登录 |
 | 2/5 | 装 Python 3.12（若未装或版本 < 3.10）；通过 brew |
 | 3/5 | 在 `platforms/macos/server/.venv` 建虚拟环境，装依赖 |
-| 4/5 | 装 launchd plist 到 `~/Library/LaunchAgents/cc.metahub.macbox-gui.plist` |
+| 4/5 | 装 launchd plist 到 `~/Library/LaunchAgents/cc.metahub.mac-device.plist` |
 | 5/5 | 启动并验证端口 8767 监听 |
 
 脚本结束时会打印：
 - 你的 Tailscale 主机名
-- macbox-gui 的 SSE URL
+- mac-device 的 SSE URL
 - **GUI 权限授权清单**（必须手动做）
 
 ## 4. GUI 权限授权（必须，一次性）
@@ -213,8 +213,8 @@ tail -20 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
 
 ```bash
 # 卸载 launchd 服务（注意：整条命令一行）
-launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
-rm ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.plist
+rm ~/Library/LaunchAgents/cc.metahub.mac-device.plist
 
 # 删仓库目录（venv、所有依赖一起删干净）
 rm -rf ~/agent-test-bench
@@ -249,15 +249,15 @@ rm -rf ~/agent-test-bench
 
 3. **anaconda `(base)` 抢了 PATH**：脚本对 brew 装的 python 用绝对路径，不受影响；但如果你卡在 `python3 -c '...'` 的版本探测且 anaconda 是 3.9，for-loop 不会选中它，然后会进 brew install 分支（正常行为，不是 bug）。
 
-### 7.0.5 重启 macbox-gui 服务的正确姿势
+### 7.0.5 重启 mac-device 服务的正确姿势
 
 ```bash
 # 优先方案：kickstart 重启（保持 plist 不变）
-launchctl kickstart -k "gui/$(id -u)/cc.metahub.macbox-gui"
+launchctl kickstart -k "gui/$(id -u)/cc.metahub.mac-device"
 
 # 如果 plist 内容改了（重跑了 setup-macos.sh），先 bootout 再 bootstrap：
-launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.plist
+launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.plist
+launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.plist
 ```
 
 > ⚠️ 上面每条命令都**必须单行**，特别是 `bootout`：缺了 plist 路径会卸掉整个用户 GUI 域（注销级灾难）。复制粘贴时如果终端把行折断了，先在终端里 `Cmd+A` 全选确认是单行再回车。
@@ -266,7 +266,7 @@ launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.macbox-gui.
 
 ```bash
 # 看 launchd 服务状态（最后一列是 last exit code，0=ok）
-launchctl print "gui/$(id -u)/cc.metahub.macbox-gui" | head -30
+launchctl print "gui/$(id -u)/cc.metahub.mac-device" | head -30
 
 # 看 traceback
 tail -50 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
@@ -318,7 +318,7 @@ Agent A: release_mac(holder_name="...")  # 显式释放
 
 ## 附录 · 工具列表
 
-`macbox-gui` MCP（监听 `0.0.0.0:8767/sse`）暴露的工具：
+`mac-device` MCP（监听 `0.0.0.0:8767/sse`）暴露的工具：
 
 | 类别 | 工具 |
 |---|---|

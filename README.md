@@ -18,13 +18,13 @@
 
 ```
 ┌─────────────────┐                              ┌──────────────┐
-│  Agent (any OS) │ ──── Tailscale Mesh ─────>  │ Windows PC   │ winpc-gui   :8766 ✅
+│  Agent (any OS) │ ──── Tailscale Mesh ─────>  │ Windows PC   │ win-device     :8766 ✅
 │  Claude Code /  │                              ├──────────────┤
-│  Cursor / Cline │                              │ macOS box    │ macbox-gui  :8767 ✅
+│  Cursor / Cline │                              │ macOS box    │ mac-device     :8767 ✅
 │  / OpenClaw /   │                              ├──────────────┤
-│  Antigravity /  │                              │ Android phone│ android-gui :8768 ✅
+│  Antigravity /  │                              │ Android phone│ android-device :8768 ✅
 │  Hermes / ...   │                              ├──────────────┤
-└─────────────────┘                              │ iPhone       │ iphone      :8769 (v0.6 planned)
+└─────────────────┘                              │ iPhone       │ iphone         :8769 (v0.6 planned)
                                                  └──────────────┘
             ↑                                                ↑
    uvx agent-fleet setup           generates 6 frameworks' configs
@@ -35,9 +35,9 @@
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (winpc-gui consolidated, 33 tools, streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (macbox-gui, launchd, 31 tools, GUI-permission flow) |
-| Android bridge | `0.4.0` | ✅ Released (android-gui, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device consolidated, 33 tools, streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
+| Android bridge | `0.4.0` | ✅ Released (android-device, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
 | **agent-fleet CLI wizard** | **`0.5.0-alpha`** | ✅ **Released** (`uvx agent-fleet setup` 一键安装；6 框架配置生成；公开 alpha) |
 | iOS bridge | `0.6.0` | 📋 Planned (macOS host + WebDriverAgent) |
 | Cross-device coordination | `0.7.0` | 🔭 Future |

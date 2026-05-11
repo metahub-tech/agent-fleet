@@ -62,7 +62,7 @@ setup 脚本做的事大同小异：
 cd ~/code/agent-test-bench    # 或你 clone 的位置
 
 # 把一台设备的 MCP + skill 一起装好
-python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
+python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
 ```
 
 脚本会原子地做三件事：
@@ -72,7 +72,7 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
    ```json
    {
      "mcpServers": {
-       "macbox-gui": { "type": "http", "url": "http://mac-test:8767/mcp" }
+       "mac-device": { "type": "http", "url": "http://mac-test:8767/mcp" }
      }
    }
    ```
@@ -88,7 +88,7 @@ python3 scripts/install-agent-side.py --platform macbox-gui --hostname mac-test
 # 然后再启动 Claude Code
 
 # 验证
-/mcp           # 应看到 macbox-gui [sse] connected
+/mcp           # 应看到 mac-device [sse] connected
 ```
 
 > **多设备**：每台设备跑一次 install-agent-side.py，`~/.claude.json` 会逐步累加 server 条目。
@@ -121,7 +121,7 @@ platforms/<name>/
 
 - 所有平台的工具命名共享 [Universal Tool Set](architecture.md) 公约：`take_screenshot`、`click`、`run_shell` 等同名跨平台
 - 平台相关的工具命名带平台前缀或采用平台原生名：`run_powershell`（Windows）/ `run_zsh` + `run_applescript`（macOS）
-- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`winpc-gui`、`macbox-gui`、`android`、`iphone`
+- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`win-device`、`mac-device`、`android`、`iphone`
 
 ---
 

@@ -7,7 +7,7 @@
 | Version | Platform | Status |
 |---|---|---|
 | 0.1.0 | Windows 10/11 (initial) | ✅ Released |
-| 0.2.0 | Windows 10/11 (winpc-gui consolidated) | ✅ Released |
+| 0.2.0 | Windows 10/11 (win-device consolidated) | ✅ Released |
 | 0.3.0 | macOS (12+) | ✅ Released |
 | 0.4.0 | Android | 📋 Planned |
 | 0.5.0 | iOS (Simulator + real device) | 📋 Planned |
@@ -28,10 +28,10 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.2.0 — Windows (winpc-gui consolidated)
+## v0.2.0 — Windows (win-device consolidated)
 **Released 2026-05-08**
 
-- 把 v0.1 的两服务（winpc-shell mcp-proxy + winpc-gui FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
+- 把 v0.1 的两服务（winpc-shell mcp-proxy + win-device FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
 - 新增 `acquire_winpc` / `release_winpc` / `get_winpc_status` 多 agent 协作的状态模型
 - 启动器加 restart loop，遇 session lock kill python 后自动恢复
 - 日志改 UTF-8（PS 5.1 默认 UTF-16 LE 的坑）

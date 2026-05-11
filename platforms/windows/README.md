@@ -23,7 +23,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ## 暴露的工具
 
-`winpc-gui` MCP server（FastMCP，原生多客户端）通过 SSE 监听 `0.0.0.0:8766`：
+`win-device` MCP server（FastMCP，原生多客户端）通过 SSE 监听 `0.0.0.0:8766`：
 
 | 类别 | 工具 |
 |---|---|
@@ -38,7 +38,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_powershell` |
 
-> **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `winpc-gui`。`setup-windows.ps1` 会自动清理老版本残留。
+> **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `win-device`。`setup-windows.ps1` 会自动清理老版本残留。
 
 ## 目录布局
 
