@@ -1,0 +1,23 @@
+step:
+  title: "Wireless Debugging 配对（可选，Android 11+ / SDK 30+）"
+  default_description: |
+    1. 开发者选项 → 无线调试 ON
+    2. "使用配对码配对设备"
+    3. 手机显示 6 位配对码 + IP:配对端口
+    4. PC 端：
+       adb pair <PHONE_IP>:<PAIRING_PORT>
+       (提示输入配对码 → 输入)
+    5. adb connect <PHONE_IP>:<ADB_PORT>
+       (ADB_PORT 在无线调试主界面，与配对端口不同)
+    一次配对永久有效。
+  variant_label: "Android 版本"
+  variants:
+    api30plus:
+      label: "Android 11+ / SDK 30+"
+      description: "原生支持无线调试，照默认步骤走。"
+    harmonyos4_p30pro_legacy:
+      label: "HarmonyOS 4.0（如 P30 Pro，实测 build version=10/SDK29）"
+      description: |
+        部分 HarmonyOS 4 机型 ro.build.version.release=10，无原生无线调试。
+        走 Hybrid 模式：USB 插一次 → `adb tcpip 5555` → 拔线 → `adb connect <IP>:5555`。
+        手机重启后失效，需重插 USB。
