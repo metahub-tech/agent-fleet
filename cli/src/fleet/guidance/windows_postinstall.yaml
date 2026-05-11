@@ -1,0 +1,17 @@
+step:
+  title: "Windows 部署后注意事项"
+  default_description: |
+    winpc-gui 一般不需要额外权限授权，但提醒：
+    1. 测试期间用户会话必须解锁（屏幕锁定时 take_screenshot 拿到的是锁屏图）。
+       如果是远程部署 / 长期 unattended，建议配置 autologon。
+    2. Windows Defender SmartScreen 可能在首次启动 python.exe 时弹窗，点"仍要运行"即可。
+    3. Tailscale 接口防火墙规则已自动创建（端口 8766 / 8768）；
+       如果改了端口需重建规则。
+  variant_label: "Windows 版本"
+  variants:
+    win11:
+      label: "Windows 11"
+      description: "Settings → System → For developers → Developer Mode（一般不需要打开，除非有 sideload 场景）"
+    win10:
+      label: "Windows 10"
+      description: "Settings → Update & Security → For developers → Developer Mode"
