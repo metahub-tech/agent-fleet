@@ -56,9 +56,6 @@ class WindowsDesktop(BaseInstaller):
         return [load_guidance_yaml("windows_postinstall.yaml")]
 
 
-WindowsTestPC = WindowsDesktop  # backward-compat alias
-
-
 class WindowsAndroidBridge(BaseInstaller):
     role_id = "android-device"
     display_name = "Android bridge on Windows (android-device)"
