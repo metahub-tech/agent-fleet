@@ -107,9 +107,23 @@ if [ ! -f "platforms/macos/scripts/setup-macos.sh" ] && [ ! -f "platforms/window
         git pull --ff-only --quiet 2>/dev/null || true
     else
         if [ -e "$AGENT_FLEET_CLONE_DIR" ]; then
-            echo "  ERROR: ${AGENT_FLEET_CLONE_DIR} exists but is not a git clone."
-            echo "         Remove it or set AGENT_FLEET_CLONE_DIR to a different path."
-            exit 1
+            # A non-clone dir at our default path is almost always leftover
+            # from a previous install whose rm -rf was blocked by running
+            # launchd / systemd services holding venv files open.  Stop our
+            # services first (only our labels — cc.metahub.* and
+            # agent-fleet-*), then clean up.  Users who pointed
+            # AGENT_FLEET_CLONE_DIR at their own valuable path opted into us
+            # managing it.
+            echo "  ${AGENT_FLEET_CLONE_DIR} exists but isn't a clone — stopping our services + cleaning up"
+            if [[ "$(uname)" == "Darwin" ]]; then
+                for label in cc.metahub.mac-device cc.metahub.android-device; do
+                    plist="$HOME/Library/LaunchAgents/${label}.plist"
+                    [ -f "$plist" ] && launchctl unload "$plist" 2>/dev/null || true
+                done
+            elif [[ "$(uname)" == "Linux" ]]; then
+                systemctl --user stop agent-fleet-android-device.service 2>/dev/null || true
+            fi
+            rm -rf "$AGENT_FLEET_CLONE_DIR"
         fi
         echo "  cloning ${AGENT_FLEET_REPO} (branch/tag ${AGENT_FLEET_VERSION}, shallow) ..."
         git clone --branch "${AGENT_FLEET_VERSION}" --depth 1 "${AGENT_FLEET_REPO}.git" "${AGENT_FLEET_CLONE_DIR}" 2>/dev/null \

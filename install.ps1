@@ -59,10 +59,24 @@ if (-not $inClone) {
         if (-not $checkoutOk) { git checkout main --quiet 2>$null }
         git pull --ff-only --quiet 2>$null
     } elseif (Test-Path $AGENT_FLEET_CLONE_DIR) {
-        Write-Host "  ERROR: $AGENT_FLEET_CLONE_DIR exists but is not a git clone."
-        Write-Host "         Remove it or set `$env:AGENT_FLEET_CLONE_DIR to a different path."
-        exit 1
-    } else {
+        # A non-clone dir at our default path is almost always leftover from a
+        # previous install whose Remove-Item was blocked by running Task
+        # Scheduler tasks holding venv files open.  Stop our tasks first
+        # (only our names — MCP-WinDevice / MCP-AndroidDevice), then clean up.
+        Write-Host "  $AGENT_FLEET_CLONE_DIR exists but isn't a clone — stopping our tasks + cleaning up"
+        foreach ($taskName in @("MCP-WinDevice", "MCP-AndroidDevice")) {
+            Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Seconds 1
+        Remove-Item -Recurse -Force $AGENT_FLEET_CLONE_DIR -ErrorAction SilentlyContinue
+        if (Test-Path $AGENT_FLEET_CLONE_DIR) {
+            Write-Host "  ERROR: could not remove $AGENT_FLEET_CLONE_DIR (running process still has it open?)."
+            Write-Host "         Try: Unregister-ScheduledTask -TaskName MCP-WinDevice -Confirm:`$false; then re-run."
+            exit 1
+        }
+        # Fall through to clone path
+    }
+    if (-not (Test-Path (Join-Path $AGENT_FLEET_CLONE_DIR ".git"))) {
         Write-Host "  cloning $AGENT_FLEET_REPO (branch/tag $AGENT_FLEET_VERSION, shallow) ..."
         git clone --branch $AGENT_FLEET_VERSION --depth 1 "$AGENT_FLEET_REPO.git" $AGENT_FLEET_CLONE_DIR 2>$null
         if ($LASTEXITCODE -ne 0) {
