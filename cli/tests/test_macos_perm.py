@@ -4,7 +4,7 @@ from fleet.macos_perm import open_settings_pane, SettingsPane
 
 
 def test_open_settings_pane_calls_open_with_correct_url():
-    with patch("subprocess.run") as mock_run:
+    with patch("fleet.macos_perm.subprocess.run") as mock_run:
         open_settings_pane(SettingsPane.ACCESSIBILITY)
         mock_run.assert_called_once_with(
             ["open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"],
