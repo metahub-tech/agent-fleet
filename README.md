@@ -1,10 +1,14 @@
-# agent-test-bench
+# agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-private%20alpha-orange.svg)](docs/roadmap.md)
+[![Status](https://img.shields.io/badge/status-v0.5.0--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.5.0-alpha)
 
-> **A fleet of test devices that LLM agents can drive through MCP.**
-> 让 Claude 等大模型 Agent 通过 MCP 直接驱动 Windows / macOS / Android / iOS 设备做测试与调试。
+> **Give your LLM agent its own fleet of physical devices.**
+> 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
+>
+> ```bash
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.5.0-alpha#subdirectory=cli" agent-fleet setup
+> ```
 
 ## 是什么
 
@@ -14,26 +18,30 @@
 
 ```
 ┌─────────────────┐                              ┌──────────────┐
-│  Agent (Linux)  │ ──── Tailscale Mesh ─────>  │ Windows PC   │ winpc-gui  :8766 ✅
+│  Agent (any OS) │ ──── Tailscale Mesh ─────>  │ Windows PC   │ winpc-gui   :8766 ✅
 │  Claude Code /  │                              ├──────────────┤
-│  Cursor / Cline │                              │ macOS box    │ macbox-gui :8767 ✅
-│                 │                              ├──────────────┤
-│   MCP client    │                              │ Android phone│ android    :8768 (planned)
-│                 │                              ├──────────────┤
-└─────────────────┘                              │ iPhone       │ iphone     :8769 (planned)
+│  Cursor / Cline │                              │ macOS box    │ macbox-gui  :8767 ✅
+│  / OpenClaw /   │                              ├──────────────┤
+│  Antigravity /  │                              │ Android phone│ android-gui :8768 ✅
+│  Hermes / ...   │                              ├──────────────┤
+└─────────────────┘                              │ iPhone       │ iphone      :8769 (v0.6 planned)
                                                  └──────────────┘
+            ↑                                                ↑
+   uvx agent-fleet setup           generates 6 frameworks' configs
+   一行命令装 client 端 + 装 server / 配 Tailscale / 引导权限 / 自检 / 生成 snippet
 ```
 
 ## 当前状态
 
-| Platform | Version | Status |
+| Component | Version | Status |
 |---|---|---|
-| Windows 10/11 | `0.2.0` | ✅ Released (winpc-gui consolidated, multi-client native) |
-| macOS 12+ | `0.3.0` | ✅ Released (macbox-gui, launchd, GUI-permission flow) |
-| Android | `0.4.0` | 📋 Planned |
-| iOS | `0.5.0` | 📋 Planned |
-| Cross-device coord | `0.6.0` | 🔭 Future |
-| Public OSS release | `1.0.0` | 🔭 Future |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (winpc-gui consolidated, 33 tools, streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (macbox-gui, launchd, 31 tools, GUI-permission flow) |
+| Android bridge | `0.4.0` | ✅ Released (android-gui, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
+| **agent-fleet CLI wizard** | **`0.5.0-alpha`** | ✅ **Released** (`uvx agent-fleet setup` 一键安装；6 框架配置生成；公开 alpha) |
+| iOS bridge | `0.6.0` | 📋 Planned (macOS host + WebDriverAgent) |
+| Cross-device coordination | `0.7.0` | 🔭 Future |
+| Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
 
 详见 [`docs/roadmap.md`](docs/roadmap.md)。
 
@@ -49,11 +57,13 @@ curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/insta
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv：
+或，如果已经有 uv（v0.5.0-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.5.0-alpha#subdirectory=cli" agent-fleet setup
 ```
+
+> macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。
 
 wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 权限 / ADB 授权交互式引导 → 自动健康检测 → 输出 6 个 agent 框架的配置片段。
 
