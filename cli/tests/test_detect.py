@@ -48,3 +48,22 @@ def test_detect_tailscale_logged_in(mock_run):
 @patch("subprocess.run", side_effect=FileNotFoundError)
 def test_detect_tailscale_missing(mock_run):
     assert detect_tailscale() is None
+
+
+@patch("subprocess.run")
+def test_detect_tailscale_prefers_dnsname_over_hostname(mock_run):
+    """Regression: when HostName is the non-routable OS computer name (spaces,
+    non-ASCII) but DNSName has the admin-assigned routable Tailscale name as
+    its first label, use the DNSName label.  Empirical case: a Mac with OS
+    HostName "Yi的MacBook Pro" but Tailscale name "test-macpro-12"."""
+    class R:
+        returncode = 0
+        stdout = (
+            '{"Self": {"HostName": "Yi的MacBook Pro", '
+            '"DNSName": "test-macpro-12.tail-XXXXX.ts.net."}}'
+        )
+    mock_run.return_value = R()
+    ts = detect_tailscale()
+    assert ts is not None
+    assert ts.hostname == "test-macpro-12"
+    assert ts.fqdn == "test-macpro-12.tail-XXXXX.ts.net"

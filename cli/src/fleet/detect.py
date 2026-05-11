@@ -43,8 +43,16 @@ def detect_tailscale() -> Optional[TailscaleStatus]:
     try:
         data = json.loads(r.stdout)
         self_node = data.get("Self") or {}
-        host = self_node.get("HostName")
+        # Self.HostName is the OS hostname (e.g. "Yi的MacBook Pro") which is
+        # non-routable when it has spaces / non-ASCII.  Self.DNSName has the
+        # Tailscale-admin-assigned routable name as its first label, e.g.
+        # "test-macpro-12.tail-XXX.ts.net.".  Prefer that.
+        raw_host = self_node.get("HostName") or ""
         fqdn = (self_node.get("DNSName") or "").rstrip(".")
+        if fqdn and "." in fqdn:
+            host = fqdn.split(".", 1)[0]
+        else:
+            host = raw_host
         if not host:
             return None
         return TailscaleStatus(hostname=host, fqdn=fqdn or host)
