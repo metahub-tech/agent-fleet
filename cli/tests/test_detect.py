@@ -51,6 +51,20 @@ def test_detect_tailscale_missing(mock_run):
 
 
 @patch("subprocess.run")
+def test_detect_tailscale_handles_none_stdout_gracefully(mock_run):
+    """Regression for v0.6.7 Chinese-Windows crash: when subprocess's reader
+    thread dies on UnicodeDecodeError (GBK can't decode UTF-8 bytes from
+    Tailscale JSON), `r.stdout` becomes None and the old `r.stdout.strip()`
+    raised `AttributeError: 'NoneType' object has no attribute 'strip'`.
+    The fixed code must short-circuit to None instead of crashing."""
+    class R:
+        returncode = 0
+        stdout = None  # simulate post-encoding-crash state
+    mock_run.return_value = R()
+    assert detect_tailscale() is None
+
+
+@patch("subprocess.run")
 def test_detect_tailscale_prefers_dnsname_over_hostname(mock_run):
     """Regression: when HostName is the non-routable OS computer name (spaces,
     non-ASCII) but DNSName has the admin-assigned routable Tailscale name as

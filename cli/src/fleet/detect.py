@@ -32,13 +32,20 @@ def detect_uv() -> Optional[str]:
 
 def detect_tailscale() -> Optional[TailscaleStatus]:
     try:
+        # encoding="utf-8" + errors="replace" — Tailscale always emits UTF-8
+        # JSON, but on Chinese Windows the subprocess default decode is GBK
+        # (locale.getpreferredencoding()) which crashes on UTF-8 bytes >0x7f
+        # (e.g. Tailscale node names with ™ / ® / 中文 / em-dash).  Reading
+        # thread dies with UnicodeDecodeError, r.stdout becomes None, then
+        # `r.stdout.strip()` blows up with AttributeError.
         r = subprocess.run(
             ["tailscale", "status", "--json"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, timeout=5,
+            encoding="utf-8", errors="replace",
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None
-    if r.returncode != 0 or not r.stdout.strip():
+    if r.returncode != 0 or not r.stdout or not r.stdout.strip():
         return None
     try:
         data = json.loads(r.stdout)

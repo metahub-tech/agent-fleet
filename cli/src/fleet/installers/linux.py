@@ -27,7 +27,7 @@ class LinuxAndroidBridge(BaseInstaller):
         if not setup.exists():
             yield InstallEvent(self.role_id, "preflight", f"setup script missing at {setup}", level="error")
             return
-        proc = subprocess.Popen(["bash", str(setup)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        proc = subprocess.Popen(["bash", str(setup)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, encoding="utf-8", errors="replace")
         for line in iter(proc.stdout.readline, ""):
             line = line.rstrip()
             if not line:
