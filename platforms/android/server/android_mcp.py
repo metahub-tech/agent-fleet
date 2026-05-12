@@ -664,6 +664,191 @@ def pull_file(
 
 
 # ============================================================
+#                    UI ELEMENT INTROSPECTION
+# ============================================================
+
+def _parse_bounds(s: str) -> Optional[list[int]]:
+    """Parse uiautomator bounds string '[x1,y1][x2,y2]' → [x1,y1,x2,y2]."""
+    import re
+    m = re.match(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", s)
+    if not m:
+        return None
+    return [int(m.group(i)) for i in (1, 2, 3, 4)]
+
+
+def _walk_xml(node, depth: int, out: list, max_depth: int):
+    """Flatten uiautomator XML tree into a list of element dicts.
+
+    Each element gets a center (x, y) computed from its bounds rectangle so
+    callers can tap it directly without parsing bounds themselves.
+    """
+    if depth > max_depth:
+        return
+    attrs = node.attrib
+    bounds = _parse_bounds(attrs.get("bounds", "")) if attrs.get("bounds") else None
+    if bounds:
+        x1, y1, x2, y2 = bounds
+        center = [(x1 + x2) // 2, (y1 + y2) // 2]
+        width, height = x2 - x1, y2 - y1
+    else:
+        center = None
+        width = height = 0
+    # Skip the root <hierarchy> wrapper element (no class attr).
+    if attrs.get("class"):
+        out.append({
+            "class": attrs.get("class", ""),
+            "text": attrs.get("text", ""),
+            "resource_id": attrs.get("resource-id", ""),
+            "content_desc": attrs.get("content-desc", ""),
+            "package": attrs.get("package", ""),
+            "bounds": bounds,
+            "center": center,
+            "width": width,
+            "height": height,
+            "clickable": attrs.get("clickable") == "true",
+            "enabled": attrs.get("enabled") == "true",
+            "focused": attrs.get("focused") == "true",
+            "scrollable": attrs.get("scrollable") == "true",
+            "depth": depth,
+        })
+    for child in list(node):
+        _walk_xml(child, depth + 1, out, max_depth)
+
+
+@mcp.tool
+@with_touch
+def dump_ui_hierarchy(
+    max_depth: Annotated[int, Field(ge=1, le=20, description="Max tree depth to walk")] = 12,
+) -> dict:
+    """Dump the current screen's UI element tree via `uiautomator dump`.
+
+    Returns a flat list of elements with:
+      - class, text, resource_id, content_desc, package
+      - bounds [x1,y1,x2,y2], center [x,y], width, height
+      - clickable / enabled / focused / scrollable flags
+      - depth in tree
+
+    Use the center coords to tap() the element without computing bounds yourself.
+    Use find_elements() for filtering, or tap_element() for the common
+    find-then-tap path.
+
+    Some apps (games, Flutter canvas, secured banking apps) don't expose
+    uiautomator elements — fall back to take_screenshot + tap(x, y) for those.
+    """
+    # 1. uiautomator dump on device → /sdcard/window_dump.xml
+    dump_path_device = "/sdcard/window_dump.xml"
+    r = _adb_shell(f"uiautomator dump {dump_path_device}", timeout=15)
+    if r["returncode"] != 0:
+        return {"ok": False, "error": "uiautomator dump failed", "stderr": r["stderr"]}
+
+    # 2. cat the XML back (avoids needing a host tmp file)
+    r = _adb_shell(f"cat {dump_path_device}", timeout=10, capture_bytes=True)
+    if r["returncode"] != 0:
+        return {"ok": False, "error": "cat dump failed", "stderr": r["stderr"]}
+    xml_bytes = r["stdout"]  # already bytes when capture_bytes=True
+    if isinstance(xml_bytes, str):
+        xml_bytes = xml_bytes.encode("utf-8")
+
+    # 3. parse + flatten
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError as e:
+        return {"ok": False, "error": f"XML parse failed: {e}"}
+
+    elements: list[dict] = []
+    _walk_xml(root, 0, elements, max_depth)
+
+    return {"ok": True, "count": len(elements), "elements": elements}
+
+
+@mcp.tool
+@with_touch
+def find_elements(
+    text: Annotated[Optional[str], Field(description="Substring-match Element.text")] = None,
+    resource_id: Annotated[Optional[str], Field(description="Substring-match resource_id")] = None,
+    content_desc: Annotated[Optional[str], Field(description="Substring-match content_desc (a11y label)")] = None,
+    class_name: Annotated[Optional[str], Field(description="Substring-match class (e.g. 'android.widget.Button')")] = None,
+    clickable_only: Annotated[bool, Field(description="Only return clickable=true elements")] = False,
+) -> dict:
+    """Find UI elements matching all provided filters (substring match, AND logic).
+
+    At least one filter MUST be provided.  Returns same element shape as
+    dump_ui_hierarchy().
+
+    Example:
+        find_elements(content_desc="拍照")   # → camera shutter button
+        find_elements(resource_id="shutter_button", clickable_only=True)
+    """
+    if not any([text, resource_id, content_desc, class_name]):
+        return {"ok": False, "error": "at least one filter required"}
+
+    dump = dump_ui_hierarchy()
+    if not dump.get("ok"):
+        return dump
+
+    def matches(e: dict) -> bool:
+        if text and text not in e["text"]:
+            return False
+        if resource_id and resource_id not in e["resource_id"]:
+            return False
+        if content_desc and content_desc not in e["content_desc"]:
+            return False
+        if class_name and class_name not in e["class"]:
+            return False
+        if clickable_only and not e["clickable"]:
+            return False
+        return True
+
+    matches_list = [e for e in dump["elements"] if matches(e)]
+    return {"ok": True, "count": len(matches_list), "elements": matches_list}
+
+
+@mcp.tool
+@with_touch
+def tap_element(
+    text: Annotated[Optional[str], Field(description="Substring-match Element.text")] = None,
+    resource_id: Annotated[Optional[str], Field(description="Substring-match resource_id")] = None,
+    content_desc: Annotated[Optional[str], Field(description="Substring-match content_desc")] = None,
+    class_name: Annotated[Optional[str], Field(description="Substring-match class")] = None,
+    nth: Annotated[int, Field(ge=0, description="If multiple match, tap the nth (0-indexed)")] = 0,
+) -> dict:
+    """Find an element by filter and tap its center.
+
+    The element-driven equivalent of tap(x, y), but resilient to screen
+    resolution / layout changes since it looks up by semantic attributes.
+
+    Errors out if no element matches OR nth is out of range — so the agent
+    sees a clear failure instead of tapping nothing.
+    """
+    found = find_elements(
+        text=text,
+        resource_id=resource_id,
+        content_desc=content_desc,
+        class_name=class_name,
+        clickable_only=False,
+    )
+    if not found.get("ok"):
+        return found
+    matches_list = found["elements"]
+    if not matches_list:
+        return {"ok": False, "error": "no element matched the filter"}
+    if nth >= len(matches_list):
+        return {"ok": False, "error": f"only {len(matches_list)} element(s) matched, requested nth={nth}"}
+
+    el = matches_list[nth]
+    if not el["center"]:
+        return {"ok": False, "error": "matched element has no bounds — cannot tap"}
+
+    cx, cy = el["center"]
+    r = _adb_shell(f"input tap {cx} {cy}", timeout=10)
+    if r["returncode"] != 0:
+        return {"ok": False, "error": "input tap failed", "stderr": r["stderr"]}
+
+    return {"ok": True, "tapped_at": [cx, cy], "element": el, "total_matches": len(matches_list)}
+
+
+# ============================================================
 #                       ENTRY POINT
 # ============================================================
 
