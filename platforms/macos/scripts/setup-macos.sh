@@ -188,8 +188,29 @@ echo "$LAST_STEP"
 # Make launcher executable
 chmod +x "$LAUNCHER"
 
+# Migration: clean up the legacy plist label from before the v0.6.0 rename.
+# That legacy label still has KeepAlive=true, squatting port 8767 and
+# preventing the new `cc.metahub.mac-device` plist from binding.  Detect,
+# unload, delete, then kill orphaned python procs that escaped bootout.
+LEGACY_LABEL="cc.metahub.macbox-gui"
+LEGACY_PLIST="$HOME/Library/LaunchAgents/${LEGACY_LABEL}.plist"
+if [ -f "$LEGACY_PLIST" ] || launchctl list 2>/dev/null | grep -q "$LEGACY_LABEL"; then
+    echo "  found legacy label $LEGACY_LABEL — migrating to mac-device"
+    launchctl bootout "gui/$(id -u)" "$LEGACY_PLIST" 2>/dev/null || true
+    launchctl unload "$LEGACY_PLIST" 2>/dev/null || true
+    rm -f "$LEGACY_PLIST"
+fi
+
 # Stop any existing instance so we can re-load the plist cleanly.
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" 2>/dev/null || true
+
+# Kill orphaned macos_gui_mcp.py processes (manually-launched python that
+# escaped launchd management).  launchd-managed instances were already shut
+# down by the bootout above; KeepAlive would resurrect them if we didn't
+# bootout first.  This catches the rare case of a stray `python
+# macos_gui_mcp.py &` left from debugging.
+pkill -f "macos_gui_mcp\.py" 2>/dev/null || true
+sleep 1
 
 mkdir -p "$(dirname "$PLIST_PATH")"
 cat > "$PLIST_PATH" <<EOF
@@ -338,5 +359,5 @@ echo "    # both should print sensible values (size, x/y); errors -> permissions
 echo
 echo "Service auto-starts at every login. Check status anytime:"
 echo
-echo "    launchctl list | grep macbox"
+echo "    launchctl list | grep mac-device"
 echo "    tail -f $LOGS_DIR/macos-gui.log"

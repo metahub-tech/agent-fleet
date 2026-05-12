@@ -243,7 +243,23 @@ echo
 LAST_STEP="[7/8] launchd plist"
 echo "$LAST_STEP"
 chmod +x "$LAUNCHER"
+
+# Migration: clean up the legacy plist label from before the v0.6.0 rename.
+# Same pattern as setup-macos.sh — legacy label with KeepAlive=true would
+# squat port 8768.  Detect, unload, delete, kill orphaned procs.
+LEGACY_LABEL="cc.metahub.android-gui"
+LEGACY_PLIST="$HOME/Library/LaunchAgents/${LEGACY_LABEL}.plist"
+if [ -f "$LEGACY_PLIST" ] || launchctl list 2>/dev/null | grep -q "$LEGACY_LABEL"; then
+    echo "  found legacy label $LEGACY_LABEL — migrating to android-device"
+    launchctl bootout "gui/$(id -u)" "$LEGACY_PLIST" 2>/dev/null || true
+    launchctl unload "$LEGACY_PLIST" 2>/dev/null || true
+    rm -f "$LEGACY_PLIST"
+fi
+
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" 2>/dev/null || true
+# Kill orphaned android_mcp.py processes (see setup-macos.sh for rationale).
+pkill -f "android_mcp\.py" 2>/dev/null || true
+sleep 1
 
 mkdir -p "$(dirname "$PLIST_PATH")"
 cat > "$PLIST_PATH" <<EOF

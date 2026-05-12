@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6-alpha] - 2026-05-12
+
+### Fixed
+- **macOS legacy plist (`cc.metahub.macbox-gui` / `cc.metahub.android-gui`) not cleaned up by setup script after the v0.6.0 rename.** During end-to-end testing, the legacy plist still had `KeepAlive=true` from a pre-v0.6.0 install. It kept respawning the python server and squatting port 8767 (or 8768), so the newly-installed `cc.metahub.mac-device` plist's server couldn't bind. Symptom: even after `launchctl unload + load` cycles + service-restart shenanigans, Claude Code only saw 31 mac-device tools (the running old server) instead of 34 (the new server with v0.6.1+ UI tools). Took multiple manual interventions to get clean.
+- **Fix in `setup-macos.sh` + `setup-android.sh` (mac host branch)**: explicit migration block before the new plist's `launchctl bootout` — detect either the legacy plist file OR the legacy label loaded in launchd, then `bootout` + `unload` + `rm -f`. Also `pkill -f "macos_gui_mcp\.py"` / `pkill -f "android_mcp\.py"` AFTER bootout to catch orphaned manually-launched python processes that escaped launchd management.
+
+### Bonus
+- Updated the stale `launchctl list | grep macbox` hint in setup-macos.sh's final output to `launchctl list | grep mac-device`.
+
+### Migration
+- Re-run `agent-fleet setup` on macOS — it'll auto-clean the legacy plist and any orphan processes on this single run. No manual intervention needed.
+
+---
+
 ## [0.6.5-alpha] - 2026-05-12
 
 ### Fixed
