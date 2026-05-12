@@ -1,28 +1,12 @@
 step:
-  title: "开启开发者选项"
+  id: "android_dev_options"
+  title: "开启开发者选项 / Enable Developer Options"
   default_description: |
-    通用：找到带"版本号"或"Build number"的字段连按 7 次。
-    成功后会弹"已开启开发者选项"提示。
-  variant_label: "Android 品牌 (各家路径不同)"
-  variants:
-    huawei:
-      label: "华为 / HarmonyOS / EMUI"
-      description: '设置 → 关于手机 → 连按"版本号" 7 次'
-    xiaomi:
-      label: "小米 / MIUI / HyperOS"
-      description: '设置 → 我的设备 → 全部参数 → 连按"MIUI 版本" 7 次'
-    samsung:
-      label: "Samsung / One UI"
-      description: 'Settings → About phone → Software information → tap "Build number" 7×'
-    oppo:
-      label: "OPPO / realme / ColorOS"
-      description: '设置 → 关于本机 → 连按"版本号"'
-    vivo:
-      label: "vivo / OriginOS / Funtouch"
-      description: '设置 → 我的设备 → 连按"软件版本"'
-    pixel:
-      label: "Pixel / 原生 AOSP"
-      description: 'Settings → About phone → tap "Build number" 7×'
-    fallback:
-      label: "找不到 / 其他"
-      description: '通用规律：找到带"版本号" 或 "Build number" 字段连按 7 次。'
+    在手机 Settings 里找到 "Build number" / "版本号" 字段，**连按 7 次**解锁开发者选项。
+
+    各家 OEM 路径不同（华为 / 小米 / Samsung / OPPO / vivo / Pixel / OnePlus / ...）。
+    完整对照表 + 故障排查见独立文档：
+
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/android-setup.md#step-1-enable-developer-options
+
+    解锁成功后会有 "You are now a developer!" 提示。完成后回车继续。

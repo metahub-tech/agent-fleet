@@ -103,27 +103,34 @@ def _print_framework_snippets(frameworks, server_roles):
 
 
 def _run_install(roles, ctx):
+    """Install each role, verify, return (server_roles, installers).
+
+    server_roles : list[ServerRole]      — thin dataclass for snippet rendering
+    installers   : list[BaseInstaller]   — kept in parallel so smoke runner can
+                                           call installer.smoke_tests() (which
+                                           ServerRole doesn't have).
+    """
     for r in roles:
         console.print(f"\n[bold]Installing {r.role_id}…[/bold]")
         for ev in r.install(ctx):
             color = "red" if ev.level == "error" else ("yellow" if ev.level == "warn" else "white")
             console.print(f"  [{color}]{ev.message}[/{color}]")
-    # Verify each. dry_run installs don't actually start anything, so verify
-    # would always fail -- skip in that case and emit the snippet anyway so
-    # operators can preview the final config.
-    deployed = []
+    deployed: list[ServerRole] = []
+    deployed_installers: list = []
     failed_roles = []
     for r in roles:
         if ctx.dry_run:
             console.print(f"  [dim]↪ {r.role_id} verify skipped (dry-run)[/dim]")
             deployed.append(ServerRole(role_id=r.role_id, display_name=r.display_name,
                                        hostname=ctx.tailscale_hostname or "127.0.0.1", port=r.port))
+            deployed_installers.append(r)
             continue
         result = r.verify()
         if result.ok:
             console.print(f"  [green]✓[/green] {r.role_id} verified ({result.tool_count} tools)")
             deployed.append(ServerRole(role_id=r.role_id, display_name=r.display_name,
                                        hostname=ctx.tailscale_hostname or "127.0.0.1", port=r.port))
+            deployed_installers.append(r)
         else:
             console.print(f"  [red]✗[/red] {r.role_id} verify failed: {result.error}")
             failed_roles.append((r, result))
@@ -135,7 +142,7 @@ def _run_install(roles, ctx):
             console.print(f"  [yellow]·[/yellow] {r.role_id}: {res.error}")
         console.print("[yellow]  Re-run `uvx agent-fleet setup` after fixing the service "
                       "(check logs / port).[/yellow]")
-    return deployed
+    return deployed, deployed_installers
 
 
 def _run_smoke_tests(deployed, hostname: str) -> None:
@@ -235,13 +242,13 @@ def cmd_setup(args: argparse.Namespace) -> int:
         tailscale_hostname=hostname,
     )
 
-    deployed = _run_install(roles, ctx)
+    deployed, deployed_installers = _run_install(roles, ctx)
     if args.dry_run:
         console.print("\n[dim]↪ Skipping operation guidance + smoke tests (dry-run).[/dim]")
     else:
         _run_guidance(roles, ctx)
-        if deployed:
-            _run_smoke_tests(deployed, hostname or "127.0.0.1")
+        if deployed_installers:
+            _run_smoke_tests(deployed_installers, hostname or "127.0.0.1")
 
     frameworks = _select_frameworks()
     if frameworks:

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3-alpha] - 2026-05-12
+
+### Fixed
+- **Smoke runner crashed with `AttributeError: 'ServerRole' object has no attribute 'smoke_tests'`** (regression from 0.6.2-alpha). `_run_install` was only returning `ServerRole` dataclasses (snippet-rendering shape) — the smoke runner needed the original installer instances to call `installer.smoke_tests()`. Now `_run_install` returns `(server_roles, installer_instances)` so both rendering and smoke share the same source of truth. Regression test added in `test_smoke_module.py`.
+
+### Changed
+- **Android setup guidance moved out of the wizard into [`docs/android-setup.md`](docs/android-setup.md).** The 3 in-wizard YAMLs previously listed 7+ OEM variants for each step (华为 / 小米 / Samsung / OPPO / vivo / Pixel / OnePlus / ...) — too much inline text for a CLI flow. They now show a 3-line summary + a link to the dedicated doc, which contains the full OEM-by-OEM unlock table, USB debugging quirks per ROM, and a side-by-side comparison of USB / Wireless / Hybrid connection methods with anchor-targeted sections (#step-1, #step-2, #step-3).
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` to pick up the smoke fix and the simplified guidance prose.
+
+---
+
 ## [0.6.2-alpha] - 2026-05-12
 
 ### Added

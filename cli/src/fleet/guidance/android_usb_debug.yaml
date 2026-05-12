@@ -1,22 +1,15 @@
 step:
-  title: "USB 调试授权"
+  id: "android_usb_debug"
+  title: "USB 调试授权 / USB Debugging Authorization"
   default_description: |
-    1. 开发者选项 → USB 调试 ON
-    2. USB 数据线插电脑
-    3. 手机弹窗"是否允许 USB 调试" → 勾"始终允许此电脑" → 确定
-    4. PC 端 `adb devices` 看到设备 = OK
-  variant_label: "Android 品牌"
-  variants:
-    huawei:
-      label: "华为 / HarmonyOS"
-      description: |
-        华为可能需要先装"华为 HiSuite"才能识别 USB 调试。
-        Windows 上有时 USB 驱动需要手动安装。
-    xiaomi:
-      label: "小米 / MIUI"
-      description: |
-        MIUI 要求登录小米账号才能开 USB 调试。
-        开发者选项里要先开"USB 调试 (安全设置)"。
-    pixel:
-      label: "Pixel / 原生 AOSP"
-      description: "默认行为，照通用流程走即可。"
+    1. 开发者选项 → **USB debugging** ON
+    2. 用 USB 线连接手机和电脑
+    3. 手机弹出 "Allow USB debugging?" → 勾选 **"Always allow from this computer"** → Allow
+    4. 在电脑上跑 `adb devices`：看到设备列出 = OK
+
+    OEM-specific quirks（华为 HiSuite 驱动 / 小米账号要求 / 多个 OPPO/vivo
+    机型 USB 调试会自动失效）见独立文档：
+
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/android-setup.md#step-2-enable-usb-debugging
+
+    完成后回车继续。
