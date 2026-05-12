@@ -745,9 +745,12 @@ def dump_ui_hierarchy(
     r = _adb_shell(f"cat {dump_path_device}", timeout=10, capture_bytes=True)
     if r["returncode"] != 0:
         return {"ok": False, "error": "cat dump failed", "stderr": r["stderr"]}
-    xml_bytes = r["stdout"]  # already bytes when capture_bytes=True
-    if isinstance(xml_bytes, str):
-        xml_bytes = xml_bytes.encode("utf-8")
+    # _adb_run(capture_bytes=True) puts raw bytes in "stdout_bytes" and sets
+    # "stdout" to "".  Reading r["stdout"] gave an empty string, which then
+    # failed XML parsing with "no element found at line 1 col 0".
+    xml_bytes = r.get("stdout_bytes", b"")
+    if not xml_bytes:
+        return {"ok": False, "error": "empty UI dump (file present on device but adb pull returned 0 bytes)"}
 
     # 3. parse + flatten
     import xml.etree.ElementTree as ET

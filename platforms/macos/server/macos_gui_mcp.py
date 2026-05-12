@@ -985,19 +985,23 @@ def _ax_element_dict(elem, depth: int) -> dict:
     size_wh = None
     center = None
     try:
+        # pyobjc's AXValueGetValue returns (ok, value_tuple) — the third arg
+        # MUST be None.  We previously passed a CGPoint() instance treating it
+        # as a C-style output pointer, which raised
+        # `ValueError: 'valuePtr' should be None` silently inside the try block
+        # and left position/size at None.
         from ApplicationServices import (  # type: ignore
             AXValueGetValue,
             kAXValueCGPointType,
             kAXValueCGSizeType,
         )
-        from Quartz.CoreGraphics import CGPoint, CGSize  # type: ignore
         if pos is not None:
-            p = CGPoint()
-            if AXValueGetValue(pos, kAXValueCGPointType, p):
+            ok, p = AXValueGetValue(pos, kAXValueCGPointType, None)
+            if ok:
                 pos_xy = [int(p.x), int(p.y)]
         if size is not None:
-            s = CGSize()
-            if AXValueGetValue(size, kAXValueCGSizeType, s):
+            ok, s = AXValueGetValue(size, kAXValueCGSizeType, None)
+            if ok:
                 size_wh = [int(s.width), int(s.height)]
         if pos_xy and size_wh:
             center = [pos_xy[0] + size_wh[0] // 2, pos_xy[1] + size_wh[1] // 2]

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5-alpha] - 2026-05-12
+
+### Fixed
+Both v0.6.1-alpha UI element tools had a silent-failure bug — they returned successfully but with degraded data, so the failure only surfaced when callers tried to use the missing fields.
+
+- **macOS `list_ui_elements` / `find_ui_element` / `click_ui_element` returned `position`/`size`/`center` as `null`**, making them unusable for clicking. Root cause: pyobjc's `AXValueGetValue` signature is `(ok, value) = AXValueGetValue(ref, type, None)` (returns a 2-tuple), not C-style `bool AXValueGetValue(ref, type, outPtr)`. We were passing a `CGPoint()` instance as the third arg, which raised `ValueError: 'valuePtr' should be None` silently inside the try block and left coordinates at `None`. Fixed.
+- **Android `dump_ui_hierarchy` failed with `XML parse failed: no element found at line 1, column 0`**, even though `uiautomator dump` wrote a valid 36KB XML on the device. Root cause: `_adb_run(capture_bytes=True)` puts the raw bytes in `r["stdout_bytes"]` and sets `r["stdout"]` to `""`. We were reading `r["stdout"]`, which was always empty. Fixed to read `r["stdout_bytes"]` and surface a clearer "empty UI dump" error if it ever is empty.
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` or `git pull` in `~/agent-fleet` then restart the launchd / Task Scheduler / systemd services.
+
+---
+
 ## [0.6.4-alpha] - 2026-05-12
 
 ### Fixed
