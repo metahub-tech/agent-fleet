@@ -36,7 +36,7 @@ SERVER_DIR="$PLATFORM_DIR/server"
 LOGS_DIR="$PLATFORM_DIR/logs"
 VENV_DIR="$SERVER_DIR/.venv"
 VENV_PY="$VENV_DIR/bin/python3"
-SERVER_PY="$SERVER_DIR/macos_gui_mcp.py"
+SERVER_PY="$SERVER_DIR/mac_device_mcp.py"
 REQ_TXT="$SERVER_DIR/requirements.txt"
 LAUNCHER="$SCRIPT_DIR/_launch-mac-device.sh"
 PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.mac-device.plist"
@@ -204,12 +204,14 @@ fi
 # Stop any existing instance so we can re-load the plist cleanly.
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" 2>/dev/null || true
 
-# Kill orphaned macos_gui_mcp.py processes (manually-launched python that
-# escaped launchd management).  launchd-managed instances were already shut
-# down by the bootout above; KeepAlive would resurrect them if we didn't
-# bootout first.  This catches the rare case of a stray `python
-# macos_gui_mcp.py &` left from debugging.
-pkill -f "macos_gui_mcp\.py" 2>/dev/null || true
+# Kill orphaned mac_device_mcp.py / legacy macos_gui_mcp.py processes
+# (manually-launched python that escaped launchd management).  launchd-managed
+# instances were already shut down by the bootout above; KeepAlive would
+# resurrect them if we didn't bootout first.  This catches the rare case of
+# a stray `python mac_device_mcp.py &` left from debugging, plus
+# any legacy macos_gui_mcp.py from before the v0.6.11 rename.
+pkill -f "mac_device_mcp\.py" 2>/dev/null || true
+pkill -f "macos_gui_mcp\.py"   2>/dev/null || true  # legacy v0.6.10 and earlier
 sleep 1
 
 mkdir -p "$(dirname "$PLIST_PATH")"
@@ -256,9 +258,9 @@ cat > "$PLIST_PATH" <<EOF
   <integer>3</integer>
 
   <key>StandardOutPath</key>
-  <string>$LOGS_DIR/macos-gui.log</string>
+  <string>$LOGS_DIR/mac-device.log</string>
   <key>StandardErrorPath</key>
-  <string>$LOGS_DIR/macos-gui.log</string>
+  <string>$LOGS_DIR/mac-device.log</string>
 
   <key>WorkingDirectory</key>
   <string>$SERVER_DIR</string>
@@ -297,7 +299,7 @@ done
 
 if [ $attempts -ge 8 ]; then
     echo "  WARN mac-device not yet on 8767 after 16s"
-    echo "  Check: tail $LOGS_DIR/macos-gui.log"
+    echo "  Check: tail $LOGS_DIR/mac-device.log"
 fi
 
 echo
@@ -360,4 +362,4 @@ echo
 echo "Service auto-starts at every login. Check status anytime:"
 echo
 echo "    launchctl list | grep mac-device"
-echo "    tail -f $LOGS_DIR/macos-gui.log"
+echo "    tail -f $LOGS_DIR/mac-device.log"

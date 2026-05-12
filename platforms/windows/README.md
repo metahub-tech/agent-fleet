@@ -46,7 +46,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 platforms/windows/
 ├── README.md                     # 本文件
 ├── server/                       # MCP server 源码 + 依赖
-│   ├── windows_gui_mcp.py
+│   ├── win_device_mcp.py
 │   ├── requirements.txt
 │   └── pyproject.toml
 ├── scripts/                      # 一键安装
@@ -60,7 +60,7 @@ platforms/windows/
 | 组件 | 必须 | 用途 | 自动安装 |
 |---|---|---|---|
 | Tailscale | ✅ | 跨网组网 | 用户在第 1 步装 |
-| Python 3.10+ | ✅ | 跑 windows_gui_mcp.py | setup-windows.ps1 自动装（如缺） |
+| Python 3.10+ | ✅ | 跑 win_device_mcp.py | setup-windows.ps1 自动装（如缺） |
 | 用户活动登录会话 | ✅ | GUI 任务必须在用户桌面会话中执行 | 启用自动登录（手册 § 5） |
 
 > v0.2 之后**不再需要 Node.js / npm**——所有工具都用 Python 实现。

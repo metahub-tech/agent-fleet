@@ -154,7 +154,7 @@ if ($info) {
 # ---------- 8. Service log tail ----------
 Section "8. Service log tail (last 30 lines)"
 $logsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "logs"
-$log = Join-Path $logsDir "windows-gui.log"
+$log = Join-Path $logsDir "win-device.log"
 Write-Host "  -- $log --" -ForegroundColor Yellow
 if (Test-Path $log) {
     Get-Content -Path $log -Tail 30

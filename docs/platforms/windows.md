@@ -142,14 +142,14 @@ Get-ScheduledTaskInfo -TaskName MCP-WinDevice | Format-List
 
 # 手动跑 win-device 看实际错
 $ServerDir = "C:\agent-test-bench\platforms\windows\server"
-& "$ServerDir\.venv\Scripts\python.exe" "$ServerDir\windows_gui_mcp.py"
+& "$ServerDir\.venv\Scripts\python.exe" "$ServerDir\win_device_mcp.py"
 ```
 
 主要会卡在 pip 装依赖（`pyautogui` / `pywinauto` / `fastmcp`）失败 → 看 venv 输出。
 
 ### 7.2 高 DPI 屏点击坐标错位
 
-如果 Agent 那边发现 `click(x, y)` 点的位置和 `take_screenshot` 看到的不一致，要么把 Windows 显示缩放设回 100%（设置 → 系统 → 显示），要么在 `windows_gui_mcp.py` 顶部 import 后加：
+如果 Agent 那边发现 `click(x, y)` 点的位置和 `take_screenshot` 看到的不一致，要么把 Windows 显示缩放设回 100%（设置 → 系统 → 显示），要么在 `win_device_mcp.py` 顶部 import 后加：
 
 ```python
 import ctypes

@@ -75,7 +75,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 - Setup: `docs/platforms/windows.md` in agent-test-bench repo
 - Diagnostic: run `platforms/windows/scripts/diagnose.ps1` on the Windows host
 - Tool surface: 33 tools in 9 categories
-- Source code: `platforms/windows/server/windows_gui_mcp.py`
+- Source code: `platforms/windows/server/win_device_mcp.py`
 
 ## Red flags
 
