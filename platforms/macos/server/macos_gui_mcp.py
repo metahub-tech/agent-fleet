@@ -921,6 +921,220 @@ def stop_search(
 
 
 # ============================================================
+#                  UI ELEMENT INTROSPECTION
+# ============================================================
+#
+# Element-driven automation via macOS Accessibility (AX) API.  Lets agents
+# find buttons / menus / text fields by role / title / label instead of
+# guessing pixel coordinates from screenshots.
+#
+# Requires pyobjc-framework-ApplicationServices (declared in
+# server/requirements.txt as of v0.6.0-alpha).
+
+def _ax_app_for_pid(pid: int):
+    """Return AXUIElementRef for the application with the given PID."""
+    from ApplicationServices import AXUIElementCreateApplication  # type: ignore
+    return AXUIElementCreateApplication(pid)
+
+
+def _ax_pid_of_app(app_name: str) -> Optional[int]:
+    """Find PID of running app by name (matches NSRunningApplication.localizedName).
+
+    Returns None if not running.  Case-insensitive partial match.
+    """
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            if proc.info["name"] and app_name.lower() in proc.info["name"].lower():
+                return proc.info["pid"]
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return None
+
+
+def _ax_copy_attr(elem, attr: str):
+    """Safely fetch one AX attribute. Returns None if missing or error."""
+    from ApplicationServices import AXUIElementCopyAttributeValue  # type: ignore
+    try:
+        err, value = AXUIElementCopyAttributeValue(elem, attr, None)
+        if err != 0:
+            return None
+        return value
+    except Exception:
+        return None
+
+
+def _ax_element_dict(elem, depth: int) -> dict:
+    """Snapshot an AX element to a JSON-friendly dict.
+
+    Includes role, title, label, value (string-only), enabled, plus the
+    element's screen position+size so callers can click its center.
+    """
+    role = _ax_copy_attr(elem, "AXRole") or ""
+    title = _ax_copy_attr(elem, "AXTitle") or ""
+    label = _ax_copy_attr(elem, "AXDescription") or ""
+    help_text = _ax_copy_attr(elem, "AXHelp") or ""
+    enabled = _ax_copy_attr(elem, "AXEnabled")
+    role_desc = _ax_copy_attr(elem, "AXRoleDescription") or ""
+    raw_value = _ax_copy_attr(elem, "AXValue")
+    value_str = raw_value if isinstance(raw_value, str) else None
+
+    # Position and size are CGPoint / CGSize wrapped in AXValue.  Convert.
+    pos = _ax_copy_attr(elem, "AXPosition")
+    size = _ax_copy_attr(elem, "AXSize")
+    pos_xy = None
+    size_wh = None
+    center = None
+    try:
+        from ApplicationServices import (  # type: ignore
+            AXValueGetValue,
+            kAXValueCGPointType,
+            kAXValueCGSizeType,
+        )
+        from Quartz.CoreGraphics import CGPoint, CGSize  # type: ignore
+        if pos is not None:
+            p = CGPoint()
+            if AXValueGetValue(pos, kAXValueCGPointType, p):
+                pos_xy = [int(p.x), int(p.y)]
+        if size is not None:
+            s = CGSize()
+            if AXValueGetValue(size, kAXValueCGSizeType, s):
+                size_wh = [int(s.width), int(s.height)]
+        if pos_xy and size_wh:
+            center = [pos_xy[0] + size_wh[0] // 2, pos_xy[1] + size_wh[1] // 2]
+    except Exception:
+        pass
+
+    return {
+        "role": role,
+        "role_description": role_desc,
+        "title": title,
+        "label": label,
+        "help": help_text,
+        "value": value_str,
+        "enabled": bool(enabled) if enabled is not None else None,
+        "position": pos_xy,
+        "size": size_wh,
+        "center": center,
+        "depth": depth,
+    }
+
+
+def _ax_walk(elem, depth: int, max_depth: int, out: list):
+    """Walk AX tree breadth-first, append element dicts to out (depth ≤ max_depth)."""
+    if depth > max_depth:
+        return
+    out.append(_ax_element_dict(elem, depth))
+    if depth == max_depth:
+        return
+    children = _ax_copy_attr(elem, "AXChildren") or []
+    for child in children:
+        _ax_walk(child, depth + 1, max_depth, out)
+
+
+@mcp.tool
+@with_touch
+def list_ui_elements(
+    app: Annotated[str, Field(description="App name (e.g. 'Safari', 'Calculator', 'Code'); case-insensitive substring match on process name")],
+    max_depth: Annotated[int, Field(ge=1, le=15, description="Max tree depth from app root")] = 6,
+) -> dict:
+    """Walk the AX (accessibility) tree of a running app and return all elements.
+
+    Each element carries role / title / label / position / size / center, so
+    callers can find a button by title and click it without guessing pixels.
+
+    Note: the target app must be running.  TCC permission required:
+    System Settings → Privacy & Security → Accessibility → Terminal/Python
+    (the wizard's permission primer registers this automatically in v0.6.0+).
+
+    Some apps don't expose proper AX trees (Electron with a11y off, Java
+    Swing without bridge, Flutter desktop). Fall back to take_screenshot +
+    click for those.
+    """
+    pid = _ax_pid_of_app(app)
+    if pid is None:
+        return {"ok": False, "error": f"no running process matches {app!r}"}
+
+    try:
+        app_elem = _ax_app_for_pid(pid)
+    except ImportError as e:
+        return {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
+
+    elements: list[dict] = []
+    _ax_walk(app_elem, 0, max_depth, elements)
+    return {"ok": True, "app": app, "pid": pid, "count": len(elements), "elements": elements}
+
+
+@mcp.tool
+@with_touch
+def find_ui_element(
+    app: Annotated[str, Field(description="App name (e.g. 'Safari')")],
+    title: Annotated[Optional[str], Field(description="Substring-match Element.title")] = None,
+    role: Annotated[Optional[str], Field(description="Exact-match AX role (e.g. 'AXButton', 'AXMenuItem')")] = None,
+    label: Annotated[Optional[str], Field(description="Substring-match AXDescription")] = None,
+    max_depth: Annotated[int, Field(ge=1, le=15)] = 8,
+) -> dict:
+    """Find AX elements matching all provided filters (AND logic).
+
+    Example:
+        find_ui_element(app="Calculator", title="9")
+        find_ui_element(app="Safari", role="AXButton", title="Reload")
+    """
+    if not any([title, role, label]):
+        return {"ok": False, "error": "at least one of title/role/label required"}
+
+    dump = list_ui_elements(app=app, max_depth=max_depth)
+    if not dump.get("ok"):
+        return dump
+
+    def matches(e: dict) -> bool:
+        if title and title not in e["title"]:
+            return False
+        if role and e["role"] != role:
+            return False
+        if label and label not in e["label"]:
+            return False
+        return True
+
+    matches_list = [e for e in dump["elements"] if matches(e)]
+    return {"ok": True, "app": app, "count": len(matches_list), "elements": matches_list}
+
+
+@mcp.tool
+@with_touch
+def click_ui_element(
+    app: Annotated[str, Field(description="App name")],
+    title: Annotated[Optional[str], Field()] = None,
+    role: Annotated[Optional[str], Field()] = None,
+    label: Annotated[Optional[str], Field()] = None,
+    nth: Annotated[int, Field(ge=0, description="If multiple match, click the nth (0-indexed)")] = 0,
+) -> dict:
+    """Find an AX element by filter and click its center.
+
+    The element-driven equivalent of click(x, y), but resilient to window
+    layout changes since it looks up by AX attributes.
+
+    Errors out if no element matches OR nth is out of range — agent sees a
+    clear failure instead of silently clicking nothing.
+    """
+    found = find_ui_element(app=app, title=title, role=role, label=label)
+    if not found.get("ok"):
+        return found
+    matches_list = found["elements"]
+    if not matches_list:
+        return {"ok": False, "error": "no element matched the filter"}
+    if nth >= len(matches_list):
+        return {"ok": False, "error": f"only {len(matches_list)} element(s) matched, requested nth={nth}"}
+
+    el = matches_list[nth]
+    if not el["center"]:
+        return {"ok": False, "error": "matched element has no bounds — cannot click"}
+
+    cx, cy = el["center"]
+    pyautogui.click(cx, cy)
+    return {"ok": True, "clicked_at": [cx, cy], "element": el, "total_matches": len(matches_list)}
+
+
+# ============================================================
 
 if __name__ == "__main__":
     # Bind 0.0.0.0; the macOS Application Firewall (off by default on most

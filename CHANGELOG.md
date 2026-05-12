@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1-alpha] - 2026-05-12
+
+### Added
+- **Android UI element introspection** (`platforms/android/server/android_mcp.py`):
+  - `dump_ui_hierarchy()` — runs `uiautomator dump`, parses XML, returns flat element list with `bounds` / `center` / `text` / `resource_id` / `content_desc` / `clickable` / etc.
+  - `find_elements(text=, resource_id=, content_desc=, class_name=, clickable_only=)` — substring-match filter across all elements, AND logic.
+  - `tap_element(...)` — find-and-tap convenience; taps the center of the matched element instead of hardcoded pixel coordinates.
+- **macOS UI element introspection** (`platforms/macos/server/macos_gui_mcp.py`) via pyobjc-framework-ApplicationServices:
+  - `list_ui_elements(app=, max_depth=)` — walks an app's accessibility tree, returns elements with `role` / `title` / `label` / `position` / `size` / `center`.
+  - `find_ui_element(app=, title=, role=, label=)` — filter by AX attributes.
+  - `click_ui_element(...)` — find-and-click convenience.
+
+### Why
+v0.6.0-alpha end-to-end test surfaced that visual pixel estimation from screenshots is brittle: the agent missed the camera shutter button on the first try (tapped the "拍照" mode tab instead). Element-driven automation lets the agent look up controls by semantic attributes (text / role / resource-id), insulating from layout changes and screen resolution differences.
+
+### Migration
+No breaking changes. New tools added; existing tools unchanged. To get the new tools, re-run `agent-fleet setup` on each device (re-installs the venv with refreshed `requirements.txt` for the new pyobjc dep, then restarts the MCP server).
+
+---
+
 ## [0.6.0-alpha] - 2026-05-12
 
 ### Breaking
