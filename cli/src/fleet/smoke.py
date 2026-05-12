@@ -37,6 +37,23 @@ class SmokeResult:
     duration_ms: int = 0
     error: str = ""
     note: str = ""               # extra context shown next to pass mark (e.g. "1080×2340")
+    connection_error: bool = False  # True when the failure was at connect time, not test time
+                                    # (lets the wizard render one connection-error line
+                                    # instead of N copies + N misleading per-test hints)
+
+
+def _unwrap_exception(e: BaseException) -> str:
+    """Walk down an ExceptionGroup chain to surface the real underlying error.
+
+    Python 3.11+ asyncio.TaskGroup wraps failures in ExceptionGroup, which
+    `str()` prints as "unhandled errors in a TaskGroup (1 sub-exception)"
+    with the actual cause buried.  This recurses through `.exceptions` to
+    return something like "ConnectionRefusedError: [Errno 61] Connection refused".
+    """
+    inner = getattr(e, "exceptions", None)
+    if inner:
+        return _unwrap_exception(inner[0])
+    return f"{type(e).__name__}: {e}"
 
 
 def run_smoke_tests(host: str, port: int, tests: list[SmokeTest]) -> list[SmokeResult]:
@@ -57,13 +74,15 @@ async def _run_async(host: str, port: int, tests: list[SmokeTest]) -> list[Smoke
                 for test in tests:
                     results.append(await _run_one(session, test))
     except Exception as e:
-        # Connection-level failure: every test gets marked FAIL with the same
-        # connection error so the user sees a clear "server not reachable" row
-        # instead of an opaque traceback.
+        # Connection-level failure: mark every test FAIL with `connection_error=True`
+        # so the wizard can render ONE consolidated "server not reachable" line
+        # instead of N copies of the same error plus N misleading per-test hints.
+        unwrapped = _unwrap_exception(e)
         for test in tests:
             results.append(SmokeResult(
                 test=test, ok=False,
-                error=f"MCP connection failed: {type(e).__name__}: {e}",
+                error=f"MCP connection failed: {unwrapped}",
+                connection_error=True,
             ))
     return results
 
@@ -108,5 +127,5 @@ async def _run_one(session, test: SmokeTest) -> SmokeResult:
         return SmokeResult(
             test=test, ok=False, skipped=test.optional,
             duration_ms=int((time.monotonic() - start) * 1000),
-            error=f"{type(e).__name__}: {e}",
+            error=_unwrap_exception(e),
         )

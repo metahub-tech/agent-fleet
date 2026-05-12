@@ -101,6 +101,37 @@ def test_smoke_result_default_fields():
 # AND installer instances (for smoke testing).
 # ---------------------------------------------------------------
 
+def test_unwrap_exception_extracts_real_cause_from_exception_group():
+    """Regression for v0.6.3-alpha smoke output: every test showed 'MCP
+    connection failed: ExceptionGroup: unhandled errors in a TaskGroup
+    (1 sub-exception)' which hid the real underlying error like
+    ConnectionRefusedError or socket.gaierror.  The unwrapper walks
+    `.exceptions` to surface the innermost cause."""
+    from fleet.smoke import _unwrap_exception
+
+    # Python 3.11+ ExceptionGroup
+    inner = ConnectionRefusedError("[Errno 61] Connection refused")
+    try:
+        eg = ExceptionGroup("outer", [inner])  # type: ignore[name-defined]
+    except NameError:
+        # 3.10 fallback — synthesise the duck-typed shape
+        class FakeGroup(Exception):
+            def __init__(self, msg, excs):
+                super().__init__(msg)
+                self.exceptions = excs
+        eg = FakeGroup("outer", [inner])
+
+    out = _unwrap_exception(eg)
+    assert "ConnectionRefusedError" in out
+    assert "Connection refused" in out
+
+
+def test_unwrap_exception_passes_through_plain_exception():
+    from fleet.smoke import _unwrap_exception
+    out = _unwrap_exception(ValueError("boom"))
+    assert out == "ValueError: boom"
+
+
 def test_run_install_returns_installer_instances_with_smoke_tests():
     """Regression for v0.6.2-alpha bug: smoke runner crashed with
     `AttributeError: 'ServerRole' object has no attribute 'smoke_tests'`

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4-alpha] - 2026-05-12
+
+### Fixed
+- **Smoke runner connected via Tailscale MagicDNS hostname (`test-macpro-12`) instead of localhost**, so every test failed with `MCP connection failed: ExceptionGroup: ...`. The wizard runs on the same host that just deployed the servers, and a Tailscale node often can't resolve its own MagicDNS name from itself (depends on DNS search-domain config). Switched to `127.0.0.1` like `verify` already does. The agent-facing Tailscale URL is still shown in the final "Endpoints" panel.
+- **`ExceptionGroup` swallowed the real error**: when the underlying connection failure happened inside an `asyncio.TaskGroup`, Python 3.11+ wraps it as `ExceptionGroup("unhandled errors in a TaskGroup (1 sub-exception)")` — the actual `ConnectionRefusedError` / `gaierror` was invisible. Added `_unwrap_exception()` that walks `.exceptions` to the innermost cause.
+- **N copies of the same connection error + N misleading per-test hints**: when the server is unreachable, every test was reporting its own (irrelevant) hint. Collapsed to a single "MCP server unreachable" row with a role-specific diagnostic command (`launchctl list | grep cc.metahub.mac-device`, etc.).
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` to pick up the smoke fix.
+
+---
+
 ## [0.6.3-alpha] - 2026-05-12
 
 ### Fixed
