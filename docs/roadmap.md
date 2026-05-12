@@ -13,7 +13,8 @@
 | 0.5.0-alpha | `agent-fleet setup` wizard | ✅ Released |
 | 0.6.0-alpha | role rename to `<os>-device` + macOS permission primer | ✅ Released |
 | 0.6.1-alpha | UI element introspection (Android uiautomator + macOS AX) | ✅ Released |
-| **0.6.2-alpha** | **Post-install smoke tests + setup-prompt UX** | ✅ Released |
+| 0.6.2-alpha | Post-install smoke tests + setup-prompt UX | ✅ Released |
+| **0.6.3-alpha** | **Smoke-runner bugfix + Android setup docs** | ✅ Released |
 | 0.7.0 | iOS (Simulator + real device) | 📋 Planned |
 | 0.8.0 | Cross-device coordination | 🔭 Future |
 | 1.0.0 | Public open-source stable | 🔭 Future |

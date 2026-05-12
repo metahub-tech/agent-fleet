@@ -94,3 +94,34 @@ def test_smoke_result_default_fields():
     assert r.ok is True
     assert r.skipped is False
     assert r.error == ""
+
+
+# ---------------------------------------------------------------
+# _run_install must return BOTH ServerRoles (for snippet rendering)
+# AND installer instances (for smoke testing).
+# ---------------------------------------------------------------
+
+def test_run_install_returns_installer_instances_with_smoke_tests():
+    """Regression for v0.6.2-alpha bug: smoke runner crashed with
+    `AttributeError: 'ServerRole' object has no attribute 'smoke_tests'`
+    because _run_install only returned ServerRole dataclasses.  Now it
+    returns (server_roles, installers) so smoke can call .smoke_tests()."""
+    from fleet.cli import _run_install
+    from fleet.types import InstallContext, OSInfo
+
+    osi = OSInfo(system="Darwin", version="22", arch="x86_64", is_apple_silicon=False)
+    ctx = InstallContext(repo_root="/tmp/nonexistent-repo", os_info=osi,
+                         dry_run=True, selected_network="tailscale", tailscale_hostname="mac-test")
+    macos = MacosDesktop()
+    result = _run_install([macos], ctx)
+
+    # Tuple return shape
+    assert isinstance(result, tuple) and len(result) == 2
+    server_roles, installers = result
+    assert len(server_roles) == 1
+    assert len(installers) == 1
+
+    # The installer is the same instance we passed in, so smoke_tests() works
+    assert installers[0] is macos
+    smoke = installers[0].smoke_tests()
+    assert len(smoke) >= 1

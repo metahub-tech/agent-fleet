@@ -4,7 +4,7 @@ requires-python = ">=3.10"
 
 [[package]]
 name = "agent-fleet"
-version = "0.6.2a1"
+version = "0.6.3a1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
