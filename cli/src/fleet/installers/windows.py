@@ -15,12 +15,18 @@ def _run_setup_ps1(ctx: InstallContext, script_path: Path, role_id: str) -> Iter
     if not script_path.exists():
         yield InstallEvent(role_id, "preflight", f"setup script missing at {script_path}", level="error")
         return
-    # encoding/errors: PowerShell 5.1 writes in the system code page (GBK on
-    # Chinese Windows), PowerShell 7+ writes UTF-8.  Force UTF-8 + replace
-    # bad bytes so the reader thread never dies on a stray non-decodable byte
-    # (same class of bug that broke detect_tailscale on Chinese Windows).
+    # Force PowerShell to emit UTF-8 to stdout (PS 5.1 default is system
+    # codepage = GBK on Chinese Windows, which we'd then decode as UTF-8 and
+    # get mojibake — every Chinese error message comes out as `���...`).
+    # Setting [Console]::OutputEncoding inside the PS process BEFORE running
+    # the script forces all child cmdlet output through UTF-8 too.
+    ps_wrapped = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$OutputEncoding = [System.Text.Encoding]::UTF8; "
+        f"& '{script_path}'"
+    )
     proc = subprocess.Popen(
-        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_wrapped],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
         encoding="utf-8", errors="replace",
     )

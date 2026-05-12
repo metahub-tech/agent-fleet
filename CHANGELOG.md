@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9-alpha] - 2026-05-12
+
+### Fixed
+
+Three Windows-specific issues found in the first successful Win11 install attempt of v0.6.8:
+
+1. **`#Requires -RunAsAdministrator` forced both setup-windows.ps1 and setup-android.ps1 to demand elevation**, blocking the normal install.ps1 flow with `ScriptRequiresElevation`. The directive was added defensively but isn't actually needed — task scheduler registration (user-scope) works without admin; only `New-NetFirewallRule` requires admin. Removed the `#Requires` and wrapped the firewall calls in `try { ... } catch { ... WARN ... }` so non-admin runs succeed with a clear graceful-degradation message.
+
+2. **PowerShell error messages rendered as `��� ��� ���` mojibake** in the wizard. PS 5.1 writes stdout in the system code page (GBK on Chinese Windows), but v0.6.7's UTF-8 + errors=replace decoder treated GBK bytes as UTF-8 and substituted U+FFFD. Fixed by wrapping the PS invocation: `powershell.exe -Command "[Console]::OutputEncoding=[Encoding]::UTF8; $OutputEncoding=[Encoding]::UTF8; & 'script.ps1'"` — forces PS itself to emit UTF-8 before our decoder reads it.
+
+3. **Firewall rule error swallowed install attempt**: `New-NetFirewallRule` raised an error that propagated to `$ErrorActionPreference = "Stop"`, killing the install mid-way. Now wrapped + explicit `-ErrorAction Stop` inside the try-catch, with `-ErrorAction SilentlyContinue` removed where it was masking real failures.
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup`.
+
+---
+
 ## [0.6.8-alpha] - 2026-05-12
 
 ### Fixed

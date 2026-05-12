@@ -24,7 +24,8 @@
 # (e.g. GBK on zh-CN Windows) unless a UTF-8 BOM is present, so any
 # non-ASCII text here will be mojibake-parsed and break the script.
 
-#Requires -RunAsAdministrator
+# Admin elevation no longer required at script level — see setup-windows.ps1
+# for the same rationale.  Firewall rule creation is wrapped in try-catch.
 
 $ErrorActionPreference = "Stop"
 
@@ -193,14 +194,20 @@ if ($devCount -lt 1) {
 # ---------- 7. Firewall: open port on Tailscale interface only ----------
 Write-Host ""
 Write-Host "[7/9] firewall (Tailscale interface only)" -ForegroundColor Cyan
-$rule = Get-NetFirewallRule -DisplayName "MCP-AndroidDevice-$Port" -ErrorAction SilentlyContinue
-if ($rule) {
-    Write-Host "  rule exists"
-} else {
-    New-NetFirewallRule -DisplayName "MCP-AndroidDevice-$Port" `
-        -Direction Inbound -Protocol TCP -LocalPort $Port `
-        -Action Allow -InterfaceAlias "Tailscale" -ErrorAction SilentlyContinue | Out-Null
-    Write-Host "  ok  added rule MCP-AndroidDevice-$Port (TCP/$Port on Tailscale)"
+# Firewall rule (only succeeds as admin — graceful skip otherwise).
+try {
+    $rule = Get-NetFirewallRule -DisplayName "MCP-AndroidDevice-$Port" -ErrorAction SilentlyContinue
+    if ($rule) {
+        Write-Host "  rule exists"
+    } else {
+        New-NetFirewallRule -DisplayName "MCP-AndroidDevice-$Port" `
+            -Direction Inbound -Protocol TCP -LocalPort $Port `
+            -Action Allow -InterfaceAlias "Tailscale" -ErrorAction Stop | Out-Null
+        Write-Host "  ok  added rule MCP-AndroidDevice-$Port (TCP/$Port on Tailscale)"
+    }
+} catch {
+    Write-Host "  WARN: could not create firewall rule (need admin)." -ForegroundColor Yellow
+    Write-Host "        Skipping. Re-run from admin PowerShell if remote Tailscale nodes need TCP $Port." -ForegroundColor Yellow
 }
 
 # ---------- 8. Task Scheduler ----------
