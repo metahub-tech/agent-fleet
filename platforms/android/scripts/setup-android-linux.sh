@@ -123,7 +123,12 @@ REUSE=0
 if [ -f "$CONFIG_PATH" ]; then
     echo "  existing $CONFIG_PATH found:"
     cat "$CONFIG_PATH"
-    read -r -p "  reuse it? [Y/n] " ans
+    # Prompts MUST end with a newline so the line-buffered pipe in the
+    # agent-fleet wizard flushes the prompt text before bash blocks on read.
+    # Without the newline, the prompt sits in the pipe buffer and the user
+    # sees a blank/hung wizard until they type something blind.
+    echo "  reuse it? [Y/n] (press Enter for Y)"
+    read -r ans
     if [[ "$ans" != "n" && "$ans" != "N" ]]; then
         REUSE=1
         echo "  ok using existing config"
@@ -135,7 +140,8 @@ if [ "$REUSE" -eq 0 ]; then
     echo "    2) Wireless Debugging   (Android 11+ / SDK 30+ -- some HarmonyOS 4 phones report Android 10, in which case use 3)"
     echo "    3) Hybrid (USB enroll)  (Android 5-10 -- adb tcpip 5555; reconnect after each phone reboot)"
     while true; do
-        read -r -p "  mode [1/2/3]: " mode
+        echo "  mode [1/2/3]:"
+        read -r mode
         case "$mode" in
             1) MODE_NAME="usb"; break ;;
             2) MODE_NAME="wireless"; break ;;
