@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.10-alpha] - 2026-05-12
+
+### Fixed
+v0.6.9 was wrong: Register-ScheduledTask **does** need admin on Windows, AND legacy MCP-WindowsGui / MCP-AndroidGui tasks from pre-v0.6.x admin-installs can only be unregistered with admin. Symptom of running v0.6.9 non-admin:
+
+```
+Unregister-ScheduledTask : 拒绝访问 (legacy MCP-WindowsGui)
+  removed legacy task MCP-WindowsGui   ← MISLEADING — echo fired despite error
+Register-ScheduledTask : Access is denied. (new MCP-WinDevice)
+  ok MCP-WinDevice registered          ← MISLEADING
+Start-ScheduledTask : The system cannot find the file specified.  ← actual evidence
+```
+
+Why the misleading "ok" echoes: CIM cmdlets (Get/Set/New/Register/Unregister-ScheduledTask) emit **non-terminating** errors by default that don't trip `$ErrorActionPreference = "Stop"`. Need explicit `-ErrorAction Stop` AND try-catch wrappers to know what really happened.
+
+### Solution
+1. **install.ps1 detects admin upfront**, prints clear error + "right-click PowerShell → Run as administrator" instructions if not. Aborts before doing anything destructive.
+2. **setup-windows.ps1 + setup-android.ps1 wrap Register/Unregister-ScheduledTask in try-catch with `-ErrorAction Stop`** so failures bubble up. The "removed legacy task" and "ok registered" echoes now only fire on actual success.
+3. **README.md / docs** updated to say "Windows needs admin PowerShell" (the prior v0.6.9-era doc claim of "no admin needed" was wrong).
+
+### Migration
+- Run PowerShell as admin (right-click → Run as administrator)
+- Re-run `irm ... | iex` install command. v0.6.10's admin check passes; setup scripts proceed.
+
+---
+
 ## [0.6.9-alpha] - 2026-05-12
 
 ### Fixed

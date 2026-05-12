@@ -1,3 +1,3 @@
 def test_package_imports():
     import fleet
-    assert fleet.__version__ == "0.6.9a1"
+    assert fleet.__version__ == "0.6.10a1"

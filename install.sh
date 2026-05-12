@@ -19,12 +19,12 @@
 #   4. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.6.9-alpha
+#   AGENT_FLEET_VERSION      default v0.6.10-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $HOME/agent-fleet  (only used if CWD not in a clone)
 set -e
 
-AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.6.9-alpha}"
+AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.6.10-alpha}"
 AGENT_FLEET_REPO="${AGENT_FLEET_REPO:-https://github.com/metahub-tech/agent-fleet}"
 AGENT_FLEET_CLONE_DIR="${AGENT_FLEET_CLONE_DIR:-$HOME/agent-fleet}"
 
@@ -50,10 +50,10 @@ ERROR: agent-fleet's installer is interactive but stdin is not a TTY.
 
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
 
-  Or, since v0.6.9-alpha already cloned the repo for you in a prior attempt:
+  Or, since v0.6.10-alpha already cloned the repo for you in a prior attempt:
 
       cd ~/agent-fleet
-      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.9-alpha#subdirectory=cli" agent-fleet setup
+      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.10-alpha#subdirectory=cli" agent-fleet setup
 
 ERROEOF
     exit 1

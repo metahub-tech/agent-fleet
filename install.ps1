@@ -12,15 +12,41 @@
 #   3. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.6.9-alpha
+#   AGENT_FLEET_VERSION      default v0.6.10-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $env:USERPROFILE\agent-fleet
 
-$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.9-alpha" }
+$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.10-alpha" }
 $AGENT_FLEET_REPO    = if ($env:AGENT_FLEET_REPO)    { $env:AGENT_FLEET_REPO }    else { "https://github.com/metahub-tech/agent-fleet" }
 $AGENT_FLEET_CLONE_DIR = if ($env:AGENT_FLEET_CLONE_DIR) { $env:AGENT_FLEET_CLONE_DIR } else { Join-Path $env:USERPROFILE "agent-fleet" }
 
 Write-Host "🚢 agent-fleet one-shot installer (target: $AGENT_FLEET_VERSION)"
+
+# ---------- 0. require admin ----------
+# Register-ScheduledTask (auto-start at logon) + cleanup of admin-scoped
+# legacy MCP-WindowsGui / MCP-AndroidGui tasks from pre-v0.6.x installs
+# both require elevation.  Detected experimentally: non-admin runs fail
+# with "Access is denied" on Register-ScheduledTask AND can't unregister
+# legacy admin-scoped tasks that block the new ones.
+$currentPrincipal = New-Object Security.Principal.WindowsPrincipal(
+    [Security.Principal.WindowsIdentity]::GetCurrent())
+$isAdmin = $currentPrincipal.IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host ""
+    Write-Host "ERROR: agent-fleet on Windows needs an ADMINISTRATOR PowerShell." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Register-ScheduledTask + cleanup of admin-scoped legacy tasks" -ForegroundColor White
+    Write-Host "  both require elevation." -ForegroundColor White
+    Write-Host ""
+    Write-Host "  To fix:" -ForegroundColor Yellow
+    Write-Host "    1. Press Win+X then choose 'Windows Terminal (Admin)' OR" -ForegroundColor Yellow
+    Write-Host "       right-click PowerShell -> 'Run as administrator'" -ForegroundColor Yellow
+    Write-Host "    2. Re-run:" -ForegroundColor Yellow
+    Write-Host "       powershell -ExecutionPolicy Bypass -c `"irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex`"" -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
+}
 
 # ---------- 1. uv ----------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {

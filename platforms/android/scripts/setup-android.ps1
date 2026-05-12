@@ -232,18 +232,35 @@ $settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Days 365)
 $principal = New-ScheduledTaskPrincipal -UserId $RunUser -RunLevel Limited
 
-# Migrate / cleanup: remove the legacy MCP-AndroidGui task if present
+# Migrate / cleanup: remove the legacy MCP-AndroidGui task if present.
+# Wrap in try-catch — CIM cmdlets' non-terminating errors don't honor
+# $ErrorActionPreference=Stop, so the misleading "removed legacy task"
+# echo can fire even on Access denied.
 $legacyAndroidTaskName = "MCP-AndroidGui"
 $legacyTask = Get-ScheduledTask -TaskName $legacyAndroidTaskName -ErrorAction SilentlyContinue
 if ($legacyTask) {
-    Stop-ScheduledTask -TaskName $legacyAndroidTaskName -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $legacyAndroidTaskName -Confirm:$false
-    Write-Host "  removed legacy task $legacyAndroidTaskName" -ForegroundColor Yellow
+    try {
+        Stop-ScheduledTask -TaskName $legacyAndroidTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $legacyAndroidTaskName -Confirm:$false -ErrorAction Stop
+        Write-Host "  removed legacy task $legacyAndroidTaskName" -ForegroundColor Yellow
+    } catch {
+        Write-Host "  ERROR: could not unregister legacy task $legacyAndroidTaskName" -ForegroundColor Red
+        Write-Host "         (was originally admin-scoped; need admin PowerShell)" -ForegroundColor Red
+        Write-Host "         Detail: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
 }
 
-Register-ScheduledTask -TaskName $TaskName `
-    -Action $action -Trigger $trigger -Settings $settings -Principal $principal | Out-Null
-Write-Host "  ok  registered $TaskName"
+try {
+    Register-ScheduledTask -TaskName $TaskName `
+        -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
+        -ErrorAction Stop | Out-Null
+    Write-Host "  ok  registered $TaskName"
+} catch {
+    Write-Host "  ERROR: Register-ScheduledTask failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "         Run this script from an admin PowerShell." -ForegroundColor Red
+    exit 1
+}
 
 Start-ScheduledTask -TaskName $TaskName
 

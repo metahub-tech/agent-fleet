@@ -227,19 +227,36 @@ $commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
 $guiAction = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuiLauncher`""
 
-# Migrate / cleanup: remove the legacy MCP-WindowsGui task if present
+# Migrate / cleanup: remove the legacy MCP-WindowsGui task if present.
+# CIM cmdlets emit non-terminating errors by default that don't trip
+# $ErrorActionPreference="Stop", so we must wrap explicitly to know if
+# the unregister actually worked (instead of misleadingly echoing "removed").
 $legacyTaskName = "MCP-WindowsGui"
 $legacyTask = Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
 if ($legacyTask) {
-    Stop-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false
-    Write-Host "  removed legacy task $legacyTaskName" -ForegroundColor Yellow
+    try {
+        Stop-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false -ErrorAction Stop
+        Write-Host "  removed legacy task $legacyTaskName" -ForegroundColor Yellow
+    } catch {
+        Write-Host "  ERROR: could not unregister legacy task $legacyTaskName" -ForegroundColor Red
+        Write-Host "         (was originally admin-scoped; need admin PowerShell)" -ForegroundColor Red
+        Write-Host "         Detail: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
 }
 
-Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
-    -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
-    -Settings $commonSettings -RunLevel Highest -User $RunUser -Force | Out-Null
-Write-Host "  ok MCP-WinDevice registered (hidden, logged, auto-restart on failure)"
+try {
+    Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
+        -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
+        -Settings $commonSettings -RunLevel Highest -User $RunUser -Force `
+        -ErrorAction Stop | Out-Null
+    Write-Host "  ok MCP-WinDevice registered (hidden, logged, auto-restart on failure)"
+} catch {
+    Write-Host "  ERROR: Register-ScheduledTask failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "         Run this script from an admin PowerShell." -ForegroundColor Red
+    exit 1
+}
 
 # ---------- Start now & verify ----------
 Write-Host ""
