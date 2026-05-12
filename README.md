@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.6.8--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.8-alpha)
+[![Status](https://img.shields.io/badge/status-v0.6.9--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.9-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.8-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.9-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -47,7 +47,8 @@
 | UI introspection bugfixes (AXValueGetValue + adb capture_bytes) | `0.6.5-alpha` | ✅ Released (Mac AX returns position/size/center; Android dump_ui_hierarchy returns XML) |
 | macOS legacy-plist migration cleanup | `0.6.6-alpha` | ✅ Released (setup auto-cleans pre-v0.6.0 plists + orphan procs) |
 | Windows GBK subprocess decode crash fix | `0.6.7-alpha` | ✅ Released (UTF-8 + errors=replace on subprocess) |
-| **install.sh/.ps1: uvx local path (skip uv's git bug on Windows)** | **`0.6.8-alpha`** | ✅ **Released** (`uvx --from "$(pwd)/cli"` instead of `git+url#subdirectory=cli` — bypasses uv's libgit2 "Failed to resolve --with requirement" on Win11; also faster since no second clone) |
+| install.sh/.ps1: uvx local path | `0.6.8-alpha` | ✅ Released (skip uv's libgit2 bug) |
+| **Windows: drop admin-required + UTF-8 PS console + firewall try-catch** | **`0.6.9-alpha`** | ✅ **Released** (setup-windows.ps1 / setup-android.ps1 run as non-admin; PS stdout forced to UTF-8 so Chinese error msgs don't mojibake; firewall rule degrades gracefully if not admin) |
 | iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
 | Cross-device coordination | `0.8.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
@@ -70,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.6.8-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.6.9-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.8-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.9-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。

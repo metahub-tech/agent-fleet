@@ -27,7 +27,14 @@
 # non-ASCII text here will be mojibake-parsed and break the script.
 # Localized output belongs in docs, not in this file.
 
-#Requires -RunAsAdministrator
+# Admin elevation is NO LONGER required at the script level.  The script
+# runs entirely with current-user permissions EXCEPT for one optional
+# step: `New-NetFirewallRule` (for inbound 8766 from Tailscale).  That
+# call is now wrapped in try-catch with a graceful WARN — if you skip
+# admin and the firewall rule fails, the only impact is that other
+# Tailscale nodes might be blocked by Windows Defender Firewall (Private
+# profile usually allows by default, so often a non-issue).  To get the
+# firewall rule installed, re-run install.ps1 from an admin PowerShell.
 
 $ErrorActionPreference = "Stop"
 
@@ -167,17 +174,25 @@ Write-Host "  ok"
 Write-Host ""
 Write-Host "[4/5] Firewall" -ForegroundColor Yellow
 
-# Clean old rules first (idempotent re-run).
-Get-NetFirewallRule -DisplayName "MCP WindowsGui*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-
+# Firewall rule (only succeeds as admin — gracefully degrade for non-admin).
 # Filter by Tailscale's CGNAT IPv4 (100.64.0.0/10) and Tailscale ULA IPv6
 # prefix (fd7a:115c:a1e0::/48). IP-range matching survives Tailscale service
 # restarts (interface GUID changes) and is tighter than adapter binding.
 $tsRanges = @("100.64.0.0/10", "fd7a:115c:a1e0::/48")
-New-NetFirewallRule -DisplayName "MCP WindowsGui (Tailscale)" `
-    -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
-    -RemoteAddress $tsRanges | Out-Null
-Write-Host "  ok 8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
+try {
+    Get-NetFirewallRule -DisplayName "MCP WindowsGui*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue
+    New-NetFirewallRule -DisplayName "MCP WinDevice (Tailscale)" `
+        -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow `
+        -RemoteAddress $tsRanges -ErrorAction Stop | Out-Null
+    Write-Host "  ok 8766 allowed from Tailscale IPv4 100.64.0.0/10 + IPv6 fd7a:115c:a1e0::/48"
+} catch {
+    Write-Host "  WARN: could not create firewall rule (need admin PowerShell)." -ForegroundColor Yellow
+    Write-Host "        Skipping.  If another Tailscale node can't reach this PC on 8766," -ForegroundColor Yellow
+    Write-Host "        re-run install.ps1 from an admin PowerShell, OR add manually:" -ForegroundColor Yellow
+    Write-Host "          New-NetFirewallRule -DisplayName 'MCP WinDevice (Tailscale)' \`" -ForegroundColor Yellow
+    Write-Host "            -Direction Inbound -Protocol TCP -LocalPort 8766 -Action Allow \`" -ForegroundColor Yellow
+    Write-Host "            -RemoteAddress 100.64.0.0/10,fd7a:115c:a1e0::/48" -ForegroundColor Yellow
+}
 
 # ---------- 5. Task Scheduler ----------
 Write-Host ""
