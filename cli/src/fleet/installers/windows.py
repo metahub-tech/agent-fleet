@@ -55,6 +55,24 @@ class WindowsDesktop(BaseInstaller):
         from ..guidance import load_guidance_yaml
         return [load_guidance_yaml("windows_postinstall.yaml")]
 
+    def smoke_tests(self):
+        from ..smoke import SmokeTest
+        return [
+            SmokeTest("get_winpc_status", {},
+                description="server reachable"),
+            SmokeTest("run_powershell", {"script": "Write-Output ok"},
+                description="shell exec",
+                hint_on_failure="setup-windows.ps1 probably exited without registering the scheduled task; check Get-ScheduledTask MCP-WinDevice"),
+            SmokeTest("get_screen_size", {},
+                description="GUI baseline (pywinauto)"),
+            SmokeTest("take_screenshot", {},
+                description="screen capture",
+                timeout=10,
+                hint_on_failure="If the user session is locked, take_screenshot returns the lock-screen image. Unlock the session or configure autologon for headless deployments."),
+            SmokeTest("list_windows", {},
+                description="window enumeration"),
+        ]
+
 
 class WindowsAndroidBridge(BaseInstaller):
     role_id = "android-device"
@@ -85,3 +103,7 @@ class WindowsAndroidBridge(BaseInstaller):
             load_guidance_yaml("android_usb_debug.yaml"),
             load_guidance_yaml("android_wireless_pair.yaml"),
         ]
+
+    def smoke_tests(self):
+        from .macos import _android_bridge_smoke_tests
+        return _android_bridge_smoke_tests()

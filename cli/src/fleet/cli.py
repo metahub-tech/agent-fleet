@@ -138,6 +138,50 @@ def _run_install(roles, ctx):
     return deployed
 
 
+def _run_smoke_tests(deployed, hostname: str) -> None:
+    """For each deployed role, call its smoke_tests() and render a pass/fail
+    table.  Connects to the server over Tailscale (hostname) so smoke
+    exercises the same network path the agent will use, not just localhost.
+    """
+    from .smoke import run_smoke_tests
+
+    total_pass = total_fail = total_skip = 0
+    console.print("\n[bold]🩺 Smoke testing each MCP server...[/bold]")
+    console.print("[dim]   (calls representative tools end-to-end; catches TCC / device / venv issues now,\n   not after you restart your agent host)[/dim]")
+    for role in deployed:
+        tests = role.smoke_tests()
+        if not tests:
+            continue
+        url = f"http://{hostname}:{role.port}/mcp"
+        console.print(f"\n  [bold]{role.role_id}[/bold]  [dim]({url})[/dim]")
+        results = run_smoke_tests(hostname, role.port, tests)
+        for r in results:
+            if r.ok:
+                total_pass += 1
+                tail = f"[dim]({r.duration_ms}ms)[/dim]" if r.duration_ms else ""
+                console.print(f"    [green]✓[/green] {r.test.description:<28} {tail}")
+            elif r.skipped:
+                total_skip += 1
+                console.print(f"    [yellow]–[/yellow] {r.test.description:<28} [dim](optional, skipped: {r.error})[/dim]")
+            else:
+                total_fail += 1
+                console.print(f"    [red]✗[/red] {r.test.description:<28} [red]{r.error}[/red]")
+                if r.test.hint_on_failure:
+                    console.print(f"        [yellow]↪ {r.test.hint_on_failure}[/yellow]")
+
+    total = total_pass + total_fail + total_skip
+    summary_color = "green" if total_fail == 0 else "yellow"
+    summary = f"\n[bold {summary_color}]📊 Smoke summary: {total_pass}/{total} passed"
+    if total_fail:
+        summary += f", {total_fail} FAILED"
+    if total_skip:
+        summary += f", {total_skip} optional-skipped"
+    summary += "[/bold {0}]".format(summary_color)
+    console.print(summary)
+    if total_fail:
+        console.print("[yellow]   Address the failed item(s) above, then re-run `agent-fleet setup` to re-verify.[/yellow]")
+
+
 def _run_guidance(roles, ctx):
     """For each role, optionally invoke the macOS primer (registers Python.app
     in TCC + opens the Settings pane), then print the guidance step and wait
@@ -193,9 +237,11 @@ def cmd_setup(args: argparse.Namespace) -> int:
 
     deployed = _run_install(roles, ctx)
     if args.dry_run:
-        console.print("\n[dim]↪ Skipping operation guidance (dry-run).[/dim]")
+        console.print("\n[dim]↪ Skipping operation guidance + smoke tests (dry-run).[/dim]")
     else:
         _run_guidance(roles, ctx)
+        if deployed:
+            _run_smoke_tests(deployed, hostname or "127.0.0.1")
 
     frameworks = _select_frameworks()
     if frameworks:

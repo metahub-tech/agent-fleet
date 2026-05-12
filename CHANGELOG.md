@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2-alpha] - 2026-05-12
+
+### Added
+- **Post-install smoke tests** (`cli/src/fleet/smoke.py`): after each role installs, the wizard automatically connects to its MCP server over Tailscale and invokes 4–5 representative tools (e.g. `take_screenshot`, `run_zsh`, `list_devices`).  A pass/fail/skip table surfaces TCC permission issues, missing device hardware, or venv dependency gaps **before** the user restarts their agent host — no more "wizard finished green, then half the tools fail at first use."
+  - mac-device: `get_mac_status`, `run_zsh`, `get_screen_size`, `take_screenshot` (Screen Recording TCC), `run_applescript` (Automation TCC)
+  - win-device: `get_winpc_status`, `run_powershell`, `get_screen_size`, `take_screenshot`, `list_windows`
+  - android-device: `get_android_status`, `list_devices`, `get_screen_size`, `take_screenshot`, `current_app`
+  - Each failure includes an actionable `hint_on_failure` line pointing the user at the specific fix (e.g. which Settings pane to open, which task scheduler entry to verify).
+- `BaseInstaller.smoke_tests()` API for installers to declare their own smoke set.
+
+### Fixed
+- **setup-android prompt buffering**: the wizard's line-buffered subprocess pipe was eating `read -r -p "..."` prompts that lacked a trailing newline, leaving the user staring at a blank wizard. All 4 interactive `read -p` sites in `platforms/android/scripts/setup-android.{sh,linux.sh}` now use explicit `echo \"...\"` + `read` so the prompt flushes immediately.
+- **Mode-switch prompt clarity**: the `reuse it? [Y/n]` prompt didn't make clear that pressing `n` leads to the USB/Wireless/Hybrid mode selection. Reworded to: *"Press Enter to keep this config, or 'n' to switch ADB mode (USB/Wireless/Hybrid)"*.
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` to refresh the installed wizard and pick up the new smoke test step.
+
+---
+
 ## [0.6.1-alpha] - 2026-05-12
 
 ### Added

@@ -48,3 +48,7 @@ class LinuxAndroidBridge(BaseInstaller):
             load_guidance_yaml("android_usb_debug.yaml"),
             load_guidance_yaml("android_wireless_pair.yaml"),
         ]
+
+    def smoke_tests(self):
+        from .macos import _android_bridge_smoke_tests
+        return _android_bridge_smoke_tests()
