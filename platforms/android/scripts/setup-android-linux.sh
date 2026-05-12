@@ -127,7 +127,7 @@ if [ -f "$CONFIG_PATH" ]; then
     # agent-fleet wizard flushes the prompt text before bash blocks on read.
     # Without the newline, the prompt sits in the pipe buffer and the user
     # sees a blank/hung wizard until they type something blind.
-    echo "  reuse it? [Y/n] (press Enter for Y)"
+    echo "  Press Enter to keep this config, or 'n' to switch ADB mode (USB/Wireless/Hybrid):"
     read -r ans
     if [[ "$ans" != "n" && "$ans" != "N" ]]; then
         REUSE=1
