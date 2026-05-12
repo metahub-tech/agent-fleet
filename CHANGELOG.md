@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7-alpha] - 2026-05-12
+
+### Fixed
+- **Wizard crashed on Chinese Windows with `AttributeError: 'NoneType' object has no attribute 'strip'`** when invoking `tailscale status --json`. Root cause: `subprocess.run(..., text=True)` without an explicit `encoding` uses `locale.getpreferredencoding()`, which is **GBK** on Chinese Windows. Tailscale always emits UTF-8 JSON, so any tailnet that has a node with a CJK name (e.g. "Yi的MacBook Pro"), TM/©/® symbols, or em-dashes blew up the subprocess reader thread with `UnicodeDecodeError`. The thread death set `r.stdout = None`, and the next line `r.stdout.strip()` raised the AttributeError.
+- Same encoding bug also lurked in `installers/{macos,windows,linux}.py` — they invoke setup scripts via `subprocess.Popen(..., text=True)` to stream output into the wizard's rendering. Fixed all four sites.
+
+### Solution
+- `detect_tailscale` and all `subprocess.Popen` calls now pass `encoding="utf-8", errors="replace"` (drop the bare `text=True`). UTF-8 is the right interpretation for Tailscale JSON; `errors="replace"` keeps the reader thread alive on stray non-UTF-8 bytes from any other tool (PowerShell 5.1 in GBK code page, etc.) by inserting `�` instead of crashing.
+- Defensive: short-circuit to `None` if `r.stdout` is None for any reason (was: `r.stdout.strip()` unconditionally).
+- Added regression test in `test_detect.py`.
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` (it'll fetch v0.6.7 cli via uvx and proceed past the crash).
+
+---
+
 ## [0.6.6-alpha] - 2026-05-12
 
 ### Fixed

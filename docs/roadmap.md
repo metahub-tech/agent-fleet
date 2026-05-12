@@ -17,7 +17,8 @@
 | 0.6.3-alpha | Smoke-runner bugfix + Android setup docs | ✅ Released |
 | 0.6.4-alpha | Smoke connection fix (localhost; ExceptionGroup unwrap) | ✅ Released |
 | 0.6.5-alpha | UI introspection bugfixes (AXValueGetValue + adb capture_bytes) | ✅ Released |
-| **0.6.6-alpha** | **macOS legacy-plist migration cleanup** | ✅ Released |
+| 0.6.6-alpha | macOS legacy-plist migration cleanup | ✅ Released |
+| **0.6.7-alpha** | **Windows GBK subprocess decode crash fix** | ✅ Released |
 | 0.7.0 | iOS (Simulator + real device) | 📋 Planned |
 | 0.8.0 | Cross-device coordination | 🔭 Future |
 | 1.0.0 | Public open-source stable | 🔭 Future |

@@ -15,9 +15,14 @@ def _run_setup_ps1(ctx: InstallContext, script_path: Path, role_id: str) -> Iter
     if not script_path.exists():
         yield InstallEvent(role_id, "preflight", f"setup script missing at {script_path}", level="error")
         return
+    # encoding/errors: PowerShell 5.1 writes in the system code page (GBK on
+    # Chinese Windows), PowerShell 7+ writes UTF-8.  Force UTF-8 + replace
+    # bad bytes so the reader thread never dies on a stray non-decodable byte
+    # (same class of bug that broke detect_tailscale on Chinese Windows).
     proc = subprocess.Popen(
         ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
+        encoding="utf-8", errors="replace",
     )
     for line in iter(proc.stdout.readline, ""):
         line = line.rstrip()
