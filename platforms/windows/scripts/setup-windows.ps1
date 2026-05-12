@@ -51,7 +51,7 @@ $WindowsDir = Split-Path -Parent $ScriptDir
 $ServerDir  = Join-Path $WindowsDir "server"
 $VenvDir    = Join-Path $ServerDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
-$ServerPy   = Join-Path $ServerDir "windows_gui_mcp.py"
+$ServerPy   = Join-Path $ServerDir "win_device_mcp.py"
 $ReqTxt     = Join-Path $ServerDir "requirements.txt"
 $RepoRoot   = Split-Path -Parent (Split-Path -Parent $WindowsDir)
 $RunUser    = $env:USERNAME
@@ -64,7 +64,7 @@ Write-Host ""
 # ---------- 0. Cleanup legacy desktop-commander / mcp-proxy stack ----------
 # Older versions of this repo ran a second MCP service on port 8765 backed by
 # the npm package @wonderwhy-er/desktop-commander wrapped by mcp-proxy. We've
-# folded those tools into windows_gui_mcp.py; remove the old artifacts.
+# folded those tools into win_device_mcp.py; remove the old artifacts.
 
 Write-Host "[0/5] Cleanup legacy MCP-DesktopCommander stack (if present)" -ForegroundColor DarkYellow
 Stop-ScheduledTask -TaskName "MCP-DesktopCommander" -ErrorAction SilentlyContinue

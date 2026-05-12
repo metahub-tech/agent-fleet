@@ -10,7 +10,7 @@
 # debugging crashes / permission issues / dependency resolution
 # without going through launchd. Run it as:
 #
-#     bash platforms/macos/scripts/_launch-macos-gui.sh
+#     bash platforms/macos/scripts/_launch-mac-device.sh
 #
 # It will print server output to your terminal so you can see
 # tracebacks live. Ctrl-C to stop.
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVER_DIR="$PLATFORM_DIR/server"
 VENV_PY="$SERVER_DIR/.venv/bin/python3"
-SERVER_PY="$SERVER_DIR/macos_gui_mcp.py"
+SERVER_PY="$SERVER_DIR/mac_device_mcp.py"
 
 if [ ! -x "$VENV_PY" ]; then
     echo "ERROR: venv python missing at $VENV_PY" >&2

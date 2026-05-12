@@ -15,14 +15,17 @@ import pathlib
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 LEGACY = [
-    # role IDs
+    # role IDs (pre-v0.6.0)
     "macbox-gui", "winpc-gui", "android-gui",
-    # service identifiers
+    # service identifiers (pre-v0.6.0)
     "cc.metahub.macbox-gui",
     "MCP-WindowsGui", "MCP-AndroidGui",
     "atb-android-gui",
-    # skill dir names
+    # skill dir names (pre-v0.6.0)
     "using-macbox", "using-winpc",
+    # Python entry-point + log filenames (pre-v0.6.11)
+    "macos_gui_mcp", "windows_gui_mcp",
+    "macos-gui.log", "windows-gui.log",
 ]
 
 # Path-prefix substrings we don't scan (historical, generated, or external).

@@ -9,7 +9,7 @@
 # inherits that hidden console, so it has real std handles for uvicorn but no
 # visible window for the user.
 #
-# All stdout / stderr is appended to <repo>/platforms/windows/logs/windows-gui.log
+# All stdout / stderr is appended to <repo>/platforms/windows/logs/win-device.log
 # so silent failures are debuggable.
 #
 # RESTART LOOP (since v0.2.1):
@@ -35,8 +35,8 @@ $LogsDir     = Join-Path $PlatformDir "logs"
 $null = New-Item -ItemType Directory -Path $LogsDir -Force -ErrorAction SilentlyContinue
 
 $Python = Join-Path $ServerDir ".venv\Scripts\python.exe"
-$Server = Join-Path $ServerDir "windows_gui_mcp.py"
-$Log    = Join-Path $LogsDir "windows-gui.log"
+$Server = Join-Path $ServerDir "win_device_mcp.py"
+$Log    = Join-Path $LogsDir "win-device.log"
 
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" | Out-File -FilePath $Log -Append -Encoding utf8
 "  python = $Python"  | Out-File -FilePath $Log -Append -Encoding utf8

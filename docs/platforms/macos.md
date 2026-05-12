@@ -204,7 +204,7 @@ launchctl list | grep macbox
 lsof -nP -iTCP:8767 -sTCP:LISTEN
 
 # 日志
-tail -20 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
+tail -20 ~/agent-test-bench/platforms/macos/logs/mac-device.log
 ```
 
 ## 6. 卸载
@@ -269,11 +269,11 @@ launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.
 launchctl print "gui/$(id -u)/cc.metahub.mac-device" | head -30
 
 # 看 traceback
-tail -50 ~/agent-test-bench/platforms/macos/logs/macos-gui.log
+tail -50 ~/agent-test-bench/platforms/macos/logs/mac-device.log
 
 # 手动跑看实时错
 ~/agent-test-bench/platforms/macos/server/.venv/bin/python3 \
-    ~/agent-test-bench/platforms/macos/server/macos_gui_mcp.py
+    ~/agent-test-bench/platforms/macos/server/mac_device_mcp.py
 ```
 
 主要会卡在 pip 装依赖（pyautogui 在 Apple Silicon 偶尔有 wheel 问题）→ 看 venv 输出。

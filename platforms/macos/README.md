@@ -57,12 +57,12 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 platforms/macos/
 ├── README.md                     # 本文件
 ├── server/                       # MCP server 源码 + 依赖
-│   ├── macos_gui_mcp.py
+│   ├── mac_device_mcp.py
 │   ├── requirements.txt
 │   └── pyproject.toml
 ├── scripts/                      # 一键安装 + launcher
 │   ├── setup-macos.sh
-│   └── _launch-macos-gui.sh
+│   └── _launch-mac-device.sh
 └── skills/
     └── using-mac/SKILL.md     # 给 agent 的使用规则
 ```
@@ -72,7 +72,7 @@ platforms/macos/
 | 组件 | 必须 | 用途 | 自动安装 |
 |---|---|---|---|
 | Tailscale | ✅ | 跨网组网 | 用户在第 1 步装（brew cask） |
-| Python 3.10+ | ✅ | 跑 macos_gui_mcp.py | setup-macos.sh 自动装（brew） |
+| Python 3.10+ | ✅ | 跑 mac_device_mcp.py | setup-macos.sh 自动装（brew） |
 | Homebrew | ✅ | 装 Tailscale + Python | setup 检测，缺则提示装 |
 | GUI 权限授权 | ✅ | 鼠标 / 键盘 / 截屏 / AppleScript | **手动**在系统设置中授权（一次性） |
 | 用户已登录 | ✅ | launchd LaunchAgent 在用户登录时启动 | 设备一直开着即可（你的部署形态） |
@@ -81,7 +81,7 @@ platforms/macos/
 
 完整排错章节见 [`../../docs/platforms/macos.md` § 7](../../docs/platforms/macos.md)。常见：
 
-- 端口 8767 没监听：`tail platforms/macos/logs/macos-gui.log` 看 traceback
+- 端口 8767 没监听：`tail platforms/macos/logs/mac-device.log` 看 traceback
 - 鼠标点击没反应 / 截图全黑：权限没给（看 setup 末尾打印的清单）
 - AppleScript 报"-1743 not allowed"：Automation 权限里缺该 app 勾选
 

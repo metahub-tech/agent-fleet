@@ -140,9 +140,9 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 ## Reference
 
 - Setup: `docs/platforms/macos.md` in agent-test-bench repo
-- Source code: `platforms/macos/server/macos_gui_mcp.py`
+- Source code: `platforms/macos/server/mac_device_mcp.py`
 - launchd plist: `~/Library/LaunchAgents/cc.metahub.mac-device.plist`
-- Service log: `platforms/macos/logs/macos-gui.log`
+- Service log: `platforms/macos/logs/mac-device.log`
 - Tool surface: ~30 tools across 9 categories (no `list_windows` family yet -- use `run_applescript` instead)
 
 ## Red flags

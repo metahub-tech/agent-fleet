@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.11-alpha] - 2026-05-12
+
+### Changed
+Internal file rename for naming consistency with the v0.6.0 role-ID rename. The role-IDs were renamed `macbox-gui` → `mac-device`, `winpc-gui` → `win-device`, `android-gui` → `android-device` in v0.6.0, but the Python entry-point files and log filenames still carried `-gui`. v0.6.11 cleans up the remaining inconsistency:
+
+- `platforms/windows/server/windows_gui_mcp.py` → `win_device_mcp.py`
+- `platforms/macos/server/macos_gui_mcp.py` → `mac_device_mcp.py`
+- Log filenames: `windows-gui.log` → `win-device.log`, `macos-gui.log` → `mac-device.log`
+- `pyproject.toml` `py-modules`, all launcher scripts, setup scripts, docs, and skills updated accordingly.
+
+`test_no_legacy_naming.py` blocklist extended with the new legacy strings (`macos_gui_mcp`, `windows_gui_mcp`, `macos-gui.log`, `windows-gui.log`). Legacy-cleanup migration blocks (which intentionally reference the old names) are marked with the keyword `legacy` on the same line so the regression test skips them.
+
+No tool surface or service-port changes — this is purely internal naming hygiene. Existing deployments upgrade by re-running setup (which now kills orphaned `macos_gui_mcp.py` from before the rename, in addition to the standard `mac_device_mcp.py` cleanup).
+
 ## [0.6.10-alpha] - 2026-05-12
 
 ### Fixed
