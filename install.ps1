@@ -12,11 +12,11 @@
 #   3. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.6.7-alpha
+#   AGENT_FLEET_VERSION      default v0.6.8-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $env:USERPROFILE\agent-fleet
 
-$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.7-alpha" }
+$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.8-alpha" }
 $AGENT_FLEET_REPO    = if ($env:AGENT_FLEET_REPO)    { $env:AGENT_FLEET_REPO }    else { "https://github.com/metahub-tech/agent-fleet" }
 $AGENT_FLEET_CLONE_DIR = if ($env:AGENT_FLEET_CLONE_DIR) { $env:AGENT_FLEET_CLONE_DIR } else { Join-Path $env:USERPROFILE "agent-fleet" }
 
@@ -92,6 +92,13 @@ if (-not $inClone) {
 }
 
 # ---------- 3. run the wizard ----------
-$URL = "git+${AGENT_FLEET_REPO}@${AGENT_FLEET_VERSION}#subdirectory=cli"
-Write-Host "  Running: uvx --from `"$URL`" agent-fleet setup"
-uvx --from "$URL" agent-fleet setup @args
+# Use LOCAL cli path instead of `git+url#subdirectory=cli`.  uv's bundled
+# git client (libgit2) intermittently fails on Windows with
+# "× Failed to resolve --with requirement / Git operation failed" even
+# when the system `git` CLI succeeds (verified on user's Win11 Chinese
+# install — system git checked out the tag fine, then uvx git fetch failed
+# trying to fetch the SAME tag).  The local-path approach avoids uv's git
+# entirely AND is faster (no second clone).
+$LocalCli = Join-Path (Get-Location) "cli"
+Write-Host "  Running: uvx --from `"$LocalCli`" agent-fleet setup"
+uvx --from "$LocalCli" agent-fleet setup @args

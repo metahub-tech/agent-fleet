@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.8-alpha] - 2026-05-12
+
+### Fixed
+- **install.ps1 crashed with `× Failed to resolve --with requirement / Git operation failed`** on Windows after install.ps1 successfully did `git clone` + `git checkout v0.6.7-alpha` via the system `git` CLI. uv's bundled git client (libgit2-backed) failed to fetch the **same tag** that system git just succeeded with — likely a TLS/cert/proxy difference between uv's bundled libgit2 and the system git. Symptom occurred on the user's first Win11 install attempt and was deterministic.
+
+### Solution
+Switched `install.sh` and `install.ps1` from `uvx --from "git+https://...@<tag>#subdirectory=cli"` to `uvx --from "$(pwd)/cli"` (local path). Since steps 2-3 already clone + cd into the repo, the local-path approach:
+1. Bypasses uv's git client entirely — no more libgit2 failures.
+2. Avoids a redundant second clone (uv was re-fetching the same repo we already had on disk).
+3. Faster — no network round-trip after the initial system-git clone.
+
+### Migration
+No breaking changes. Re-run `agent-fleet setup` to pick up the new install.* scripts.
+
+---
+
 ## [0.6.7-alpha] - 2026-05-12
 
 ### Fixed

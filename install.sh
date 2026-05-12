@@ -19,12 +19,12 @@
 #   4. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.6.7-alpha
+#   AGENT_FLEET_VERSION      default v0.6.8-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $HOME/agent-fleet  (only used if CWD not in a clone)
 set -e
 
-AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.6.7-alpha}"
+AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.6.8-alpha}"
 AGENT_FLEET_REPO="${AGENT_FLEET_REPO:-https://github.com/metahub-tech/agent-fleet}"
 AGENT_FLEET_CLONE_DIR="${AGENT_FLEET_CLONE_DIR:-$HOME/agent-fleet}"
 
@@ -50,10 +50,10 @@ ERROR: agent-fleet's installer is interactive but stdin is not a TTY.
 
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
 
-  Or, since v0.6.7-alpha already cloned the repo for you in a prior attempt:
+  Or, since v0.6.8-alpha already cloned the repo for you in a prior attempt:
 
       cd ~/agent-fleet
-      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.7-alpha#subdirectory=cli" agent-fleet setup
+      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.8-alpha#subdirectory=cli" agent-fleet setup
 
 ERROEOF
     exit 1
@@ -134,6 +134,12 @@ if [ ! -f "platforms/macos/scripts/setup-macos.sh" ] && [ ! -f "platforms/window
 fi
 
 # ---------- 4. run the wizard ----------
-URL="git+${AGENT_FLEET_REPO}@${AGENT_FLEET_VERSION}#subdirectory=cli"
-echo "  Running: uvx --from \"${URL}\" agent-fleet setup"
-exec uvx --from "${URL}" agent-fleet setup "$@"
+# Use LOCAL cli path (./cli) instead of `git+url#subdirectory=cli`.  Reasons:
+#   1. We already have the clone on disk from step 3, so re-fetching via uvx
+#      is wasteful (two clones of the same repo, one by git, one by uv).
+#   2. uv's bundled git client (libgit2) intermittently fails on Windows
+#      with "× Failed to resolve --with requirement / Git operation failed"
+#      where the system `git` CLI succeeds — our user hit this on first try.
+#      Using a local path bypasses uv's git entirely.
+echo "  Running: uvx --from \"$(pwd)/cli\" agent-fleet setup"
+exec uvx --from "$(pwd)/cli" agent-fleet setup "$@"
