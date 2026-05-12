@@ -162,6 +162,23 @@ def _run_smoke_tests(deployed, hostname: str) -> None:
         url = f"http://{hostname}:{role.port}/mcp"
         console.print(f"\n  [bold]{role.role_id}[/bold]  [dim]({url})[/dim]")
         results = run_smoke_tests(hostname, role.port, tests)
+
+        # If the connection itself failed, render ONE row instead of N copies.
+        # All results share the same connection_error in that case.
+        if results and all(r.connection_error for r in results):
+            total_fail += len(results)
+            console.print(f"    [red]✗ MCP server unreachable[/red]  [red]{results[0].error}[/red]")
+            console.print(f"      [yellow]↪ verify the server is actually running:[/yellow]")
+            if "mac-device" in role.role_id:
+                console.print(f"        [dim]launchctl list | grep cc.metahub.mac-device[/dim]")
+                console.print(f"        [dim]tail -20 <repo>/platforms/macos/logs/mac-device.err.log[/dim]")
+            elif role.role_id == "android-device":
+                console.print(f"        [dim](mac/linux) launchctl list | grep cc.metahub.android-device  OR  systemctl --user status agent-fleet-android-device[/dim]")
+                console.print(f"        [dim](windows)   Get-ScheduledTask MCP-AndroidDevice[/dim]")
+            elif "win-device" in role.role_id:
+                console.print(f"        [dim]Get-ScheduledTask MCP-WinDevice[/dim]")
+            continue
+
         for r in results:
             if r.ok:
                 total_pass += 1
@@ -248,7 +265,14 @@ def cmd_setup(args: argparse.Namespace) -> int:
     else:
         _run_guidance(roles, ctx)
         if deployed_installers:
-            _run_smoke_tests(deployed_installers, hostname or "127.0.0.1")
+            # Smoke always talks to 127.0.0.1, NOT the Tailscale hostname.
+            # The wizard runs on the same host that just deployed the servers,
+            # and Mac/Linux MagicDNS can't reliably resolve a node's OWN
+            # tailscale-name from itself (depends on DNS search-domain
+            # configuration that differs per OS).  Localhost is universally
+            # routable.  The Tailscale URL is still shown in the final
+            # "Endpoints" panel for the user to paste into their agent config.
+            _run_smoke_tests(deployed_installers, "127.0.0.1")
 
     frameworks = _select_frameworks()
     if frameworks:
