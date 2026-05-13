@@ -6,13 +6,13 @@
 
 ## 快速安装（3 步搞定）
 
-**前置**：Windows 10/11、本机管理员账户、[Tailscale](https://tailscale.com) 账户、互联网。
+**前置**：Windows 10/11、本机管理员账户、[Tailscale](https://tailscale.com) 账户、[Git for Windows](https://git-scm.com/)（或用 ZIP，见 §2）、互联网。
 
 ```powershell
 # 1. 装 Tailscale 并登录（系统托盘点 Login，用与 Agent 主机相同的账号）
 winget install --id Tailscale.Tailscale -e
 
-# 2. 拿代码（建议路径 C:\agent-fleet，避免空格；或浏览器下载 ZIP 解压亦可）
+# 2. 拿代码（建议路径 C:\agent-fleet，避免空格；没装 Git 走 §2 选项 A 浏览器下 ZIP 解压）
 git clone https://github.com/metahub-tech/agent-fleet.git C:\agent-fleet
 cd C:\agent-fleet
 

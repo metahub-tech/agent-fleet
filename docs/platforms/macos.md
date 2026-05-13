@@ -4,7 +4,7 @@
 >
 > 本指南只面向 **macOS 主机的本地管理员**。Agent 端（你的 Linux/Windows 开发机）的配置见 [`../agent-host-setup.md`](../agent-host-setup.md)。
 
-## 快速安装
+## 快速安装（3 步搞定）
 
 **前置**：macOS 12+（Apple Silicon 或 Intel 均可）、管理员账户、[Homebrew](https://brew.sh)、[Tailscale](https://tailscale.com) 账户、互联网。GUI 测试需 **物理可达**（一次性手动授权要求）。
 
