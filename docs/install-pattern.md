@@ -6,7 +6,7 @@
 
 ## 1. 一个项目，两个角色，两条安装路径
 
-`agent-test-bench` 总是涉及**两个机器**：
+`agent-fleet` 总是涉及**两个机器**：
 
 ```
 ┌──────────────────────┐                             ┌──────────────────────┐
@@ -58,8 +58,8 @@ setup 脚本做的事大同小异：
 在跑 Claude Code（或其他 MCP client）的开发机上：
 
 ```bash
-# 进 agent-test-bench 仓库目录
-cd ~/code/agent-test-bench    # 或你 clone 的位置
+# 进 agent-fleet 仓库目录
+cd ~/code/agent-fleet    # 或你 clone 的位置
 
 # 把一台设备的 MCP + skill 一起装好
 python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test

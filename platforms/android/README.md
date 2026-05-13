@@ -43,14 +43,14 @@ setup 脚本会**问一次** ADB 连接模式，并据此走对应分支。模�
 #### Win11
 
 ```powershell
-cd C:\path\to\agent-test-bench
+cd C:\path\to\agent-fleet
 powershell -ExecutionPolicy Bypass -File platforms\android\scripts\setup-android.ps1
 ```
 
 #### macOS
 
 ```bash
-cd ~/path/to/agent-test-bench
+cd ~/path/to/agent-fleet
 bash platforms/android/scripts/setup-android.sh
 ```
 

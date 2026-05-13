@@ -1,6 +1,6 @@
 # Windows Platform Bridge
 
-Windows 10/11 device-host bridge for `agent-test-bench`. Enables LLM agents to drive a Windows PC for CLI/GUI test automation over Tailscale + MCP.
+Windows 10/11 device-host bridge for `agent-fleet`. Enables LLM agents to drive a Windows PC for CLI/GUI test automation over Tailscale + MCP.
 
 ## Quick Start
 
@@ -12,8 +12,8 @@ TL;DR（Windows 管理员 PowerShell）：
 winget install --id Tailscale.Tailscale -e
 # 任务栏托盘登录 Tailscale
 
-# 拿代码（浏览器下载 ZIP 解压到 C:\agent-test-bench；或 git clone）
-cd C:\agent-test-bench
+# 拿代码（浏览器下载 ZIP 解压到 C:\agent-fleet；或 git clone）
+cd C:\agent-fleet
 
 # 跑安装
 powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1

@@ -1,8 +1,32 @@
 # macOS Platform Setup Guide
 
-> 把一台 macOS 12+ 配置为 agent-test-bench 测试主机。整个过程通常 10-20 分钟，绝大部分由 `setup-macos.sh` 自动化；GUI 权限是唯一需要手动点击的步骤。
+> 把一台 macOS 12+ 配置为 agent-fleet 测试主机。整个过程通常 10-20 分钟，绝大部分由 `setup-macos.sh` 自动化；**GUI 权限**是唯一需要手动点击的步骤。
 >
 > 本指南只面向 **macOS 主机的本地管理员**。Agent 端（你的 Linux/Windows 开发机）的配置见 [`../agent-host-setup.md`](../agent-host-setup.md)。
+
+## 快速安装
+
+**前置**：macOS 12+（Apple Silicon 或 Intel 均可）、管理员账户、[Homebrew](https://brew.sh)、[Tailscale](https://tailscale.com) 账户、互联网。GUI 测试需 **物理可达**（一次性手动授权要求）。
+
+```bash
+# 1. 装 Tailscale 并登录（menubar 点 Tailscale 图标 → Login，用与 Agent 主机相同的账号）
+brew install --cask tailscale
+
+# 2. 拿代码（建议路径 ~/agent-fleet；或浏览器下载 ZIP 解压亦可）
+git clone https://github.com/metahub-tech/agent-fleet.git ~/agent-fleet
+cd ~/agent-fleet
+
+# 3. 跑安装脚本（自动装 Python 3.12 + 建 venv + 装 launchd plist + 自检 8767 端口）
+bash platforms/macos/scripts/setup-macos.sh
+```
+
+脚本结束时会打印你的 **Tailscale 主机名**、**mac-device 的 SSE URL**，以及一份 **GUI 权限授权清单**。
+
+> ⚠️ **`setup-macos.sh` 装完之后 GUI 工具（鼠标 / 键盘 / 截屏 / `run_applescript`）一律默认静默失败**——macOS TCC 强制要求你在系统设置里手动授权"辅助功能 / 屏幕录制 / 自动化"，脚本无法替你点。**装完一定要走 [§4 GUI 权限授权](#4-gui-权限授权必须一次性)**，否则 `take_screenshot` 全黑、`click` 不响应。
+>
+> 没装 Homebrew 看 §1；想了解每步在干啥 / 出问题了，往下看详细版。
+
+---
 
 ## 0. 前置条件
 
@@ -39,24 +63,24 @@ tailscale status
 
 ```bash
 # 公开版本（v1.0+）
-git clone https://github.com/metahub-tech/agent-test-bench.git ~/agent-test-bench
+git clone https://github.com/metahub-tech/agent-fleet.git ~/agent-fleet
 
 # 当前私有阶段：先 GitHub CLI 鉴权
 brew install gh
 gh auth login
-gh repo clone metahub-tech/agent-test-bench ~/agent-test-bench
+gh repo clone metahub-tech/agent-fleet ~/agent-fleet
 ```
 
 ### 选项 B · 浏览器下载 ZIP
 
-1. 浏览器打开 https://github.com/metahub-tech/agent-test-bench
+1. 浏览器打开 https://github.com/metahub-tech/agent-fleet
 2. 点 `Code` → `Download ZIP`
-3. 解压到 `~/agent-test-bench`
+3. 解压到 `~/agent-fleet`
 
 ## 3. 跑安装脚本
 
 ```bash
-cd ~/agent-test-bench
+cd ~/agent-fleet
 bash platforms/macos/scripts/setup-macos.sh
 ```
 
@@ -204,7 +228,7 @@ launchctl list | grep macbox
 lsof -nP -iTCP:8767 -sTCP:LISTEN
 
 # 日志
-tail -20 ~/agent-test-bench/platforms/macos/logs/mac-device.log
+tail -20 ~/agent-fleet/platforms/macos/logs/mac-device.log
 ```
 
 ## 6. 卸载
@@ -217,7 +241,7 @@ launchctl bootout "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.pl
 rm ~/Library/LaunchAgents/cc.metahub.mac-device.plist
 
 # 删仓库目录（venv、所有依赖一起删干净）
-rm -rf ~/agent-test-bench
+rm -rf ~/agent-fleet
 
 # 收回 GUI 授权（可选）：系统设置 → 隐私与安全性 → 辅助功能 / 屏幕录制 / 自动化
 # 把列表里的 python3 entry 删掉
@@ -269,11 +293,11 @@ launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/cc.metahub.mac-device.
 launchctl print "gui/$(id -u)/cc.metahub.mac-device" | head -30
 
 # 看 traceback
-tail -50 ~/agent-test-bench/platforms/macos/logs/mac-device.log
+tail -50 ~/agent-fleet/platforms/macos/logs/mac-device.log
 
 # 手动跑看实时错
-~/agent-test-bench/platforms/macos/server/.venv/bin/python3 \
-    ~/agent-test-bench/platforms/macos/server/mac_device_mcp.py
+~/agent-fleet/platforms/macos/server/.venv/bin/python3 \
+    ~/agent-fleet/platforms/macos/server/mac_device_mcp.py
 ```
 
 主要会卡在 pip 装依赖（pyautogui 在 Apple Silicon 偶尔有 wheel 问题）→ 看 venv 输出。

@@ -2,7 +2,7 @@
 
 ## Vision
 
-`agent-test-bench` 是一支被 LLM Agent 通过 MCP 直接驱动的**测试设备舰队**。Agent 坐在开发机上，可以像调用本地命令一样，操控 Windows PC、Mac、Android 手机、iOS 设备执行：
+`agent-fleet` 是一支被 LLM Agent 通过 MCP 直接驱动的**测试设备舰队**。Agent 坐在开发机上，可以像调用本地命令一样，操控 Windows PC、Mac、Android 手机、iOS 设备执行：
 
 - 跑测试用例并读取结果
 - 调试桌面/移动端 GUI
@@ -94,7 +94,7 @@
 ## 仓库布局
 
 ```
-agent-test-bench/
+agent-fleet/
 ├── docs/                          # 跨平台文档
 │   ├── architecture.md            # 本文件
 │   ├── roadmap.md                 # 平台交付计划
