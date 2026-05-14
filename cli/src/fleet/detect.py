@@ -65,15 +65,3 @@ def detect_tailscale() -> Optional[TailscaleStatus]:
         return TailscaleStatus(hostname=host, fqdn=fqdn or host)
     except (json.JSONDecodeError, KeyError):
         return None
-
-
-def detect_existing_deployment(role_id: str, port: int) -> bool:
-    """Quick port-listen check — if the port is open locally we assume something is deployed."""
-    import socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.5)
-    try:
-        r = s.connect_ex(("127.0.0.1", port))
-        return r == 0
-    finally:
-        s.close()

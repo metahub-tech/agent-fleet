@@ -118,5 +118,5 @@ class WindowsAndroidBridge(BaseInstaller):
         ]
 
     def smoke_tests(self):
-        from .macos import _android_bridge_smoke_tests
+        from ._android import _android_bridge_smoke_tests
         return _android_bridge_smoke_tests()
