@@ -98,8 +98,11 @@ if ! tailscale status >/dev/null 2>&1; then
     echo "  Tailscale CLI present but daemon not responding. Open the menubar app and login."
     exit 1
 fi
-TS_HOST="$(tailscale status --json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Self",{}).get("HostName","?"))' 2>/dev/null || echo "?")"
-TS_DNS="$(tailscale status --json 2>/dev/null  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Self",{}).get("DNSName","?").rstrip("."))' 2>/dev/null || echo "?")"
+TS_DNS="$(tailscale status --json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Self",{}).get("DNSName","?").rstrip("."))' 2>/dev/null || echo "?")"
+# MagicDNS short name (first label of DNSName), not Self.HostName: HostName is
+# the OS computer name and goes stale after an admin-console device rename —
+# only DNSName tracks the rename, and that's what other tailnet nodes resolve.
+TS_HOST="${TS_DNS%%.*}"
 echo "  ok logged in"
 echo "     hostname : $TS_HOST"
 echo "     fqdn     : $TS_DNS"

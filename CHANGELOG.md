@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.13-alpha] - 2026-05-14
+
+### Fixed
+
+- **Setup scripts now report the Tailscale MagicDNS name, not the OS computer name.** All five setup scripts (`setup-android.{ps1,sh}`, `setup-android-linux.sh`, `setup-windows.ps1`, `setup-macos.sh`) read `tailscale status --json`'s `Self.HostName` field for the "send this to the agent operator" connection info. `Self.HostName` is the **OS computer name** (e.g. Windows `WIN-20251004GXJ`), which goes stale the moment a device is renamed in the Tailscale admin console — the rename only updates `Self.DNSName`. A user who renamed their device to `win-personal-qjl` in the admin console still got `WIN-20251004GXJ` printed, and that name isn't resolvable by other tailnet nodes via MagicDNS. The scripts now derive the hostname from the first label of `Self.DNSName` (the authoritative MagicDNS name), so the printed `agent URL` and `install-agent-side.py --hostname` command are correct even after an admin-console rename. `TS_HOST` is display-only — no service binding or config file was affected, so existing deployments only need to re-run setup if they want the corrected connection-info output.
+
 ## [0.6.12-alpha] - 2026-05-14
 
 ### Fixed
