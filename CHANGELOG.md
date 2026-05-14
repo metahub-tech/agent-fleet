@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.12-alpha] - 2026-05-14
+
+### Fixed
+
+- **`interact_with_process` no longer raises a raw `OSError [Errno 22]` (Windows) or `BrokenPipeError` (macOS) when sending input to a process that has already exited.** Previously the tool only checked `proc.stdin.closed` before writing, but Python's file-object `.closed` flag does NOT update when the kernel PIPE handle is released as the child dies — so the check passed and the underlying `write()` failed with a confusing OS-level error. `proc.poll()` is now used as the authoritative aliveness check, and the tool returns a friendly `"process pid N already exited (exit_code=C); cannot send input"` instead. Applies to both `win-device` and `mac-device` MCP servers.
+
+### Changed
+
+- **Internal rename cleanup completed.** The GitHub repo was renamed `agent-test-bench` → `agent-fleet` during the v0.6.0 era (see [`docs/design/2026-05-11-agent-fleet-cli.md`](docs/design/2026-05-11-agent-fleet-cli.md)), but internal code, setup scripts, `pyproject.toml` package names, SKILL.md descriptions, and top-level docs (README / CONTRIBUTING / CHANGELOG release-links) all still referenced the old name. v0.6.12 finishes the migration: `pyproject.toml` package names are now `agent-fleet-{windows,macos,android}` (down from `agent-test-bench-*`), platform setup scripts reference the new name in banners and `setup-android-linux.sh`'s systemd unit Description, the no-legacy-naming regression test now blocks `agent-test-bench` from creeping back in, and the `docs/platforms/{windows,macos}.md` guides now lead with a 3-step "quick install" TL;DR pointing at the one-shot setup scripts. Historical design / plan documents (`docs/design/`, `docs/superpowers/plans/`) intentionally retain the old name for record-keeping. **No service identifiers, ports, or APIs changed — the rename is cosmetic.** Existing deployments do not need to re-run setup for the rename portion, but **do** need to pull v0.6.12 and re-run setup to pick up the `interact_with_process` fix above (the bug is harmless until you try to send stdin to a dead process, but the fix should ship anyway).
+
 ## [0.6.11-alpha] - 2026-05-12
 
 ### Changed

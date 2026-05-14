@@ -541,6 +541,14 @@ def interact_with_process(
     if slot is None:
         return {"error": f"pid {pid} not in session map"}
     proc: subprocess.Popen = slot["proc"]
+    # On Windows, writing to stdin of an exited child raises OSError [Errno 22]
+    # EINVAL — Python's file-object .closed flag doesn't reflect the kernel
+    # PIPE handle being released when the child dies. proc.poll() is the
+    # authoritative aliveness check.
+    if proc.poll() is not None:
+        return {
+            "error": f"process pid {pid} already exited (exit_code={proc.returncode}); cannot send input"
+        }
     if proc.stdin is None or proc.stdin.closed:
         return {"error": "stdin not available"}
     try:
