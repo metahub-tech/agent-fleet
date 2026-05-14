@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-test-bench-android"
+name = "agent-fleet-android"
 version = "0.4.0"
-description = "Android device MCP server for agent-test-bench (drives Android via raw ADB)."
+description = "Android device MCP server for agent-fleet (drives Android via raw ADB)."
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 classifiers = [

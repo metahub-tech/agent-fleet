@@ -1,4 +1,4 @@
-# agent-test-bench / Windows MCP service diagnostic
+# agent-fleet / Windows MCP service diagnostic
 #
 # Read-only checks for triaging "the agent host cannot reach my MCP service."
 # Does not require Administrator. Run from anywhere inside the cloned repo:

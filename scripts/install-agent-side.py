@@ -140,7 +140,7 @@ def main() -> None:
     skill_src = REPO_ROOT / "platforms" / spec["dir"] / "skills" / spec["skill"]
     if not skill_src.is_dir():
         sys.exit(f"ERROR: expected skill source at {skill_src} but it doesn't exist.\n"
-                 f"       Are you running from inside the agent-test-bench repo?")
+                 f"       Are you running from inside the agent-fleet repo?")
     config_path = Path(args.config).expanduser()
     skills_dir = Path(args.skills_dir).expanduser()
     url = f"http://{args.hostname}:{spec['port']}/mcp"

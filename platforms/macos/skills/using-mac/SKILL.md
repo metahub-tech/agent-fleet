@@ -1,6 +1,6 @@
 ---
 name: using-mac
-description: Use when invoking mac-device MCP tools to drive a Mac test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell or zsh commands, file or process operations, AppleScript automation, or coordinating exclusive device use across multiple agents.
+description: Use when invoking mac-device MCP tools to drive a Mac test machine (agent-fleet project) -- screenshot-and-click UI testing, long-running shell or zsh commands, file or process operations, AppleScript automation, or coordinating exclusive device use across multiple agents.
 ---
 
 # Using mac-device
@@ -139,7 +139,7 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 
 ## Reference
 
-- Setup: `docs/platforms/macos.md` in agent-test-bench repo
+- Setup: `docs/platforms/macos.md` in agent-fleet repo
 - Source code: `platforms/macos/server/mac_device_mcp.py`
 - launchd plist: `~/Library/LaunchAgents/cc.metahub.mac-device.plist`
 - Service log: `platforms/macos/logs/mac-device.log`

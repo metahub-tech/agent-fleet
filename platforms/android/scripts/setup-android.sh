@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agent-test-bench / Android (macOS host) platform setup
+# agent-fleet / Android (macOS host) platform setup
 #
 # Run from inside the cloned repo (no sudo; brew refuses root):
 #   cd <repo-root>
@@ -43,7 +43,7 @@ CONFIG_PATH="$CONFIG_DIR/config.toml"
 
 mkdir -p "$LOGS_DIR"
 
-echo "=== agent-test-bench / Android Bridge Setup (macOS host) ==="
+echo "=== agent-fleet / Android Bridge Setup (macOS host) ==="
 echo "Repo  : $(cd "$PLATFORM_DIR/../.." && pwd)"
 echo "User  : $(whoami)"
 echo
@@ -217,7 +217,7 @@ if [ "$REUSE" -eq 0 ]; then
         esac
     done
     cat > "$CONFIG_PATH" <<EOF
-# agent-test-bench / android-device server config (macOS host)
+# agent-fleet / android-device server config (macOS host)
 mode = "$MODE_NAME"
 
 [host]

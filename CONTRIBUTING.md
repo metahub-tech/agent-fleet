@@ -1,4 +1,4 @@
-# Contributing to agent-test-bench
+# Contributing to agent-fleet
 
 > **当前状态**：私有 alpha。MetaHub Tech 内部维护。开源发布以 v1.0.0 为目标，预计在四大平台桥（Windows / macOS / Android / iOS）全部稳定且工具公约冻结后发起。
 >
