@@ -5,7 +5,7 @@ description: Use when invoking android-device MCP tools to drive a real Android 
 
 # Using android-device
 
-Drive a remote Android device via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
+Drive a remote Android device via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 23 tools across 9 categories.
 
 ## Mental model
 
@@ -101,7 +101,7 @@ The XML gives `bounds="[L,T][R,B]"` for every clickable element. Compute center 
 - Dumped UI: `protocol_checkbox bounds=[120,2105][168,2153]` → real center (144, 2129)
 - Re-tapped at (144, 2129) → checkbox became ✓
 
-Native UI tools (`dump_ui_xml`, `find_by_resource_id`) ship in v0.4.1; until then this two-line shell pattern is the workaround.
+The native UI tools `dump_ui_hierarchy`, `find_elements`, and `tap_element` are available — use them directly instead of the manual shell workaround when you need exact element bounds.
 
 ### Recipe: read SMS verification code via dual channels
 
@@ -195,14 +195,7 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 - Source code: `platforms/android/server/android_device_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
-- Tool surface: 20 tools across 8 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2)
-
-## Roadmap notes
-
-- v0.4.1 will add native UI introspection tools (`dump_ui_xml`, `find_by_resource_id`) wrapping the `uiautomator dump` recipe above; until then the two-line shell form is fully usable.
-- v0.4.1 will also ship `vibrate(ms, reason)`, `read_sms_inbox(limit)`, and `send_sms(to, body)` as first-class tools (the recipes above formalized; `send_sms` will wrap SENDTO + send-button-tap to handle the OEM-specific button bounds).
-- v0.5 will add multi-device routing (`acquire_android(serial=...)` + per-tool serial param).
-- Long-running ops (`start_logcat` / `start_recording`) are planned; until then use `adb_shell("logcat -d")` for one-shot dumps.
+- Tool surface: 23 tools across 9 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / ui-introspection 3)
 
 ## Red flags
 

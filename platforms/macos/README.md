@@ -1,6 +1,6 @@
 # macOS Platform Bridge
 
-macOS device-host bridge for `agent-fleet` (v0.3.0). Enables LLM agents to drive a Mac for CLI/GUI test automation over Tailscale + MCP.
+macOS device-host bridge for `agent-fleet`. Enables LLM agents to drive a Mac for CLI/GUI test automation over Tailscale + MCP.
 
 Mirrors the Windows bridge architecture (FastMCP server, SSE on Tailscale, advisory acquire/release state model). Integration on Mac is actually simpler than Windows because launchd does the restart-on-crash work in-kernel.
 

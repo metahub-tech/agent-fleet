@@ -99,13 +99,17 @@ agent-fleet/
 │   ├── architecture.md            # 本文件
 │   ├── roadmap.md                 # 平台交付计划
 │   └── platforms/                 # 各平台 setup guide
-│       └── windows.md
+│       ├── windows.md
+│       ├── macos.md
+│       └── android.md
 ├── platforms/                     # 每平台一舱，自包含
-│   └── windows/
-│       ├── README.md              # 平台快速上手
-│       ├── server/                # MCP server 源码 + 依赖
-│       ├── scripts/               # 安装脚本
-│       └── examples/              # 参考配置
+│   ├── windows/
+│   │   ├── README.md              # 平台快速上手
+│   │   ├── server/                # MCP server 源码 + 依赖
+│   │   ├── scripts/               # 安装脚本
+│   │   └── examples/              # 参考配置
+│   ├── macos/                     # 同样子结构
+│   └── android/                   # 同样子结构
 └── examples/                      # 跨平台示例
     └── multi-platform-claude-settings.json
 ```
