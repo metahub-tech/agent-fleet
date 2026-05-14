@@ -6,7 +6,7 @@ from typing import Iterator
 
 from .base import BaseInstaller
 from ._env import setup_env
-from ._android import _android_bridge_smoke_tests, _has_device_in_result
+from ._android import _android_bridge_smoke_tests
 from ..types import (
     GuidanceStep, InstallContext, InstallEvent, OSInfo, VerifyResult,
 )
