@@ -1,7 +1,7 @@
 {
   "_comment": "Merge the mcpServers block into ~/.claude.json (the top-level single-file state, NOT ~/.claude/settings.json). Replace 'mac-test' with the Tailscale MagicDNS hostname of your Mac test machine.",
   "_v0_3_note": "mac-device v0.3.0 uses FastMCP on port 8767 with logical-pixel screenshot, native multi-client streamable-http, and advisory acquire/release state model. Pair with the using-mac skill from platforms/macos/skills/.",
-  "_v0_4_transport": "Migrated SSE -> streamable-http: long tool calls broke SSE keep-alive and yielded -32602 forever. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases). Endpoint path is /mcp instead of /sse.",
+  "_v0_6_transport": "Migrated SSE -> streamable-http in v0.6.0: long tool calls broke SSE keep-alive and yielded -32602 forever. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases). Endpoint path is /mcp instead of /sse.",
   "_recommended_install": "Use scripts/install-agent-side.py --platform mac-device --hostname <DEVICE_HOSTNAME> instead of editing this file by hand.",
   "mcpServers": {
     "mac-device": {

@@ -20,7 +20,7 @@ winget install --id Tailscale.Tailscale -e
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-wizard 结束时会打印你的 **Tailscale 主机名** + **win-device 的 SSE URL** + agent 端配置 snippet。
+wizard 结束时会打印你的 **Tailscale 主机名** + **win-device 的 MCP endpoint URL** + agent 端配置 snippet。
 
 > **GUI 测试还需要一步手动配置**：Windows 重启后任务能自动重启的前提是有用户登录到桌面，所以要打开自动登录 —— 见 [§5 自动登录](#5-自动登录gui-测试必需)。
 >
@@ -94,7 +94,7 @@ powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windo
 | 4/5 | 防火墙：8766 仅 Tailscale IP 段（100.64.0.0/10 + fd7a:115c:a1e0::/48）入站允许 |
 | 5/5 | 注册 Task Scheduler 任务 `MCP-WinDevice`（登录时自启），立刻启动并自检端口 |
 
-脚本结束时会打印你的 **Tailscale 主机名** 和 **win-device 的 SSE URL**，把这两条信息发给 Agent 操作员（或自己留着）。
+脚本结束时会打印你的 **Tailscale 主机名** 和 **win-device 的 MCP endpoint URL**，把这两条信息发给 Agent 操作员（或自己留着）。
 
 > v0.1 还有第二个服务 `MCP-DesktopCommander`（端口 8765，npm + mcp-proxy 栈），v0.2 起合并进 win-device。setup 脚本会把老版本残留全部清理掉。
 
@@ -202,7 +202,7 @@ Start-ScheduledTask -TaskName MCP-WinDevice
 
 ### 7.5 多 Agent 协作下的"使用状态"管理
 
-win-device 是 FastMCP 原生 SSE，**支持多客户端并发连接**——所以多个 agent 同时连不会互相挤掉（这是相比 v0.1 的 winpc-shell 大的改进）。
+win-device 是 FastMCP streamable-http，**支持多客户端并发连接**——所以多个 agent 同时连不会互相挤掉（这是相比 v0.1 的 winpc-shell 大的改进）。
 
 但 GUI 操作（鼠标、键盘、截屏）有共享物理资源的风险——agent A 在打字时 agent B 抢着点鼠标会互相干扰。所以 win-device 引入了**advisory 单持有者**模式：
 
@@ -219,13 +219,13 @@ Agent B: get_winpc_status()                        # 查谁在用
 - **advisory**：工具不强制阻止——anyone can call tools。但 `get_winpc_status` 显示当前持有者，agent 应该礼貌等待
 - **idle 超时 10 分钟**自动释放（防止 holder 忘了 release 锁住设备）
 - 持有者每次调用工具都会刷新 last_used_at
-- 计划在 v0.5 加入强制模式（rejected if not holder）
+- 未来版本计划加入强制模式（rejected if not holder）
 
 ---
 
 ## 附录 · 工具列表
 
-`win-device` MCP（FastMCP 原生 SSE，监听 `0.0.0.0:8766/sse`）暴露的全部工具：
+`win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：
 
 | 类别 | 工具 |
 |---|---|
@@ -240,4 +240,4 @@ Agent B: get_winpc_status()                        # 查谁在用
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_powershell` |
 
-> v0.1 还有一个独立的 `winpc-shell` MCP（端口 8765，npm `desktop-commander` + Python `mcp-proxy`），由于 single-client 限制 + npm 缓存竞争 + IPv6-only 绑定 + Windows ENOTEMPTY 等等多个上游问题，v0.2 整层并入 win-device。原来 desktop-commander 的工具按等价语义重写为 Python，FastMCP 原生支持多客户端，且不再依赖 Node.js / npm。
+> v0.1 还有一个独立的 `winpc-shell` MCP（端口 8765，npm `desktop-commander` + Python `mcp-proxy`），由于 single-client 限制 + npm 缓存竞争 + IPv6-only 绑定 + Windows ENOTEMPTY 等等多个上游问题，v0.2 整层并入 win-device。原来 desktop-commander 的工具按等价语义重写为 Python，FastMCP streamable-http 原生支持多客户端，且不再依赖 Node.js / npm。

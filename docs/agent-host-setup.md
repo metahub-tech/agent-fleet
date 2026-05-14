@@ -55,7 +55,7 @@ tailscale ping <DEVICE_HOSTNAME>
 }
 ```
 
-> **历史变更（v0.4.x）**：之前用 SSE（`"type": "sse"` + `/sse`），但长任务（>60s）会让 SSE 心跳超时被 Tailscale DERP / NAT 中转切断，client 留旧 session_id，server 不认 → `-32602` 至 `/exit` 重启。已迁到 streamable-http (`"type": "http"` + `/mcp`)，per-request 自动重连，问题根除。如果你的 `~/.claude.json` 仍是 `sse`/`/sse`，跑 `install-agent-side.py` 自动覆写。
+> **历史变更（v0.6.0）**：之前用 SSE（`"type": "sse"` + `/sse`），但长任务（>60s）会让 SSE 心跳超时被 Tailscale DERP / NAT 中转切断，client 留旧 session_id，server 不认 → `-32602` 至 `/exit` 重启。已迁到 streamable-http (`"type": "http"` + `/mcp`)，per-request 自动重连，问题根除。如果你的 `~/.claude.json` 仍是 `sse`/`/sse`，跑 `install-agent-side.py` 自动覆写。
 
 把 `<WIN_HOSTNAME>` 替换为设备管理员告诉你的 Tailscale 主机名。
 
@@ -69,7 +69,7 @@ tailscale ping <DEVICE_HOSTNAME>
 
 ### 其他 MCP client
 
-`url` 与 `type=sse` 的概念其他 MCP client 也用，差异在配置文件位置：
+`url` 与 `type=http (streamable-http)` 的概念其他 MCP client 也用，差异在配置文件位置：
 
 | Client | 配置文件 | 字段名 |
 |---|---|---|
@@ -93,7 +93,7 @@ tailscale ping <DEVICE_HOSTNAME>
 Claude Code 中运行 `/mcp`，应看到：
 
 ```
-win-device  [sse]  connected
+win-device  [http]  connected
 ```
 
 ### 3.3 多 Agent 协作（v0.2+）
@@ -132,7 +132,7 @@ python3 scripts/install-agent-side.py --platform mac-device --hostname <DEVICE_H
 
 会自动备份 `~/.claude.json` → 把 mcpServers 条目 merge 进去 → 把 `platforms/<name>/skills/using-<name>` 软链到 `~/.claude/skills/`。幂等，重复跑无害。详见 [`install-pattern.md`](install-pattern.md)。
 
-### 3.4 调一个工具
+### 3.5 调一个工具
 
 让 Agent 跑：
 

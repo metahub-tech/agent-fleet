@@ -2,7 +2,7 @@
   "_comment": "Merge the mcpServers block into ~/.claude.json (the top-level single-file state, NOT ~/.claude/settings.json). Replace 'android-host' with the Tailscale MagicDNS hostname of the PC that runs android_mcp.py (Win11 or macOS).",
   "_v0_4_note": "android-device v0.4.0 runs on a PC HOST (not the phone). The host bridges to one Android device via raw ADB (USB / Wireless / Hybrid; chosen at host setup). Single device only in v0.4.",
   "_recommended_install": "Use scripts/install-agent-side.py --platform android-device --hostname <ANDROID_HOST_HOSTNAME> instead of editing this file by hand.",
-  "_v0_4_transport": "Migrated SSE -> streamable-http: long tool calls broke SSE keep-alive and yielded -32602 forever. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases). Endpoint path is /mcp instead of /sse.",
+  "_v0_6_transport": "Migrated SSE -> streamable-http in v0.6.0: long tool calls broke SSE keep-alive and yielded -32602 forever. type is now 'http' (Claude Code accepts 'http' or 'streamable-http' as aliases). Endpoint path is /mcp instead of /sse.",
   "mcpServers": {
     "android-device": {
       "type": "http",

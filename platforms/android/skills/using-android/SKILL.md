@@ -5,12 +5,12 @@ description: Use when invoking android-device MCP tools to drive a real Android 
 
 # Using android-device
 
-Drive a remote Android device via the `android-device` MCP server (FastMCP, SSE on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
+Drive a remote Android device via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 20 tools across 8 categories.
 
 ## Mental model
 
 ```
-[You / Agent]  -- SSE -->  [PC Host running android-device MCP]  -- ADB --> [Android Phone]
+[You / Agent]  -- streamable-http -->  [PC Host running android-device MCP]  -- ADB --> [Android Phone]
 ```
 
 You drive the SERVER. The server drives ADB. ADB drives the PHONE. You don't touch the phone directly.

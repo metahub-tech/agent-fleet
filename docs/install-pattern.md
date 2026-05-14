@@ -38,8 +38,8 @@
 |---|---|
 | Windows | `powershell -ExecutionPolicy Bypass -File platforms\windows\scripts\setup-windows.ps1` |
 | macOS | `bash platforms/macos/scripts/setup-macos.sh` |
-| Android (v0.4 计划) | `bash platforms/android/scripts/setup-android.sh` |
-| iOS (v0.5 计划) | TBD（host 必须是 macOS）|
+| Android | `bash platforms/android/scripts/setup-android.sh` |
+| iOS (v0.7 计划) | TBD（host 必须是 macOS）|
 
 setup 脚本做的事大同小异：
 
@@ -88,7 +88,7 @@ python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
 # 然后再启动 Claude Code
 
 # 验证
-/mcp           # 应看到 mac-device [sse] connected
+/mcp           # 应看到 mac-device [http] connected
 ```
 
 > **多设备**：每台设备跑一次 install-agent-side.py，`~/.claude.json` 会逐步累加 server 条目。
@@ -127,7 +127,7 @@ platforms/<name>/
 
 ## 5. 添加新平台 · 范式
 
-按这八步从零起手一个新平台桥（以未来要加的 `linux-gui` 为虚构示例）：
+按这八步从零起手一个新平台桥（以未来要加的 `linux-device` 为虚构示例）：
 
 1. **建骨架**：`mkdir -p platforms/linux/{server,scripts,skills/using-linuxbox,examples}`
 2. **port server**：从最近的平台（macOS 最近）port `<name>_gui_mcp.py`，把平台特定 API 替换掉（pyautogui 在 X11 也能用；shell 由 `run_zsh` 改 `run_bash`；`run_applescript` 替换为 `run_dbus` / 删除）
@@ -145,7 +145,7 @@ platforms/<name>/
 bash platforms/linux/scripts/setup-linux.sh
 
 # Agent 端
-python3 scripts/install-agent-side.py --platform linux-gui --hostname linux-test
+python3 scripts/install-agent-side.py --platform linux-device --hostname linux-test
 ```
 
 应该和现有平台行为完全对称。
@@ -174,7 +174,7 @@ python3 scripts/install-agent-side.py --platform linux-gui --hostname linux-test
 | 在 setup-macos.sh 里加 Windows-only 逻辑 | 平台 silo，每个 setup 只动自己平台的东西 |
 | 给 setup 脚本加 sudo / Administrator 跑 | brew 拒绝 root；Windows Task Scheduler 装在用户级；MCP server 必须以登录用户身份跑 |
 | 多个平台共用同一端口 | 8766/8767/8768/8769 各占一个，跨平台同时监听才能并行用 |
-| 用 SSE 跑长任务（>60s） | v0.4.x 已迁到 streamable-http；新部署不要再选 sse 路径。原 SSE 长连接被 Tailscale DERP / NAT 中间盒切断后会留下 stale session_id，所有调用 `-32602` 直至重启 client。streamable-http 是 per-request stream，自动续连。 |
+| 用 SSE 跑长任务（>60s） | v0.6.0 已迁到 streamable-http；新部署不要再选 sse 路径。原 SSE 长连接被 Tailscale DERP / NAT 中间盒切断后会留下 stale session_id，所有调用 `-32602` 直至重启 client。streamable-http 是 per-request stream，自动续连。 |
 
 ---
 

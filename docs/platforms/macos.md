@@ -98,7 +98,7 @@ bash platforms/macos/scripts/setup-macos.sh
 
 脚本结束时会打印：
 - 你的 Tailscale 主机名
-- mac-device 的 SSE URL
+- mac-device 的 MCP endpoint URL
 - **GUI 权限授权清单**（必须手动做）
 
 ## 4. GUI 权限授权（必须，一次性）
@@ -190,7 +190,7 @@ System Settings → Privacy & Security → Full Disk Access (完全磁盘访问)
 
 ### 4.3.6 一次同意 = 永久生效（除非...）
 
-权限第一次弹窗、点 Allow 后**永久持久**，重启 / 重 launchd / git pull / 重新连接 SSE 都不会再问。会重新触发弹窗的情况：
+权限第一次弹窗、点 Allow 后**永久持久**，重启 / 重 launchd / git pull / 重新连接 MCP 都不会再问。会重新触发弹窗的情况：
 
 - macOS 大版本升级（12 → 13 → 14），TCC 数据库迁移偶尔失败
 - `brew upgrade python@3.12` 把 binary 换成新的（次要版本变化）
@@ -224,7 +224,7 @@ $VENV_PY -c "from PIL import ImageGrab; print('screen:', ImageGrab.grab().size)"
 
 ```bash
 # 服务进程
-launchctl list | grep macbox
+launchctl list | grep mac-device
 
 # 端口
 lsof -nP -iTCP:8767 -sTCP:LISTEN
@@ -344,7 +344,7 @@ Agent A: release_mac(holder_name="...")  # 显式释放
 
 ## 附录 · 工具列表
 
-`mac-device` MCP（监听 `0.0.0.0:8767/sse`）暴露的工具：
+`mac-device` MCP（监听 `0.0.0.0:8767/mcp`）暴露的工具：
 
 | 类别 | 工具 |
 |---|---|
