@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional
 
 
 @dataclass
@@ -76,6 +76,4 @@ class GuidanceStep:
     default_description: str
     variants: dict[str, GuidanceVariant] = field(default_factory=dict)
     variant_label: str = ""    # e.g. "Android 品牌"
-    verify_fn: Optional[Callable[[], bool]] = None
-    verify_label: str = ""     # e.g. "wizard runs pyautogui.position()"
     id: str = ""               # YAML key; used to dispatch primers (e.g. "macos_accessibility")

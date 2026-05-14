@@ -6,9 +6,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from fleet.smoke import SmokeResult, SmokeTest
-from fleet.installers.macos import (
-    MacosDesktop, MacosAndroidBridge, _has_device_in_result,
-)
+from fleet.installers.macos import MacosDesktop, MacosAndroidBridge
+from fleet.installers._android import _has_device_in_result
 from fleet.installers.linux import LinuxAndroidBridge
 from fleet.installers.windows import WindowsDesktop, WindowsAndroidBridge
 

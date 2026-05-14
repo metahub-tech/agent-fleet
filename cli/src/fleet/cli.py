@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
 
 import questionary
 from rich.console import Console
@@ -72,7 +71,7 @@ def _select_network(ts):
     return choice or "lan"
 
 
-def _select_android_config() -> tuple[Optional[str], bool]:
+def _select_android_config() -> tuple[str | None, bool]:
     """Collect android-device's ADB-mode / config-reuse choice up front.
 
     Returns (android_mode, android_reuse_config). Called only when
@@ -274,6 +273,33 @@ def _run_guidance(roles, ctx):
             questionary.press_any_key_to_continue("  ↩ press Enter when done").ask()
 
 
+def _warn_preflight(roles) -> None:
+    """Run preflight() on each installer and print a warning block if any prerequisites are missing.
+
+    This is warn-and-continue: the install proceeds regardless, but the user
+    sees the missing-prereq info BEFORE the setup subprocess fails deep down.
+    """
+    missing_by_role = {}
+    for r in roles:
+        issues = r.preflight()
+        if issues:
+            missing_by_role[r.role_id] = issues
+
+    if not missing_by_role:
+        return
+
+    console.print()
+    console.print(Panel(
+        "\n".join(
+            f"[bold]{role_id}[/bold]\n" + "\n".join(f"  · {item}" for item in items)
+            for role_id, items in missing_by_role.items()
+        ),
+        title="[yellow]⚠ Missing prerequisites — install may fail[/yellow]",
+        border_style="yellow",
+    ))
+    console.print("[yellow]  Install will proceed; address the above to avoid failures.[/yellow]\n")
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     osi, ts = _banner()
     roles = _select_roles(osi)
@@ -302,6 +328,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         android_reuse_config=android_reuse_config,
     )
 
+    _warn_preflight(roles)
     deployed, deployed_installers = _run_install(roles, ctx)
     if args.dry_run:
         console.print("\n[dim]↪ Skipping operation guidance + smoke tests (dry-run).[/dim]")
@@ -331,7 +358,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agent-fleet", description="agent-fleet: install MCP servers and generate agent-client config")
     parser.add_argument("--version", action="version", version=fleet.__version__)
     sub = parser.add_subparsers(dest="cmd")

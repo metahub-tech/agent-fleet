@@ -36,7 +36,6 @@ class SmokeResult:
     skipped: bool = False
     duration_ms: int = 0
     error: str = ""
-    note: str = ""               # extra context shown next to pass mark (e.g. "1080×2340")
     connection_error: bool = False  # True when the failure was at connect time, not test time
                                     # (lets the wizard render one connection-error line
                                     # instead of N copies + N misleading per-test hints)

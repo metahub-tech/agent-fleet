@@ -25,6 +25,11 @@ dependencies = [
     "mcp>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/metahub-tech/agent-fleet"
+Repository = "https://github.com/metahub-tech/agent-fleet"
+Changelog = "https://github.com/metahub-tech/agent-fleet/blob/main/CHANGELOG.md"
+
 [project.scripts]
 agent-fleet = "fleet.cli:main"
 
