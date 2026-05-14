@@ -123,15 +123,14 @@ def install_skill_symlink(skills_dir: Path, skill_name: str, target: Path, dry_r
 
 
 def main() -> None:
-    # --- DEPRECATION NOTICE (v0.5.0+) ---
+    # --- NOTICE ---
     print("=" * 72, file=sys.stderr)
-    print(" DEPRECATION NOTICE", file=sys.stderr)
-    print("   scripts/install-agent-side.py is deprecated as of v0.5.0.", file=sys.stderr)
-    print("   Use the new wizard instead:", file=sys.stderr)
+    print(" NOTE: scripts/install-agent-side.py", file=sys.stderr)
+    print("   This script is still supported and documented in", file=sys.stderr)
+    print("   docs/install-pattern.md and docs/agent-host-setup.md.", file=sys.stderr)
+    print("   For most users, the interactive wizard is easier:", file=sys.stderr)
     print("     uvx agent-fleet setup", file=sys.stderr)
-    print("   or, with the one-shot bootstrap:", file=sys.stderr)
-    print("     curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh | bash", file=sys.stderr)
-    print("   This script will be removed in v0.6.0.", file=sys.stderr)
+    print("   or use the one-shot bootstrap (see README for the exact command).", file=sys.stderr)
     print("=" * 72, file=sys.stderr)
     print(file=sys.stderr)
     # --- end ---
