@@ -1,8 +1,33 @@
 # Windows Platform Setup Guide
 
-> 把一台 Windows 10/11 配置为 agent-test-bench 测试主机。整个过程通常 < 15 分钟，绝大部分由 `setup-windows.ps1` 自动化。
+> 把一台 Windows 10/11 配置为 agent-fleet 测试主机。整个过程通常 < 15 分钟，绝大部分由 `setup-windows.ps1` 自动化。
 >
 > 本指南只面向 **Windows 主机的本地管理员**。Agent 端（你的 Linux/Mac 开发机或 Claude Code 所在主机）的配置见 [`../agent-host-setup.md`](../agent-host-setup.md)。
+
+## 快速安装（3 步搞定）
+
+**前置**：Windows 10/11、本机管理员账户、[Tailscale](https://tailscale.com) 账户、[Git for Windows](https://git-scm.com/)（或用 ZIP，见 §2）、互联网。
+
+```powershell
+# 1. 装 Tailscale 并登录（系统托盘点 Login，用与 Agent 主机相同的账号）
+winget install --id Tailscale.Tailscale -e
+
+# 2. 拿代码（建议路径 C:\agent-fleet，避免空格；没装 Git 走 §2 选项 A 浏览器下 ZIP 解压）
+git clone https://github.com/metahub-tech/agent-fleet.git C:\agent-fleet
+cd C:\agent-fleet
+
+# 3. 以管理员身份打开 PowerShell，跑安装脚本
+#    （自动装 Python + 建 venv + 配防火墙 + 注册 Task Scheduler）
+powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
+```
+
+脚本结束时会打印你的 **Tailscale 主机名** 和 **win-device 的 SSE URL**，把这两条信息发给 Agent 操作员（或自己留着）即可。
+
+> **GUI 测试还需要一步手动配置**：Windows 重启后任务能自动重启的前提是有用户登录到桌面，所以要打开自动登录 —— 见 [§5 自动登录](#5-自动登录gui-测试必需)。
+>
+> **想了解每步在干什么 / 出问题了怎么办**：往下看详细版。
+
+---
 
 ## 0. 前置条件
 
@@ -31,9 +56,9 @@ tailscale status
 
 ### 选项 A · 浏览器下载 ZIP（最简单，不需要装 Git）
 
-1. 浏览器打开 https://github.com/metahub-tech/agent-test-bench
+1. 浏览器打开 https://github.com/metahub-tech/agent-fleet
 2. 点绿色 `Code` 按钮 → `Download ZIP`
-3. 解压到 `C:\agent-test-bench`（路径任选，避免空格）
+3. 解压到 `C:\agent-fleet`（路径任选，避免空格）
 
 ### 选项 B · git clone
 
@@ -41,11 +66,11 @@ tailscale status
 
 ```powershell
 # 公开版本（v1.0+）
-git clone https://github.com/metahub-tech/agent-test-bench.git C:\agent-test-bench
+git clone https://github.com/metahub-tech/agent-fleet.git C:\agent-fleet
 
 # 当前私有阶段：用 GitHub CLI 鉴权
 gh auth login
-gh repo clone metahub-tech/agent-test-bench C:\agent-test-bench
+gh repo clone metahub-tech/agent-fleet C:\agent-fleet
 ```
 
 ## 3. 跑安装脚本
@@ -53,7 +78,7 @@ gh repo clone metahub-tech/agent-test-bench C:\agent-test-bench
 **以管理员身份打开 PowerShell**，进入仓库目录：
 
 ```powershell
-cd C:\agent-test-bench
+cd C:\agent-fleet
 powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
 ```
 
@@ -117,7 +142,7 @@ Get-NetFirewallRule -DisplayName "MCP *" | Remove-NetFirewallRule
 netsh interface portproxy delete v4tov6 listenport=8765 listenaddress=0.0.0.0 2>$null
 
 # 删仓库目录（venv、所有依赖一起删干净）
-Remove-Item -Recurse -Force C:\agent-test-bench
+Remove-Item -Recurse -Force C:\agent-fleet
 ```
 
 ---
@@ -141,7 +166,7 @@ powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\diagnose.ps
 Get-ScheduledTaskInfo -TaskName MCP-WinDevice | Format-List
 
 # 手动跑 win-device 看实际错
-$ServerDir = "C:\agent-test-bench\platforms\windows\server"
+$ServerDir = "C:\agent-fleet\platforms\windows\server"
 & "$ServerDir\.venv\Scripts\python.exe" "$ServerDir\win_device_mcp.py"
 ```
 

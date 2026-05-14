@@ -1,6 +1,6 @@
 # macOS Platform Bridge
 
-macOS device-host bridge for `agent-test-bench` (v0.3.0). Enables LLM agents to drive a Mac for CLI/GUI test automation over Tailscale + MCP.
+macOS device-host bridge for `agent-fleet` (v0.3.0). Enables LLM agents to drive a Mac for CLI/GUI test automation over Tailscale + MCP.
 
 Mirrors the Windows bridge architecture (FastMCP server, SSE on Tailscale, advisory acquire/release state model). Integration on Mac is actually simpler than Windows because launchd does the restart-on-crash work in-kernel.
 
@@ -15,8 +15,8 @@ TL;DR (Mac terminal):
 brew install --cask tailscale
 
 # 2. Get the code
-git clone https://github.com/metahub-tech/agent-test-bench.git ~/agent-test-bench
-cd ~/agent-test-bench
+git clone https://github.com/metahub-tech/agent-fleet.git ~/agent-fleet
+cd ~/agent-fleet
 
 # 3. Setup
 bash platforms/macos/scripts/setup-macos.sh
