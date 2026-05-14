@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLATFORM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SERVER_DIR="$PLATFORM_DIR/server"
 VENV_PY="$SERVER_DIR/.venv/bin/python3"
-SERVER_PY="$SERVER_DIR/android_mcp.py"
+SERVER_PY="$SERVER_DIR/android_device_mcp.py"
 
 if [ ! -x "$VENV_PY" ]; then
     echo "ERROR: venv python missing at $VENV_PY" >&2

@@ -191,8 +191,8 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 
 ## Reference
 
-- Setup: `docs/platforms/android.md` in agent-fleet repo (planned)
-- Source code: `platforms/android/server/android_mcp.py`
+- Setup: `docs/platforms/android.md` in agent-fleet repo
+- Source code: `platforms/android/server/android_device_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
 - Tool surface: 20 tools across 8 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2)

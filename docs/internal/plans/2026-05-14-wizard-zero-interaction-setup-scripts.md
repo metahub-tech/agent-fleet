@@ -1,5 +1,7 @@
 # wizard 模式下 setup 脚本零交互 Implementation Plan
 
+> _Internal development artifact — kept for historical record, not user-facing documentation. See [docs/internal/README.md](../README.md)._
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 android-device 的 ADB-mode / config-reuse 交互、以及 setup-windows.ps1 的 Tailscale-not-installed 暂停点，从 setup 脚本上提到 Python wizard，用环境变量驱动脚本，根治 wizard 管道捕获与脚本内 `Read-Host` 冲突导致的卡死/错乱。

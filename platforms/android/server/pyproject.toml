@@ -22,3 +22,6 @@ dependencies = [
     "pillow>=10.0",
     "pydantic>=2.0",
 ]
+
+[tool.setuptools]
+py-modules = ["android_device_mcp"]

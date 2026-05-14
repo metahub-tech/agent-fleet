@@ -1,9 +1,8 @@
 """Global regression: legacy role-ID and service-identifier strings must not
 appear in active code/config.
 
-Allowlisted areas: CHANGELOG (historical record), docs/superpowers/plans/ (the
-plan itself documents the rename), docs/design/ (historical specs), and the
-package's own .venv / test_env directories.
+Allowlisted areas: CHANGELOG (historical record), docs/internal/ (historical
+plans, specs, and design docs), and the package's own .venv / test_env directories.
 
 This test is the safety net for the rename done in v0.6.0-alpha (Tasks 7-16).
 It commits to main while still failing — Tasks 10-16 drive it to green.
@@ -34,9 +33,7 @@ LEGACY = [
 # Path-prefix substrings we don't scan (historical, generated, or external).
 ALLOW_PATH_PREFIXES = (
     "CHANGELOG.md",
-    "docs/superpowers/plans/",
-    "docs/superpowers/specs/",
-    "docs/design/",
+    "docs/internal/",
     "cli/.venv/",
     "cli/test_env/",
     ".git/",

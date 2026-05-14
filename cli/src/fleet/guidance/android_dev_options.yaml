@@ -7,6 +7,6 @@ step:
     各家 OEM 路径不同（华为 / 小米 / Samsung / OPPO / vivo / Pixel / OnePlus / ...）。
     完整对照表 + 故障排查见独立文档：
 
-        https://github.com/metahub-tech/agent-fleet/blob/main/docs/android-setup.md#step-1-enable-developer-options
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/platforms/android.md#step-1-enable-developer-options
 
     解锁成功后会有 "You are now a developer!" 提示。完成后回车继续。

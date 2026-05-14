@@ -1,5 +1,7 @@
 # wizard 模式下 setup 脚本零交互 — 设计
 
+> _Internal development artifact — kept for historical record, not user-facing documentation. See [docs/internal/README.md](../README.md)._
+
 **日期**: 2026-05-14
 **状态**: 设计已确认，待写实施计划
 

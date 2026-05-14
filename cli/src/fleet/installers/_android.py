@@ -4,7 +4,7 @@ from __future__ import annotations
 
 def _android_bridge_smoke_tests():
     """Shared smoke tests for the android-device role regardless of host OS
-    (Mac / Windows / Linux all run the same android_mcp.py server)."""
+    (Mac / Windows / Linux all run the same android_device_mcp.py server)."""
     from ..smoke import SmokeTest
     return [
         SmokeTest("get_android_status", {},

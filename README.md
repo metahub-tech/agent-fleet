@@ -80,7 +80,7 @@ wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 
 | **新手**（让 wizard 带你走） | 跑上面那行命令，跟着提示选 |
 | **设备管理员，要自己写脚本编排部署** | [`docs/install-pattern.md`](docs/install-pattern.md)（底层脚本契约）|
 | **Agent 操作员** | wizard 输出的 snippet 直接 paste 到对应 agent 配置；也可参考 [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
-| **设计文档**（贡献者） | [`docs/design/2026-05-11-agent-fleet-cli.md`](docs/design/2026-05-11-agent-fleet-cli.md) |
+| **设计文档**（贡献者） | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## English Quick Start
 

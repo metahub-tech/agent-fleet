@@ -1,5 +1,7 @@
 # agent-fleet CLI Implementation Plan
 
+> _Internal development artifact — kept for historical record, not user-facing documentation. See [docs/internal/README.md](../README.md)._
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship `uvx agent-fleet setup` — a single-device wizard that installs MCP server(s), guides through GUI permissions / ADB authorization, and generates agent-client config snippets for 6 frameworks, replacing the current "read 5 docs and copy 3 scripts" flow.

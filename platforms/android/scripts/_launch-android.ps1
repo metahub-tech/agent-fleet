@@ -25,7 +25,7 @@ $LogsDir     = Join-Path $PlatformDir "logs"
 $null = New-Item -ItemType Directory -Path $LogsDir -Force -ErrorAction SilentlyContinue
 
 $Python = Join-Path $ServerDir ".venv\Scripts\python.exe"
-$Server = Join-Path $ServerDir "android_mcp.py"
+$Server = Join-Path $ServerDir "android_device_mcp.py"
 $Log    = Join-Path $LogsDir "android-device.log"
 
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" | Out-File -FilePath $Log -Append -Encoding utf8
