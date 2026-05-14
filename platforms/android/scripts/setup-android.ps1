@@ -67,8 +67,11 @@ if ($null -eq $tsStatus -or $null -eq $tsStatus.Self -or [string]::IsNullOrEmpty
     Write-Host "  Run: tailscale login   -- then re-run this script."
     exit 1
 }
-$TS_HOST = $tsStatus.Self.HostName
 $TS_DNS  = $tsStatus.Self.DNSName -replace '\.$',''
+# MagicDNS short name (first label of DNSName), not Self.HostName: HostName is
+# the OS computer name and goes stale after an admin-console device rename —
+# only DNSName tracks the rename, and that's what other tailnet nodes resolve.
+$TS_HOST = ($TS_DNS -split '\.')[0]
 Write-Host "  ok  hostname = $TS_HOST"
 Write-Host "      fqdn     = $TS_DNS"
 

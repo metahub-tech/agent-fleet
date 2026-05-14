@@ -126,8 +126,11 @@ if (-not $tsStatus.Self -or -not $tsStatus.Self.HostName) {
     Write-Host "  Tailscale is not logged in. Open the tray icon, click Login, then re-run this script." -ForegroundColor Red
     exit 1
 }
-$tsHost = $tsStatus.Self.HostName
 $tsDNS  = $tsStatus.Self.DNSName.TrimEnd('.')
+# MagicDNS short name (first label of DNSName), not Self.HostName: HostName is
+# the OS computer name and goes stale after an admin-console device rename —
+# only DNSName tracks the rename, and that's what other tailnet nodes resolve.
+$tsHost = ($tsDNS -split '\.')[0]
 Write-Host "  ok logged in"
 Write-Host "     hostname : $tsHost"
 Write-Host "     fqdn     : $tsDNS"
