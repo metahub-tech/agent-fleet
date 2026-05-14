@@ -141,26 +141,56 @@ if (-not (Test-Path $VenvDir)) {
 Write-Host "  ok  deps installed"
 
 # ---------- 5. ADB connection mode ----------
+# Priority:
+#   1. ATB_ANDROID_REUSE_CONFIG=1  -> keep existing config, skip everything
+#   2. ATB_ANDROID_MODE=<mode>     -> wizard already asked; use it non-interactively
+#   3. interactive fallback        -> standalone run (no wizard); stdout is a real terminal
 Write-Host ""
 Write-Host "[5/9] ADB connection mode" -ForegroundColor Cyan
-$existing = $null
-if (Test-Path $ConfigPath) {
-    $existing = (Get-Content $ConfigPath -Raw)
-    Write-Host "  existing $ConfigPath found:"
-    Write-Host $existing
-    $reuse = Read-Host "  reuse it? [Y/n]"
-    if ($reuse -ne "n" -and $reuse -ne "N") {
-        Write-Host "  ok  using existing config"
-    } else { $existing = $null }
-}
-if (-not $existing) {
-    Write-Host "  Choose ADB connection mode:"
-    Write-Host "    1) USB only             (cable always required; per-plug authorization on phone)"
-    Write-Host "    2) Wireless Debugging   (Android 11+ / HarmonyOS 4 native pairing)"
-    Write-Host "    3) Hybrid (USB enroll)  (Android 5-10 -- adb tcpip 5555; reconnect after each phone reboot)"
-    do { $mode = Read-Host "  mode [1/2/3]" } while ($mode -notin @("1","2","3"))
-    $modeName = switch ($mode) { "1" {"usb"} "2" {"wireless"} "3" {"hybrid"} }
 
+$modeName = $null
+$reuseConfig = $false
+
+if ($env:ATB_ANDROID_REUSE_CONFIG -eq "1") {
+    if (Test-Path $ConfigPath) {
+        Write-Host "  ok  reusing existing config $ConfigPath"
+        $reuseConfig = $true
+    } else {
+        Write-Host "  ATB_ANDROID_REUSE_CONFIG=1 but $ConfigPath missing -- selecting mode instead" -ForegroundColor Yellow
+    }
+}
+
+if (-not $reuseConfig) {
+    if ($env:ATB_ANDROID_MODE) {
+        $modeName = $env:ATB_ANDROID_MODE
+        if ($modeName -notin @("usb", "wireless", "hybrid")) {
+            Write-Host "  ERROR: ATB_ANDROID_MODE='$modeName' invalid (expected usb/wireless/hybrid)" -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "  using ADB mode from wizard: $modeName"
+    } else {
+        # interactive fallback -- standalone run
+        if (Test-Path $ConfigPath) {
+            Write-Host "  existing $ConfigPath found:"
+            Get-Content $ConfigPath | ForEach-Object { Write-Host "    $_" }
+            $reuse = Read-Host "  reuse it? [Y/n]"
+            if ($reuse -ne "n" -and $reuse -ne "N") {
+                Write-Host "  ok  using existing config"
+                $reuseConfig = $true
+            }
+        }
+        if (-not $reuseConfig) {
+            Write-Host "  Choose ADB connection mode:"
+            Write-Host "    1) USB only             (cable always required; per-plug authorization on phone)"
+            Write-Host "    2) Wireless Debugging   (Android 11+ / HarmonyOS 4 native pairing)"
+            Write-Host "    3) Hybrid (USB enroll)  (Android 5-10 -- adb tcpip 5555; reconnect after each phone reboot)"
+            do { $m = Read-Host "  mode [1/2/3]" } while ($m -notin @("1", "2", "3"))
+            $modeName = switch ($m) { "1" {"usb"} "2" {"wireless"} "3" {"hybrid"} }
+        }
+    }
+}
+
+if (-not $reuseConfig) {
     if (-not (Test-Path $ConfigDir)) { New-Item -ItemType Directory -Path $ConfigDir | Out-Null }
     $config = @"
 # agent-fleet / android-device server config

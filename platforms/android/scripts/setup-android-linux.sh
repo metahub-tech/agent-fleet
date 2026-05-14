@@ -119,39 +119,64 @@ echo "  ok"
 echo
 
 # ---------- 5. ADB connection mode ----------
+# Priority:
+#   1. ATB_ANDROID_REUSE_CONFIG=1  -> keep existing config, skip everything
+#   2. ATB_ANDROID_MODE=<mode>     -> wizard already asked; use it non-interactively
+#   3. interactive fallback        -> standalone run (no wizard)
 LAST_STEP="[5/8] ADB connection mode"
 echo "$LAST_STEP"
 mkdir -p "$CONFIG_DIR"
 REUSE=0
-if [ -f "$CONFIG_PATH" ]; then
-    echo "  existing $CONFIG_PATH found:"
-    cat "$CONFIG_PATH"
-    # Prompts MUST end with a newline so the line-buffered pipe in the
-    # agent-fleet wizard flushes the prompt text before bash blocks on read.
-    # Without the newline, the prompt sits in the pipe buffer and the user
-    # sees a blank/hung wizard until they type something blind.
-    echo "  Press Enter to keep this config, or 'n' to switch ADB mode (USB/Wireless/Hybrid):"
-    read -r ans
-    if [[ "$ans" != "n" && "$ans" != "N" ]]; then
+MODE_NAME=""
+
+if [ "$ATB_ANDROID_REUSE_CONFIG" = "1" ]; then
+    if [ -f "$CONFIG_PATH" ]; then
+        echo "  ok reusing existing config $CONFIG_PATH"
         REUSE=1
-        echo "  ok using existing config"
+    else
+        echo "  ATB_ANDROID_REUSE_CONFIG=1 but $CONFIG_PATH missing -- selecting mode instead"
     fi
 fi
+
 if [ "$REUSE" -eq 0 ]; then
-    echo "  Choose ADB connection mode:"
-    echo "    1) USB only             (cable always required)"
-    echo "    2) Wireless Debugging   (Android 11+ / SDK 30+ -- some HarmonyOS 4 phones report Android 10, in which case use 3)"
-    echo "    3) Hybrid (USB enroll)  (Android 5-10 -- adb tcpip 5555; reconnect after each phone reboot)"
-    while true; do
-        echo "  mode [1/2/3]:"
-        read -r mode
-        case "$mode" in
-            1) MODE_NAME="usb"; break ;;
-            2) MODE_NAME="wireless"; break ;;
-            3) MODE_NAME="hybrid"; break ;;
-            *) echo "  invalid; pick 1/2/3" ;;
+    if [ -n "$ATB_ANDROID_MODE" ]; then
+        case "$ATB_ANDROID_MODE" in
+            usb|wireless|hybrid) MODE_NAME="$ATB_ANDROID_MODE" ;;
+            *) echo "  ERROR: ATB_ANDROID_MODE='$ATB_ANDROID_MODE' invalid (expected usb/wireless/hybrid)"; exit 1 ;;
         esac
-    done
+        echo "  using ADB mode from wizard: $MODE_NAME"
+    else
+        # interactive fallback -- standalone run
+        if [ -f "$CONFIG_PATH" ]; then
+            echo "  existing $CONFIG_PATH found:"
+            cat "$CONFIG_PATH"
+            echo "  Press Enter to keep this config, or 'n' to switch ADB mode (USB/Wireless/Hybrid):"
+            read -r ans
+            if [[ "$ans" != "n" && "$ans" != "N" ]]; then
+                REUSE=1
+                echo "  ok using existing config"
+            fi
+        fi
+        if [ "$REUSE" -eq 0 ]; then
+            echo "  Choose ADB connection mode:"
+            echo "    1) USB only             (cable always required)"
+            echo "    2) Wireless Debugging   (Android 11+ / SDK 30+ -- some HarmonyOS 4 phones report Android 10, in which case use 3)"
+            echo "    3) Hybrid (USB enroll)  (Android 5-10 -- adb tcpip 5555; reconnect after each phone reboot)"
+            while true; do
+                echo "  mode [1/2/3]:"
+                read -r mode
+                case "$mode" in
+                    1) MODE_NAME="usb"; break ;;
+                    2) MODE_NAME="wireless"; break ;;
+                    3) MODE_NAME="hybrid"; break ;;
+                    *) echo "  invalid; pick 1/2/3" ;;
+                esac
+            done
+        fi
+    fi
+fi
+
+if [ "$REUSE" -eq 0 ]; then
     cat > "$CONFIG_PATH" <<EOF
 # agent-fleet / android-device server config (Linux host)
 mode = "$MODE_NAME"
