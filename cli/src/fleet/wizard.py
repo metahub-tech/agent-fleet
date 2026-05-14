@@ -9,6 +9,7 @@ from .types import InstallContext, OSInfo, ServerRole
 def build_install_context(
     *, repo_root: str, os_info: OSInfo, dry_run: bool,
     network: Literal["lan", "tailscale"], tailscale_hostname: str | None,
+    android_mode: str | None = None, android_reuse_config: bool = False,
 ) -> InstallContext:
     return InstallContext(
         repo_root=repo_root,
@@ -16,6 +17,8 @@ def build_install_context(
         dry_run=dry_run,
         selected_network=network,
         tailscale_hostname=tailscale_hostname,
+        android_mode=android_mode,
+        android_reuse_config=android_reuse_config,
     )
 
 
