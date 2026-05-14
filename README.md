@@ -35,24 +35,12 @@
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device consolidated, 33 tools, streamable-http) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
 | macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
-| Android bridge | `0.4.0` | ✅ Released (android-device, 20 tools, USB + Wireless + Hybrid ADB, OEM variants) |
+| Android bridge | `0.4.0` | ✅ Released (android-device, 20 tools, USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` 一键安装；6 框架配置生成) |
-| role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released (mac-device/win-device/android-device；wizard 自动触发 TCC 对话框) |
-| UI element introspection (Android uiautomator + macOS AX) | `0.6.1-alpha` | ✅ Released (mac-device +3 tools, android-device +3 tools；find/tap/click by text/role/resource-id) |
-| Post-install smoke tests + setup-prompt UX | `0.6.2-alpha` | ✅ Released (wizard auto-calls 4–5 tools per role after install; pass/fail table) |
-| Smoke-runner bugfix + Android setup docs | `0.6.3-alpha` | ✅ Released (smoke now actually runs; OEM Android dev-mode guidance moved to [`docs/android-setup.md`](docs/android-setup.md)) |
-| Smoke connection fix (use 127.0.0.1, unwrap ExceptionGroup) | `0.6.4-alpha` | ✅ Released (smoke now connects via localhost not Tailscale MagicDNS; collapses repeated connection failures into one row) |
-| UI introspection bugfixes (AXValueGetValue + adb capture_bytes) | `0.6.5-alpha` | ✅ Released (Mac AX returns position/size/center; Android dump_ui_hierarchy returns XML) |
-| macOS legacy-plist migration cleanup | `0.6.6-alpha` | ✅ Released (setup auto-cleans pre-v0.6.0 plists + orphan procs) |
-| Windows GBK subprocess decode crash fix | `0.6.7-alpha` | ✅ Released (UTF-8 + errors=replace on subprocess) |
-| install.sh/.ps1: uvx local path | `0.6.8-alpha` | ✅ Released (skip uv's libgit2 bug) |
-| Windows: UTF-8 PS console + firewall try-catch | `0.6.9-alpha` | ✅ Released (UTF-8 PS output + firewall graceful skip) |
-| Windows: require admin upfront (v0.6.9 was wrong about non-admin) | `0.6.10-alpha` | ✅ Released (install.ps1 admin check; Register/Unregister try-catch so silent echoes can't mask failures) |
-| Internal file rename: `{windows,macos}_gui_mcp.py` → `*_device_mcp.py` + log filenames | `0.6.11-alpha` | ✅ Released (naming consistency w/ the v0.6.0 role-ID rename; setup auto-kills orphans from old names) |
-| `interact_with_process` friendly error on dead child + legacy `agent-test-bench` → `agent-fleet` rename finished | `0.6.12-alpha` | ✅ Released (poll() check instead of `.closed`; rename completed across code/scripts/skills/pyproject; platform-doc TL;DRs now point at one-shot installer) |
-| **Setup scripts report MagicDNS name, not OS computer name** | **`0.6.13-alpha`** | ✅ **Released** (5 setup scripts derived hostname from `Self.HostName` = OS computer name, stale after an admin-console device rename; now use the first label of `Self.DNSName`) |
+| role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
+| v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.13` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
 | iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
 | Cross-device coordination | `0.8.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
@@ -147,4 +135,8 @@ agent-fleet/
 
 ## Contributing
 
-私有阶段不开放外部贡献。开源后流程见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+欢迎贡献！**agent-fleet 已在 Apache 2.0 许可证下公开发布，接受社区贡献。**
+
+贡献流程和编码约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+行为准则见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。
+安全漏洞请通过 GitHub Security tab → "Report a vulnerability" 私密上报。

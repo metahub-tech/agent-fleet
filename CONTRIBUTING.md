@@ -1,12 +1,13 @@
 # Contributing to agent-fleet
 
-> **当前状态**：私有 alpha。MetaHub Tech 内部维护。开源发布以 v1.0.0 为目标，预计在四大平台桥（Windows / macOS / Android / iOS）全部稳定且工具公约冻结后发起。
+> **Early-stage alpha — expect breaking changes.**
+> All four platform bridges (Windows / macOS / Android / iOS) are still stabilizing and the tool contract is not yet frozen. Contributions are welcome; just be aware that things may shift under you while we iterate toward v1.0.
 >
-> **Status**: private alpha. Maintained internally by MetaHub Tech. Public open-source release is targeted at v1.0.0, after all four platform bridges (Windows / macOS / Android / iOS) stabilize and the tool contract is frozen.
+> 项目处于早期 alpha 阶段，接口尚未冻结，预期有破坏性变更。欢迎贡献——请留意 v1.0 之前可能还有较大重构。
 
 ## 本仓库的迭代约定
 
-下列规则同时适用于私有阶段与开源后。早期就照着开源标准写，开源时无需重构。
+下列规则是仓库的工程基线，所有改动都应遵循。
 
 ### 添加新平台 (`platforms/<name>/`)
 
@@ -73,13 +74,37 @@ platforms/<name>/
 
 ## 发起变更
 
-### 私有阶段（MetaHub 内部）
-- 直接在 main 分支提 PR；至少一名 reviewer approval 后合并
-- 大变更（新平台 / 工具公约修改）开 issue 讨论后再动手
+### Contribution flow
 
-### 开源后
-TBD —— v1.0.0 发布前会更新此节，包括：
-- DCO / CLA 政策
-- Issue / PR 模板
-- 行为准则 (Code of Conduct)
-- Maintainer 列表与决策机制
+1. **Fork** the repo and create a branch from `main`:
+   ```bash
+   git checkout -b fix/short-description
+   ```
+2. **Make your change.** Keep commits small (one logical change per commit).
+   Commit messages: `fix: ...`, `feat: ...`, `docs: ...`, `refactor: ...`
+3. **Run the tests** before pushing:
+   ```bash
+   # Python (CLI package)
+   cd cli && PYTHONPATH=src python3 -m pytest
+
+   # Shell scripts — syntax check only (no execution needed)
+   bash -n scripts/install-agent-side.py  # python, skip
+   find platforms/ scripts/ -name '*.sh' -exec bash -n {} \;
+
+   # PowerShell syntax (requires pwsh 7+)
+   ./scripts/check-ps-syntax.sh
+   ```
+4. **Open a Pull Request** against `main`. Fill in the PR template.
+   - For large changes (new platform, tool-contract modifications) open an
+     **Issue first** to discuss before writing code.
+   - At least one maintainer approval is required before merge.
+
+### 提问 / Questions
+
+有疑问请在 [GitHub Issues](https://github.com/metahub-tech/agent-fleet/issues) 或
+[GitHub Discussions](https://github.com/metahub-tech/agent-fleet/discussions) 提出。
+Questions and discussion → GitHub Issues or Discussions.
+
+### 行为准则 / Code of Conduct
+
+本项目遵循 [Contributor Covenant v2.1](CODE_OF_CONDUCT.md)，参与即表示同意该准则。

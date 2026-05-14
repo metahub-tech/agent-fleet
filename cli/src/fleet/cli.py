@@ -268,10 +268,10 @@ def _run_guidance(roles, ctx):
                 macos_primer[s.id](venv_py)
             console.print(f"  {s.default_description}")
             if s.variants:
-                console.print(f"\n  [dim]{s.variant_label} 变体：[/dim]")
+                console.print(f"\n  [dim]{s.variant_label} variants:[/dim]")
                 for vid, v in s.variants.items():
                     console.print(f"    [cyan]{v.label}[/cyan]: {v.description}")
-            questionary.press_any_key_to_continue("  ↩ 完成后回车继续").ask()
+            questionary.press_any_key_to_continue("  ↩ press Enter when done").ask()
 
 
 def cmd_setup(args: argparse.Namespace) -> int:
