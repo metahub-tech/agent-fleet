@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .base import BaseInstaller
+from ._env import setup_env
 from ..types import GuidanceStep, InstallContext, InstallEvent, OSInfo, VerifyResult
 
 
@@ -29,6 +30,7 @@ def _run_setup_ps1(ctx: InstallContext, script_path: Path, role_id: str) -> Iter
         ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_wrapped],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
         encoding="utf-8", errors="replace",
+        env=setup_env(ctx, role_id),
     )
     for line in iter(proc.stdout.readline, ""):
         line = line.rstrip()

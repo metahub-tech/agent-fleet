@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .base import BaseInstaller
+from ._env import setup_env
 from ..types import GuidanceStep, InstallContext, InstallEvent, OSInfo, VerifyResult
 
 
@@ -27,7 +28,7 @@ class LinuxAndroidBridge(BaseInstaller):
         if not setup.exists():
             yield InstallEvent(self.role_id, "preflight", f"setup script missing at {setup}", level="error")
             return
-        proc = subprocess.Popen(["bash", str(setup)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, encoding="utf-8", errors="replace")
+        proc = subprocess.Popen(["bash", str(setup)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, encoding="utf-8", errors="replace", env=setup_env(ctx, self.role_id))
         for line in iter(proc.stdout.readline, ""):
             line = line.rstrip()
             if not line:
