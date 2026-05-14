@@ -2,7 +2,7 @@
 
 macOS device-host bridge for `agent-fleet`. Enables LLM agents to drive a Mac for CLI/GUI test automation over Tailscale + MCP.
 
-Mirrors the Windows bridge architecture (FastMCP server, SSE on Tailscale, advisory acquire/release state model). Integration on Mac is actually simpler than Windows because launchd does the restart-on-crash work in-kernel.
+Mirrors the Windows bridge architecture (FastMCP server, streamable-http on Tailscale, advisory acquire/release state model). Integration on Mac is actually simpler than Windows because launchd does the restart-on-crash work in-kernel.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ## 暴露的工具
 
-`mac-device` MCP server (FastMCP, native multi-client) 通过 SSE 监听 `0.0.0.0:8767`：
+`mac-device` MCP server (FastMCP, native multi-client) 通过 streamable-http 监听 `0.0.0.0:8767/mcp`：
 
 | 类别 | 工具 |
 |---|---|

@@ -23,7 +23,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ## 暴露的工具
 
-`win-device` MCP server（FastMCP，原生多客户端）通过 SSE 监听 `0.0.0.0:8766`：
+`win-device` MCP server（FastMCP，原生多客户端）通过 streamable-http 监听 `0.0.0.0:8766/mcp`：
 
 | 类别 | 工具 |
 |---|---|

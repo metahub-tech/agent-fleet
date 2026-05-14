@@ -26,7 +26,7 @@
 
 ### Segment 2 — MCP Server（每台设备主机一个）
 
-- 通过 SSE / Streamable-HTTP 暴露稳定的工具集
+- 通过 streamable-http 暴露稳定的工具集
 - 监听 `0.0.0.0:<platform_port>`；防火墙限制只有 Tailscale 接口可达
 - 用户登录时自启（Task Scheduler / launchd / systemd）
 
@@ -86,7 +86,7 @@
 | 跨局域网访问且不暴露公网端口 | Tailscale (WireGuard mesh) |
 | 不维护 DNS 也能拿稳定主机名 | Tailscale MagicDNS |
 | 细粒度访问控制（哪台设备能被谁连） | Tailscale ACL |
-| LLM Agent 调用结构化工具 | MCP (SSE / streamable-HTTP) |
+| LLM Agent 调用结构化工具 | MCP (streamable-HTTP) |
 | 长连接、热加载工具列表 | MCP server 长驻进程 |
 
 成本：Tailscale 免费档（100 设备以内）足够个人和中小团队使用。Linux/Mac/Windows 行为一致。
