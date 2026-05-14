@@ -72,22 +72,23 @@ def _select_network(ts):
     return choice or "lan"
 
 
-def _select_android_config(repo_root: str) -> tuple[Optional[str], bool]:
+def _select_android_config() -> tuple[Optional[str], bool]:
     """Collect android-device's ADB-mode / config-reuse choice up front.
 
     Returns (android_mode, android_reuse_config). Called only when
     android-device is among the selected roles, BEFORE installers run, so the
     setup scripts receive the answer as an env var and never block on a
     Read-Host/read inside the wizard's piped stdout.
-
-    repo_root is accepted for signature symmetry with other wizard helpers;
-    the android config lives under the user's home, not the repo.
     """
     config_path = Path.home() / ".atb-android" / "config.toml"
     if config_path.exists():
         console.print(f"\n[bold]Existing android-device config[/bold] [dim]({config_path})[/dim]:")
         console.print(Panel(config_path.read_text(encoding="utf-8", errors="replace").rstrip()))
-        if questionary.confirm("Reuse this config?", default=True).ask():
+        reuse = questionary.confirm("Reuse this config?", default=True).ask()
+        if reuse is None:  # Ctrl-C
+            console.print("[yellow]Cancelled.[/yellow]")
+            sys.exit(1)
+        if reuse:
             return None, True
     mode = questionary.select(
         "ADB connection mode:",
@@ -97,7 +98,10 @@ def _select_android_config(repo_root: str) -> tuple[Optional[str], bool]:
             questionary.Choice("Hybrid  (USB enroll then adb tcpip 5555; Android 5-10)", value="hybrid"),
         ],
     ).ask()
-    return (mode or "usb"), False
+    if mode is None:  # Ctrl-C
+        console.print("[yellow]Cancelled.[/yellow]")
+        sys.exit(1)
+    return mode, False
 
 
 def _select_frameworks():
@@ -286,7 +290,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
     android_mode = None
     android_reuse_config = False
     if any(r.role_id == "android-device" for r in roles):
-        android_mode, android_reuse_config = _select_android_config(str(Path.cwd()))
+        android_mode, android_reuse_config = _select_android_config()
 
     ctx = build_install_context(
         repo_root=str(Path.cwd()),
