@@ -26,6 +26,9 @@ LEGACY = [
     # Python entry-point + log filenames (pre-v0.6.11)
     "macos_gui_mcp", "windows_gui_mcp",
     "macos-gui.log", "windows-gui.log",
+    # GitHub repo rename (project was renamed agent-test-bench → agent-fleet
+    # on GitHub; internal refs cleaned up in v0.6.12-alpha)
+    "agent-test-bench",
 ]
 
 # Path-prefix substrings we don't scan (historical, generated, or external).

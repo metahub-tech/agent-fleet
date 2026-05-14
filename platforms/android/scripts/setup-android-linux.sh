@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agent-test-bench / Android (Linux host) platform setup
+# agent-fleet / Android (Linux host) platform setup
 #
 # Run from inside the cloned repo:
 #   cd <repo-root>
@@ -40,7 +40,7 @@ CONFIG_PATH="$CONFIG_DIR/config.toml"
 
 mkdir -p "$LOGS_DIR" "$(dirname "$UNIT_PATH")"
 
-echo "=== agent-test-bench / Android Bridge Setup (Linux host) ==="
+echo "=== agent-fleet / Android Bridge Setup (Linux host) ==="
 echo "Repo  : $(cd "$PLATFORM_DIR/../.." && pwd)"
 echo "User  : $(whoami)"
 echo
@@ -150,7 +150,7 @@ if [ "$REUSE" -eq 0 ]; then
         esac
     done
     cat > "$CONFIG_PATH" <<EOF
-# agent-test-bench / android-device server config (Linux host)
+# agent-fleet / android-device server config (Linux host)
 mode = "$MODE_NAME"
 
 [host]
@@ -191,7 +191,7 @@ fi
 mkdir -p "$(dirname "$UNIT_PATH")"
 cat > "$UNIT_PATH" <<EOF
 [Unit]
-Description=agent-test-bench android-device MCP server
+Description=agent-fleet android-device MCP server
 After=network.target
 
 [Service]

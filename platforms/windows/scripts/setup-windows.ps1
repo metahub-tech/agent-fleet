@@ -1,4 +1,4 @@
-# agent-test-bench / Windows platform setup
+# agent-fleet / Windows platform setup
 #
 # Run from inside the cloned repo as Administrator:
 #   cd <repo-root>
@@ -56,7 +56,7 @@ $ReqTxt     = Join-Path $ServerDir "requirements.txt"
 $RepoRoot   = Split-Path -Parent (Split-Path -Parent $WindowsDir)
 $RunUser    = $env:USERNAME
 
-Write-Host "=== agent-test-bench / Windows Bridge Setup ===" -ForegroundColor Cyan
+Write-Host "=== agent-fleet / Windows Bridge Setup ===" -ForegroundColor Cyan
 Write-Host "Repo  : $RepoRoot"
 Write-Host "User  : $RunUser"
 Write-Host ""

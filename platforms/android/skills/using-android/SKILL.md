@@ -1,6 +1,6 @@
 ---
 name: using-android
-description: Use when invoking android-device MCP tools to drive a real Android device or emulator over ADB (agent-test-bench project) -- screen capture, tap/swipe/keyboard, app install/launch/kill, on-device shell, host<->device file transfer, multi-agent coordination.
+description: Use when invoking android-device MCP tools to drive a real Android device or emulator over ADB (agent-fleet project) -- screen capture, tap/swipe/keyboard, app install/launch/kill, on-device shell, host<->device file transfer, multi-agent coordination.
 ---
 
 # Using android-device
@@ -191,7 +191,7 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 
 ## Reference
 
-- Setup: `docs/platforms/android.md` in agent-test-bench repo (planned)
+- Setup: `docs/platforms/android.md` in agent-fleet repo (planned)
 - Source code: `platforms/android/server/android_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path

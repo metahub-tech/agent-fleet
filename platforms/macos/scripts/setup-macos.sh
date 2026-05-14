@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# agent-test-bench / macOS platform setup
+# agent-fleet / macOS platform setup
 #
 # Run from inside the cloned repo (no sudo needed; brew may prompt for it):
 #   cd <repo-root>
@@ -44,7 +44,7 @@ LABEL="cc.metahub.mac-device"
 
 mkdir -p "$LOGS_DIR"
 
-echo "=== agent-test-bench / macOS Bridge Setup ==="
+echo "=== agent-fleet / macOS Bridge Setup ==="
 echo "Repo  : $(cd "$PLATFORM_DIR/../.." && pwd)"
 echo "User  : $(whoami)"
 echo

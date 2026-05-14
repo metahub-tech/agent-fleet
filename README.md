@@ -114,7 +114,7 @@ The authoritative documentation is currently in Chinese; full English docs ship 
 ## 目录布局
 
 ```
-agent-test-bench/
+agent-fleet/
 ├── docs/                          # 通用文档
 │   ├── install-pattern.md         # 开发者基准：两个角色 / 两条安装路径 / 目录契约
 │   ├── architecture.md            # 通用桥架构

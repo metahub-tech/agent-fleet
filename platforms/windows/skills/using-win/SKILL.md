@@ -1,6 +1,6 @@
 ---
 name: using-win
-description: Use when invoking win-device MCP tools to drive a Windows test machine (agent-test-bench project) -- screenshot-and-click UI testing, long-running shell commands, file or process operations, or coordinating exclusive device use across multiple agents.
+description: Use when invoking win-device MCP tools to drive a Windows test machine (agent-fleet project) -- screenshot-and-click UI testing, long-running shell commands, file or process operations, or coordinating exclusive device use across multiple agents.
 ---
 
 # Using win-device
@@ -72,7 +72,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 
 ## Reference
 
-- Setup: `docs/platforms/windows.md` in agent-test-bench repo
+- Setup: `docs/platforms/windows.md` in agent-fleet repo
 - Diagnostic: run `platforms/windows/scripts/diagnose.ps1` on the Windows host
 - Tool surface: 33 tools in 9 categories
 - Source code: `platforms/windows/server/win_device_mcp.py`
