@@ -312,7 +312,7 @@ echo "Send these to the agent operator (or keep them yourself):"
 echo
 echo "  Tailscale hostname : $TS_HOST"
 echo "  Tailscale FQDN     : $TS_DNS"
-echo "  mac-device URL     : http://${TS_HOST}:8767/sse"
+echo "  mac-device URL     : http://${TS_HOST}:8767/mcp"
 echo
 # Resolve the framework Python.app that macOS Privacy panes will accept.
 # The venv's bin/python3 is a symlink — System Settings refuses symlinks
@@ -354,7 +354,7 @@ echo
 echo "  Without these, click / type / take_screenshot / run_applescript"
 echo "  fail silently or with an OS error. Test by running:"
 echo
-echo "    curl -sN http://${TS_HOST}:8767/sse | head -1"
+echo "    curl -sI http://${TS_HOST}:8767/mcp --max-time 5"
 echo
 echo "  And to validate Screen Recording / Accessibility:"
 echo

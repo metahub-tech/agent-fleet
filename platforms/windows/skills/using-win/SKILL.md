@@ -5,7 +5,7 @@ description: Use when invoking win-device MCP tools to drive a Windows test mach
 
 # Using win-device
 
-Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, SSE transport on Tailscale). Multi-client native; advisory single-holder coordination; ~33 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
+Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, streamable-http on Tailscale). Multi-client native; advisory single-holder coordination; ~33 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
 
 ## Critical patterns
 

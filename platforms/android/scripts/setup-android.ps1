@@ -322,7 +322,7 @@ Write-Host "=== Done ===" -ForegroundColor Green
 Write-Host ""
 Write-Host "Send these to the agent operator:"
 Write-Host "  Tailscale hostname : $TS_HOST"
-Write-Host "  android URL        : http://${TS_HOST}:${Port}/sse"
+Write-Host "  android URL        : http://${TS_HOST}:${Port}/mcp"
 Write-Host ""
 Write-Host "On the agent host:"
 Write-Host "  python3 scripts/install-agent-side.py --platform android-device --hostname $TS_HOST"

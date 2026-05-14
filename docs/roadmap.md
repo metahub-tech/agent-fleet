@@ -65,19 +65,19 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 ---
 
 ## v0.4.0 — Android
-**Target: TBD**
+**Released**
 
 ### 范围
 - 驱动栈：adb + uiautomator2（Python 库）+ scrcpy（视频流）
 - 设备主机可以是任意 OS，推荐 Linux/Mac
 - USB 或 wireless adb（`adb tcpip 5555`）
-- 工具集除通用外加：`install_apk` / `dump_uiautomator_xml` / `adb_command`
+- 工具集除通用外加：`install_apk` / `dump_ui_hierarchy` / `adb_shell`
 - 端口 8768
 
-### 待解决问题
-- 多设备支持：一台主机接多个手机时按 serial number 命名空间隔离
-- 截屏用 uiautomator2 vs scrcpy snapshot：选 scrcpy（更快、视频流方便回放）
-- 国内厂商定制 ROM（华为/小米/OPPO/vivo）的 USB 调试授权差异，需要逐个验证
+### 已解决
+- 多设备支持：一台主机接多个手机时按 serial number 命名空间隔离（v0.4.1）
+- 截屏采用 adb screencap（无 scrcpy 依赖，更可靠）
+- 国内厂商定制 ROM（华为/小米/OPPO/vivo）的 USB 调试授权差异已逐一记录在 SKILL.md
 
 ---
 
