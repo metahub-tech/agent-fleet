@@ -106,6 +106,13 @@ if (-not (Get-Command tailscale -ErrorAction SilentlyContinue)) {
     Write-Host "  installing Tailscale..."
     winget install --id Tailscale.Tailscale -e --accept-source-agreements --accept-package-agreements
     Write-Host "  -> Open the Tailscale tray icon, click Login, then come back." -ForegroundColor Magenta
+    if ($env:ATB_WIZARD_MANAGED -eq "1") {
+        # Under the wizard, stdout is a pipe — a Read-Host prompt would hang
+        # invisibly. Exit cleanly instead; the wizard surfaces the rc=1 and the
+        # message above tells the user to log in to Tailscale and re-run.
+        Write-Host "  Tailscale was just installed. Log in via the tray icon, then re-run the wizard." -ForegroundColor Yellow
+        exit 1
+    }
     Read-Host "  Press Enter to continue"
 }
 $tsRaw = tailscale status --json 2>$null
