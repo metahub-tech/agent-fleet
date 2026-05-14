@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.6.12--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.12-alpha)
+[![Status](https://img.shields.io/badge/status-v0.6.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.13-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.12-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -51,7 +51,8 @@
 | Windows: UTF-8 PS console + firewall try-catch | `0.6.9-alpha` | ✅ Released (UTF-8 PS output + firewall graceful skip) |
 | Windows: require admin upfront (v0.6.9 was wrong about non-admin) | `0.6.10-alpha` | ✅ Released (install.ps1 admin check; Register/Unregister try-catch so silent echoes can't mask failures) |
 | Internal file rename: `{windows,macos}_gui_mcp.py` → `*_device_mcp.py` + log filenames | `0.6.11-alpha` | ✅ Released (naming consistency w/ the v0.6.0 role-ID rename; setup auto-kills orphans from old names) |
-| **`interact_with_process` friendly error on dead child + legacy `agent-test-bench` → `agent-fleet` rename finished** | **`0.6.12-alpha`** | ✅ **Released** (poll() check instead of `.closed`; rename completed across code/scripts/skills/pyproject; platform-doc TL;DRs now point at one-shot installer) |
+| `interact_with_process` friendly error on dead child + legacy `agent-test-bench` → `agent-fleet` rename finished | `0.6.12-alpha` | ✅ Released (poll() check instead of `.closed`; rename completed across code/scripts/skills/pyproject; platform-doc TL;DRs now point at one-shot installer) |
+| **Setup scripts report MagicDNS name, not OS computer name** | **`0.6.13-alpha`** | ✅ **Released** (5 setup scripts derived hostname from `Self.HostName` = OS computer name, stale after an admin-console device rename; now use the first label of `Self.DNSName`) |
 | iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
 | Cross-device coordination | `0.8.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
@@ -74,10 +75,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.6.12-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.6.13-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.12-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.13-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。
