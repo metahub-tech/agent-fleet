@@ -129,7 +129,7 @@ mkdir -p "$CONFIG_DIR"
 REUSE=0
 MODE_NAME=""
 
-if [ "$ATB_ANDROID_REUSE_CONFIG" = "1" ]; then
+if [ "${ATB_ANDROID_REUSE_CONFIG:-}" = "1" ]; then
     if [ -f "$CONFIG_PATH" ]; then
         echo "  ok reusing existing config $CONFIG_PATH"
         REUSE=1
@@ -139,7 +139,7 @@ if [ "$ATB_ANDROID_REUSE_CONFIG" = "1" ]; then
 fi
 
 if [ "$REUSE" -eq 0 ]; then
-    if [ -n "$ATB_ANDROID_MODE" ]; then
+    if [ -n "${ATB_ANDROID_MODE:-}" ]; then
         case "$ATB_ANDROID_MODE" in
             usb|wireless|hybrid) MODE_NAME="$ATB_ANDROID_MODE" ;;
             *) echo "  ERROR: ATB_ANDROID_MODE='$ATB_ANDROID_MODE' invalid (expected usb/wireless/hybrid)"; exit 1 ;;
