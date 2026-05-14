@@ -4,27 +4,29 @@
 >
 > 本指南只面向 **macOS 主机的本地管理员**。Agent 端（你的 Linux/Windows 开发机）的配置见 [`../agent-host-setup.md`](../agent-host-setup.md)。
 
-## 快速安装（3 步搞定）
+## 快速安装
 
 **前置**：macOS 12+（Apple Silicon 或 Intel 均可）、管理员账户、[Homebrew](https://brew.sh)、[Tailscale](https://tailscale.com) 账户、互联网。GUI 测试需 **物理可达**（一次性手动授权要求）。
 
+先装 Tailscale 并登录（menubar 点 Tailscale 图标 → Login，用与 Agent 主机相同的账号）：
+
 ```bash
-# 1. 装 Tailscale 并登录（menubar 点 Tailscale 图标 → Login，用与 Agent 主机相同的账号）
 brew install --cask tailscale
-
-# 2. 拿代码（建议路径 ~/agent-fleet；或浏览器下载 ZIP 解压亦可）
-git clone https://github.com/metahub-tech/agent-fleet.git ~/agent-fleet
-cd ~/agent-fleet
-
-# 3. 跑安装脚本（自动装 Python 3.12 + 建 venv + 装 launchd plist + 自检 8767 端口）
-bash platforms/macos/scripts/setup-macos.sh
 ```
 
-脚本结束时会打印你的 **Tailscale 主机名**、**mac-device 的 SSE URL**，以及一份 **GUI 权限授权清单**。
+然后跑一行一键安装命令——它会自动装 uv → `git clone` 本仓库到 `~/agent-fleet`（已存在则 `git fetch --tags` + `checkout` 到 `$AGENT_FLEET_VERSION`，默认本仓库最新 alpha）→ 装 Python 3.12 venv → 装 launchd plist → 自检 8767 端口 → 跑交互式 wizard 引导选 role 并输出 agent 端配置 snippet：
 
-> ⚠️ **`setup-macos.sh` 装完之后 GUI 工具（鼠标 / 键盘 / 截屏 / `run_applescript`）一律默认静默失败**——macOS TCC 强制要求你在系统设置里手动授权"辅助功能 / 屏幕录制 / 自动化"，脚本无法替你点。**装完一定要走 [§4 GUI 权限授权](#4-gui-权限授权必须一次性)**，否则 `take_screenshot` 全黑、`click` 不响应。
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
+```
+
+> ⚠️ **`install.sh` 装完之后 GUI 工具（鼠标 / 键盘 / 截屏 / `run_applescript`）默认全部静默失败**——macOS TCC 强制要求你在系统设置里手动授权"辅助功能 / 屏幕录制 / 自动化"，脚本无法替你点。**装完一定要走 [§4 GUI 权限授权](#4-gui-权限授权必须一次性)**，否则 `take_screenshot` 全黑、`click` 不响应。
+
+> **不要用 `curl ... | bash`**：wizard 是交互式的，pipe 形式会把 stdin 占给 bash 自己读脚本，wizard 的 `questionary` 提示会 EOFError 退出。`bash -c "$(curl ...)"` 把脚本放进 argv，stdin 留给终端，这是唯一可靠的形式。
 >
-> 没装 Homebrew 看 §1；想了解每步在干啥 / 出问题了，往下看详细版。
+> **升级新版本**：同一行 `install.sh` 命令重跑即可（它会处理 fetch + checkout）。
+>
+> **没装 Homebrew 看 §1；想了解每步在干啥 / 不走 wizard 自己编排部署**：往下看 §0–§6 详细版（"老手"路径，与 `install.sh` 调的是同一组底层 script）。
 
 ---
 

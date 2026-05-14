@@ -4,28 +4,29 @@
 >
 > 本指南只面向 **Windows 主机的本地管理员**。Agent 端（你的 Linux/Mac 开发机或 Claude Code 所在主机）的配置见 [`../agent-host-setup.md`](../agent-host-setup.md)。
 
-## 快速安装（3 步搞定）
+## 快速安装
 
-**前置**：Windows 10/11、本机管理员账户、[Tailscale](https://tailscale.com) 账户、[Git for Windows](https://git-scm.com/)（或用 ZIP，见 §2）、互联网。
+**前置**：Windows 10/11、本机管理员账户、[Tailscale](https://tailscale.com) 账户、[Git for Windows](https://git-scm.com/)、互联网。
+
+先装 Tailscale 并登录（系统托盘点 Login，用与 Agent 主机相同的账号）：
 
 ```powershell
-# 1. 装 Tailscale 并登录（系统托盘点 Login，用与 Agent 主机相同的账号）
 winget install --id Tailscale.Tailscale -e
-
-# 2. 拿代码（建议路径 C:\agent-fleet，避免空格；没装 Git 走 §2 选项 A 浏览器下 ZIP 解压）
-git clone https://github.com/metahub-tech/agent-fleet.git C:\agent-fleet
-cd C:\agent-fleet
-
-# 3. 以管理员身份打开 PowerShell，跑安装脚本
-#    （自动装 Python + 建 venv + 配防火墙 + 注册 Task Scheduler）
-powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windows.ps1
 ```
 
-脚本结束时会打印你的 **Tailscale 主机名** 和 **win-device 的 SSE URL**，把这两条信息发给 Agent 操作员（或自己留着）即可。
+然后**以管理员身份打开 PowerShell**，跑一行一键安装命令——它会自动装 uv → `git clone` 本仓库到 `%USERPROFILE%\agent-fleet`（已存在则 `git fetch --tags` + `checkout` 到 `$env:AGENT_FLEET_VERSION`，默认本仓库最新 alpha）→ 装 Python venv → 配防火墙 → 注册 Task Scheduler → 跑交互式 wizard 引导选 role 并输出 agent 端配置 snippet：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
+```
+
+wizard 结束时会打印你的 **Tailscale 主机名** + **win-device 的 SSE URL** + agent 端配置 snippet。
 
 > **GUI 测试还需要一步手动配置**：Windows 重启后任务能自动重启的前提是有用户登录到桌面，所以要打开自动登录 —— 见 [§5 自动登录](#5-自动登录gui-测试必需)。
 >
-> **想了解每步在干什么 / 出问题了怎么办**：往下看详细版。
+> **升级新版本**：同一行 `install.ps1` 命令重跑即可（它会处理 fetch + checkout）。
+>
+> **想了解每步在干啥 / 不走 wizard 自己编排部署**：往下看 §0–§6 详细版（"老手"路径，与 `install.ps1` 调的是同一组底层 script）。
 
 ---
 
