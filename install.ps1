@@ -12,11 +12,11 @@
 #   3. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.6.13-alpha
+#   AGENT_FLEET_VERSION      default v0.6.14-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $env:USERPROFILE\agent-fleet
 
-$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.13-alpha" }
+$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.6.14-alpha" }
 $AGENT_FLEET_REPO    = if ($env:AGENT_FLEET_REPO)    { $env:AGENT_FLEET_REPO }    else { "https://github.com/metahub-tech/agent-fleet" }
 $AGENT_FLEET_CLONE_DIR = if ($env:AGENT_FLEET_CLONE_DIR) { $env:AGENT_FLEET_CLONE_DIR } else { Join-Path $env:USERPROFILE "agent-fleet" }
 

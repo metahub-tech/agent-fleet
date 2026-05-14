@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.14-alpha] - 2026-05-14
+
+### Fixed
+
+- **`agent-fleet setup` wizard no longer hangs or garbles prompts when a platform setup script needs user input.** The wizard captures setup-script output through a pipe (`subprocess.Popen(stdout=PIPE)`) to render it as progress. But a script's `Read-Host`/`read` prompt has no trailing newline, so it stalls in the pipe buffer — and the script shares the wizard's stdin, so typed input went nowhere. On Windows this fully broke `setup-android.ps1`'s "reuse config?" and "ADB mode [1/2/3]" prompts. Fix: all interactive choices are now collected **up front by the wizard** via questionary (same arrow-key UI as role selection) and handed to the scripts as env vars (`ATB_WIZARD_MANAGED`, `ATB_ANDROID_MODE`, `ATB_ANDROID_REUSE_CONFIG`). The setup scripts are env-var driven under the wizard and fall back to their original interactive prompts when run standalone. `setup-windows.ps1`'s lone `Read-Host "Press Enter"` (Tailscale-not-installed branch) now exits cleanly under the wizard instead of hanging.
+
 ## [0.6.13-alpha] - 2026-05-14
 
 ### Fixed
