@@ -15,6 +15,6 @@ step:
 
     完整对照（哪种机型选哪种 / 故障排查 / 重启后行为）见独立文档：
 
-        https://github.com/metahub-tech/agent-fleet/blob/main/docs/android-setup.md#step-3-pick-a-connection-method
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/platforms/android.md#step-3-pick-a-connection-method
 
     完成后回车继续。

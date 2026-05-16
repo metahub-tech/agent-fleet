@@ -1,5 +1,7 @@
 # Design · agent-fleet CLI（v0.5 wizard 化部署）
 
+> _Internal development artifact — kept for historical record, not user-facing documentation. See [docs/internal/README.md](../README.md)._
+
 **作者**: brainstorming 过程产物（Claude + 用户协同）
 **日期**: 2026-05-11
 **状态**: 待用户最终批准 → 转 writing-plans 出实施计划

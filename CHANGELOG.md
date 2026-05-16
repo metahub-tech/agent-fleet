@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.15-alpha] - 2026-05-14
+
+### Changed
+
+- **No tool-surface, port, or API changes — this release is cleanup only.**
+- **Stale SSE-transport references swept (PR-1).** Remaining `/sse` URL and `"type": "sse"` fragments in docs, scripts, and skills replaced with `/mcp` / `"type": "http"` (streamable-http). Stale version-planning notes in `docs/roadmap.md` and `docs/install-pattern.md` removed.
+- **Open-source readiness (PR-2).** "Private, not open for contribution" language removed from README / CONTRIBUTING. Added `SECURITY.md`, `CODE_OF_CONDUCT.md`, and `.github/` issue + PR templates. `cli/README.md` fleshed out. Two hardcoded Chinese UI strings in `cli/src/fleet/cli.py` replaced with English.
+- **`cli/` dead-code removal + bug fixes (PR-3).** Duplicate import in `installers/__init__.py` fixed. Dead code removed: `detect_existing_deployment`, `GuidanceStep.verify_fn` / `verify_label`, `SmokeResult.note`, a redundant override. Shared Android smoke-test helpers moved to `installers/_android.py`. `preflight()` wired up so missing-prerequisite detection actually runs. `[project.urls]` added to `cli/pyproject.toml`.
+- **Structural alignment (PR-4 part 1).** Android setup guide moved from an inline wizard YAML to `docs/platforms/android.md`. Internal dev-process docs (`docs/superpowers/`, `docs/design/`) relocated to `docs/internal/`. `platforms/android/server/android_mcp.py` renamed to `android_device_mcp.py` (consistent with win/mac naming).
+- **Metadata & dependency cleanup (PR-4 part 2).**
+  - `platforms/windows/server/requirements.txt`: dropped leftover pre-v0.2 `mcp-proxy` dependency (not imported by `win_device_mcp.py`, not in `pyproject.toml`).
+  - `platforms/macos/server/pyproject.toml`: added `pyobjc-framework-ApplicationServices>=10.0` that was only declared in `requirements.txt`.
+  - `platforms/android/server/pyproject.toml`: aligned metadata (`authors`, `keywords`, `classifiers`, `[project.urls]`) with win/mac server pyproject template; dropped incorrect Windows-only OS classifier (the host can be Win/Mac/Linux); removed unneeded `wheel` from `build-system.requires`.
+  - `platforms/android/skills/using-android/SKILL.md`: corrected stale tool count (20 → 23); removed "planned for v0.4.1" notes for `dump_ui_hierarchy`, `find_elements`, and `tap_element`, which are already implemented and shipping.
+  - `platforms/macos/README.md`: removed hardcoded `v0.3.0` version pin from the opening line.
+  - `docs/architecture.md`: repo-layout diagram now shows all three platforms under `platforms/` and all three platform guides under `docs/platforms/`.
+- **Version bump 0.6.14 → 0.6.15** across `cli/pyproject.toml`, `cli/src/fleet/__init__.py`, `cli/tests/test_smoke.py`, `install.sh`, `install.ps1`, and `README.md` badge / uvx command refs. All three platform server `pyproject.toml` versions aligned to `0.6.15a1`.
+
 ## [0.6.14-alpha] - 2026-05-14
 
 ### Fixed
@@ -25,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Internal rename cleanup completed.** The GitHub repo was renamed `agent-test-bench` → `agent-fleet` during the v0.6.0 era (see [`docs/design/2026-05-11-agent-fleet-cli.md`](docs/design/2026-05-11-agent-fleet-cli.md)), but internal code, setup scripts, `pyproject.toml` package names, SKILL.md descriptions, and top-level docs (README / CONTRIBUTING / CHANGELOG release-links) all still referenced the old name. v0.6.12 finishes the migration: `pyproject.toml` package names are now `agent-fleet-{windows,macos,android}` (down from `agent-test-bench-*`), platform setup scripts reference the new name in banners and `setup-android-linux.sh`'s systemd unit Description, the no-legacy-naming regression test now blocks `agent-test-bench` from creeping back in, and the `docs/platforms/{windows,macos}.md` guides now lead with a 3-step "quick install" TL;DR pointing at the one-shot setup scripts. Historical design / plan documents (`docs/design/`, `docs/superpowers/plans/`) intentionally retain the old name for record-keeping. **No service identifiers, ports, or APIs changed — the rename is cosmetic.** Existing deployments do not need to re-run setup for the rename portion, but **do** need to pull v0.6.12 and re-run setup to pick up the `interact_with_process` fix above (the bug is harmless until you try to send stdin to a dead process, but the fix should ship anyway).
+- **Internal rename cleanup completed.** The GitHub repo was renamed `agent-test-bench` → `agent-fleet` during the v0.6.0 era (see [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md)), but internal code, setup scripts, `pyproject.toml` package names, SKILL.md descriptions, and top-level docs (README / CONTRIBUTING / CHANGELOG release-links) all still referenced the old name. v0.6.12 finishes the migration: `pyproject.toml` package names are now `agent-fleet-{windows,macos,android}` (down from `agent-test-bench-*`), platform setup scripts reference the new name in banners and `setup-android-linux.sh`'s systemd unit Description, the no-legacy-naming regression test now blocks `agent-test-bench` from creeping back in, and the `docs/platforms/{windows,macos}.md` guides now lead with a 3-step "quick install" TL;DR pointing at the one-shot setup scripts. Historical design / plan documents (`docs/internal/design/`, `docs/internal/plans/`) intentionally retain the old name for record-keeping. **No service identifiers, ports, or APIs changed — the rename is cosmetic.** Existing deployments do not need to re-run setup for the rename portion, but **do** need to pull v0.6.12 and re-run setup to pick up the `interact_with_process` fix above (the bug is harmless until you try to send stdin to a dead process, but the fix should ship anyway).
 
 ## [0.6.11-alpha] - 2026-05-12
 
@@ -161,7 +179,7 @@ No breaking changes. Re-run `agent-fleet setup` to pick up the smoke fix.
 - **Smoke runner crashed with `AttributeError: 'ServerRole' object has no attribute 'smoke_tests'`** (regression from 0.6.2-alpha). `_run_install` was only returning `ServerRole` dataclasses (snippet-rendering shape) — the smoke runner needed the original installer instances to call `installer.smoke_tests()`. Now `_run_install` returns `(server_roles, installer_instances)` so both rendering and smoke share the same source of truth. Regression test added in `test_smoke_module.py`.
 
 ### Changed
-- **Android setup guidance moved out of the wizard into [`docs/android-setup.md`](docs/android-setup.md).** The 3 in-wizard YAMLs previously listed 7+ OEM variants for each step (华为 / 小米 / Samsung / OPPO / vivo / Pixel / OnePlus / ...) — too much inline text for a CLI flow. They now show a 3-line summary + a link to the dedicated doc, which contains the full OEM-by-OEM unlock table, USB debugging quirks per ROM, and a side-by-side comparison of USB / Wireless / Hybrid connection methods with anchor-targeted sections (#step-1, #step-2, #step-3).
+- **Android setup guidance moved out of the wizard into [`docs/platforms/android.md`](docs/platforms/android.md).** The 3 in-wizard YAMLs previously listed 7+ OEM variants for each step (华为 / 小米 / Samsung / OPPO / vivo / Pixel / OnePlus / ...) — too much inline text for a CLI flow. They now show a 3-line summary + a link to the dedicated doc, which contains the full OEM-by-OEM unlock table, USB debugging quirks per ROM, and a side-by-side comparison of USB / Wireless / Hybrid connection methods with anchor-targeted sections (#step-1, #step-2, #step-3).
 
 ### Migration
 No breaking changes. Re-run `agent-fleet setup` to pick up the smoke fix and the simplified guidance prose.
@@ -223,7 +241,7 @@ Old setup scripts auto-clean their legacy services when re-run. To migrate manua
 - Windows: `Unregister-ScheduledTask -TaskName MCP-WindowsGui -Confirm:$false; Unregister-ScheduledTask -TaskName MCP-AndroidGui -Confirm:$false`
 - Linux: `systemctl --user stop atb-android-gui.service; systemctl --user disable atb-android-gui.service; rm -f ~/.config/systemd/user/atb-android-gui.service; systemctl --user daemon-reload`
 
-## [Unreleased]
+## [0.2.0-alpha – 0.6.0-alpha]
 
 ### Changed
 - **🚨 BREAKING (transport): SSE → streamable-http for all 3 platforms.** Long-task `-32602` bug rooted out. SSE was a long-lived event channel; under Tailscale DERP relay or NAT middle-boxes, idle keepalive timed out at ~60-120s. When that happened the client kept its old `session_id` (the MCP SSE protocol has no auto-reconnect at the SDK level), the server didn't know it, and every subsequent call returned `-32602` until `/exit` + reopen Claude Code. Documented as a known issue across 3 skills as "/exit + reopen" workaround. Now fixed at the root: server transports flipped from `transport="sse"` to `transport="http"` (FastMCP's `streamable-http` alias) and client URLs from `:port/sse` to `:port/mcp`. streamable-http uses per-request streams instead of a long-lived event channel, so a stale connection is just one bad request away from auto-reconnect, not a session-killer. **Migration steps for existing deploys**:
@@ -348,5 +366,20 @@ Initial private release. Windows platform bridge.
 ### Security
 - MCP ports (8765/8766) are restricted to the Tailscale network interface via Windows Firewall rules; not exposed to LAN or internet
 
-[Unreleased]: https://github.com/metahub-tech/agent-fleet/compare/v0.1.0...HEAD
+[0.6.15-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.15-alpha
+[0.6.14-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.14-alpha
+[0.6.13-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.13-alpha
+[0.6.12-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.12-alpha
+[0.6.11-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.11-alpha
+[0.6.10-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.10-alpha
+[0.6.9-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.9-alpha
+[0.6.8-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.8-alpha
+[0.6.7-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.7-alpha
+[0.6.6-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.6-alpha
+[0.6.5-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.5-alpha
+[0.6.4-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.4-alpha
+[0.6.3-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.3-alpha
+[0.6.2-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.2-alpha
+[0.6.1-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.1-alpha
+[0.6.0-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.0-alpha
 [0.1.0]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.1.0

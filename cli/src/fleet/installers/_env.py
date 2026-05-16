@@ -4,7 +4,7 @@ The wizard captures all interactive choices (ADB mode, config reuse) up front
 via questionary, then hands them to the setup scripts as env vars so the
 scripts never block on Read-Host/read inside the wizard's piped stdout.
 
-See docs/superpowers/specs/2026-05-14-wizard-zero-interaction-setup-scripts-design.md
+See docs/internal/specs/2026-05-14-wizard-zero-interaction-setup-scripts-design.md
 """
 from __future__ import annotations
 

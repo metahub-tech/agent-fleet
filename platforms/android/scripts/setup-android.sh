@@ -32,7 +32,7 @@ SERVER_DIR="$PLATFORM_DIR/server"
 LOGS_DIR="$PLATFORM_DIR/logs"
 VENV_DIR="$SERVER_DIR/.venv"
 VENV_PY="$VENV_DIR/bin/python3"
-SERVER_PY="$SERVER_DIR/android_mcp.py"
+SERVER_PY="$SERVER_DIR/android_device_mcp.py"
 REQ_TXT="$SERVER_DIR/requirements.txt"
 LAUNCHER="$SCRIPT_DIR/_launch-android.sh"
 PLIST_PATH="$HOME/Library/LaunchAgents/cc.metahub.android-device.plist"
@@ -285,8 +285,8 @@ if [ -f "$LEGACY_PLIST" ] || launchctl list 2>/dev/null | grep -q "$LEGACY_LABEL
 fi
 
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" 2>/dev/null || true
-# Kill orphaned android_mcp.py processes (see setup-macos.sh for rationale).
-pkill -f "android_mcp\.py" 2>/dev/null || true
+# Kill orphaned android_device_mcp.py processes (see setup-macos.sh for rationale).
+pkill -f "android_device_mcp\.py" 2>/dev/null || true
 sleep 1
 
 mkdir -p "$(dirname "$PLIST_PATH")"

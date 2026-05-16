@@ -10,6 +10,6 @@ step:
     OEM-specific quirks（华为 HiSuite 驱动 / 小米账号要求 / 多个 OPPO/vivo
     机型 USB 调试会自动失效）见独立文档：
 
-        https://github.com/metahub-tech/agent-fleet/blob/main/docs/android-setup.md#step-2-enable-usb-debugging
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/platforms/android.md#step-2-enable-usb-debugging
 
     完成后回车继续。

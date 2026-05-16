@@ -69,4 +69,4 @@ package is not installed in editable mode — it is run directly from the source
 tree.
 
 For full design documentation see
-[`docs/design/2026-05-11-agent-fleet-cli.md`](../docs/design/2026-05-11-agent-fleet-cli.md).
+[`docs/internal/design/2026-05-11-agent-fleet-cli.md`](../docs/internal/design/2026-05-11-agent-fleet-cli.md).

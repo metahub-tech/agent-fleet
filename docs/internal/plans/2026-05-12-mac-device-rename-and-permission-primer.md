@@ -1,5 +1,7 @@
 # Mac-device rename + macOS TCC permission primer Implementation Plan
 
+> _Internal development artifact — kept for historical record, not user-facing documentation. See [docs/internal/README.md](../README.md)._
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rename `macbox-gui`/`winpc-gui`/`android-gui` → `mac-device`/`win-device`/`android-device` everywhere, and add a macOS TCC permission primer that auto-triggers each permission dialog (so Python.app pre-appears in System Settings — user toggles a switch instead of dragging binaries).

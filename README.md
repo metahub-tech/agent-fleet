@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.6.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.13-alpha)
+[![Status](https://img.shields.io/badge/status-v0.6.15--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.15-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.13-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.15-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -37,10 +37,10 @@
 |---|---|---|
 | Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
 | macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
-| Android bridge | `0.4.0` | ✅ Released (android-device, 20 tools, USB + Wireless + Hybrid ADB) |
+| Android bridge | `0.4.0` | ✅ Released (android-device, 23 tools, USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` 一键安装；6 框架配置生成) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
-| v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.13` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
+| v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.15` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
 | iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
 | Cross-device coordination | `0.8.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
@@ -63,10 +63,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.6.13-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.6.15-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.13-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.15-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。
@@ -80,7 +80,7 @@ wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 
 | **新手**（让 wizard 带你走） | 跑上面那行命令，跟着提示选 |
 | **设备管理员，要自己写脚本编排部署** | [`docs/install-pattern.md`](docs/install-pattern.md)（底层脚本契约）|
 | **Agent 操作员** | wizard 输出的 snippet 直接 paste 到对应 agent 配置；也可参考 [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
-| **设计文档**（贡献者） | [`docs/design/2026-05-11-agent-fleet-cli.md`](docs/design/2026-05-11-agent-fleet-cli.md) |
+| **设计文档**（贡献者） | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## English Quick Start
 
