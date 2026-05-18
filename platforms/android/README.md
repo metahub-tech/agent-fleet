@@ -1,6 +1,6 @@
-# Android Platform Bridge — v0.4.0
+# Android Platform Bridge — v0.7.0-alpha
 
-> ✅ **状态：已实现**（v0.4.0）。pure-ADB 实现，无 uiautomator2 / scrcpy 依赖。首批验证机型：华为 P30 Pro (HarmonyOS 4.0 / EMUI 14 / 实际 Android 10 SDK 29)。
+> ✅ **状态：已实现**（v0.7.0-alpha）。pure-ADB 实现，无 uiautomator2 / scrcpy 依赖。支持多设备同时挂载（别名映射 + per-device holder 锁）。首批验证机型：华为 P30 Pro (HarmonyOS 4.0 / EMUI 14 / 实际 Android 10 SDK 29)。
 
 Android 测试设备桥，让 LLM agent 通过 ADB 驱动一台 Android 手机或模拟器。
 
@@ -102,27 +102,32 @@ setup 脚本会：
 
 > 手机重启后失效，需重新插 USB。仅 Android 5-10 推荐。
 
-## 工具集（v0.4.0 实际暴露）
+## 工具集（v0.7.0-alpha 实际暴露，共 25 个）
+
+所有工具均接受可选 `device` 参数（serial 或别名）。未传 `device` 且只连 1 台手机时自动路由。
 
 | 类别 | 工具 | 备注 |
 |---|---|---|
-| 状态 | `acquire_android` / `release_android` / `get_android_status` | 多 agent 协作 |
-| 设备 | `list_devices` | 列出 host 上 adb 看到的所有设备 |
+| 状态 | `acquire_android` / `release_android` / `get_android_status` | per-device 协作锁 |
+| 会话默认设备 | `set_default_device` / `get_default_device` | MCP 会话级 sticky 默认 |
+| 设备 | `list_devices` | 列出已连设备（含 alias/brand/model/in_use 字段） |
 | 屏幕 | `take_screenshot` / `get_screen_size` | screencap 直读，1:1 像素，不缩放 |
 | 触控 | `tap` / `swipe` / `long_press` | 物理屏幕坐标系 |
 | 键盘 | `type_text` / `press_key` | press_key 别名：back/home/menu/recent/power/volume_up 等 |
 | 应用 | `list_packages` / `install_apk` / `uninstall_app` / `start_app` / `kill_app` / `current_app` | apk 安装走 host->phone push |
 | Shell | `adb_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
 | 文件 | `push_file` / `pull_file` | host ↔ device |
+| UI 内省 | `dump_ui_hierarchy` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
 
-> 16 个工具。`type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行；UI 内省（`dump_xml` / `find_by_resource_id`）走 v0.4.1 在 uiautomator2 后再加；视频录制走 v0.5（scrcpy --record 流式回传方案待定）。
+> `type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行。
 
 ## 已知限制
 
 1. **`type_text` 不支持中文 / emoji** —— `adb input text` 在大多数 ROM 上是 ASCII-only
-2. **单设备**：v0.4 只支持一个 device，多设备情况下要 unplug 其他或 set `ATB_ANDROID_SERIAL`
-3. **OEM 截屏拦截**：Huawei / Xiaomi 部分 ROM 在 `exec-out screencap` 上有问题；我们有 `/sdcard` push-pull fallback，但更顽固的需要在 Developer Options 关闭"权限监控"
-4. **Wireless Debugging 不通用**：HarmonyOS 4.0 P30 Pro 实际报 Android 10 / SDK 29，无原生无线调试。Hybrid 模式（USB enroll + tcpip 5555）是变通方案。
+2. **OEM 截屏拦截**：Huawei / Xiaomi 部分 ROM 在 `exec-out screencap` 上有问题；我们有 `/sdcard` push-pull fallback，但更顽固的需要在 Developer Options 关闭"权限监控"
+3. **Wireless Debugging 不通用**：HarmonyOS 4.0 P30 Pro 实际报 Android 10 / SDK 29，无原生无线调试。Hybrid 模式（USB enroll + tcpip 5555）是变通方案。
+4. **hot-plug 通知未实现**：server 不推送 `notifications/resources/list_changed`，新插入/拔出的设备需调 `list_devices()` 主动刷新。
+5. **server 启动时一次性查 adb**（生成 `instructions=`），若 adb hang 可能导致最多 10s 的冷启动延迟。
 
 ## License
 

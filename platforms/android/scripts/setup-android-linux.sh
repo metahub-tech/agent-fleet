@@ -189,7 +189,7 @@ EOF
 fi
 echo
 
-# ---------- 6. verify adb sees a device ----------
+# ---------- 6. verify adb sees a device + configure aliases ----------
 LAST_STEP="[6/8] adb devices"
 echo "$LAST_STEP"
 "$ADB_PATH" devices -l
@@ -197,6 +197,12 @@ DEV_COUNT="$("$ADB_PATH" devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' 
 if [ "$DEV_COUNT" -lt 1 ]; then
     echo "  WARN: no authorized device. Plug in via USB and accept the prompt on the phone, OR pair via wireless."
     echo "        Service will start anyway; tools will fail until a device appears."
+else
+    echo "  Detected $DEV_COUNT device(s). Configuring friendly aliases..."
+    SCRIPT_DIR_ABS="$(cd "$(dirname "$0")" && pwd)"
+    python3 "$SCRIPT_DIR_ABS/setup_aliases.py" --adb "$ADB_PATH" || {
+        echo "  (alias setup failed; aliases left untouched -- server will still work but devices will be referred to by raw serial)"
+    }
 fi
 echo
 

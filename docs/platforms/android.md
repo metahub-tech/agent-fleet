@@ -127,6 +127,90 @@ These should return your phone's model and screen resolution. If they do, `andro
 
 ---
 
+---
+
+## 多设备模式
+
+v0.7.0-alpha 起，单台主机可同时挂多台 Android 手机，通过同一个 MCP 入口控制。
+
+### 使用场景
+
+- **USB hub 接多机**：一台 Linux/macOS/Windows PC 同时接 2–4 台测试机
+- **并行测试**：多个 Claude 会话同时操作不同手机，互不干扰
+- **A/B 截图对比**：同一个 app 在两款手机上跑，Agent 直接对比截图
+- **多端联调**：一台手机发消息，另一台手机收通知，验证端到端流程
+
+### 别名配置文件
+
+别名存储在 `~/.agent-fleet/android-aliases.json`，由安装向导自动推断并写入。格式示例：
+
+```json
+{
+  "R5CW903LNJK": "samsung-galaxy-s23",
+  "emulator-5554": "pixel-8-emulator",
+  "192.168.1.42:5555": "huawei-p30"
+}
+```
+
+推断规则（按优先级）：
+1. `{brand}-{slug(model)}`（空格转 `-`，全小写），例如 `samsung-galaxy_s23` → `samsung-galaxy-s23`
+2. 重名时按 serial 字典序追加 `-1` / `-2`（不影响 serial 本身）
+3. 推断失败时 fallback 到 `phone-1` / `phone-2`
+
+手动写入 `~/.agent-fleet/android-aliases.json` 也可；server 启动时读取，更改后需重启服务。
+
+### wizard 多设备交互式 prompt
+
+`agent-fleet setup` 安装时，如果检测到多台设备，向导会逐台询问别名（pre-fill 推断值，回车接受）。也可单独运行：
+
+```bash
+python3 platforms/android/scripts/setup_aliases.py
+```
+
+### MCP 协议层暴露
+
+| 机制 | 说明 |
+|---|---|
+| `instructions=` | MCP initialize 握手时自动注入，Claude 无需调工具即可看到所有已连设备 |
+| `androidfleet://devices` | MCP resource，随时可读，返回实时设备 JSON |
+| `list_devices()` | 兜底工具，主动刷新（含 hot-plug 后新出现的设备） |
+
+### `device` 参数解析顺序
+
+每个工具调用的 `device` 参数按以下顺序解析：
+
+1. **显式 device** — 调用时传入的 alias 或 serial
+2. **会话 sticky 默认** — 之前调 `set_default_device()` 设置的值
+3. **1 部时自动** — 当前恰好只有 1 台设备，自动选择
+4. **MultipleDevicesError** — 以上均不满足时抛出，提示需要指定 device
+
+### 并发场景示例
+
+两个 Claude 会话同时操作不同手机，互不干扰：
+
+```python
+# 会话 A
+acquire_android(device="samsung-galaxy-s23", holder_name="agent-A")
+take_screenshot(device="samsung-galaxy-s23")
+tap(x=540, y=1170, device="samsung-galaxy-s23")
+release_android(device="samsung-galaxy-s23", holder_name="agent-A")
+
+# 会话 B（同时进行）
+acquire_android(device="pixel-8-emulator", holder_name="agent-B")
+take_screenshot(device="pixel-8-emulator")
+release_android(device="pixel-8-emulator", holder_name="agent-B")
+```
+
+### 注意事项
+
+> **多设备模式仍使用一个 MCP 入口**。`~/.claude.json` 里仍然只写一条 `android-device` 配置；server 自己按 `device` 参数路由到对应手机。不需要为每台手机注册独立 MCP server。
+
+- **单机用户无需修改任何配置**：未传 `device` 且只插 1 部手机时自动路由，行为与 v0.6.x 完全兼容。
+- **hot-plug 通知未实现**：新插入/拔出的设备不会主动推送，调 `list_devices()` 主动刷新。
+- **server 启动时查询 adb** 以生成 `instructions=`；若 adb hang 可能导致最多 10s 的冷启动延迟。
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |

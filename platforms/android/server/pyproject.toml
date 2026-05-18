@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fleet-android"
-version = "0.6.15a1"
+version = "0.7.0a1"
 description = "Android device MCP bridge for agent-fleet (drives Android via ADB)"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -35,6 +35,12 @@ dependencies = [
 Homepage = "https://github.com/metahub-tech/agent-fleet"
 Repository = "https://github.com/metahub-tech/agent-fleet"
 Issues = "https://github.com/metahub-tech/agent-fleet/issues"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.setuptools]
 py-modules = ["android_device_mcp"]

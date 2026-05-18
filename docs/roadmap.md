@@ -2,7 +2,7 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-12*
+*Last updated: 2026-05-18*
 
 | Version | Theme | Status |
 |---|---|---|
@@ -22,8 +22,10 @@
 | 0.6.8-alpha | install.sh/.ps1: uvx local path | ✅ Released |
 | 0.6.9-alpha | Windows: UTF-8 PS + firewall try-catch | ✅ Released |
 | **0.6.10-alpha** | **Windows: require admin upfront + try-catch ScheduledTask** | ✅ Released |
-| 0.7.0 | iOS (Simulator + real device) | 📋 Planned |
-| 0.8.0 | Cross-device coordination | 🔭 Future |
+| 0.6.11–0.6.15-alpha | Internal renames, wizard hardening, SSE→http sweep, open-source readiness | ✅ Released |
+| **0.7.0-alpha** | **Android multi-device: alias map, 25 tools, per-device holder, MCP instructions/resource** | ✅ Released |
+| 0.8.0 | iOS (Simulator + real device, macOS host + WebDriverAgent) | 📋 Planned |
+| 0.9.0 | Cross-device coordination | 🔭 Future |
 | 1.0.0 | Public open-source stable | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
@@ -81,7 +83,23 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.7.0 — iOS
+## v0.7.0-alpha — Android 多设备
+**Released 2026-05-18**
+
+单 MCP 入口，控制挂在同一台主机上的多台 Android 手机。
+
+### 已实现
+- 设备别名映射（`~/.agent-fleet/android-aliases.json`），wizard 自动推断 `{brand}-{slug(model)}`
+- 所有 25 个工具新增 `device` 参数（serial 或别名），未传时自动路由单机
+- 新工具 `set_default_device` / `get_default_device`：MCP 会话级 sticky 默认
+- `acquire_android` / `release_android` / `get_android_status` 全部 per-device 路由
+- FastMCP `instructions=` 在 initialize 握手告知 Claude 当前连接设备清单
+- MCP resource `androidfleet://devices`：实时设备 JSON 快照
+- `list_devices` 返回 `alias` / `brand` / `model` / `in_use` / `holder` / `default_for_session`
+
+---
+
+## v0.8.0 — iOS
 **Target: TBD**
 
 ### 范围
@@ -97,7 +115,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.8.0 — Cross-device Coordination
+## v0.9.0 — Cross-device Coordination
 **Future**
 
 Agent 一次提示，串联多设备。例：

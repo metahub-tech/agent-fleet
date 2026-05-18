@@ -213,7 +213,7 @@ adb_path = "$($adbCmd.Source.Replace('\','\\'))"
     Write-Host "  ok  wrote $ConfigPath (mode=$modeName)"
 }
 
-# ---------- 6. verify adb sees a device ----------
+# ---------- 6. verify adb sees a device + configure aliases ----------
 Write-Host ""
 Write-Host "[6/9] adb devices" -ForegroundColor Cyan
 $devicesOut = & adb devices -l
@@ -222,6 +222,15 @@ $devCount = ($devicesOut | Select-String -Pattern "`tdevice").Count
 if ($devCount -lt 1) {
     Write-Host "  WARN: no authorized device. Plug in via USB and accept the prompt on the phone, OR pair via wireless." -ForegroundColor Yellow
     Write-Host "        Service will start anyway; tools will fail until a device appears."
+} else {
+    Write-Host "  Detected $devCount device(s). Configuring friendly aliases..." -ForegroundColor Cyan
+    $aliasScript = Join-Path $PSScriptRoot "setup_aliases.py"
+    try {
+        & python3 $aliasScript --adb $adbCmd.Source
+        if ($LASTEXITCODE -ne 0) { throw "exit code $LASTEXITCODE" }
+    } catch {
+        Write-Host "  (alias setup failed; aliases left untouched -- server will still work but devices will be referred to by raw serial)" -ForegroundColor Yellow
+    }
 }
 
 # ---------- 7. Firewall: open port on Tailscale interface only ----------
