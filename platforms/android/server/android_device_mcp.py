@@ -31,7 +31,6 @@ ADB binary resolution order:
 
 from __future__ import annotations
 
-import functools
 import io
 import os
 import platform as host_platform
@@ -80,12 +79,16 @@ def _resolve_adb() -> str:
 _ADB = _resolve_adb()
 
 
-def _adb_run(args: list[str], timeout: int = 30, capture_bytes: bool = False) -> dict:
+def _adb_run(args: list[str], timeout: int = 30, capture_bytes: bool = False, serial: str | None = None) -> dict:
     """Run an adb command with timeout. Returns dict with stdout/stderr/returncode.
 
     capture_bytes=True returns raw bytes in 'stdout_bytes' (for screencap).
+    serial: when provided, prepends ["-s", serial] to the adb args.
     """
-    cmd = [_ADB] + args
+    if serial:
+        cmd = [_ADB, "-s", serial] + args
+    else:
+        cmd = [_ADB] + args
     try:
         proc = subprocess.run(
             cmd,
@@ -106,33 +109,14 @@ def _adb_run(args: list[str], timeout: int = 30, capture_bytes: bool = False) ->
     return out
 
 
-def _adb_shell(cmd: str, timeout: int = 30, capture_bytes: bool = False) -> dict:
-    """`adb shell <cmd>`. Convenience wrapper."""
-    if capture_bytes:
-        return _adb_run(["exec-out"] + cmd.split(), timeout=timeout, capture_bytes=True)
-    return _adb_run(["shell", cmd], timeout=timeout)
+def _adb_shell(cmd: str, timeout: int = 30, capture_bytes: bool = False, serial: str | None = None) -> dict:
+    """`adb shell <cmd>`. Convenience wrapper.
 
-
-def _ensure_one_device() -> str:
-    """Legacy single-device fallback. KEEP — the 17 unmigrated tools still call this.
-    T3b will remove all callers and then delete this helper.
+    serial: when provided, targets the specified device via -s.
     """
-    r = _adb_run(["devices"], timeout=10)
-    if r["returncode"] != 0:
-        raise RuntimeError(f"adb devices failed: {r['stderr']}")
-    lines = [ln for ln in r["stdout"].splitlines() if "\tdevice" in ln]
-    if not lines:
-        raise RuntimeError(
-            "no authorized Android device found. Plug a phone via USB and accept "
-            "the 'Allow USB debugging' prompt, or pair via Wireless Debugging."
-        )
-    if len(lines) > 1:
-        serials = [ln.split("\t")[0] for ln in lines]
-        raise RuntimeError(
-            f"multiple devices attached ({serials}); v0.4.0 supports only one at a time. "
-            f"Set ATB_ANDROID_SERIAL or unplug others."
-        )
-    return lines[0].split("\t")[0]
+    if capture_bytes:
+        return _adb_run(["exec-out"] + cmd.split(), timeout=timeout, capture_bytes=True, serial=serial)
+    return _adb_run(["shell", cmd], timeout=timeout, serial=serial)
 
 
 # ============================================================
@@ -211,35 +195,6 @@ def _load_alias_overrides() -> dict[str, str]:
 # ============================================================
 
 _state_registry = DeviceStateRegistry()
-
-
-def _touch(serial: str) -> None:
-    """Refresh last_used_at for `serial` (no-op if not held)."""
-    try:
-        _state_registry.touch(serial)
-    except ValueError:
-        # empty serial — silently ignore, this is a best-effort touch
-        pass
-
-
-def with_touch(fn):
-    """Best-effort touch decorator for legacy single-device tools.
-
-    The 17 unmigrated tools have no `device` param, so we touch the only
-    holder iff exactly one phone is attached. Multi-device case: no-op,
-    until T3b rewires each tool to call `_state_registry.touch(serial)`
-    explicitly.
-    """
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        try:
-            detected = _detect_devices()
-            if len(detected) == 1:
-                _state_registry.touch(detected[0].serial)
-        except Exception:
-            pass
-        return fn(*args, **kwargs)
-    return wrapper
 
 
 # ============================================================
@@ -546,11 +501,14 @@ def devices_resource() -> dict:
 
 
 @mcp.tool
-@with_touch
-def get_screen_size() -> dict:
+def get_screen_size(
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
+) -> dict:
     """Return the device screen resolution as reported by `wm size`."""
-    _ensure_one_device()
-    r = _adb_shell("wm size", timeout=5)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell("wm size", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"error": r["stderr"]}
     # Format: "Physical size: 1080x2340"  (sometimes also "Override size: 720x1560")
@@ -573,37 +531,40 @@ def get_screen_size() -> dict:
 # ============================================================
 
 @mcp.tool
-@with_touch
-def take_screenshot() -> Image:
+def take_screenshot(
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
+) -> Image:
     """Capture the device screen and return as PNG.
 
     Uses `adb exec-out screencap -p`, which dumps a PNG to stdout. Resilient
     to OEM locked-down ROMs since it doesn't require pushing any APK.
     """
-    _ensure_one_device()
-    r = _adb_run(["exec-out", "screencap", "-p"], timeout=15, capture_bytes=True)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_run(["exec-out", "screencap", "-p"], timeout=15, capture_bytes=True, serial=serial)
     if r["returncode"] != 0 or not r["stdout_bytes"]:
         # Some Huawei ROMs won't `exec-out` cleanly; fall back to push-then-pull
-        return _take_screenshot_fallback()
+        return _take_screenshot_fallback(serial=serial)
     raw = r["stdout_bytes"]
     if not raw.startswith(b"\x89PNG"):
-        return _take_screenshot_fallback()
+        return _take_screenshot_fallback(serial=serial)
     return Image(data=raw, format="png")
 
 
-def _take_screenshot_fallback() -> Image:
+def _take_screenshot_fallback(serial: str | None = None) -> Image:
     """Fallback: write to /sdcard, pull, read."""
     remote = "/sdcard/atb_screenshot.png"
-    r1 = _adb_shell(f"screencap -p {remote}", timeout=10)
+    r1 = _adb_shell(f"screencap -p {remote}", timeout=10, serial=serial)
     if r1["returncode"] != 0:
         raise RuntimeError(f"screencap failed: {r1['stderr']}")
     import tempfile
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
         local_path = tf.name
-    r2 = _adb_run(["pull", remote, local_path], timeout=15)
+    r2 = _adb_run(["pull", remote, local_path], timeout=15, serial=serial)
     if r2["returncode"] != 0:
         raise RuntimeError(f"adb pull failed: {r2['stderr']}")
-    _adb_shell(f"rm {remote}", timeout=5)
+    _adb_shell(f"rm {remote}", timeout=5, serial=serial)
     raw = Path(local_path).read_bytes()
     Path(local_path).unlink(missing_ok=True)
     return Image(data=raw, format="png")
@@ -614,46 +575,52 @@ def _take_screenshot_fallback() -> Image:
 # ============================================================
 
 @mcp.tool
-@with_touch
 def tap(
     x: Annotated[int, Field(ge=0, description="X coordinate in screen pixels")],
     y: Annotated[int, Field(ge=0, description="Y coordinate in screen pixels")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Tap the screen at (x, y). Coordinates are in the same space as get_screen_size."""
-    _ensure_one_device()
-    r = _adb_shell(f"input tap {x} {y}", timeout=5)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell(f"input tap {x} {y}", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "x": x, "y": y}
 
 
 @mcp.tool
-@with_touch
 def swipe(
     x1: Annotated[int, Field(ge=0, description="Start X")],
     y1: Annotated[int, Field(ge=0, description="Start Y")],
     x2: Annotated[int, Field(ge=0, description="End X")],
     y2: Annotated[int, Field(ge=0, description="End Y")],
     duration_ms: Annotated[int, Field(ge=50, le=10000, description="Swipe duration in ms")] = 300,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Swipe from (x1,y1) to (x2,y2) over duration_ms milliseconds."""
-    _ensure_one_device()
-    r = _adb_shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", timeout=15)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "from": (x1, y1), "to": (x2, y2), "duration_ms": duration_ms}
 
 
 @mcp.tool
-@with_touch
 def long_press(
     x: int,
     y: int,
     duration_ms: Annotated[int, Field(ge=300, le=10000, description="Hold duration in ms")] = 800,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Long-press at (x, y). Implemented as a 0-distance swipe."""
-    _ensure_one_device()
-    r = _adb_shell(f"input swipe {x} {y} {x} {y} {duration_ms}", timeout=15)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell(f"input swipe {x} {y} {x} {y} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "x": x, "y": y, "duration_ms": duration_ms}
@@ -689,31 +656,34 @@ _KEY_ALIASES = {
 
 
 @mcp.tool
-@with_touch
 def press_key(
     key: Annotated[
         str,
         Field(description="Key name: back/home/menu/recent/power/wake/volume_up/volume_down/enter/tab/del/space/search/camera"),
     ],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Send a physical / system key to the device. Uses Android KeyEvent."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     code = _KEY_ALIASES.get(key.lower())
     if code is None:
         return {
             "ok": False,
             "error": f"unknown key '{key}'. Allowed: {sorted(_KEY_ALIASES.keys())}",
         }
-    r = _adb_shell(f"input keyevent {code}", timeout=5)
+    r = _adb_shell(f"input keyevent {code}", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "key": key, "keycode": code}
 
 
 @mcp.tool
-@with_touch
 def type_text(
     text: Annotated[str, Field(description="Text to type. Whitespace and special chars handled.")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Type text into the currently focused input. Uses `adb shell input text`.
 
@@ -721,10 +691,11 @@ def type_text(
     Chinese / emoji / multiline, push to the device clipboard via `am
     broadcast` and paste -- not implemented in v0.4.0.
     """
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     # `input text` interprets some chars specially. Escape spaces and quotes.
     escaped = text.replace(" ", "%s").replace("'", "\\'").replace('"', '\\"')
-    r = _adb_shell(f"input text '{escaped}'", timeout=15)
+    r = _adb_shell(f"input text '{escaped}'", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "chars": len(text)}
@@ -735,18 +706,20 @@ def type_text(
 # ============================================================
 
 @mcp.tool
-@with_touch
 def list_packages(
     filter_substring: Annotated[
         Optional[str],
         Field(description="Filter package names containing this substring; None = all"),
     ] = None,
     only_user: Annotated[bool, Field(description="Only third-party (non-system) packages")] = True,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """List installed app packages. `pm list packages`."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     flag = "-3" if only_user else ""
-    r = _adb_shell(f"pm list packages {flag}".strip(), timeout=15)
+    r = _adb_shell(f"pm list packages {flag}".strip(), timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"error": r["stderr"]}
     pkgs = []
@@ -759,14 +732,16 @@ def list_packages(
 
 
 @mcp.tool
-@with_touch
 def install_apk(
     apk_path: Annotated[str, Field(description="Absolute path to .apk on the HOST machine")],
     replace: Annotated[bool, Field(description="-r flag: replace existing")] = True,
     grant_runtime: Annotated[bool, Field(description="-g flag: grant all runtime permissions")] = False,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Install an APK from the host onto the device. `adb install`."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     p = Path(apk_path).expanduser()
     if not p.is_file():
         return {"ok": False, "error": f"apk not found: {apk_path}"}
@@ -776,71 +751,80 @@ def install_apk(
     if grant_runtime:
         args.append("-g")
     args.append(str(p))
-    r = _adb_run(args, timeout=120)
+    r = _adb_run(args, timeout=120, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
     return {"ok": True, "apk": str(p)}
 
 
 @mcp.tool
-@with_touch
 def uninstall_app(
     package: Annotated[str, Field(description="Package id, e.g. 'com.example.app'")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Uninstall an app by package id. `adb uninstall`."""
-    _ensure_one_device()
-    r = _adb_run(["uninstall", package], timeout=30)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_run(["uninstall", package], timeout=30, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
     return {"ok": True, "package": package}
 
 
 @mcp.tool
-@with_touch
 def start_app(
     package: Annotated[str, Field(description="Package id, e.g. 'com.android.settings'")],
     activity: Annotated[
         Optional[str],
         Field(description="Activity name (e.g. '.MainActivity'). None = use launcher intent."),
     ] = None,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Launch an app. With activity: `am start -n pkg/activity`. Without: `monkey -p pkg`."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     if activity:
         if not activity.startswith("."):
             target = f"{package}/{activity}"
         else:
             target = f"{package}/{package}{activity}"
-        r = _adb_shell(f"am start -n {target}", timeout=15)
+        r = _adb_shell(f"am start -n {target}", timeout=15, serial=serial)
     else:
-        r = _adb_shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1", timeout=15)
+        r = _adb_shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], "stdout": r["stdout"]}
     return {"ok": True, "package": package, "stdout": r["stdout"][:500]}
 
 
 @mcp.tool
-@with_touch
 def kill_app(
     package: Annotated[str, Field(description="Package id to force-stop")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Force-stop an app. `am force-stop`."""
-    _ensure_one_device()
-    r = _adb_shell(f"am force-stop {package}", timeout=10)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell(f"am force-stop {package}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"]}
     return {"ok": True, "package": package}
 
 
 @mcp.tool
-@with_touch
-def current_app() -> dict:
+def current_app(
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
+) -> dict:
     """Return the package name of the currently focused app on the device.
 
     Tries multiple dumpsys commands since the format varies across Android
     versions and OEM ROMs (EMUI, MIUI, OneUI, etc.).
     """
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     import re
     pkg_pattern = re.compile(r"([a-zA-Z][\w.]+\.[\w.]+)/[\w.$]+")
 
@@ -852,7 +836,7 @@ def current_app() -> dict:
         ("dumpsys activity activities", "topResumedActivity"),
         ("dumpsys window windows", "mCurrentFocus"),
     ]:
-        r = _adb_shell(cmd, timeout=10)
+        r = _adb_shell(cmd, timeout=10, serial=serial)
         if r["returncode"] != 0:
             continue
         for ln in r["stdout"].splitlines():
@@ -869,18 +853,20 @@ def current_app() -> dict:
 # ============================================================
 
 @mcp.tool
-@with_touch
 def adb_shell(
     command: Annotated[str, Field(description="Shell command to run ON the device")],
     timeout: Annotated[int, Field(ge=1, le=120, description="Seconds")] = 30,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Run an arbitrary shell command on the Android device.
 
     Useful for `getprop`, `dumpsys`, `pm`, `am`, `settings`, `cmd`, etc.
     Output > 100KB is truncated.
     """
-    _ensure_one_device()
-    r = _adb_shell(command, timeout=timeout)
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    r = _adb_shell(command, timeout=timeout, serial=serial)
     out = r["stdout"]
     if len(out) > 100_000:
         out = out[:100_000] + f"\n[... truncated, total {len(r['stdout'])} chars]"
@@ -896,33 +882,37 @@ def adb_shell(
 # ============================================================
 
 @mcp.tool
-@with_touch
 def push_file(
     host_path: Annotated[str, Field(description="Absolute path on the HOST")],
     device_path: Annotated[str, Field(description="Destination path on the DEVICE (e.g. /sdcard/foo.txt)")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Copy a file from host to device. `adb push`."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     h = Path(host_path).expanduser()
     if not h.is_file():
         return {"ok": False, "error": f"host file not found: {host_path}"}
-    r = _adb_run(["push", str(h), device_path], timeout=300)
+    r = _adb_run(["push", str(h), device_path], timeout=300, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
     return {"ok": True, "host": str(h), "device": device_path, "size": h.stat().st_size}
 
 
 @mcp.tool
-@with_touch
 def pull_file(
     device_path: Annotated[str, Field(description="Source path on the DEVICE")],
     host_path: Annotated[str, Field(description="Destination path on the HOST (parent dir must exist)")],
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Copy a file from device to host. `adb pull`."""
-    _ensure_one_device()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     h = Path(host_path).expanduser()
     h.parent.mkdir(parents=True, exist_ok=True)
-    r = _adb_run(["pull", device_path, str(h)], timeout=300)
+    r = _adb_run(["pull", device_path, str(h)], timeout=300, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
     return {
@@ -986,9 +976,10 @@ def _walk_xml(node, depth: int, out: list, max_depth: int):
 
 
 @mcp.tool
-@with_touch
 def dump_ui_hierarchy(
     max_depth: Annotated[int, Field(ge=1, le=20, description="Max tree depth to walk")] = 12,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Dump the current screen's UI element tree via `uiautomator dump`.
 
@@ -1005,14 +996,16 @@ def dump_ui_hierarchy(
     Some apps (games, Flutter canvas, secured banking apps) don't expose
     uiautomator elements — fall back to take_screenshot + tap(x, y) for those.
     """
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     # 1. uiautomator dump on device → /sdcard/window_dump.xml
     dump_path_device = "/sdcard/window_dump.xml"
-    r = _adb_shell(f"uiautomator dump {dump_path_device}", timeout=15)
+    r = _adb_shell(f"uiautomator dump {dump_path_device}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "uiautomator dump failed", "stderr": r["stderr"]}
 
     # 2. cat the XML back (avoids needing a host tmp file)
-    r = _adb_shell(f"cat {dump_path_device}", timeout=10, capture_bytes=True)
+    r = _adb_shell(f"cat {dump_path_device}", timeout=10, capture_bytes=True, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "cat dump failed", "stderr": r["stderr"]}
     # _adb_run(capture_bytes=True) puts raw bytes in "stdout_bytes" and sets
@@ -1036,13 +1029,14 @@ def dump_ui_hierarchy(
 
 
 @mcp.tool
-@with_touch
 def find_elements(
     text: Annotated[Optional[str], Field(description="Substring-match Element.text")] = None,
     resource_id: Annotated[Optional[str], Field(description="Substring-match resource_id")] = None,
     content_desc: Annotated[Optional[str], Field(description="Substring-match content_desc (a11y label)")] = None,
     class_name: Annotated[Optional[str], Field(description="Substring-match class (e.g. 'android.widget.Button')")] = None,
     clickable_only: Annotated[bool, Field(description="Only return clickable=true elements")] = False,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Find UI elements matching all provided filters (substring match, AND logic).
 
@@ -1056,7 +1050,9 @@ def find_elements(
     if not any([text, resource_id, content_desc, class_name]):
         return {"ok": False, "error": "at least one filter required"}
 
-    dump = dump_ui_hierarchy()
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
+    dump = dump_ui_hierarchy(device=serial)
     if not dump.get("ok"):
         return dump
 
@@ -1078,13 +1074,14 @@ def find_elements(
 
 
 @mcp.tool
-@with_touch
 def tap_element(
     text: Annotated[Optional[str], Field(description="Substring-match Element.text")] = None,
     resource_id: Annotated[Optional[str], Field(description="Substring-match resource_id")] = None,
     content_desc: Annotated[Optional[str], Field(description="Substring-match content_desc")] = None,
     class_name: Annotated[Optional[str], Field(description="Substring-match class")] = None,
     nth: Annotated[int, Field(ge=0, description="If multiple match, tap the nth (0-indexed)")] = 0,
+    device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Find an element by filter and tap its center.
 
@@ -1094,12 +1091,15 @@ def tap_element(
     Errors out if no element matches OR nth is out of range — so the agent
     sees a clear failure instead of tapping nothing.
     """
+    serial = _resolve_device(device, _get_session_default(ctx))
+    _state_registry.touch(serial)
     found = find_elements(
         text=text,
         resource_id=resource_id,
         content_desc=content_desc,
         class_name=class_name,
         clickable_only=False,
+        device=serial,
     )
     if not found.get("ok"):
         return found
@@ -1114,7 +1114,7 @@ def tap_element(
         return {"ok": False, "error": "matched element has no bounds — cannot tap"}
 
     cx, cy = el["center"]
-    r = _adb_shell(f"input tap {cx} {cy}", timeout=10)
+    r = _adb_shell(f"input tap {cx} {cy}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "input tap failed", "stderr": r["stderr"]}
 
