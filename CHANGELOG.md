@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1-alpha] - 2026-05-19
+
+### 修复
+
+- **依赖**：`fastmcp` 加上限 `!=3.3.1`。PyPI 上的 `fastmcp==3.3.1` 是空 namespace 包（`dir(fastmcp)` 无 `Context` / `FastMCP`），server 启动时直接 `ImportError`。3.2.4 工作正常。本次修复防止 pip 解析器选中该 broken release。
+
 ## [0.7.0-alpha] - 2026-05-18
 
 ### 新增
