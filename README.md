@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.6.15--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.15-alpha)
+[![Status](https://img.shields.io/badge/status-v0.7.0--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.7.0-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android（以后 iOS），通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.15-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.7.0-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -24,7 +24,7 @@
 │  / OpenClaw /   │                              ├──────────────┤
 │  Antigravity /  │                              │ Android phone│ android-device :8768 ✅
 │  Hermes / ...   │                              ├──────────────┤
-└─────────────────┘                              │ iPhone       │ ios-device     :8769 (v0.7 planned)
+└─────────────────┘                              │ iPhone       │ ios-device     :8769 (v0.8 planned)
                                                  └──────────────┘
             ↑                                                ↑
    uvx agent-fleet setup           generates 6 frameworks' configs
@@ -37,12 +37,12 @@
 |---|---|---|
 | Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
 | macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
-| Android bridge | `0.4.0` | ✅ Released (android-device, 23 tools, USB + Wireless + Hybrid ADB) |
+| Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **25 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` 一键安装；6 框架配置生成) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
 | v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.15` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
-| iOS bridge | `0.7.0` | 📋 Planned (macOS host + WebDriverAgent) |
-| Cross-device coordination | `0.8.0` | 🔭 Future |
+| iOS bridge | `0.8.0` | 📋 Planned (macOS host + WebDriverAgent) |
+| Cross-device coordination | `0.9.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
 
 详见 [`docs/roadmap.md`](docs/roadmap.md)。
@@ -63,10 +63,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.6.15-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.7.0-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.6.15-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.7.0-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。

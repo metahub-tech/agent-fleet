@@ -5,7 +5,7 @@ description: Use when invoking android-device MCP tools to drive a real Android 
 
 # Using android-device
 
-Drive a remote Android device via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone via **ADB** (USB or Wireless). 23 tools across 9 categories.
+Drive one or more Android devices via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone(s) via **ADB** (USB or Wireless). 25 tools across 9 categories.
 
 ## Mental model
 
@@ -175,12 +175,31 @@ adb_shell("dumpsys sensorservice | grep -A 6 'Recent Sensor events' | head -30")
 
 Recent event timestamps prove the sensor is actively sampling; useful for sanity-checking that step counter / accelerometer hardware is alive even when content is `[value masked]`.
 
+## 多设备模式
+
+v0.7.0-alpha 起，单 MCP 入口可同时挂多台手机。默认行为：
+
+- 只连一台手机时，所有工具**自动路由**，无需传 `device`。
+- 连了多台手机时，LLM 应当：
+
+  1. 先调 `list_devices()` 查看连接清单（返回 `alias` / `serial` / `brand` / `model` / `in_use`）。
+  2. 调工具时传 `device="<别名或serial>"`，例如 `take_screenshot(device="pixel-8")`；
+     或先调 `set_default_device(device="pixel-8")` 设置会话级默认，后续省略 `device`。
+  3. 并行操作多机时，先 `acquire_android(device="...", holder_name="agent-A")` 拿排他锁，
+     操作完调 `release_android(device="...", holder_name="agent-A")`。
+
+别名在 `~/.agent-fleet/android-aliases.json` 中定义，由安装向导自动推断
+（格式：`{brand}-{slug(model)}`，重名按 serial 字典序加 `-1/-2`，fallback 为 `phone-N`）。
+
+MCP 握手时 `instructions=` 中已列出当前所有连接设备的摘要；资源
+`androidfleet://devices` 可随时获取实时 JSON 快照。
+
 ## Common failures and recovery
 
 | Symptom | Cause / fix |
 |---|---|
 | `no authorized Android device found` | Phone unplugged / USB cable bad / USB debugging not authorized. Plug in, watch the phone for "Allow USB debugging?" prompt, click "Always allow from this computer". |
-| `multiple devices attached` | v0.4.0 supports only one device. Unplug others, or set `ATB_ANDROID_SERIAL` env var on the host. |
+| `multiple devices attached` (MultipleDevicesError) | Multiple phones connected but no `device` param supplied. Pass `device="<alias or serial>"` or call `set_default_device()` first. |
 | `take_screenshot` returns garbage / fallback path used | Some Huawei / OEM ROMs corrupt `exec-out screencap`. Fallback to `screencap -p /sdcard/...` + `adb pull` is automatic. If that also fails, ROM is locked down -- need to grant Developer Options > "Disable permission monitoring". |
 | Phone locked (lock screen) | `press_key("wake")` then swipe up via `swipe(540, 1800, 540, 600, 300)` (calibrate to your screen). For PIN-locked phones, type the PIN via `type_text("1234")` after swipe-up. |
 | `type_text` Chinese / emoji silently dropped | `adb input text` ASCII-only on most ROMs. v0.4 doesn't ship a Unicode workaround; for now copy text via `push_file` to clipboard or use a third-party IME. |
@@ -195,7 +214,7 @@ Recent event timestamps prove the sensor is actively sampling; useful for sanity
 - Source code: `platforms/android/server/android_device_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
-- Tool surface: 23 tools across 9 categories (state 3 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / ui-introspection 3)
+- Tool surface: 25 tools across 9 categories (state 3 / session-default 2 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / ui-introspection 3)
 
 ## Red flags
 

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0-alpha] - 2026-05-18
+
+### 新增
+
+- **多设备 Android 支持**：单 MCP 入口，所有工具新增 `device` 参数（serial 或别名），支持同一主机挂多台手机同时操作。
+- **设备别名映射**：`~/.agent-fleet/android-aliases.json`，wizard 自动推断（格式：`{brand}-{slug(model)}`，重名按 serial 字典序追加 `-1/-2`，fallback 为 `phone-N`）。可单独运行 `python3 platforms/android/scripts/setup_aliases.py` 生成。
+- **新工具 `set_default_device` / `get_default_device`**：MCP 会话级 sticky 默认，设置后同一会话内所有工具可省略 `device` 参数。
+- **FastMCP `instructions=`**：MCP initialize 握手时自动注入已连接手机的摘要列表，Claude 无需调工具即可得知当前设备情况。
+- **MCP resource `androidfleet://devices`**：实时设备 JSON 快照，随时可读。
+- **per-device holder 锁**：`acquire_android` / `release_android` / `get_android_status` 全部按 `device` 维度隔离，支持多个 Claude 会话同时操作不同手机。
+
+### 变更
+
+- **`list_devices` 返回 shape 更新**：移除 `state` 字段；新增 `alias` / `brand` / `model` / `in_use` / `holder` / `default_for_session` 字段。
+- **工具数 23 → 25**（新增 `set_default_device` / `get_default_device`）。
+- **Roadmap 重排**：iOS bridge 由 `0.7.0` 顺延到 `0.8.0`，Cross-device coordination 由 `0.8.0` 顺延到 `0.9.0`。
+
+### 迁移说明
+
+- **单机用户无需修改任何配置**：未传 `device` 且只插 1 部手机时，行为与 v0.6.x 完全兼容，自动路由。
+- **多机用户**：首次跑 `agent-fleet setup` / `setup_aliases.py` 生成别名配置；或手动写 `~/.agent-fleet/android-aliases.json`。
+
+### 向后兼容
+
+- 所有 `@mcp.tool` 的现有参数顺序保持不变；`device` / `ctx` 均为新增的尾部默认参数，不影响现有调用。
+
+### 已知限制
+
+- server 启动时一次性查 adb 以生成 `instructions=`，若 adb hang 可能导致最多 10s 冷启动延迟。
+- hot-plug 通知（`notifications/resources/list_changed`）暂未实现；新插入/拔出的设备依赖 `list_devices()` 主动刷新。
+
 ## [0.6.15-alpha] - 2026-05-14
 
 ### Changed
@@ -366,6 +397,7 @@ Initial private release. Windows platform bridge.
 ### Security
 - MCP ports (8765/8766) are restricted to the Tailscale network interface via Windows Firewall rules; not exposed to LAN or internet
 
+[0.7.0-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.7.0-alpha
 [0.6.15-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.15-alpha
 [0.6.14-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.14-alpha
 [0.6.13-alpha]: https://github.com/metahub-tech/agent-fleet/releases/tag/v0.6.13-alpha
