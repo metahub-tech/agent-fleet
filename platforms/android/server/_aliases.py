@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -55,7 +56,7 @@ def assign_aliases(devices: list[DeviceInfo]) -> dict[str, str]:
 
 
 def load_aliases(path: Path) -> dict[str, str]:
-    if not path.exists():
+    if not path.is_file():
         return {}
     text = path.read_text(encoding="utf-8").strip()
     if not text:
@@ -76,10 +77,18 @@ def load_aliases(path: Path) -> dict[str, str]:
 
 def save_aliases(path: Path, aliases: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
     content = json.dumps(aliases, indent=2, sort_keys=True) + "\n"
-    tmp_path.write_text(content, encoding="utf-8")
-    os.replace(tmp_path, path)
+    fd, tmp_str = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_str, path)
+    except Exception:
+        try:
+            os.unlink(tmp_str)
+        except OSError:
+            pass
+        raise
 
 
 def resolve_aliases(devices: list[DeviceInfo], overrides: dict[str, str]) -> dict[str, str]:

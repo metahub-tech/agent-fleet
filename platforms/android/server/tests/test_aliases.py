@@ -211,8 +211,23 @@ def test_save_aliases_creates_parent_dirs(tmp_path):
 def test_save_aliases_no_tmp_file_left_behind(tmp_path):
     p = tmp_path / "aliases.json"
     save_aliases(p, {"s": "alias"})
-    tmp_file = Path(str(p) + ".tmp")
-    assert not tmp_file.exists()
+    leftovers = [f for f in tmp_path.iterdir() if f.suffix == ".tmp"]
+    assert leftovers == []
+
+
+def test_load_aliases_path_is_directory_returns_empty(tmp_path):
+    # tmp_path is itself a directory; load_aliases should treat non-file paths as missing.
+    assert load_aliases(tmp_path) == {}
+
+
+def test_load_aliases_broken_symlink_returns_empty(tmp_path):
+    target = tmp_path / "missing.json"
+    link = tmp_path / "link.json"
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform")
+    assert load_aliases(link) == {}
 
 
 def test_save_aliases_pretty_printed(tmp_path):
