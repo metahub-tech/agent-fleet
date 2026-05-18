@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fleet-android"
-version = "0.7.0a1"
+version = "0.7.1a1"
 description = "Android device MCP bridge for agent-fleet (drives Android via ADB)"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-    "fastmcp>=2.0",
+    "fastmcp>=2.0,!=3.3.1",
     "pillow>=10.0",
     "pydantic>=2.0",
 ]
