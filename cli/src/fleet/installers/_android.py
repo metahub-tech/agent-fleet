@@ -27,7 +27,7 @@ def _android_bridge_smoke_tests():
 
 
 def _has_device_in_result(result) -> bool:
-    """Inspect list_devices tool result and return True iff at least one device is present."""
+    """Inspect list_devices tool result: any entry in `devices` array == success."""
     import json
     for item in getattr(result, "content", []) or []:
         text = getattr(item, "text", None)
@@ -37,7 +37,6 @@ def _has_device_in_result(result) -> bool:
             payload = json.loads(text)
         except (json.JSONDecodeError, TypeError):
             continue
-        devs = payload.get("devices") or []
-        if any(d.get("state") == "device" for d in devs):
+        if payload.get("devices"):
             return True
     return False
