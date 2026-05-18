@@ -37,20 +37,19 @@ import os
 import platform as host_platform
 import shutil
 import subprocess
+import sys
 import threading
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
 from PIL import Image as PILImage
 from pydantic import Field
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image
 
-
-mcp = FastMCP("android-device")
+from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
+from _device_state import DeviceStateRegistry
 
 
 # ============================================================
@@ -115,6 +114,9 @@ def _adb_shell(cmd: str, timeout: int = 30, capture_bytes: bool = False) -> dict
 
 
 def _ensure_one_device() -> str:
+    """Legacy single-device fallback. KEEP — the 17 unmigrated tools still call this.
+    T3b will remove all callers and then delete this helper.
+    """
     r = _adb_run(["devices"], timeout=10)
     if r["returncode"] != 0:
         raise RuntimeError(f"adb devices failed: {r['stderr']}")
@@ -134,145 +136,413 @@ def _ensure_one_device() -> str:
 
 
 # ============================================================
-#                     IN-USE STATE TRACKING
+#               MULTI-DEVICE: DETECTION + ALIASES
 # ============================================================
 
-@dataclass
-class _Holder:
-    name: str
-    acquired_at: datetime
-    last_used_at: datetime
+class MultipleDevicesError(RuntimeError):
+    """Raised when a tool can't pick a device automatically and the caller didn't specify one."""
 
 
-_state_lock = threading.Lock()
-_holder: Optional[_Holder] = None
-_IDLE_TIMEOUT = timedelta(minutes=10)
+ALIAS_CONFIG_PATH = Path.home() / ".agent-fleet" / "android-aliases.json"
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+def _detect_devices() -> list[DeviceInfo]:
+    """Enumerate authorized devices via `adb devices -l` + per-device getprop.
+
+    For each authorized serial:
+      - pull `model:<x>` from the `-l` trailing metadata when adb supplied it
+      - run `getprop ro.product.brand` (5s timeout each)
+      - fall back to `getprop ro.product.model` when `-l` didn't include it
+
+    Returns devices sorted by serial. Empty list is a valid return.
+    """
+    r = _adb_run(["devices", "-l"], timeout=10)
+    if r["returncode"] != 0:
+        raise RuntimeError(f"adb devices -l failed: {r['stderr']}")
+
+    parsed: list[tuple[str, str | None]] = []  # (serial, model_from_-l_or_None)
+    for ln in r["stdout"].splitlines():
+        if not ln.strip() or ln.startswith("List of devices"):
+            continue
+        parts = ln.split()
+        # Authorized only: state must literally be "device"
+        if len(parts) >= 2 and parts[1] == "device":
+            serial = parts[0]
+            model = None
+            for kv in parts[2:]:
+                if kv.startswith("model:"):
+                    model = kv[len("model:"):]
+                    break
+            parsed.append((serial, model))
+
+    out: list[DeviceInfo] = []
+    for serial, model in parsed:
+        # brand via getprop
+        br = _adb_run(["-s", serial, "shell", "getprop", "ro.product.brand"], timeout=5)
+        brand = br["stdout"].strip() if br["returncode"] == 0 else ""
+        brand = brand or None
+
+        if model is None:
+            mr = _adb_run(["-s", serial, "shell", "getprop", "ro.product.model"], timeout=5)
+            if mr["returncode"] == 0:
+                model = mr["stdout"].strip() or None
+
+        out.append(DeviceInfo(serial=serial, brand=brand, model=model))
+
+    out.sort(key=lambda d: d.serial)
+    return out
 
 
-def _check_idle_release_locked() -> None:
-    global _holder
-    if _holder is not None and (_now() - _holder.last_used_at) > _IDLE_TIMEOUT:
-        _holder = None
+def _load_alias_overrides() -> dict[str, str]:
+    """Load alias overrides; missing/empty file → {}. Malformed → warn + {}."""
+    try:
+        return load_aliases(ALIAS_CONFIG_PATH)
+    except Exception as e:  # noqa: BLE001 - warn + degrade
+        print(
+            f"[android-device] WARNING: failed to load alias overrides from "
+            f"{ALIAS_CONFIG_PATH}: {e}",
+            file=sys.stderr,
+        )
+        return {}
 
 
-def _touch() -> None:
-    with _state_lock:
-        _check_idle_release_locked()
-        if _holder is not None:
-            _holder.last_used_at = _now()
+# ============================================================
+#                 PER-DEVICE HOLDER REGISTRY
+# ============================================================
+
+_state_registry = DeviceStateRegistry()
+
+
+def _touch(serial: str) -> None:
+    """Refresh last_used_at for `serial` (no-op if not held)."""
+    try:
+        _state_registry.touch(serial)
+    except ValueError:
+        # empty serial — silently ignore, this is a best-effort touch
+        pass
 
 
 def with_touch(fn):
+    """Best-effort touch decorator for legacy single-device tools.
+
+    The 17 unmigrated tools have no `device` param, so we touch the only
+    holder iff exactly one phone is attached. Multi-device case: no-op,
+    until T3b rewires each tool to call `_state_registry.touch(serial)`
+    explicitly.
+    """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        _touch()
+        try:
+            detected = _detect_devices()
+            if len(detected) == 1:
+                _state_registry.touch(detected[0].serial)
+        except Exception:
+            pass
         return fn(*args, **kwargs)
     return wrapper
 
 
+# ============================================================
+#                  SESSION-STICKY DEFAULT DEVICE
+# ============================================================
+
+# FastMCP 3.3.1 exposes `Context.session_id` which is per-session for
+# streamable-http transport (a generated UUID for others). It can raise
+# RuntimeError if no session is available — we guard for that.
+
+_session_defaults: dict[str, str] = {}
+_session_defaults_lock = threading.Lock()
+_FALLBACK_SESSION_KEY = "__no_session__"  # used when ctx.session_id is unavailable
+
+
+def _session_key(ctx: Optional[Context]) -> str:
+    if ctx is None:
+        return _FALLBACK_SESSION_KEY
+    try:
+        return ctx.session_id
+    except Exception:
+        return _FALLBACK_SESSION_KEY
+
+
+def _get_session_default(ctx: Optional[Context]) -> Optional[str]:
+    key = _session_key(ctx)
+    with _session_defaults_lock:
+        return _session_defaults.get(key)
+
+
+def _set_session_default(ctx: Optional[Context], serial: Optional[str]) -> None:
+    key = _session_key(ctx)
+    with _session_defaults_lock:
+        if serial is None:
+            _session_defaults.pop(key, None)
+        else:
+            _session_defaults[key] = serial
+
+
+# ============================================================
+#                     DEVICE RESOLVER
+# ============================================================
+
+def _format_known(detected: list[DeviceInfo], aliases: dict[str, str]) -> str:
+    """Human-readable list of available devices for error messages."""
+    if not detected:
+        return "(no devices attached)"
+    bits = []
+    for d in detected:
+        alias = aliases.get(d.serial, "?")
+        bits.append(f"{alias} ({d.serial})")
+    return ", ".join(bits)
+
+
+def _resolve_device(
+    device_arg: Optional[str],
+    session_default: Optional[str] = None,
+) -> str:
+    """Pick a serial. Lookup order:
+
+      1. device_arg matches a detected serial → return it
+      2. device_arg matches a resolved alias  → return that serial
+      3. (else) session_default → recurse with device_arg=session_default
+      4. (else) detected has exactly 1 phone → return it
+      5. else → raise MultipleDevicesError
+    """
+    detected = _detect_devices()
+    overrides = _load_alias_overrides()
+    aliases = resolve_aliases(detected, overrides)
+
+    if device_arg:
+        serials = {d.serial for d in detected}
+        if device_arg in serials:
+            return device_arg
+        for serial, alias in aliases.items():
+            if alias == device_arg:
+                return serial
+        known = _format_known(detected, aliases)
+        raise RuntimeError(
+            f"unknown device '{device_arg}'. Known: {known}"
+        )
+
+    if session_default:
+        # Recurse with the sticky default — but the device may have vanished;
+        # the recursive call will raise a clear "unknown device" error in that case.
+        return _resolve_device(session_default, session_default=None)
+
+    if len(detected) == 1:
+        return detected[0].serial
+
+    if not detected:
+        raise MultipleDevicesError(
+            "no devices found. Plug an authorized Android device via USB or pair via Wireless Debugging."
+        )
+
+    known = _format_known(detected, aliases)
+    raise MultipleDevicesError(
+        f"multiple devices attached ({len(detected)}). "
+        f"Pass device=<alias|serial>, or call set_default_device() to set a session sticky default. "
+        f"Available: {known}"
+    )
+
+
+# ============================================================
+#               FASTMCP SERVER + INSTRUCTIONS
+# ============================================================
+
+def _build_instructions() -> str:
+    """One-shot snapshot of detected devices for the FastMCP initialize handshake.
+
+    Best-effort: silently degrades to a static no-devices message if detection fails.
+    """
+    try:
+        detected = _detect_devices()
+        overrides = _load_alias_overrides()
+        aliases = resolve_aliases(detected, overrides)
+    except Exception:
+        detected, aliases = [], {}
+
+    if not detected:
+        return (
+            "Android MCP bridge (multi-device).\n"
+            "\n"
+            "No devices currently attached. Plug a phone via USB and accept the "
+            "'Allow USB debugging' prompt (or pair via Wireless Debugging), then "
+            "call list_devices() to discover them."
+        )
+
+    if len(detected) == 1:
+        d = detected[0]
+        alias = aliases.get(d.serial, d.serial)
+        return (
+            f"Android MCP bridge (multi-device). 1 device attached:\n"
+            f"  - {alias}  ({d.serial}, {d.brand or '?'} {d.model or '?'})\n"
+            f"\n"
+            f"Only one device is attached, so tools auto-route to it — you can "
+            f"omit the `device` parameter. Call list_devices() to refresh."
+        )
+
+    lines = [f"Android MCP bridge (multi-device). {len(detected)} devices attached:"]
+    for d in detected:
+        alias = aliases.get(d.serial, d.serial)
+        lines.append(f"  - {alias}  ({d.serial}, {d.brand or '?'} {d.model or '?'})")
+    lines.append("")
+    lines.append(
+        "Multiple devices attached — every tool call must target one explicitly. Options:"
+    )
+    lines.append("  - Pass `device=<alias|serial>` to each tool call, OR")
+    lines.append(
+        "  - Call set_default_device(device='<alias|serial>') once to set a sticky default "
+        "for THIS session — subsequent tool calls without `device` will route there."
+    )
+    lines.append("Use list_devices() to refresh the live list at any time.")
+    return "\n".join(lines)
+
+
+mcp = FastMCP("android-device", instructions=_build_instructions())
+
+
 @mcp.tool
 def acquire_android(
+    device: Annotated[
+        Optional[str],
+        Field(description="serial or alias; omit if only 1 phone or you've set a default"),
+    ] = None,
     holder_name: Annotated[
         str,
         Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')"),
     ] = "anonymous",
+    ctx: Context = None,
 ) -> dict:
-    """Claim exclusive use of this Android test device. Advisory only -- tools still work for everyone."""
-    global _holder
-    with _state_lock:
-        _check_idle_release_locked()
-        now = _now()
-        if _holder is None:
-            _holder = _Holder(name=holder_name, acquired_at=now, last_used_at=now)
-            return {"acquired": True, "holder": holder_name}
-        if _holder.name == holder_name:
-            _holder.last_used_at = now
-            return {"acquired": True, "holder": holder_name, "note": "already yours"}
-        idle = int((now - _holder.last_used_at).total_seconds())
-        return {
-            "acquired": False,
-            "current_holder": _holder.name,
-            "since": _holder.acquired_at.isoformat(),
-            "idle_seconds": idle,
-            "auto_release_in_seconds": max(0, int(_IDLE_TIMEOUT.total_seconds()) - idle),
-        }
+    """Claim exclusive use of an Android device. Advisory only — tools still work for others."""
+    serial = _resolve_device(device, _get_session_default(ctx))
+    result = _state_registry.acquire(serial, holder_name)
+    result["device"] = serial
+    return result
 
 
 @mcp.tool
 def release_android(
-    holder_name: Annotated[str, Field(description="Must match the name used in acquire_android")] = "anonymous",
+    device: Annotated[
+        Optional[str],
+        Field(description="serial or alias; omit if only 1 phone or you've set a default"),
+    ] = None,
+    holder_name: Annotated[
+        str,
+        Field(description="Must match the name used in acquire_android"),
+    ] = "anonymous",
+    ctx: Context = None,
 ) -> dict:
     """Release the exclusive-use claim. Only the current holder can release."""
-    global _holder
-    with _state_lock:
-        if _holder is None:
-            return {"released": False, "note": "no holder"}
-        if _holder.name != holder_name:
-            return {
-                "released": False,
-                "current_holder": _holder.name,
-                "you_provided": holder_name,
-                "note": "holder_name mismatch -- only the holder can release",
-            }
-        held = (_now() - _holder.acquired_at).total_seconds()
-        _holder = None
-        return {"released": True, "held_for_seconds": int(held)}
+    serial = _resolve_device(device, _get_session_default(ctx))
+    result = _state_registry.release(serial, holder_name)
+    result["device"] = serial
+    return result
 
 
 @mcp.tool
-def get_android_status() -> dict:
-    """Show whether the device is currently claimed and by whom."""
-    with _state_lock:
-        _check_idle_release_locked()
-        if _holder is None:
-            return {"in_use": False, "note": "free for acquire"}
-        idle = int((_now() - _holder.last_used_at).total_seconds())
-        return {
-            "in_use": True,
-            "holder": _holder.name,
-            "acquired_at": _holder.acquired_at.isoformat(),
-            "last_used_at": _holder.last_used_at.isoformat(),
-            "idle_seconds": idle,
-            "auto_release_in_seconds": max(0, int(_IDLE_TIMEOUT.total_seconds()) - idle),
-        }
+def get_android_status(
+    device: Annotated[
+        Optional[str],
+        Field(description="serial or alias; omit if only 1 phone or you've set a default"),
+    ] = None,
+    ctx: Context = None,
+) -> dict:
+    """Show whether the specified device is currently claimed and by whom."""
+    serial = _resolve_device(device, _get_session_default(ctx))
+    result = _state_registry.status(serial)
+    result["device"] = serial
+    return result
 
 
 # ============================================================
 #                     DEVICE INFO
 # ============================================================
 
-@mcp.tool
-@with_touch
-def list_devices() -> dict:
-    """List all devices visible to adb on this host with their state.
+def _build_devices_snapshot(ctx: Optional[Context] = None) -> dict:
+    """Shared implementation for list_devices() and the devices_resource()."""
+    detected = _detect_devices()
+    overrides = _load_alias_overrides()
+    aliases = resolve_aliases(detected, overrides)
+    holders = _state_registry.all_status()
+    session_default_serial = _get_session_default(ctx) if ctx is not None else None
 
-    Returns: {devices: [{serial, state, model?, manufacturer?}], adb_version}.
-    """
-    r = _adb_run(["devices", "-l"], timeout=10)
-    if r["returncode"] != 0:
-        return {"error": r["stderr"], "stdout": r["stdout"]}
-    # `adb devices -l` output uses whitespace alignment (not tabs):
-    #   List of devices attached
-    #   MQS0219A10009471       device product:VOG-AL00 model:VOG_AL00 ...
-    valid_states = {"device", "offline", "unauthorized", "authorizing", "no permissions"}
     out = []
-    for ln in r["stdout"].splitlines():
-        if not ln.strip() or ln.startswith("List of devices"):
-            continue
-        parts = ln.split()
-        if len(parts) >= 2 and parts[1] in valid_states:
-            rec = {"serial": parts[0], "state": parts[1]}
-            for kv in parts[2:]:
-                if ":" in kv:
-                    k, v = kv.split(":", 1)
-                    rec[k] = v
-            out.append(rec)
-    ver = _adb_run(["version"], timeout=5)
-    return {"devices": out, "adb_version": ver["stdout"].splitlines()[0] if ver["stdout"] else ""}
+    for d in detected:
+        h = holders.get(d.serial)
+        out.append({
+            "serial": d.serial,
+            "alias": aliases.get(d.serial),
+            "brand": d.brand,
+            "model": d.model,
+            "in_use": h is not None,
+            "holder": h["holder"] if h else None,
+            "default_for_session": (
+                ctx is not None and session_default_serial == d.serial
+            ),
+        })
+
+    return {"count": len(out), "devices": out}
+
+
+@mcp.tool
+def list_devices(ctx: Context = None) -> dict:
+    """List ALL attached Android devices with alias, model, brand, and holder status.
+
+    Returns {"count": int, "devices": [{"serial", "alias", "brand", "model",
+    "in_use", "holder", "default_for_session"}, ...]}.
+
+    `default_for_session` is True for the serial currently set as this
+    session's sticky default (via set_default_device()); False otherwise.
+
+    Always reflects current state — re-runs adb on every call.
+    """
+    return _build_devices_snapshot(ctx)
+
+
+@mcp.tool
+def set_default_device(
+    device: Annotated[
+        str,
+        Field(description="serial or alias to use as the default for this session"),
+    ],
+    ctx: Context = None,
+) -> dict:
+    """Set a sticky default device for THIS MCP session.
+
+    Subsequent tool calls without an explicit `device` param will route to
+    this serial. Use list_devices() to see available options. Pass an empty
+    string or call with the same value to update; there is no explicit clear
+    operation in this version.
+
+    Returns {"set": True, "device": <serial>, "alias": <alias>}.
+    """
+    serial = _resolve_device(device, None)
+    _set_session_default(ctx, serial)
+    overrides = _load_alias_overrides()
+    aliases = resolve_aliases(_detect_devices(), overrides)
+    return {"set": True, "device": serial, "alias": aliases.get(serial)}
+
+
+@mcp.tool
+def get_default_device(ctx: Context = None) -> dict:
+    """Return the sticky default device for this session, if any.
+
+    Returns {"device": <serial> | None, "alias": <alias> | None}.
+    """
+    serial = _get_session_default(ctx)
+    if serial is None:
+        return {"device": None, "alias": None}
+    overrides = _load_alias_overrides()
+    aliases = resolve_aliases(_detect_devices(), overrides)
+    return {"device": serial, "alias": aliases.get(serial)}
+
+
+@mcp.resource("androidfleet://devices")
+def devices_resource() -> dict:
+    """Live snapshot of all attached Android devices (re-queries adb on every read).
+
+    Same shape as list_devices(), but without session context — the
+    `default_for_session` field will always be False here.
+    """
+    return _build_devices_snapshot(ctx=None)
 
 
 @mcp.tool
@@ -860,11 +1130,20 @@ if __name__ == "__main__":
     print(f"  adb       = {_ADB}")
     print(f"  host      = {host_platform.system()} {host_platform.release()}")
     try:
-        serial = _ensure_one_device()
-        print(f"  device    = {serial} (ok)")
+        detected = _detect_devices()
+        if not detected:
+            print(f"  devices   = NONE")
+            print(f"  WARNING: server will start but tools will fail until a device appears.")
+        else:
+            overrides = _load_alias_overrides()
+            aliases = resolve_aliases(detected, overrides)
+            print(f"  devices   = {len(detected)} attached")
+            for d in detected:
+                alias = aliases.get(d.serial, "?")
+                print(f"    - {alias}  ({d.serial}, {d.brand or '?'} {d.model or '?'})")
     except Exception as e:
-        print(f"  device    = NONE  ({e})")
-        print(f"  WARNING: server will start but tools will fail until a device appears.")
+        print(f"  devices   = ERROR  ({e})")
+        print(f"  WARNING: server will start but tools may fail until adb is healthy.")
     # Transport: streamable-http (FastMCP "http" alias). Migrated from
     # SSE for the same reason as mac-device / win-device: long tool calls
     # broke SSE keep-alive and yielded -32602 forever after.
