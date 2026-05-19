@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2-alpha] - 2026-05-19
+
+### 修复
+
+- **transport 稳定性**：三平台 server 的长 tool（`run_powershell` / `run_zsh` / `run_applescript` / `adb_shell`）timeout 硬上限 clamp 到 **25s**，避开 fastmcp/mcp streamable-http transport 的 ~30s 死线（[jlowin/fastmcp#823](https://github.com/jlowin/fastmcp/issues/823) + [#508](https://github.com/jlowin/fastmcp/issues/508)，上游未修）。超过死线会触发 task-cancel-vs-respond race → 整个 MCP session crashed → 后续所有请求报 "Session not found"。本次 mitigation 在 wrapper 层 catch `TimeoutExpired` 优雅返回 partial output + `timed_out: true` + `hint`。
+- **长任务迁移指引**：超过 25s 的命令请改用 `start_process` 后台启动 + `read_process_output` 轮询模式（毫秒返回 PID，不卡 transport）。Android 的 `install_apk` 等内部长操作暂保留 long timeout 路径，留 followup 重构。
+
+### Client 侧建议（独立配置）
+
+Claude Code 端默认 MCP tool call timeout 60s，但 fastmcp/mcp 内部死线更早。建议在 `~/.claude/settings.json` `env` 段显式调高 `MCP_TOOL_TIMEOUT`：
+
+```json
+{
+  "env": {
+    "MCP_TIMEOUT": "60000",
+    "MCP_TOOL_TIMEOUT": "120000"
+  }
+}
+```
+
+server 端 clamp 已经保证不会触发 fastmcp 死线，client 调高是双保险（避免 client cancel 触发同 race）。
+
 ## [0.7.1-alpha] - 2026-05-19
 
 ### 修复

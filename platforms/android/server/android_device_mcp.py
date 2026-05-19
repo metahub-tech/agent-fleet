@@ -855,18 +855,18 @@ def current_app(
 @mcp.tool
 def adb_shell(
     command: Annotated[str, Field(description="Shell command to run ON the device")],
-    timeout: Annotated[int, Field(ge=1, le=120, description="Seconds")] = 30,
+    timeout: Annotated[int, Field(ge=1, le=25, description="Seconds; hard-capped to 25 — fastmcp transport dies past ~30s (jlowin/fastmcp#823)")] = 25,
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Run an arbitrary shell command on the Android device.
+    """Run an arbitrary shell command on the Android device. Max 25s — for long jobs push to background then poll.
 
     Useful for `getprop`, `dumpsys`, `pm`, `am`, `settings`, `cmd`, etc.
     Output > 100KB is truncated.
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(command, timeout=timeout, serial=serial)
+    r = _adb_shell(command, timeout=min(timeout, 25), serial=serial)
     out = r["stdout"]
     if len(out) > 100_000:
         out = out[:100_000] + f"\n[... truncated, total {len(r['stdout'])} chars]"
