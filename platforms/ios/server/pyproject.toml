@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-fleet-ios"
+version = "0.8.0a1"
+description = "iOS device MCP bridge for agent-fleet (drives iOS via WebDriverAgent + pymobiledevice3)"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "MetaHub Tech" }
+]
+keywords = ["mcp", "claude", "agent", "ios", "ipados", "webdriveragent", "wda", "test-automation", "mobile-testing", "tailscale"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "fastmcp>=2.0,!=3.3.1",
+    "pillow>=10.0",
+    "pydantic>=2.0",
+    "pymobiledevice3>=4.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/metahub-tech/agent-fleet"
+Repository = "https://github.com/metahub-tech/agent-fleet"
+Issues = "https://github.com/metahub-tech/agent-fleet/issues"
+
+[tool.setuptools]
+py-modules = ["ios_device_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
