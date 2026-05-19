@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4-alpha] - 2026-05-19
+
+### 修复
+
+- **Android `_adb_run` internal helper 也 clamp 25s**：v0.7.2 只 cap 了 user-facing `adb_shell` tool；本次把 `_adb_run` 内部 subprocess timeout 也 hard cap 到 `_FASTMCP_DEADLINE_SAFE_SECONDS = 25`。这影响所有 internal long-path：`install_apk` (caller 传 120s)、`uninstall_app` (30s)、`push_file` / `pull_file` (300s) —— 现在它们的 subprocess 最长 25s，避免触发 fastmcp [#823](https://github.com/jlowin/fastmcp/issues/823) session crash。
+- **Timeout 返回 shape 透明化**：超时返回 dict 新增 `timed_out: true`, `requested_timeout`, `effective_timeout`, `hint` 字段。caller 不需要 parse stderr 字符串就能判断是否超时 + 看到 caller 请求的原 timeout 与实际生效值差异。
+- **4 个 long-path tool 的 docstring 加大文件/慢操作警告**：`install_apk` / `uninstall_app` / `push_file` / `pull_file` 都明写 25s 上限 + 触发条件 + workaround。
+
+### 已知限制（继续追踪）
+
+- 大 APK install (>50MB USB / >20MB wireless) 仍会超时 → 需要 async start_process 模式重构（backlog）。本次只是确保超时**不让 session crash** + caller 拿到清晰诊断信息。
+
 ## [0.7.3-alpha] - 2026-05-19
 
 ### 文档

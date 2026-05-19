@@ -78,26 +78,60 @@ def _resolve_adb() -> str:
 
 _ADB = _resolve_adb()
 
+# fastmcp/mcp lib has an open task-cancel-vs-respond race on streamable-http
+# (jlowin/fastmcp#823, #508): any tool call exceeding ~30s crashes the entire
+# MCP session. We hard-cap subprocess timeout here at 25s (leaving 5s margin)
+# regardless of what the caller requests. Callers that legitimately need long
+# adb ops (install_apk, push_file, pull_file) still pass their original
+# timeout — it's preserved in the return dict as `requested_timeout` for
+# diagnostics, and an `effective_timeout` field shows what we actually used.
+# A planned start_process-based async API will replace the long-path callers
+# (see backlog).
+_FASTMCP_DEADLINE_SAFE_SECONDS = 25
+
 
 def _adb_run(args: list[str], timeout: int = 30, capture_bytes: bool = False, serial: str | None = None) -> dict:
     """Run an adb command with timeout. Returns dict with stdout/stderr/returncode.
 
     capture_bytes=True returns raw bytes in 'stdout_bytes' (for screencap).
     serial: when provided, prepends ["-s", serial] to the adb args.
+
+    Note: subprocess timeout is hard-capped at _FASTMCP_DEADLINE_SAFE_SECONDS.
+    On timeout, return dict adds `timed_out=True, requested_timeout, effective_timeout, hint`.
     """
     if serial:
         cmd = [_ADB, "-s", serial] + args
     else:
         cmd = [_ADB] + args
+    effective_timeout = min(timeout, _FASTMCP_DEADLINE_SAFE_SECONDS)
     try:
         proc = subprocess.run(
             cmd,
-            timeout=timeout,
+            timeout=effective_timeout,
             capture_output=True,
         )
-    except subprocess.TimeoutExpired:
-        return {"returncode": -1, "stdout": "", "stderr": f"adb command timed out after {timeout}s", "stdout_bytes": b""}
-    out: dict = {
+    except subprocess.TimeoutExpired as e:
+        partial_stdout_bytes = e.stdout if isinstance(e.stdout, bytes) else b""
+        partial_stderr_bytes = e.stderr if isinstance(e.stderr, bytes) else b""
+        clamp_note = (
+            f"adb command timed out after {effective_timeout}s "
+            f"(caller requested {timeout}s; clamped to fastmcp-safe deadline; see jlowin/fastmcp#823)"
+        )
+        out: dict = {
+            "returncode": -1,
+            "stderr": (partial_stderr_bytes.decode("utf-8", errors="replace") + ("\n" if partial_stderr_bytes else "") + clamp_note),
+            "stdout_bytes": partial_stdout_bytes if capture_bytes else b"",
+            "timed_out": True,
+            "requested_timeout": timeout,
+            "effective_timeout": effective_timeout,
+            "hint": "Long adb ops (large APK install, big file push/pull) currently exceed the safe transport deadline. Workarounds: split into chunks, or wait for the start_process-based async install/push API.",
+        }
+        if capture_bytes:
+            out["stdout"] = ""
+        else:
+            out["stdout"] = partial_stdout_bytes.decode("utf-8", errors="replace")
+        return out
+    out = {
         "returncode": proc.returncode,
         "stderr": proc.stderr.decode("utf-8", errors="replace"),
     }
@@ -739,7 +773,13 @@ def install_apk(
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Install an APK from the host onto the device. `adb install`."""
+    """Install an APK from the host onto the device. `adb install`.
+
+    Note: subprocess timeout is hard-capped at 25s (fastmcp transport limit).
+    Large APKs (>~50MB on USB 2.0 / >~20MB wireless) may not finish in time —
+    if you get `timed_out: true`, the install needs to be retried or split.
+    Async install via start_process is planned.
+    """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
     p = Path(apk_path).expanduser()
@@ -763,7 +803,12 @@ def uninstall_app(
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Uninstall an app by package id. `adb uninstall`."""
+    """Uninstall an app by package id. `adb uninstall`.
+
+    Note: subprocess timeout is hard-capped at 25s (fastmcp transport limit).
+    Typical uninstall is <5s; capped path is only a concern for very fragmented
+    storage or very large apps. `timed_out: true` → retry.
+    """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
     r = _adb_run(["uninstall", package], timeout=30, serial=serial)
@@ -888,7 +933,13 @@ def push_file(
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Copy a file from host to device. `adb push`."""
+    """Copy a file from host to device. `adb push`.
+
+    Note: subprocess timeout is hard-capped at 25s (fastmcp transport limit).
+    On USB 2.0 (~30MB/s) this covers files up to ~500MB; wireless ADB is much
+    slower (~3-10MB/s) so practical limit is ~50-100MB. `timed_out: true` →
+    split the file or copy it via the device's filesystem out-of-band first.
+    """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
     h = Path(host_path).expanduser()
@@ -907,7 +958,12 @@ def pull_file(
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Copy a file from device to host. `adb pull`."""
+    """Copy a file from device to host. `adb pull`.
+
+    Note: subprocess timeout is hard-capped at 25s (fastmcp transport limit).
+    Same file-size envelope as push_file. `timed_out: true` → split, or pull
+    over USB instead of wireless if size matters.
+    """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
     h = Path(host_path).expanduser()
