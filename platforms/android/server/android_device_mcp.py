@@ -1126,6 +1126,13 @@ def tap_element(
 # ============================================================
 
 if __name__ == "__main__":
+    # Line-buffer stdout/stderr so startup banner + status lines flush into
+    # redirected log files in real time (block-buffered default would only
+    # flush on exit, making `python server.py > log 2>&1` appear "silent"
+    # until the server crashes).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
     print(f"android-device MCP server starting")
     print(f"  adb       = {_ADB}")
     print(f"  host      = {host_platform.system()} {host_platform.release()}")

@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -958,6 +959,12 @@ def stop_search(
 # ============================================================
 
 if __name__ == "__main__":
+    # Line-buffer stdio so log redirection (`python server.py > log 2>&1` from
+    # launchers / Task Scheduler) flushes in real time instead of waiting for
+    # server exit.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
     # Bind 0.0.0.0; Windows Firewall scoped to Tailscale IP range gates access.
     #
     # Transport: streamable-http (FastMCP's "http" alias). Migrated from
