@@ -347,35 +347,49 @@ def list_processes(
 #                          SHELL
 # ============================================================
 
+# fastmcp/mcp 在 streamable-http transport 上有 task-cancel-vs-respond race
+# (jlowin/fastmcp#823, #508): 任何 tool call 超过 ~30s 会导致整个 MCP session 崩，
+# 后续所有请求报 "Session not found"。在 wrapper 层 clamp 到 25s 留 5s margin。
+# 长任务请改用 start_process + read_process_output 轮询。
+_FASTMCP_DEADLINE_SAFE_SECONDS = 25
+
+
+def _run_with_clamp(cmd: list[str], requested_timeout: int) -> dict:
+    """subprocess.run 包装：timeout clamp 到 fastmcp 安全死线，TimeoutExpired 优雅返回 partial output。"""
+    effective = min(requested_timeout, _FASTMCP_DEADLINE_SAFE_SECONDS)
+    try:
+        r = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=effective, encoding="utf-8", errors="replace",
+        )
+        return {"returncode": r.returncode, "stdout": r.stdout, "stderr": r.stderr}
+    except subprocess.TimeoutExpired as e:
+        partial_out = e.stdout if isinstance(e.stdout, str) else (e.stdout.decode("utf-8", "replace") if e.stdout else "")
+        partial_err = e.stderr if isinstance(e.stderr, str) else (e.stderr.decode("utf-8", "replace") if e.stderr else "")
+        return {
+            "returncode": -1, "stdout": partial_out, "stderr": partial_err,
+            "timed_out": True, "timeout_seconds": effective,
+            "hint": f"Command exceeded {effective}s safe cap. Use start_process + read_process_output for longer jobs.",
+        }
+
+
 @mcp.tool
 @with_touch
 def run_zsh(
     script: Annotated[str, Field(description="zsh script content")],
-    timeout: Annotated[int, Field(ge=1, le=600)] = 60,
+    timeout: Annotated[int, Field(ge=1, le=25, description=f"Hard-capped to {_FASTMCP_DEADLINE_SAFE_SECONDS}s — fastmcp transport dies past ~30s. Use start_process for longer jobs.")] = 25,
 ) -> dict:
-    """Execute a zsh script; return stdout / stderr / exit code."""
-    r = subprocess.run(
-        ["/bin/zsh", "-c", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return {
-        "returncode": r.returncode,
-        "stdout": r.stdout,
-        "stderr": r.stderr,
-    }
+    """Execute a zsh script; return stdout / stderr / exit code. Max 25s — see start_process for longer jobs."""
+    return _run_with_clamp(["/bin/zsh", "-c", script], requested_timeout=timeout)
 
 
 @mcp.tool
 @with_touch
 def run_applescript(
     script: Annotated[str, Field(description="AppleScript content")],
-    timeout: Annotated[int, Field(ge=1, le=600)] = 30,
+    timeout: Annotated[int, Field(ge=1, le=25, description=f"Hard-capped to {_FASTMCP_DEADLINE_SAFE_SECONDS}s — fastmcp transport dies past ~30s.")] = 25,
 ) -> dict:
-    """Execute AppleScript via 'osascript'.
+    """Execute AppleScript via 'osascript'. Max 25s.
 
     Powerful for controlling other apps:
       tell application "Safari" to activate
@@ -384,19 +398,7 @@ def run_applescript(
     Requires Automation permission (System Settings > Privacy & Security >
     Automation > python3 -> tick the controlled app).
     """
-    r = subprocess.run(
-        ["osascript", "-e", script],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return {
-        "returncode": r.returncode,
-        "stdout": r.stdout,
-        "stderr": r.stderr,
-    }
+    return _run_with_clamp(["osascript", "-e", script], requested_timeout=timeout)
 
 
 # ============================================================
