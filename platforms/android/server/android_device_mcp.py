@@ -153,6 +153,15 @@ def _adb_shell(cmd: str, timeout: int = 30, capture_bytes: bool = False, serial:
     return _adb_run(["shell", cmd], timeout=timeout, serial=serial)
 
 
+_DIAG_FIELDS = ("timed_out", "requested_timeout", "effective_timeout", "hint")
+
+
+def _diag(r: dict) -> dict:
+    """Pick optional timeout-diagnostic fields from an _adb_run / _adb_shell result.
+    Returns empty dict on success (no timeout)."""
+    return {k: r[k] for k in _DIAG_FIELDS if k in r}
+
+
 # ============================================================
 #               MULTI-DEVICE: DETECTION + ALIASES
 # ============================================================
@@ -544,7 +553,7 @@ def get_screen_size(
     _state_registry.touch(serial)
     r = _adb_shell("wm size", timeout=5, serial=serial)
     if r["returncode"] != 0:
-        return {"error": r["stderr"]}
+        return {"error": r["stderr"], **_diag(r)}
     # Format: "Physical size: 1080x2340"  (sometimes also "Override size: 720x1560")
     width = height = None
     for line in r["stdout"].splitlines():
@@ -620,7 +629,7 @@ def tap(
     _state_registry.touch(serial)
     r = _adb_shell(f"input tap {x} {y}", timeout=5, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "x": x, "y": y}
 
 
@@ -639,7 +648,7 @@ def swipe(
     _state_registry.touch(serial)
     r = _adb_shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "from": (x1, y1), "to": (x2, y2), "duration_ms": duration_ms}
 
 
@@ -656,7 +665,7 @@ def long_press(
     _state_registry.touch(serial)
     r = _adb_shell(f"input swipe {x} {y} {x} {y} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "x": x, "y": y, "duration_ms": duration_ms}
 
 
@@ -709,7 +718,7 @@ def press_key(
         }
     r = _adb_shell(f"input keyevent {code}", timeout=5, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "key": key, "keycode": code}
 
 
@@ -731,7 +740,7 @@ def type_text(
     escaped = text.replace(" ", "%s").replace("'", "\\'").replace('"', '\\"')
     r = _adb_shell(f"input text '{escaped}'", timeout=15, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "chars": len(text)}
 
 
@@ -755,7 +764,7 @@ def list_packages(
     flag = "-3" if only_user else ""
     r = _adb_shell(f"pm list packages {flag}".strip(), timeout=15, serial=serial)
     if r["returncode"] != 0:
-        return {"error": r["stderr"]}
+        return {"error": r["stderr"], **_diag(r)}
     pkgs = []
     for ln in r["stdout"].splitlines():
         if ln.startswith("package:"):
@@ -793,7 +802,7 @@ def install_apk(
     args.append(str(p))
     r = _adb_run(args, timeout=120, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
+        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
     return {"ok": True, "apk": str(p)}
 
 
@@ -813,7 +822,7 @@ def uninstall_app(
     _state_registry.touch(serial)
     r = _adb_run(["uninstall", package], timeout=30, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
+        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
     return {"ok": True, "package": package}
 
 
@@ -839,7 +848,7 @@ def start_app(
     else:
         r = _adb_shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"], "stdout": r["stdout"]}
+        return {"ok": False, "error": r["stderr"], "stdout": r["stdout"], **_diag(r)}
     return {"ok": True, "package": package, "stdout": r["stdout"][:500]}
 
 
@@ -854,7 +863,7 @@ def kill_app(
     _state_registry.touch(serial)
     r = _adb_shell(f"am force-stop {package}", timeout=10, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "error": r["stderr"]}
+        return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "package": package}
 
 
@@ -919,6 +928,7 @@ def adb_shell(
         "returncode": r["returncode"],
         "stdout": out,
         "stderr": r["stderr"],
+        **_diag(r),
     }
 
 
@@ -947,7 +957,7 @@ def push_file(
         return {"ok": False, "error": f"host file not found: {host_path}"}
     r = _adb_run(["push", str(h), device_path], timeout=300, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
+        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
     return {"ok": True, "host": str(h), "device": device_path, "size": h.stat().st_size}
 
 
@@ -970,7 +980,7 @@ def pull_file(
     h.parent.mkdir(parents=True, exist_ok=True)
     r = _adb_run(["pull", device_path, str(h)], timeout=300, serial=serial)
     if r["returncode"] != 0:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"]}
+        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
     return {
         "ok": True,
         "device": device_path,

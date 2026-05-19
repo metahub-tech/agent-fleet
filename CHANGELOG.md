@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5-alpha] - 2026-05-19
+
+### 修复
+
+- **诊断字段透传到 client**：v0.7.4 的 `_adb_run` 在超时时返回 `timed_out: true / requested_timeout / effective_timeout / hint` 字段，但 user-facing tools (`adb_shell` / `install_apk` / `uninstall_app` / `push_file` / `pull_file` / `tap` / `swipe` / `long_press` / `press_key` / `type_text` / `list_packages` / `get_screen_size` / `kill_app` / `current_app`) 自己构造 return dict 时把这些 strip 掉了，诊断信息只留在 stderr 字符串里。本次加 `_diag(r)` helper，14 处 fail-return 加 `**_diag(r)` spread，让 client 直接拿到结构化 `timed_out: bool` flag + 完整 timeout 上下文，无需 parse 字符串。真机验证 v0.7.4 真机回归时发现的尾巴。
+
 ## [0.7.4-alpha] - 2026-05-19
 
 ### 修复
