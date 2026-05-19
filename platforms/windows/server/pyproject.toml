@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fleet-windows"
-version = "0.7.3a1"
+version = "0.7.4a1"
 description = "Windows platform MCP bridge for agent-fleet"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
