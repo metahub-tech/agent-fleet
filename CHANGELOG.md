@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3-alpha] - 2026-05-19
+
+### 文档
+
+- **Android server 管理章节**（`docs/platforms/android.md`）：按 host OS 分（Windows Task Scheduler / macOS launchd / Linux systemd）的启停 / 重启 / 看 log 命令清单。
+- **手动启动陷阱警告**：明确写出"**不要用 `Start-Process -RedirectStandardOutput` 手动起 server**"——该 cmdlet 让父 PowerShell 持有 child 的 stdio handle，使 `mcp__win-device__run_powershell` 等远程调用看似 hang。`setup-android.ps1` 最后输出的 Service control 提示也加了同条警告。
+
+### 改进
+
+- **三平台 server `__main__` 入口加 stdio line-buffering**：`sys.stdout.reconfigure(line_buffering=True)` + 同样处理 stderr。修复 `python server.py > log 2>&1` 模式下 log 不实时刷新到 server 退出才能看（block buffering 默认行为）。
+
 ## [0.7.2-alpha] - 2026-05-19
 
 ### 修复

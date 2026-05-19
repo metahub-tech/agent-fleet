@@ -33,6 +33,7 @@ import functools
 import io
 import os
 import re
+import sys
 import shutil
 import subprocess
 import threading
@@ -1151,6 +1152,12 @@ def click_ui_element(
 # ============================================================
 
 if __name__ == "__main__":
+    # Line-buffer stdio so log redirection (`python server.py > log 2>&1` from
+    # launchctl / manual launchers) flushes in real time instead of waiting
+    # for server exit.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
     # Bind 0.0.0.0; the macOS Application Firewall (off by default on most
     # setups) and Tailscale ACL gate access.
     #

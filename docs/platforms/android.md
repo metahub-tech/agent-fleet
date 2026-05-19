@@ -224,3 +224,54 @@ release_android(device="pixel-8-emulator", holder_name="agent-B")
 | Auth prompt never appears | Some OEM ROMs need you to flip "USB debugging (Security settings)" inside Developer options. |
 
 For wizard-driven setup, run `agent-fleet setup` and pick the **android-device** role — it'll guide you through Developer options + drive `adb` for you.
+
+---
+
+## Server 管理：启动 / 停止 / 重启 / 看 log
+
+`agent-fleet setup` 已经为你注册了 OS-原生服务（Task Scheduler / launchd / systemd），登录/开机时自动起。日常运维：
+
+### Windows host（Task Scheduler，task 名 `MCP-AndroidDevice`）
+
+```powershell
+# 看状态
+Get-ScheduledTaskInfo -TaskName MCP-AndroidDevice
+Get-NetTCPConnection -LocalPort 8768 -State Listen
+
+# 重启（停 + 起，<2s）
+Stop-ScheduledTask  -TaskName MCP-AndroidDevice
+Start-ScheduledTask -TaskName MCP-AndroidDevice
+
+# 看 log
+Get-Content "$env:USERPROFILE\agent-fleet\platforms\android\logs\android-device.log" -Tail 50
+```
+
+> ⚠️ **不要用 `Start-Process -RedirectStandardOutput`** 手动起 server！该 cmdlet 让父 PowerShell 持有 child process 的 stdout/stderr handle，server 不退出 → 父进程不退出 → 看似 hang。Task Scheduler 内部用 `cmd /c start /b` 真正 detach，不会有这个问题。如果一定要手动起（无 Task Scheduler），用 `Start-Process ... -WindowStyle Hidden`（不带 -Redirect*）让默认 stdio 走系统 NUL，或者把 server 包到 `.bat` 里再 `cmd /c start /b cmd /c your.bat`。
+
+### macOS host（launchd，label `cc.metahub.android-device`）
+
+```bash
+# 看状态
+launchctl list | grep android-device
+lsof -iTCP:8768 -sTCP:LISTEN
+
+# 重启（推荐 kickstart -k，比 unload/load 安全）
+launchctl kickstart -k "gui/$(id -u)/cc.metahub.android-device"
+
+# 看 log
+tail -f ~/agent-fleet/platforms/android/logs/android-device.log
+```
+
+> ⚠️ macOS `launchctl bootout` 单独写 `gui/$(id -u)` 会卸载该用户域**所有** LaunchAgent → 立刻注销 + 黑屏。必须带 plist 路径，且整条命令单行。详见 [`docs/platforms/macos.md`](macos.md)。
+
+### Linux host（systemd user service，unit `agent-fleet-android.service`）
+
+```bash
+systemctl --user status agent-fleet-android
+systemctl --user restart agent-fleet-android
+journalctl --user -u agent-fleet-android -f
+```
+
+### 三平台通用：log 文件为空但 server 在跑
+
+Server 启动时 fastmcp 自带 banner 会抢占 stdout 句柄，若 launcher 用 `>` overwrite 重定向 log 可能写不进去（log 文件 0 bytes）。`>>` append 模式或 `Out-File -Append` 可绕过。三个 launcher 脚本都已用 append 模式，但手动重启时如果你自己写 redirect，注意这点。
