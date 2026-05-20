@@ -46,6 +46,9 @@ from pydantic import Field
 from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image
 
+# _aliases / _device_state are shared across platform servers — see platforms/common/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
+
 from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
 from _device_state import DeviceStateRegistry
 from _ios_devices import detect_ios_devices, device_extras
