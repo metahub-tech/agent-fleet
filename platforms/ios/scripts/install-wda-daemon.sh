@@ -183,7 +183,7 @@ if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA
   <dict>
     <key>WDA_ASC_KEY_PATH</key><string>$WDA_ASC_KEY_PATH</string>
     <key>WDA_ASC_KEY_ID</key><string>$WDA_ASC_KEY_ID</string>
-    <key>WDA_ASC_ISSUER_ID</key><string>$WDA_ASC_ISSUER_ID</string>
+    <key>WDA_ASC_ISSUER_ID</key><string>$WDA_ASC_ISSUER_ID</string>$([ -n "${WDA_TEAM_ID:-}" ] && printf '\n    <key>WDA_TEAM_ID</key><string>%s</string>' "$WDA_TEAM_ID")
   </dict>
   <key>StartCalendarInterval</key>
   <array>

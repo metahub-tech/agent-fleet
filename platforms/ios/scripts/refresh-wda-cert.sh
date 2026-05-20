@@ -45,28 +45,21 @@ if [ ! -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
     echo "[$(TS)] ERROR: WebDriverAgent not found at $WDA_DIR" >&2
     exit 1
 fi
-TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
-    | grep 'Apple Development' | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
-if [ -z "$TEAM_ID" ]; then
-    echo "[$(TS)] ERROR: no 'Apple Development' codesigning identity found." >&2
+
+# Resolve free vs paid signing (shared with build-wda.sh). PAID (ASC API key)
+# refreshes fully headless; FREE has no headless path (needs an account + 2FA) so
+# this will fail at signing by design, with guidance, and refresh must be manual.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_signing.sh"
+resolve_wda_signing
+if [ -z "$WDA_TEAM_ID" ]; then
+    echo "[$(TS)] ERROR: no Team ID (set WDA_TEAM_ID or create an Apple Development identity)." >&2
     echo "        If scheduled, the login keychain may be locked/inaccessible." >&2
     exit 1
 fi
-
-# App Store Connect API key (PAID accounts) → fully headless minting, no 2FA.
-# Free Apple ID has NO usable headless path: minting a fresh 7-day profile needs
-# an Apple ID account, and (re-)adding one to Xcode requires password + 2FA that
-# no automation can pass. So without an API key this script will fail at signing
-# ("No Accounts") — by design, with a clear message — and the cert must be
-# refreshed manually (re-add the Apple ID in Xcode + rebuild).
-AUTH_ARGS=()
-if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA_ASC_ISSUER_ID:-}" ]; then
-    AUTH_ARGS=(-authenticationKeyPath "$WDA_ASC_KEY_PATH"
-               -authenticationKeyID "$WDA_ASC_KEY_ID"
-               -authenticationKeyIssuerID "$WDA_ASC_ISSUER_ID")
-    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$TEAM_ID (ASC API key)"
+if [ "$WDA_SIGNING_MODE" = paid ]; then
+    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$WDA_TEAM_ID (PAID: ASC API key, headless)"
 else
-    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$TEAM_ID (NO ASC API key — free account; will fail at signing if no account is configured)"
+    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$WDA_TEAM_ID (FREE: no API key — will fail at signing if no Apple ID account is live)"
 fi
 
 # 1. pause the daemon's runwda for this device
@@ -77,8 +70,8 @@ sleep 3
 # 2. re-sign + reinstall (bounded; cert is refreshed once the runner installs)
 xcodebuild -project "$WDA_DIR/WebDriverAgent.xcodeproj" -scheme WebDriverAgentRunner \
     -destination "id=$UDID" -allowProvisioningUpdates \
-    ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
-    DEVELOPMENT_TEAM="$TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" test \
+    ${WDA_AUTH_ARGS[@]+"${WDA_AUTH_ARGS[@]}"} \
+    DEVELOPMENT_TEAM="$WDA_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" test \
     > "$LOG" 2>&1 &
 XB=$!
 ok=no
