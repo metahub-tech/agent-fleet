@@ -1,13 +1,13 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.0--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.0-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.1--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.1-alpha)
 
 > **Give your LLM agent its own fleet of physical devices.**
 > 给 LLM agent 配一队真实硬件——Windows / macOS / Android / iOS，通过 MCP 让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.0-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.1-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -63,10 +63,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.8.0-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.8.1-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.0-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.1-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。

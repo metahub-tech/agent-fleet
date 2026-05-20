@@ -32,6 +32,8 @@ Same fastmcp/mcp transport caveats as Android (jlowin/fastmcp#823):
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import io
 import os
 import subprocess
@@ -699,62 +701,104 @@ def activate_app(
 
 
 # ============================================================
-#                  FILE TRANSFER (limited by iOS sandbox)
+#                  FILE TRANSFER (app sandbox via house_arrest/afc)
 # ============================================================
+
+# pymobiledevice3 9.x exposes afc only as an interactive shell on the CLI
+# (incompatible with non-interactive subprocess calls, and it prompts for a
+# device on multi-device hosts). We use the Python house_arrest API instead.
+# Its methods are a mix of sync and async across versions, so _aw() awaits
+# only the coroutine ones. The whole flow runs in a fresh event loop via
+# asyncio.run — safe because FastMCP runs sync tool handlers on worker threads
+# (no running loop there).
+
+async def _aw(result):
+    """Await result if it's a coroutine, else return as-is (handles afc's
+    sync/async method mix across pymobiledevice3 versions)."""
+    return await result if inspect.iscoroutine(result) else result
+
+
+def _afc_op(udid: str, bundle_id: str, documents_only: bool, op):
+    """Open a house_arrest afc session for bundle_id on udid, run async `op(ha)`,
+    always close. Raises on failure (caller wraps for a friendly tool error)."""
+    from pymobiledevice3.lockdown import create_using_usbmux
+    from pymobiledevice3.services.house_arrest import HouseArrestService
+
+    async def _run():
+        lockdown = await create_using_usbmux(serial=udid)
+        ha = HouseArrestService(lockdown=lockdown, documents_only=documents_only)
+        try:
+            await _aw(ha.send_command(bundle_id))
+            return await op(ha)
+        finally:
+            await _aw(ha.aclose())
+
+    return asyncio.run(_run())
+
+
+_AFC_HINT = (
+    "App must be reachable via house_arrest: either UIFileSharingEnabled=true "
+    "(documents_only=True; path is relative to the app's Documents dir), or "
+    "dev-signed (documents_only=False; path relative to container root, e.g. "
+    "'Documents/foo.txt'). System apps and 3rd-party apps without file sharing "
+    "raise InstallationLookupFailed."
+)
+
 
 @mcp.tool
 def push_file_to_app(
     host_path: Annotated[str, Field(description="Absolute path on the HOST (macmini)")],
-    bundle_id: Annotated[str, Field(description="Target app's bundle ID (file goes into its Documents sandbox)")],
+    bundle_id: Annotated[str, Field(description="Target app's bundle ID")],
     device_relpath: Annotated[
         str,
-        Field(description="Relative path inside the app's Documents dir, e.g. 'inbox/foo.txt'"),
+        Field(description="Destination path inside the app sandbox. With documents_only=True it's relative to Documents (e.g. 'inbox/foo.txt'); with documents_only=False it's relative to container root (e.g. 'Documents/foo.txt')."),
     ],
+    documents_only: Annotated[bool, Field(description="True: Documents-only (UIFileSharingEnabled apps). False: full container (dev-signed apps only).")] = True,
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Copy a host file into an app's Documents sandbox via house_arrest/afc.
+    """Copy a host file into an app's sandbox via house_arrest/afc.
 
-    Limited to apps with `UIFileSharingEnabled=true` in their Info.plist (i.e.
-    "Files app" visible apps). System apps and most third-party apps without
-    this flag will reject the push.
-
-    Note: subprocess timeout hard-capped at 25s — large files need split.
+    Only works for apps reachable via house_arrest (UIFileSharingEnabled apps
+    with documents_only=True, or dev-signed apps with documents_only=False).
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
     p = Path(host_path).expanduser()
     if not p.is_file():
         return {"ok": False, "error": f"host file not found: {host_path}", "device": udid}
-    r = _run_pmd(
-        ["apps", "afc", "push", "--bundle-id", bundle_id, str(p), device_relpath, "--udid", udid],
-        timeout=300,
-    )
-    if r["returncode"] != 0:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], "device": udid, **_diag(r)}
-    return {"ok": True, "host": str(p), "device_relpath": device_relpath, "bundle_id": bundle_id, "device": udid}
+    try:
+        async def _op(ha):
+            await _aw(ha.push(str(p), device_relpath))
+        _afc_op(udid, bundle_id, documents_only, _op)
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "hint": _AFC_HINT, "device": udid}
+    return {"ok": True, "host": str(p), "device_relpath": device_relpath,
+            "bundle_id": bundle_id, "documents_only": documents_only, "device": udid}
 
 
 @mcp.tool
 def pull_file_from_app(
     bundle_id: Annotated[str, Field(description="Source app's bundle ID")],
-    device_relpath: Annotated[str, Field(description="Relative path inside Documents")],
-    host_path: Annotated[str, Field(description="Destination path on HOST (parent dir must exist)")],
+    device_relpath: Annotated[str, Field(description="Source path inside the app sandbox (same relativity rules as push_file_to_app's device_relpath).")],
+    host_path: Annotated[str, Field(description="Destination path on HOST (parent dir auto-created)")],
+    documents_only: Annotated[bool, Field(description="True: Documents-only (UIFileSharingEnabled apps). False: full container (dev-signed apps only).")] = True,
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Copy a file out of an app's Documents sandbox to the host."""
+    """Copy a file out of an app's sandbox to the host via house_arrest/afc."""
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
     h = Path(host_path).expanduser()
     h.parent.mkdir(parents=True, exist_ok=True)
-    r = _run_pmd(
-        ["apps", "afc", "pull", "--bundle-id", bundle_id, device_relpath, str(h), "--udid", udid],
-        timeout=300,
-    )
-    if r["returncode"] != 0:
-        return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], "device": udid, **_diag(r)}
-    return {"ok": True, "device_relpath": device_relpath, "host": str(h), "bundle_id": bundle_id, "device": udid}
+    try:
+        async def _op(ha):
+            await _aw(ha.pull(device_relpath, str(h)))
+        _afc_op(udid, bundle_id, documents_only, _op)
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "hint": _AFC_HINT, "device": udid}
+    return {"ok": True, "device_relpath": device_relpath, "host": str(h),
+            "bundle_id": bundle_id, "documents_only": documents_only, "device": udid}
 
 
 # ============================================================
