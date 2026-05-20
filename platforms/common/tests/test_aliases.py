@@ -32,6 +32,9 @@ from _aliases import (
     (None, "Pixel_7", None),
     (None, None, None),
     ("google", "", None),
+    # iOS ProductType commas — extended rule [_\s,.] unifies both platforms
+    ("apple", "iPhone11,8", "apple-iphone11-8"),
+    ("apple", "iPad13,16", "apple-ipad13-16"),
 ])
 def test_derive_alias_slug_examples(brand, model, expected):
     assert derive_alias(brand, model) == expected

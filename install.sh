@@ -19,12 +19,12 @@
 #   4. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.7.5-alpha
+#   AGENT_FLEET_VERSION      default v0.8.0-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $HOME/agent-fleet  (only used if CWD not in a clone)
 set -e
 
-AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.7.5-alpha}"
+AGENT_FLEET_VERSION="${AGENT_FLEET_VERSION:-v0.8.0-alpha}"
 AGENT_FLEET_REPO="${AGENT_FLEET_REPO:-https://github.com/metahub-tech/agent-fleet}"
 AGENT_FLEET_CLONE_DIR="${AGENT_FLEET_CLONE_DIR:-$HOME/agent-fleet}"
 
@@ -50,13 +50,61 @@ ERROR: agent-fleet's installer is interactive but stdin is not a TTY.
 
       bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
 
-  Or, since v0.7.5-alpha already cloned the repo for you in a prior attempt:
+  Or, since v0.8.0-alpha already cloned the repo for you in a prior attempt:
 
       cd ~/agent-fleet
-      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.7.5-alpha#subdirectory=cli" agent-fleet setup
+      uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.0-alpha#subdirectory=cli" agent-fleet setup
 
 ERROEOF
     exit 1
+fi
+
+# ---------- 0. preflight: base tools on a fresh machine ----------
+# A brand-new macOS box ships without git or brew (learned the hard way on a
+# fresh mac mini). uv/coreutils/python all assume these exist. Check up front
+# and print copy-paste install commands (incl. China mirrors) instead of
+# failing cryptically three steps later.
+preflight_missing=()
+command -v curl >/dev/null 2>&1 || preflight_missing+=("curl")
+command -v git  >/dev/null 2>&1 || preflight_missing+=("git")
+if [[ "$(uname)" == "Darwin" ]]; then
+    # brew is needed downstream by setup-macos.sh / setup-ios.sh (Tailscale,
+    # python@3.12, coreutils). Check it here so the user fixes everything once.
+    command -v brew >/dev/null 2>&1 || [ -x /opt/homebrew/bin/brew ] || [ -x /usr/local/bin/brew ] || preflight_missing+=("brew")
+fi
+if [ ${#preflight_missing[@]} -gt 0 ]; then
+    echo ""
+    echo "⚠️  缺少基础工具 / Missing base tools: ${preflight_missing[*]}"
+    echo "    装好后重新跑本命令。Install these, then re-run."
+    echo ""
+    for tool in "${preflight_missing[@]}"; do
+        case "$tool" in
+            git)
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    echo "  git  →  xcode-select --install        # 装 Command Line Tools（含 git）"
+                else
+                    echo "  git  →  sudo apt-get install -y git   # 或对应发行版的包管理器"
+                fi
+                ;;
+            brew)
+                echo "  brew →  官方:     /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+                echo "          国内镜像: /bin/zsh -c \"\$(curl -fsSL https://gitee.com/cunkai/HomebrewCN/raw/master/Homebrew.sh)\""
+                echo "          装完按提示执行 eval \"\$(/opt/homebrew/bin/brew shellenv)\" 让 brew 进 PATH"
+                ;;
+            curl)
+                echo "  curl →  系统通常自带；若缺用包管理器装 (apt-get install -y curl)"
+                ;;
+        esac
+    done
+    echo ""
+    exit 1
+fi
+
+# On Apple Silicon a freshly-installed brew may not be on PATH yet for this
+# shell — source its shellenv so the steps below (and setup scripts) see it.
+if [[ "$(uname)" == "Darwin" ]] && ! command -v brew >/dev/null 2>&1; then
+    [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    [ -x /usr/local/bin/brew ] && eval "$(/usr/local/bin/brew shellenv)"
 fi
 
 # ---------- 1. uv ----------

@@ -18,7 +18,9 @@ def derive_alias(brand: str | None, model: str | None) -> str | None:
         return None
     raw = f"{brand}-{model}"
     slug = raw.lower()
-    slug = re.sub(r"[_\s]+", "-", slug)
+    # iOS ProductType uses commas (e.g. iPhone11,8). Extend the Android slug
+    # rule with comma/period so apple-iphone11,8 -> apple-iphone11-8.
+    slug = re.sub(r"[_\s,.]+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     slug = slug.strip("-")
     return slug if slug else None

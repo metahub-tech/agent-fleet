@@ -12,11 +12,11 @@
 #   3. Run `uvx --from git+...@<TAG>#subdirectory=cli agent-fleet setup`.
 #
 # Env-var overrides:
-#   AGENT_FLEET_VERSION      default v0.7.5-alpha
+#   AGENT_FLEET_VERSION      default v0.8.0-alpha
 #   AGENT_FLEET_REPO         default https://github.com/metahub-tech/agent-fleet
 #   AGENT_FLEET_CLONE_DIR    default $env:USERPROFILE\agent-fleet
 
-$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.7.5-alpha" }
+$AGENT_FLEET_VERSION = if ($env:AGENT_FLEET_VERSION) { $env:AGENT_FLEET_VERSION } else { "v0.8.0-alpha" }
 $AGENT_FLEET_REPO    = if ($env:AGENT_FLEET_REPO)    { $env:AGENT_FLEET_REPO }    else { "https://github.com/metahub-tech/agent-fleet" }
 $AGENT_FLEET_CLONE_DIR = if ($env:AGENT_FLEET_CLONE_DIR) { $env:AGENT_FLEET_CLONE_DIR } else { Join-Path $env:USERPROFILE "agent-fleet" }
 
@@ -44,6 +44,27 @@ if (-not $isAdmin) {
     Write-Host "       right-click PowerShell -> 'Run as administrator'" -ForegroundColor Yellow
     Write-Host "    2. Re-run:" -ForegroundColor Yellow
     Write-Host "       powershell -ExecutionPolicy Bypass -c `"irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex`"" -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
+}
+
+# ---------- 0.5 preflight: base tools on a fresh machine ----------
+# A fresh Windows box may lack git. Check up front + print a copy-paste install
+# command (winget) instead of failing cryptically at the clone step.
+$preflightMissing = @()
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { $preflightMissing += "git" }
+if ($preflightMissing.Count -gt 0) {
+    Write-Host ""
+    Write-Host "WARN: Missing base tools: $($preflightMissing -join ', ')" -ForegroundColor Yellow
+    foreach ($tool in $preflightMissing) {
+        switch ($tool) {
+            "git" {
+                Write-Host "  git  ->  winget install --id Git.Git -e --source winget" -ForegroundColor White
+                Write-Host "           (or download from https://git-scm.com/download/win)" -ForegroundColor White
+            }
+        }
+    }
+    Write-Host "  Install, open a fresh PowerShell, then re-run." -ForegroundColor White
     Write-Host ""
     exit 1
 }

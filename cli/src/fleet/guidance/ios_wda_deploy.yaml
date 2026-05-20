@@ -1,0 +1,33 @@
+step:
+  id: "ios_wda_deploy"
+  title: "部署 WebDriverAgent 到 iOS 设备 / Deploy WebDriverAgent"
+  default_description: |
+    iOS / iPadOS 自动化需要 WebDriverAgent (WDA) 在**每台设备**上运行。WDA 是一个
+    XCTest app，必须用 Xcode 手动 build & 部署（免费 Apple ID 证书 7 天过期需重 build；
+    付费 Apple Developer $99/年 证书 1 年有效）。
+
+    完整步骤 + 故障排查见独立文档（强烈建议照着走，关卡多）：
+
+        https://github.com/metahub-tech/agent-fleet/blob/main/docs/platforms/ios.md
+
+    关键关卡（缺一不可，每条都是真机实测踩过的坑）：
+      1. 装**完整 Xcode**（不是 Command Line Tools）；sudo xcode-select -s /Applications/Xcode.app
+      2. 设备开启 **Developer Mode**：设置 → 隐私与安全性 → 开发者模式 → 打开 → **重启设备**
+      3. 关闭**屏幕使用时间**的"安装 App"限制（开着会导致 WDA 装不上：
+         ManagedConfiguration prohibited）
+      4. **信任开发者证书**：设置 → 通用 → VPN与设备管理 → 开发者 App → 信任
+      5. 开启 **Enable UI Automation**：设置 → 开发者 → Enable UI Automation → 打开 →
+         **重启设备**（这步不重启会一直 "Timed out while enabling automation mode"）
+      6. clone + build WDA：
+             git -c http.version=HTTP/1.1 clone https://github.com/appium/WebDriverAgent.git
+             cd WebDriverAgent
+             xcodebuild -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner \
+               -destination "id=<UDID>" test
+         （UDID 来自 `pymobiledevice3 usbmux list`；首次 build 5-10 分钟）
+      7. build/launch 期间**保持设备解锁 + 亮屏**（automation 模式需要；建议自动锁定设永不）
+
+    验证 WDA 在跑：
+        pymobiledevice3 usbmux forward 18100 8100 --udid <UDID> &
+        curl http://127.0.0.1:18100/status   # 返回 "state":"success" 即 OK
+
+    WDA 起来后回车继续；ios-device server 会自动连上它。
