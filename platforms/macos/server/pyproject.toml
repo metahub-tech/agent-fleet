@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fleet-macos"
-version = "0.7.5a1"
+version = "0.8.0a1"
 description = "macOS platform MCP bridge for agent-fleet"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

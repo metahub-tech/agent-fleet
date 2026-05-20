@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0-alpha] - 2026-05-20
+
+### 新增
+
+- **iOS / iPadOS 设备桥接（第 4 个平台，`ios-device`，端口 8769）**：macOS host 上通过 WebDriverAgent (UI 操作) + pymobiledevice3 (设备发现/安装/信息) 驱动 iPhone / iPad。架构 mirror v0.7.x android-device：单 MCP 入口 + per-device 路由 + 别名映射 (`apple-{ProductType}`) + per-device holder + FastMCP `instructions=` + `iosfleet://devices` resource。
+- **26 个工具**：list_devices / set_default_device / get_default_device / acquire_ios / release_ios / get_ios_status / get_screen_size / take_screenshot / tap / swipe / long_press / press_button / type_text / dump_ui_hierarchy / find_elements / tap_element / current_app / list_apps / install_ipa / uninstall_app / start_app / terminate_app / activate_app / push_file_to_app / pull_file_from_app / device_info。
+- **新模块**：`platforms/ios/server/_ios_devices.py`（pymobiledevice3 CLI 设备发现）、`_wda_client.py`（WDA HTTP client + USB-tunnel forwarder）、`ios_device_mcp.py`（主 server）；复用 `_aliases.py` / `_device_state.py`（slug 规则扩展处理 ProductType 的逗号）。
+- **部署**：`platforms/ios/scripts/setup-ios.sh`（launchd `cc.metahub.ios-device` + brew python@3.12 venv）+ `_launch-ios.sh`（restart loop）+ `cli/src/fleet/installers/_ios.py`（smoke tests）+ `MacosIosBridge` installer。
+- **文档**：`docs/platforms/ios.md` 完整真机部署关卡（完整 Xcode / Developer Mode / 屏幕使用时间限制 / 信任开发者证书 / Enable UI Automation + 重启 / 解锁状态）；`platforms/ios/skills/using-ios/SKILL.md`。
+
+### 真机验证
+
+- iPad15,7（iPad A16，iPadOS 26.2.1）真机验证 17 个工具：list_devices / get_screen_size / current_app / device_info / take_screenshot / start_app / find_elements / tap_element / tap / type_text / list_apps / press_button / swipe / long_press / dump_ui_hierarchy / acquire / release / status 全链路通过。
+
+### 已知限制
+
+- **WDA 保活**：WebDriverAgent 需要 Xcode `xcodebuild test` 保持运行；免费 Apple ID 证书 7 天过期需重 build。setup-ios.sh 只管 ios-device server 的 launchd，不管 WDA（daemon 化 WDA 留 followup）。
+- **adb_shell 无 iOS 等价物**（沙盒）；文件传输限 `UIFileSharingEnabled` 的 app。
+- **macOS 系统 Python 3.9.6 无法运行**（fastmcp 要 3.10+），必须 brew python@3.12。
+- **多设备并发** 待 iPhone + iPad 同时接入验证（架构同 Android multi-device，代码已就绪）。
+- **iOS 12 及更老** untested（WDA 老 fork 环境难凑齐）。
+
 ## [0.7.5-alpha] - 2026-05-19
 
 ### 修复

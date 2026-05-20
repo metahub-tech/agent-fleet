@@ -1,3 +1,3 @@
 """agent-fleet: one-command CLI wizard for MCP server install + agent-client config gen."""
 
-__version__ = "0.7.5a1"
+__version__ = "0.8.0a1"

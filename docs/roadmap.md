@@ -24,7 +24,7 @@
 | **0.6.10-alpha** | **Windows: require admin upfront + try-catch ScheduledTask** | ✅ Released |
 | 0.6.11–0.6.15-alpha | Internal renames, wizard hardening, SSE→http sweep, open-source readiness | ✅ Released |
 | **0.7.0-alpha** | **Android multi-device: alias map, 25 tools, per-device holder, MCP instructions/resource** | ✅ Released |
-| 0.8.0 | iOS (Simulator + real device, macOS host + WebDriverAgent) | 📋 Planned |
+| **0.8.0-alpha** | **iOS / iPadOS bridge: ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad real-device verified** | ✅ Released |
 | 0.9.0 | Cross-device coordination | 🔭 Future |
 | 1.0.0 | Public open-source stable | 🔭 Future |
 
