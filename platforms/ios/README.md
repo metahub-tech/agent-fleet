@@ -1,6 +1,6 @@
-# iOS Platform Bridge — v0.8.1-alpha
+# iOS Platform Bridge — v0.8.2-alpha
 
-> 状态：已实现（v0.8.1-alpha）。WDA + pymobiledevice3 实现，无 Appium / XCTest 直接依赖。支持多设备同时挂载（别名映射 + per-device holder 锁）。首批验证机型：iPad（iOS 26.2.1）。
+> 状态：已实现（v0.8.2-alpha）。WDA + pymobiledevice3 实现，无 Appium / XCTest 直接依赖。支持多设备同时挂载（别名映射 + per-device holder 锁）。首批验证机型：iPad（iOS 26.2.1）。
 
 iOS/iPadOS 测试设备桥，让 LLM agent 通过 WebDriverAgent 驱动 iPhone 或 iPad。
 
@@ -49,7 +49,7 @@ Setup 脚本会：
 
 WDA 部署（Xcode 操作）**不在** setup 脚本覆盖范围内，见 `docs/platforms/ios.md`。
 
-## 工具集（v0.8.1-alpha 实际暴露，共 26 个）
+## 工具集（v0.8.2-alpha 实际暴露，共 26 个）
 
 所有工具均接受可选 `device` 参数（UDID 或别名）。未传 `device` 且只连 1 台设备时自动路由。
 

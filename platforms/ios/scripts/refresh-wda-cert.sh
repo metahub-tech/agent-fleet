@@ -41,6 +41,13 @@ PAUSE_FILE="${TMPDIR:-/tmp}/agent-fleet-wda-pause-${UDID}"
 LOG="${TMPDIR:-/tmp}/agent-fleet-wda-rebuild-$SHORT.log"
 TS() { date -u +%FT%TZ; }
 
+# Never leak the pause sentinel. If this script is SIGTERM'd mid-refresh (e.g.
+# launchd at shutdown), a leftover sentinel makes the WDA LaunchAgent idle
+# forever on next boot — and macOS $TMPDIR survives reboot. The EXIT trap fires
+# on normal exit, errors, and SIGTERM, so the daemon can always relaunch.
+_cleanup() { rm -f "${PAUSE_FILE:-}"; }
+trap _cleanup EXIT
+
 if [ ! -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
     echo "[$(TS)] ERROR: WebDriverAgent not found at $WDA_DIR" >&2
     exit 1

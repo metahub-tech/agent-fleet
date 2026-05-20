@@ -1,4 +1,4 @@
-# Android Platform Bridge — v0.8.1-alpha
+# Android Platform Bridge — v0.8.2-alpha
 
 > ✅ **状态：已实现**（v0.7.0-alpha）。pure-ADB 实现，无 uiautomator2 / scrcpy 依赖。支持多设备同时挂载（别名映射 + per-device holder 锁）。首批验证机型：华为 P30 Pro (HarmonyOS 4.0 / EMUI 14 / 实际 Android 10 SDK 29)。
 

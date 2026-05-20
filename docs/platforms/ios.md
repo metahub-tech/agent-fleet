@@ -351,8 +351,11 @@ bash platforms/ios/scripts/uninstall-wda-daemon.sh --all    # 移除全部 + roo
    export WDA_ASC_KEY_ID=XXXXXXXXXX
    export WDA_ASC_ISSUER_ID=<issuer-uuid>
    cd ~/agent-fleet
-   bash platforms/ios/scripts/install-wda-daemon.sh <ipad-udid> com.qjl.WebDriverAgentRunner.ipad
-   bash platforms/ios/scripts/install-wda-daemon.sh <iphone-udid> com.qjl.WebDriverAgentRunner.ipad
+   # 每台设备一行，<bundle_id> = 该机 build-wda.sh 用的 base bundle id。
+   # （本部署两台共用统一 bundle id com.qjl.WebDriverAgentRunner.ipad 复用 profile，
+   #   所以两条都填它；一般情况按各机实际 bundle 填。）
+   bash platforms/ios/scripts/install-wda-daemon.sh <ipad-udid>   <bundle_id>
+   bash platforms/ios/scripts/install-wda-daemon.sh <iphone-udid> <bundle_id>
    ```
 
 ### C. 验证

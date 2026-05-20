@@ -28,9 +28,8 @@
 # Expand WDA_AUTH_ARGS set -u / bash 3.2 safely:  ${WDA_AUTH_ARGS[@]+"${WDA_AUTH_ARGS[@]}"}
 
 resolve_wda_signing() {
-    if [ -n "${WDA_TEAM_ID:-}" ]; then
-        WDA_TEAM_ID="${WDA_TEAM_ID}"
-    else
+    # WDA_TEAM_ID env override wins; else extract from the keychain identity.
+    if [ -z "${WDA_TEAM_ID:-}" ]; then
         WDA_TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
             | grep 'Apple Development' | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
     fi
