@@ -44,6 +44,7 @@
 
 | 脚本 | 做什么 |
 |---|---|
+| `platforms/ios/scripts/install-xcode.sh [version]` | 用 xcodes 自动装 Xcode（免 App Store/手动 .xip）。你提供 Apple ID + 2FA 一次，~10GB 自动下载安装。**与现有 Xcode 共存**（versioned app）。国内 brew tap / 下载慢，见脚本头注 fallback。⚠️ 完整流程尚未真机验证（国内 GitHub 慢 + 10GB），逻辑就绪。|
 | `platforms/ios/scripts/setup-ios.sh` | 一键 wizard：装 server venv + launchd + **[6] 设备接入引导**（检测每台设备 Developer Mode 状态、跑自动化、检测 WDA、逐台提示下一步）|
 | `platforms/ios/scripts/ios-device-prep.sh <udid>` | 单设备：amfi 自动开 Developer Mode + 检测 + 打印剩余必须项清单（带 Settings 路径）|
 | `platforms/ios/scripts/build-wda.sh <udid> <bundle_id>` | 全命令行 build WDA：Team ID 自动提取 + 任意设备复用 profile（**不碰 Xcode IDE**）|
