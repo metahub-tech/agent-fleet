@@ -8,6 +8,16 @@
 
 **前置**：macOS 12+（Apple Silicon 或 Intel 均可）、管理员账户、[Homebrew](https://brew.sh)、[Tailscale](https://tailscale.com) 账户、互联网。GUI 测试需 **物理可达**（一次性手动授权要求）。
 
+> **全新 macOS（从没装过开发工具）**：开机后既没有 `git` 也没有 `brew`。先依次装再跑安装命令：
+> ```bash
+> xcode-select --install   # 装 Command Line Tools（含 git / clang）
+> # Homebrew —— 官方：
+> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+> # 或国内镜像（更快）：
+> /bin/zsh -c "$(curl -fsSL https://gitee.com/cunkai/HomebrewCN/raw/master/Homebrew.sh)"
+> ```
+> `install.sh` 会在缺 git / brew / curl 时停下打印这些命令，不会走到一半才报错。
+
 先装 Tailscale 并登录（menubar 点 Tailscale 图标 → Login，用与 Agent 主机相同的账号）：
 
 ```bash

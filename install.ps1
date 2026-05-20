@@ -48,6 +48,27 @@ if (-not $isAdmin) {
     exit 1
 }
 
+# ---------- 0.5 preflight: base tools on a fresh machine ----------
+# A fresh Windows box may lack git. Check up front + print a copy-paste install
+# command (winget) instead of failing cryptically at the clone step.
+$preflightMissing = @()
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { $preflightMissing += "git" }
+if ($preflightMissing.Count -gt 0) {
+    Write-Host ""
+    Write-Host "WARN: Missing base tools: $($preflightMissing -join ', ')" -ForegroundColor Yellow
+    foreach ($tool in $preflightMissing) {
+        switch ($tool) {
+            "git" {
+                Write-Host "  git  ->  winget install --id Git.Git -e --source winget" -ForegroundColor White
+                Write-Host "           (or download from https://git-scm.com/download/win)" -ForegroundColor White
+            }
+        }
+    }
+    Write-Host "  Install, open a fresh PowerShell, then re-run." -ForegroundColor White
+    Write-Host ""
+    exit 1
+}
+
 # ---------- 1. uv ----------
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Host "  uv not installed; bootstrapping via astral.sh ..."
