@@ -31,6 +31,17 @@ if [ ! -x "$IOS_BIN" ]; then
     exit 3
 fi
 
+# Honor a pause sentinel set by refresh-wda-cert.sh: while it exists, idle instead
+# of launching runwda, so a cert rebuild can reinstall the runner without two
+# things driving the same XCUITest bundle. launchd KeepAlive keeps re-running us
+# (cheaply idling) until the sentinel is cleared, then we proceed to runwda.
+PAUSE_FILE="${TMPDIR:-/tmp}/agent-fleet-wda-pause-${UDID}"
+if [ -f "$PAUSE_FILE" ]; then
+    echo "[$(date -u +%FT%TZ)] paused ($PAUSE_FILE present) — idling 15s" >&2
+    sleep 15
+    exit 0
+fi
+
 RUNNER_BUNDLE="${BUNDLE_ID}.xctrunner"
 
 # Wait (up to ~2min) for tunneld to publish a tunnel for this device. tunneld

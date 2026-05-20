@@ -150,9 +150,52 @@ launchctl bootout "gui/$(id -u)/$WDA_LABEL" 2>/dev/null \
 launchctl bootstrap "gui/$(id -u)" "$WDA_PLIST" 2>/dev/null \
     || launchctl load -w "$WDA_PLIST"
 echo "✓ WDA LaunchAgent installed + loaded: $WDA_LABEL ($UDID)"
+
+# 5. Per-device cert-refresh LaunchAgent (handles the free-Apple-ID 7-day expiry).
+#    StartCalendarInterval on days 1/6/11/16/21/26 @ 04:00 → gaps <= 6 days < the
+#    7-day cert lifetime. A LaunchAgent (not plain cron) runs in the user's gui
+#    session, so refresh-wda-cert.sh's xcodebuild can reach the unlocked keychain.
+REFRESH="$SCRIPT_DIR/refresh-wda-cert.sh"
+CR_LABEL="cc.metahub.ios-wda-certrefresh-$SHORT"
+CR_PLIST="$AGENTS_DIR/$CR_LABEL.plist"
+cat > "$CR_PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$CR_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>$REFRESH</string>
+    <string>$UDID</string>
+    <string>$BUNDLE_ID</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>4</integer></dict>
+    <dict><key>Day</key><integer>6</integer><key>Hour</key><integer>4</integer></dict>
+    <dict><key>Day</key><integer>11</integer><key>Hour</key><integer>4</integer></dict>
+    <dict><key>Day</key><integer>16</integer><key>Hour</key><integer>4</integer></dict>
+    <dict><key>Day</key><integer>21</integer><key>Hour</key><integer>4</integer></dict>
+    <dict><key>Day</key><integer>26</integer><key>Hour</key><integer>4</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>$LOG_DIR/cert-refresh-$SHORT.log</string>
+  <key>StandardErrorPath</key><string>$LOG_DIR/cert-refresh-$SHORT.log</string>
+</dict>
+</plist>
+PLIST
+launchctl bootout "gui/$(id -u)/$CR_LABEL" 2>/dev/null \
+    || launchctl unload "$CR_PLIST" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$CR_PLIST" 2>/dev/null \
+    || launchctl load -w "$CR_PLIST"
+echo "✓ cert-refresh LaunchAgent installed: $CR_LABEL (every ~5 days @ 04:00)"
 echo ""
 echo "Logs:"
-echo "  tunneld: /var/log/agent-fleet-ios-tunneld.log"
-echo "  wda:     $LOG_DIR/wda-$SHORT.log"
+echo "  tunneld:      /var/log/agent-fleet-ios-tunneld.log"
+echo "  wda:          $LOG_DIR/wda-$SHORT.log"
+echo "  cert-refresh: $LOG_DIR/cert-refresh-$SHORT.log"
 echo "WDA should be up in ~20-40s. Verify via the ios-device MCP (list_devices /"
 echo "take_screenshot) — it forwards to device port 8100 transparently."
+echo "Cert auto-refreshes every ~5 days (free Apple ID 7-day cert). For a 1-year"
+echo "cert + fully headless signing, switch to a paid Apple Developer account."

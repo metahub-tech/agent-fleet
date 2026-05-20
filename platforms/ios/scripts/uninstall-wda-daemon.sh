@@ -39,4 +39,5 @@ if [ "$ARG" = "--all" ]; then
 else
     SHORT="$(echo "$ARG" | tr -cd '[:alnum:]' | tail -c 12)"
     remove_agent "cc.metahub.ios-wda-$SHORT"
+    remove_agent "cc.metahub.ios-wda-certrefresh-$SHORT"
 fi
