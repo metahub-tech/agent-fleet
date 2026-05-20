@@ -48,11 +48,13 @@
 | `platforms/ios/scripts/setup-ios.sh` | 一键 wizard：装 server venv + launchd + **[6] 设备接入引导**（检测每台设备 Developer Mode 状态、跑自动化、检测 WDA、逐台提示下一步）|
 | `platforms/ios/scripts/ios-device-prep.sh <udid>` | 单设备：amfi 自动开 Developer Mode + 检测 + 打印剩余必须项清单（带 Settings 路径）|
 | `platforms/ios/scripts/build-wda.sh <udid> <bundle_id>` | 全命令行 build WDA：Team ID 自动提取 + 任意设备复用 profile（**不碰 Xcode IDE**）|
+| `platforms/ios/scripts/install-wda-daemon.sh <udid> <bundle_id>` | **WDA 保活 daemon 化**：装 root tunneld LaunchDaemon + per-device WDA LaunchAgent，开机自启 + 崩溃自动重启，**不再常驻 `xcodebuild test`**。一次性 sudo。详见下方「WDA 保活」节。|
 
 **最少介入流程**（免费 Apple ID）：
 1. 一次性：Xcode 登录 Apple ID + 配 1 个 bundle id build 一次生成 profile（免费账号的 provisioning 限制，见 [设计文档](../internal/design/2026-05-20-ios-onboarding-optimization.md)）
 2. 每台设备：`ios-device-prep.sh <udid>`（自动 Developer Mode + 引导清单）→ 照清单点几下 → `build-wda.sh <udid> <bundle_id>`（全自动）
 3. `setup-ios.sh` 一键把 server + 设备引导串起来
+4. 每台设备 `install-wda-daemon.sh <udid> <bundle_id>`：把 WDA 托管给 launchd（开机自启 + 保活），免去手动常驻 `xcodebuild test`
 
 付费 Apple Developer + App Store Connect API key 可连第 1 步 GUI 都免。
 
@@ -261,6 +263,55 @@ nohup ./.venv/bin/python ios_device_mcp.py >> ~/agent-fleet-ios-server.log 2>&1 
 - 用户覆盖 alias：`~/.agent-fleet/ios-aliases.json`
 
 详见 README + setup wizard 输出。
+
+---
+
+## WDA 保活：daemon 化
+
+默认手动流程里 WDA 靠常驻的 `xcodebuild test` 维持（占一个 Xcode 进程、Ctrl-C 即停、不抗重启）。`install-wda-daemon.sh` 把 WDA 托管给 launchd，开机自启 + 崩溃自动重启 + 不再常驻 xcodebuild。
+
+**架构**（全部部件已在 iPadOS 26 / iOS 18 真机验证，2026-05-21）：
+
+```
+LaunchDaemon  cc.metahub.ios-tunneld   (root, RunAtLoad+KeepAlive)
+    pymobiledevice3 remote tunneld —— 为所有 iOS 17+ 设备建 RSD tunnel，
+    暴露在 http://127.0.0.1:49151。所有设备共用一个。
+        │
+        ▼  (查 tunnel address/port)
+LaunchAgent   cc.metahub.ios-wda-<udid>  (user, RunAtLoad+KeepAlive)
+    _wda-daemon-run.sh → go-ios `runwda` 经该 tunnel 启动 WebDriverAgent。
+    launchd 在 runwda 退出时整脚本重启 → 每次重新查 tunnel，自愈 tunnel 重启 /
+    设备热插 / WDA 7 天证书过期。
+```
+
+**为什么是 go-ios `runwda` 而不是 `dvt xcuitest`**：pymobiledevice3 的 `dvt xcuitest` 在 iOS 17+（实测 9.12.3 / iPadOS 26）启动 XCUITest 会 `Connection terminated abruptly`，WDA 上不来（已排除锁屏 / 残留 runner / tunnel 层）。go-ios 自带 RSD 客户端能授权 testmanagerd 会话，干净拉起 WDA。详见 [设计文档](../internal/design/2026-05-20-ios-onboarding-optimization.md)。
+
+**用法**：
+
+```bash
+# 前提：该设备已 build 好 WDA（build-wda.sh）+ Developer Mode / UI Automation / 证书都就绪
+bash platforms/ios/scripts/install-wda-daemon.sh <udid> <bundle_id>
+#   <bundle_id> = 跟 build-wda.sh 用的同一个 base bundle id（会自动追加 .xctrunner）
+#   首次会 sudo 一次装 root tunneld LaunchDaemon（要输密码，必须在 host 交互式 shell 跑）
+```
+
+go-ios 二进制由 `install-go-ios.sh` 自动拉取（pin v1.0.213，universal arm64+x86_64，免 Rosetta / 免 brew/npm），落在 `platforms/ios/bin/ios`（不入库）。
+
+**日志**：
+
+```bash
+tail -f /var/log/agent-fleet-ios-tunneld.log          # tunnel daemon
+tail -f ~/Library/Logs/agent-fleet/wda-<udid尾12位>.log # 该设备 WDA
+```
+
+**卸载**：
+
+```bash
+bash platforms/ios/scripts/uninstall-wda-daemon.sh <udid>   # 只移除该设备 WDA agent
+bash platforms/ios/scripts/uninstall-wda-daemon.sh --all    # 移除全部 + root tunneld（sudo）
+```
+
+**7 天证书**：免费 Apple ID 签的 WDA 证书 7 天过期，过期后 runwda 起不来。临时方案：cron 定时 `build-wda.sh` 重 build；长期方案：付费 Apple Developer（证书 1 年）。
 
 ---
 

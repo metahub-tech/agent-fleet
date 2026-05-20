@@ -282,8 +282,9 @@ echo
 # ---------- 6. iOS device onboarding (per-device prep + WDA status) ----------
 # Detects connected devices, runs Developer-Mode automation + guidance via
 # ios-device-prep.sh, checks WDA reachability, and tells the user exactly what
-# to do next per device. Does NOT auto-build WDA (xcodebuild test stays
-# attached; that's the WDA-daemon backlog item) — it guides build-wda.sh.
+# to do next per device. Does NOT auto-build WDA — it guides build-wda.sh (one-off,
+# attached) or install-wda-daemon.sh (daemonized: kept alive by launchd, survives
+# reboot, no attached xcodebuild).
 LAST_STEP="[6/6] iOS device onboarding"
 echo "$LAST_STEP"
 
@@ -337,9 +338,14 @@ else
         kill $FWD_PID 2>/dev/null || true
         if [ "$WDA_UP" = "yes" ]; then
             echo "    ✓ WDA already reachable on this device"
+            echo "      For boot-survival + auto-restart, daemonize it (one-time sudo):"
+            echo "        bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
         else
-            echo "    • WDA not running. After the checklist above is satisfied, start it:"
-            echo "        WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
+            echo "    • WDA not running. After the checklist above is satisfied, either:"
+            echo "        (recommended) daemonize — auto-start at boot, kept alive by launchd:"
+            echo "          bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
+            echo "        (one-off, attached, Ctrl-C to stop):"
+            echo "          WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
         fi
         echo
     done

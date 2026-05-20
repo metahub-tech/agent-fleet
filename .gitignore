@@ -76,3 +76,6 @@ htmlcov/
 # v0.5 CLI dev artifacts
 cli/test_env/
 cli/.venv/
+
+# go-ios binary (fetched by install-go-ios.sh, not vendored)
+platforms/ios/bin/
