@@ -1,94 +1,82 @@
-"""iOS device discovery via pymobiledevice3 usbmux/lockdown.
+"""iOS device discovery via the pymobiledevice3 CLI.
 
-Returns DeviceInfo objects compatible with the shared _aliases module:
-  serial = UniqueDeviceID (UDID, 40-char hex)
-  brand  = "apple"  (constant — Apple is the only iOS device maker)
-  model  = ProductType (e.g. "iPhone11,8", "iPad15,7") — Apple's internal model id
+pymobiledevice3 9.x made its *Python* API fully async (list_devices /
+create_using_usbmux are coroutines). Rather than thread an event loop through
+the synchronous FastMCP tool handlers, we shell out to the CLI, which wraps
+asyncio internally and prints stable JSON. This also decouples us from
+pymobiledevice3 Python-API churn across versions.
 
-We deliberately use ProductType (e.g. "iPhone11,8") rather than the marketing
-name ("iPhone XR") because:
-  - ProductType is stable, machine-readable, and trivially derived from lockdown
-  - Marketing name requires a maintained lookup table that drifts with new releases
-  - Aliases stay reproducible across pymobiledevice3 version bumps
+`pymobiledevice3 usbmux list` already returns every field we need in one call
+(Identifier/UniqueDeviceID, ProductType, ProductVersion, DeviceClass,
+DeviceName, BuildVersion) — no per-device lockdown round-trips required.
 
-Slugged aliases come out like "apple-iphone11-8" / "apple-ipad15-7" via
-_aliases.derive_alias (extended slug rule handles the comma in ProductType).
-Users can override via ~/.agent-fleet/ios-aliases.json.
+DeviceInfo mapping for the shared _aliases module:
+  serial = UniqueDeviceID (UDID)
+  brand  = "apple"   (constant)
+  model  = ProductType (e.g. "iPhone11,8", "iPad15,7")
 """
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from typing import Any
 
 from _aliases import DeviceInfo
 
+_PMD_LIST_TIMEOUT = 15
 
-def _list_lockdown() -> list[dict[str, Any]]:
-    """Return raw lockdown info dicts for every USB-connected iOS device.
 
-    Uses pymobiledevice3's high-level usbmux API. Empty list if no device
-    attached or `pymobiledevice3` isn't installed (raises ImportError then —
-    callers should be installed-aware).
+def _usbmux_list() -> list[dict[str, Any]]:
+    """Run `pymobiledevice3 usbmux list` and return the parsed JSON array.
+
+    Returns [] on any failure (CLI missing, timeout, no devices, bad JSON) —
+    callers treat an empty list as "no devices", which is the safe default.
     """
-    from pymobiledevice3.usbmux import list_devices as _usb_list  # type: ignore
-    from pymobiledevice3.lockdown import create_using_usbmux  # type: ignore
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pymobiledevice3", "usbmux", "list"],
+            capture_output=True, text=True,
+            timeout=_PMD_LIST_TIMEOUT, encoding="utf-8", errors="replace",
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []
+    if proc.returncode != 0:
+        return []
+    try:
+        data = json.loads(proc.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
 
-    out: list[dict[str, Any]] = []
-    for mux_dev in _usb_list():
-        try:
-            ld = create_using_usbmux(serial=mux_dev.serial)
-        except Exception as exc:  # device locked / pairing missing / etc.
-            out.append({
-                "UniqueDeviceID": mux_dev.serial,
-                "_error": f"lockdown failed: {exc.__class__.__name__}: {exc}",
-            })
-            continue
-        info = ld.all_values
-        info["UniqueDeviceID"] = mux_dev.serial
-        out.append(info)
-    return out
+
+def _udid_of(d: dict[str, Any]) -> str:
+    return d.get("UniqueDeviceID") or d.get("Identifier") or ""
 
 
 def detect_ios_devices() -> list[DeviceInfo]:
-    """Enumerate authorized iOS devices.
-
-    Returns list[DeviceInfo] sorted by UDID. Devices that failed lockdown
-    pairing (no `_error` cleared) are still returned with brand/model=None
-    so they show up in list_devices as "needs pairing" rather than silently
-    vanishing.
-    """
-    raw = _list_lockdown()
+    """Enumerate authorized iOS devices, sorted by UDID. Empty list is valid."""
     out: list[DeviceInfo] = []
-    for d in raw:
-        udid = d.get("UniqueDeviceID", "")
+    for d in _usbmux_list():
+        udid = _udid_of(d)
         if not udid:
             continue
-        if "_error" in d:
-            out.append(DeviceInfo(serial=udid, brand=None, model=None))
-            continue
-        out.append(DeviceInfo(
-            serial=udid,
-            brand="apple",
-            model=d.get("ProductType"),
-        ))
+        out.append(DeviceInfo(serial=udid, brand="apple", model=d.get("ProductType")))
     return sorted(out, key=lambda x: x.serial)
 
 
 def device_extras(udid: str) -> dict[str, Any]:
-    """Return per-device extras (OS version, device class, friendly name).
+    """Return per-device extras (device_class, device_name, os_version, build).
 
-    Used by list_devices() to enrich the basic DeviceInfo with iOS-only
-    fields (ProductVersion, DeviceClass, DeviceName).
+    Re-runs `usbmux list` and filters — fine at our call frequency (device
+    listing + handshake). Returns {} if the UDID is no longer present.
     """
-    from pymobiledevice3.lockdown import create_using_usbmux  # type: ignore
-
-    try:
-        ld = create_using_usbmux(serial=udid)
-        info = ld.all_values
-        return {
-            "device_class": info.get("DeviceClass"),  # "iPhone" / "iPad"
-            "device_name": info.get("DeviceName"),    # user-set name like "qjl's iPhone"
-            "os_version": info.get("ProductVersion"), # "18.7.9"
-            "build_version": info.get("BuildVersion"),
-        }
-    except Exception as exc:
-        return {"error": f"{exc.__class__.__name__}: {exc}"}
+    for d in _usbmux_list():
+        if _udid_of(d) == udid:
+            return {
+                "device_class": d.get("DeviceClass"),
+                "device_name": d.get("DeviceName"),
+                "os_version": d.get("ProductVersion"),
+                "build_version": d.get("BuildVersion"),
+            }
+    return {}
