@@ -324,6 +324,59 @@ bash platforms/ios/scripts/uninstall-wda-daemon.sh --all    # 移除全部 + roo
 
 ---
 
+## 付费账号接入：全 headless 证书自动化
+
+付费 Apple Developer + App Store Connect API key 让 WDA 签名走**全 headless**（永不再过 GUI/2FA），证书从 7 天变 **1 年**。配好后 `refresh-wda-cert.sh` / `install-wda-daemon.sh` 里的 API-key 分支即生效。
+
+### A. Apple 端（一次性，GUI）
+
+1. **注册 Apple Developer Program**（$99/年）：https://developer.apple.com/programs/enroll/ （用现有 Apple ID 升级；激活可能几小时~2 天）。
+2. **建 App Store Connect API Key**：App Store Connect → Users and Access → Integrations → App Store Connect API → **Team Keys** → `+` → role 选 **Admin**（管证书/标识/profile；App Manager 也行，Developer 不够）。记 **Key ID**（每 key 一个）+ 页面顶部 **Issuer ID**（整团队一个 UUID）。**下载 `.p8`（只能下一次）**。
+3. **记付费 Team ID**：developer.apple.com → Membership details → Team ID（10 位，和免费的不同）。
+
+### B. macmini 端（一次性）
+
+4. 放 `.p8` 并锁权限：
+   ```bash
+   mkdir -p ~/.appstoreconnect/private_keys
+   mv ~/Downloads/AuthKey_XXXXXXXXXX.p8 ~/.appstoreconnect/private_keys/
+   chmod 600 ~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8
+   ```
+5. 首次在 paid Team 下签出 1 年证书（二选一）：
+   - **(i) 一次 GUI**：Xcode → Settings → Accounts 加付费 Apple ID → 打开 WDA 工程选 paid Team → build 一次到任一设备（mint 1 年证书进 keychain）。之后全 headless。
+   - **(ii) 全 headless**：需脚本支持 `WDA_TEAM_ID` 覆盖（首次无证书时 `security find-identity` 取不到 Team ID）；连首次 GUI 都免。
+6. 带 API key 重装两台 daemon（装上每 ~5 天的 headless 续期 LaunchAgent）：
+   ```bash
+   export WDA_ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8
+   export WDA_ASC_KEY_ID=XXXXXXXXXX
+   export WDA_ASC_ISSUER_ID=<issuer-uuid>
+   cd ~/agent-fleet
+   bash platforms/ios/scripts/install-wda-daemon.sh <ipad-udid> com.qjl.WebDriverAgentRunner.ipad
+   bash platforms/ios/scripts/install-wda-daemon.sh <iphone-udid> com.qjl.WebDriverAgentRunner.ipad
+   ```
+
+### C. 验证
+
+7. 手动跑一次 headless 续期，确认无 `No Accounts`：
+   ```bash
+   bash platforms/ios/scripts/refresh-wda-cert.sh <udid> com.qjl.WebDriverAgentRunner.ipad
+   ```
+8. 查证书有效期变 ~1 年：
+   ```bash
+   for p in ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/*.mobileprovision; do
+     security cms -D -i "$p" | plutil -extract ExpirationDate raw -; done
+   ```
+9. LaunchAgent 已装：`launchctl list | grep ios-wda-certrefresh`（付费下才有）。
+
+### D. 之后 & 注意
+
+- **证书 1 年**：cert-refresh 每 ~5 天重签是安全网（可保留或放宽到月度）；核心是永不再手动 + 永不再 2FA。
+- **切付费后 Team ID 变** → 设备上的 runner 被 paid-签名版替换（步骤 5/6 重建做掉），daemon 自动接管。
+- **安全**：`.p8` 不入库（脚本只把路径写进 LaunchAgent，密钥本身留 macmini 本地 600）；可在 `~/.credentials/apple-asc.json` 登记 Key ID / Issuer ID / 路径，**不要把 .p8 内容硬编码进项目**。
+- **设备上限**：付费 100 台，`-allowProvisioningUpdates` 自动注册新设备 UDID。
+
+---
+
 ## Server 管理
 
 (待 setup-ios.sh + launchd plist 完成后补充)
