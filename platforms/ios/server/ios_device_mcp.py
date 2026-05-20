@@ -596,7 +596,7 @@ def list_apps(
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    filter_args = ["--user"] if only_user else ["--system"]
+    filter_args = ["--type", "User"] if only_user else ["--type", "Any"]
     r = _run_pmd(["apps", "list", "--udid", udid] + filter_args, timeout=25)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], "device": udid, **_diag(r)}

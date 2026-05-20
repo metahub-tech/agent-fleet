@@ -182,7 +182,7 @@ class WdaClient:
 
     def tap(self, x: float, y: float) -> dict:
         sid = self.ensure_session()
-        return self._post(f"/session/{sid}/wda/tap/0", {"x": x, "y": y})
+        return self._post(f"/session/{sid}/wda/tap", {"x": x, "y": y})
 
     def swipe(self, x1: float, y1: float, x2: float, y2: float, duration_ms: int) -> dict:
         sid = self.ensure_session()
@@ -199,8 +199,8 @@ class WdaClient:
         )
 
     def press_button(self, name: str) -> dict:
-        # Standalone, no session needed
-        return self._post("/wda/pressButton", {"name": name})
+        sid = self.ensure_session()
+        return self._post(f"/session/{sid}/wda/pressButton", {"name": name})
 
     def type_keys(self, text: str) -> dict:
         sid = self.ensure_session()
@@ -227,16 +227,21 @@ class WdaClient:
     # ---- app lifecycle
 
     def active_app_info(self) -> dict:
+        # activeAppInfo is unscoped (device-level)
         return self._get("/wda/activeAppInfo").get("value", {})
 
     def launch_app(self, bundle_id: str, arguments: list[str] | None = None) -> dict:
+        # App lifecycle endpoints are session-scoped in WDA.
+        sid = self.ensure_session()
         return self._post(
-            "/wda/apps/launch",
+            f"/session/{sid}/wda/apps/launch",
             {"bundleId": bundle_id, **({"arguments": arguments} if arguments else {})},
         )
 
     def terminate_app(self, bundle_id: str) -> dict:
-        return self._post("/wda/apps/terminate", {"bundleId": bundle_id})
+        sid = self.ensure_session()
+        return self._post(f"/session/{sid}/wda/apps/terminate", {"bundleId": bundle_id})
 
     def activate_app(self, bundle_id: str) -> dict:
-        return self._post("/wda/apps/activate", {"bundleId": bundle_id})
+        sid = self.ensure_session()
+        return self._post(f"/session/{sid}/wda/apps/activate", {"bundleId": bundle_id})
