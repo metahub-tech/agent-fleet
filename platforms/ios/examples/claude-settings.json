@@ -1,0 +1,13 @@
+{
+  "_comment": "Merge the mcpServers block into ~/.claude.json (the top-level single-file state, NOT ~/.claude/settings.json). Replace 'mac-host' with the Tailscale MagicDNS hostname of the macOS machine that runs ios_device_mcp.py.",
+  "_v0_8_note": "ios-device v0.8.0-alpha supports multiple iOS/iPadOS devices on one macOS host. You still add ONE entry here; the server routes per call via the 'device' parameter (alias or UDID). Single-device users: omit 'device' — auto-routed when only one device is connected.",
+  "_recommended_install": "Use scripts/install-agent-side.py --platform ios-device --hostname <MAC_HOST_HOSTNAME> instead of editing this file by hand.",
+  "_transport_note": "Uses streamable-http (type: 'http'). Same transport as android-device since v0.6.0. Endpoint path is /mcp.",
+  "_wda_note": "WebDriverAgent must be built and running on each iOS device (via Xcode) BEFORE tools work. This MCP entry is server-side only. See docs/platforms/ios.md for WDA setup.",
+  "mcpServers": {
+    "ios-device": {
+      "type": "http",
+      "url": "http://mac-host:8769/mcp"
+    }
+  }
+}
