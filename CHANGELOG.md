@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1-alpha] - 2026-05-20
+
+### 修复
+
+- **iOS `push_file_to_app` / `pull_file_from_app` 真实现**：v0.8.0 的实现用了不存在的 `pymobiledevice3 apps afc push/pull` CLI 子命令（pmd 9.x 的 afc 是交互式 shell，多设备时还弹 device chooser，无法非交互调用）。改用 Python `house_arrest` API：`create_using_usbmux` → `HouseArrestService(documents_only=)` → `send_command(bundle_id)` → `push/pull`。afc 方法在不同 pmd 版本是 sync/async 混合，用 `_aw()` 只 await coroutine；整个流程跑在 `asyncio.run` 新 loop（FastMCP sync handler 在 worker 线程，无运行中 loop，安全）。
+- **新增 `documents_only` 参数**：True 用于 UIFileSharingEnabled app（路径相对 Documents），False 用于 dev-signed app（路径相对 container 根，如 `Documents/foo.txt`）。无法 vend 的 app 返回清晰错误 + hint（InstallationLookupFailed）。
+- iPad 真机验证：push host→app→pull host roundtrip md5 一致。
+
 ## [0.8.0-alpha] - 2026-05-20
 
 ### 新增
