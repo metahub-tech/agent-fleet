@@ -38,6 +38,25 @@
 
 ---
 
+## 脚本自动化（v0.8.1+，推荐）
+
+下面 Step 1-5 是完整手动流程（理解每步用）。实际接入有三个脚本把能自动的都自动了，剩下的明确引导：
+
+| 脚本 | 做什么 |
+|---|---|
+| `platforms/ios/scripts/setup-ios.sh` | 一键 wizard：装 server venv + launchd + **[6] 设备接入引导**（检测每台设备 Developer Mode 状态、跑自动化、检测 WDA、逐台提示下一步）|
+| `platforms/ios/scripts/ios-device-prep.sh <udid>` | 单设备：amfi 自动开 Developer Mode + 检测 + 打印剩余必须项清单（带 Settings 路径）|
+| `platforms/ios/scripts/build-wda.sh <udid> <bundle_id>` | 全命令行 build WDA：Team ID 自动提取 + 任意设备复用 profile（**不碰 Xcode IDE**）|
+
+**最少介入流程**（免费 Apple ID）：
+1. 一次性：Xcode 登录 Apple ID + 配 1 个 bundle id build 一次生成 profile（免费账号的 provisioning 限制，见 [设计文档](../internal/design/2026-05-20-ios-onboarding-optimization.md)）
+2. 每台设备：`ios-device-prep.sh <udid>`（自动 Developer Mode + 引导清单）→ 照清单点几下 → `build-wda.sh <udid> <bundle_id>`（全自动）
+3. `setup-ios.sh` 一键把 server + 设备引导串起来
+
+付费 Apple Developer + App Store Connect API key 可连第 1 步 GUI 都免。
+
+---
+
 ## Step 1 — 完整 Xcode + Apple ID
 
 ### 1.1 装 Xcode

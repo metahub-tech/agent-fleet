@@ -5,7 +5,7 @@
 #   cd <repo-root>
 #   bash platforms/ios/scripts/setup-ios.sh
 #
-# What this does (5 steps):
+# What this does (6 steps):
 #   1. verify Tailscale installed and logged in
 #   2. require brew python@3.12 (macOS system Python 3.9.6 can't run fastmcp)
 #   3. create a Python venv inside server/ and install requirements
@@ -48,7 +48,7 @@ echo "User  : $(whoami)"
 echo
 
 # ---------- 0. brew dir permission preflight ----------
-LAST_STEP="[0/5] brew dir permission preflight"
+LAST_STEP="[0/6] brew dir permission preflight"
 echo "$LAST_STEP"
 if command -v brew >/dev/null 2>&1; then
     BREW_PREFIX="$(brew --prefix)"
@@ -81,7 +81,7 @@ fi
 echo
 
 # ---------- 1. Tailscale ----------
-LAST_STEP="[1/5] Tailscale"
+LAST_STEP="[1/6] Tailscale"
 echo "$LAST_STEP"
 if ! command -v tailscale >/dev/null 2>&1; then
     if [ -x "/Applications/Tailscale.app/Contents/MacOS/Tailscale" ]; then
@@ -108,7 +108,7 @@ echo "     fqdn     : $TS_DNS"
 echo
 
 # ---------- 2. brew python@3.12 (REQUIRED — system Python 3.9.6 can't run fastmcp) ----------
-LAST_STEP="[2/5] brew python@3.12"
+LAST_STEP="[2/6] brew python@3.12"
 echo "$LAST_STEP"
 echo "  iOS server requires Python >=3.10. macOS ships Python 3.9.6 which"
 echo "  can't run fastmcp. Using /opt/homebrew/opt/python@3.12/bin/python3.12."
@@ -156,7 +156,7 @@ echo "  ok using $PYTHON_BIN"
 echo
 
 # ---------- 3. venv + deps ----------
-LAST_STEP="[3/5] ios-device venv + deps"
+LAST_STEP="[3/6] ios-device venv + deps"
 echo "$LAST_STEP"
 if [ ! -d "$VENV_DIR" ]; then
     echo "  creating venv: $VENV_DIR"
@@ -171,7 +171,7 @@ echo "  ok"
 echo
 
 # ---------- 4. launchd plist ----------
-LAST_STEP="[4/5] launchd plist (auto-start at login + restart on crash)"
+LAST_STEP="[4/6] launchd plist (auto-start at login + restart on crash)"
 echo "$LAST_STEP"
 
 # Make launcher executable
@@ -258,7 +258,7 @@ echo "  ok loaded"
 echo
 
 # ---------- 5. start + verify ----------
-LAST_STEP="[5/5] Verify"
+LAST_STEP="[5/6] Verify"
 echo "$LAST_STEP"
 launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
 sleep 5
@@ -277,8 +277,77 @@ if [ $attempts -ge 8 ]; then
     echo "  WARN ios-device not yet on :$PORT after 16s"
     echo "  Check: tail $LOGS_DIR/ios-device.log"
 fi
-
 echo
+
+# ---------- 6. iOS device onboarding (per-device prep + WDA status) ----------
+# Detects connected devices, runs Developer-Mode automation + guidance via
+# ios-device-prep.sh, checks WDA reachability, and tells the user exactly what
+# to do next per device. Does NOT auto-build WDA (xcodebuild test stays
+# attached; that's the WDA-daemon backlog item) — it guides build-wda.sh.
+LAST_STEP="[6/6] iOS device onboarding"
+echo "$LAST_STEP"
+
+PMD="$VENV_PY -m pymobiledevice3"
+DEVICE_UDIDS="$($PMD usbmux list 2>/dev/null \
+    | python3 -c 'import json,sys
+try:
+    data=json.load(sys.stdin)
+except Exception:
+    data=[]
+for d in data:
+    u=d.get("UniqueDeviceID") or d.get("Identifier")
+    if u: print(u)' 2>/dev/null || true)"
+
+if [ -z "$DEVICE_UDIDS" ]; then
+    echo "  No iOS devices connected over USB yet."
+    echo "  Plug a device in + tap 'Trust This Computer', then re-run — or onboard later:"
+    echo "      bash $SCRIPT_DIR/ios-device-prep.sh <udid>"
+else
+    # One-time signing prerequisite (free Apple ID): a codesigning identity must
+    # exist (Xcode → Settings → Accounts) before WDA can be built/run.
+    TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
+    if [ -z "$TEAM_ID" ]; then
+        echo "  ⚠️  No 'Apple Development' signing identity found — one-time WDA setup needed:"
+        echo "      1. Xcode → Settings → Accounts → add your Apple ID"
+        echo "      2. open ~/WebDriverAgent/WebDriverAgent.xcodeproj → WebDriverAgentRunner target"
+        echo "         → Signing & Capabilities → set Team + a Bundle ID (e.g."
+        echo "         com.<you>.WebDriverAgentRunner) → build once (Product → Test)."
+        echo "      Thereafter every device builds from CLI via build-wda.sh."
+    else
+        echo "  ✓ signing identity present (Team $TEAM_ID)"
+    fi
+    echo
+
+    for udid in $DEVICE_UDIDS; do
+        echo "  ════ device $udid ════"
+        # (a) Developer Mode automation + remaining-steps checklist
+        bash "$SCRIPT_DIR/ios-device-prep.sh" "$udid" 2>&1 | sed 's/^/    /' || true
+        # (b) WDA reachability check (temporary forward, then drop)
+        FWD_PORT=18190
+        $PMD usbmux forward "$FWD_PORT" 8100 --udid "$udid" >/dev/null 2>&1 &
+        FWD_PID=$!
+        WDA_UP="no"
+        for i in 1 2 3 4 5; do
+            if curl -s --max-time 2 "http://127.0.0.1:$FWD_PORT/status" 2>/dev/null | grep -q '"state"'; then
+                WDA_UP="yes"; break
+            fi
+            sleep 1
+        done
+        kill $FWD_PID 2>/dev/null || true
+        if [ "$WDA_UP" = "yes" ]; then
+            echo "    ✓ WDA already reachable on this device"
+        else
+            echo "    • WDA not running. After the checklist above is satisfied, start it:"
+            echo "        WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
+        fi
+        echo
+    done
+    echo "  Tip: ios-device server auto-detects devices on each tool call;"
+    echo "       re-run list_devices() after WDA comes up."
+fi
+echo
+
 echo "=== Done ==="
 echo
 echo "Send these to the agent operator:"

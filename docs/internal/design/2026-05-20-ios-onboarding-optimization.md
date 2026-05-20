@@ -64,7 +64,15 @@ security find-identity -v -p codesigning | grep "Apple Development" | head -1 | 
 - **O2**（#157）设备配置自动化：setup-ios.sh 集成 amfi reveal/enable developer-mode + developer-mode-status 检测 + diagnostics restart。
 - **O3**（#158）setup-ios.sh wizard v2：自动化 O1+O2 + 检测每步前置状态 + 4 必须项明确分步引导（带设备路径）+ 多设备循环。
 - **O4**（#159）xcodes CLI 自动装 Xcode（Apple ID + 2FA 一次）+ xcode-select/license 自动。
-- **daemon**（#155）WDA daemon 化（go-ios / pymobiledevice3 xctest）解保活 + 配合付费证书解 7 天痛点。
+- **daemon**（#155）WDA daemon 化 —— **技术链已确认可行**（实测 pymobiledevice3 命令）：
+  - **`developer dvt xcuitest <bundle.xctrunner>`** 直接启动 WDA 的 XCUITest runner，**完全不需要 xcodebuild test 常驻**（这是钥匙）。
+  - iOS 17+ 需 RSD tunnel（`remote tunneld` / `lockdown start-tunnel`），tunnel 创建 tun 接口**需要 root**。
+  - 实测约束：macmini 非交互 sudo 需要密码（`sudo -n` 失败）→ tunneld 不能在远程 shell 非交互起。
+  - **方案**：
+    1. `tunneld` 作为 **root LaunchDaemon**（`/Library/LaunchDaemons/cc.metahub.ios-tunneld.plist`，RunAtLoad as root）— setup 时 `sudo` 装一次（用户输密码一次），之后开机 root 自启，管所有设备 tunnel + bonjour 发现。
+    2. `dvt xcuitest --tunnel <udid> <bundle.xctrunner>` 作为 **per-device 用户 LaunchAgent**（restart loop）经 tunneld 启动 WDA。比 xcodebuild test 轻 + 可 launchd 托管崩溃重启。
+    3. 7 天证书：付费 Apple Developer（1 年，推荐）或 cron 定时 `build-wda.sh` 重 build。
+  - **验证缺口**：tunneld 起 + dvt xcuitest 端到端需用户 sudo 配合（装 root LaunchDaemon）+ 停现有 xcodebuild WDA，本 session 远程非交互 sudo 受限未跑通；dvt xcuitest 命令本身存在性已确认。
 
 ## 五、付费 Apple Developer 的价值（建议）
 $99/年 解锁：证书 1 年（vs 免费 7 天）+ App Store Connect API key 命令行完全自动 provisioning（消除首次 GUI 登录/配 bundle）+ 100 设备注册。对长期多设备 agent-fleet 部署 ROI 高。PoC 已用免费 account 验证全链路，可转付费。
