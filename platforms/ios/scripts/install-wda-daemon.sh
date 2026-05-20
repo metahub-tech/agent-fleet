@@ -53,6 +53,26 @@ if ! "$VENV_PY" -m pymobiledevice3 version >/dev/null 2>&1; then
     exit 1
 fi
 
+# 2b. Pre-verify the runner bundle is actually installed on the device. go-ios
+#     runwda derives the runner as "<bundle_id>.xctrunner"; a typo'd bundle id
+#     would otherwise only surface as a silent launchd KeepAlive retry loop
+#     ("Did not find test app ...") instead of an error here.
+RUNNER_BUNDLE="${BUNDLE_ID}.xctrunner"
+INSTALLED_APPS="$("$PLATFORM_DIR/bin/ios" apps --udid="$UDID" 2>/dev/null || true)"
+if [ -n "$INSTALLED_APPS" ]; then
+    if echo "$INSTALLED_APPS" | grep -q "\"$RUNNER_BUNDLE\""; then
+        echo "✓ runner bundle present on device: $RUNNER_BUNDLE"
+    else
+        echo "ERROR: runner bundle '$RUNNER_BUNDLE' not installed on $UDID." >&2
+        echo "       Check <bundle_id> — you passed '$BUNDLE_ID' (a typo like .ipa vs .ipad?)." >&2
+        echo "       WebDriverAgent runners actually installed on this device:" >&2
+        echo "$INSTALLED_APPS" | grep -oE '"[^"]*[Ww]eb[Dd]river[^"]*"' | sort -u | sed 's/^/         /' >&2
+        exit 1
+    fi
+else
+    echo "  (could not list device apps to pre-verify bundle id — proceeding; watch the wda log)"
+fi
+
 # 3. Shared root LaunchDaemon: pymobiledevice3 tunneld
 #    MUST be a root LaunchDaemon, not a user LaunchAgent: `remote tunneld`
 #    creates a tun network interface, which requires root. A LaunchAgent runs as
