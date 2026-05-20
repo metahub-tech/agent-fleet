@@ -53,7 +53,21 @@ if [ -z "$TEAM_ID" ]; then
     exit 1
 fi
 
-echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$TEAM_ID"
+# App Store Connect API key (PAID accounts) → fully headless minting, no 2FA.
+# Free Apple ID has NO usable headless path: minting a fresh 7-day profile needs
+# an Apple ID account, and (re-)adding one to Xcode requires password + 2FA that
+# no automation can pass. So without an API key this script will fail at signing
+# ("No Accounts") — by design, with a clear message — and the cert must be
+# refreshed manually (re-add the Apple ID in Xcode + rebuild).
+AUTH_ARGS=()
+if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA_ASC_ISSUER_ID:-}" ]; then
+    AUTH_ARGS=(-authenticationKeyPath "$WDA_ASC_KEY_PATH"
+               -authenticationKeyID "$WDA_ASC_KEY_ID"
+               -authenticationKeyIssuerID "$WDA_ASC_ISSUER_ID")
+    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$TEAM_ID (ASC API key)"
+else
+    echo "[$(TS)] refresh-wda-cert: udid=$UDID bundle=$BUNDLE_ID team=$TEAM_ID (NO ASC API key — free account; will fail at signing if no account is configured)"
+fi
 
 # 1. pause the daemon's runwda for this device
 touch "$PAUSE_FILE"
@@ -63,6 +77,7 @@ sleep 3
 # 2. re-sign + reinstall (bounded; cert is refreshed once the runner installs)
 xcodebuild -project "$WDA_DIR/WebDriverAgent.xcodeproj" -scheme WebDriverAgentRunner \
     -destination "id=$UDID" -allowProvisioningUpdates \
+    ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
     DEVELOPMENT_TEAM="$TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" test \
     > "$LOG" 2>&1 &
 XB=$!
@@ -84,7 +99,14 @@ rm -f "$PAUSE_FILE"
 echo "[$(TS)] sentinel cleared; daemon will relaunch WDA for $UDID"
 
 if [ "$ok" != yes ]; then
-    echo "[$(TS)] WARN: never saw a runner install/launch marker — check $LOG and" >&2
-    echo "        whether codesign could reach the keychain." >&2
+    echo "[$(TS)] WARN: never saw a runner install/launch marker — check $LOG." >&2
+    if grep -qiE "No Accounts|No profiles" "$LOG" 2>/dev/null; then
+        echo "        Signing failed (No Accounts / No profiles). This is the free-Apple-ID" >&2
+        echo "        wall: minting a fresh 7-day profile needs an Apple ID account, and" >&2
+        echo "        (re-)adding one to Xcode needs password + 2FA — not automatable." >&2
+        echo "        Fix: open Xcode → Settings → Accounts → (re-)add your Apple ID, then" >&2
+        echo "        rebuild via build-wda.sh. Permanent fix: paid Apple Developer + an" >&2
+        echo "        App Store Connect API key (set WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID)." >&2
+    fi
     exit 2
 fi

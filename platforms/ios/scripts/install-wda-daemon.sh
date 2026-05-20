@@ -151,14 +151,22 @@ launchctl bootstrap "gui/$(id -u)" "$WDA_PLIST" 2>/dev/null \
     || launchctl load -w "$WDA_PLIST"
 echo "✓ WDA LaunchAgent installed + loaded: $WDA_LABEL ($UDID)"
 
-# 5. Per-device cert-refresh LaunchAgent (handles the free-Apple-ID 7-day expiry).
-#    StartCalendarInterval on days 1/6/11/16/21/26 @ 04:00 → gaps <= 6 days < the
-#    7-day cert lifetime. A LaunchAgent (not plain cron) runs in the user's gui
-#    session, so refresh-wda-cert.sh's xcodebuild can reach the unlocked keychain.
+# 5. Per-device cert-refresh LaunchAgent — ONLY with a paid App Store Connect API
+#    key. A free Apple ID cannot refresh the 7-day cert unattended: minting a
+#    fresh profile needs an account, and (re-)adding one to Xcode needs password
+#    + 2FA (verified — not automatable, not even via GUI automation). So the
+#    auto-refresh timer is installed ONLY when WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID
+#    are set; otherwise we skip it (a timer that fails every run is just noise)
+#    and tell the user to refresh manually / go paid.
+#    StartCalendarInterval days 1/6/11/16/21/26 @ 04:00 → gaps <= 6 days < 7-day
+#    cert. A LaunchAgent (not plain cron) runs in the user's gui session so
+#    codesign can reach the unlocked login keychain.
 REFRESH="$SCRIPT_DIR/refresh-wda-cert.sh"
 CR_LABEL="cc.metahub.ios-wda-certrefresh-$SHORT"
 CR_PLIST="$AGENTS_DIR/$CR_LABEL.plist"
-cat > "$CR_PLIST" <<PLIST
+echo ""
+if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA_ASC_ISSUER_ID:-}" ]; then
+    cat > "$CR_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -171,6 +179,12 @@ cat > "$CR_PLIST" <<PLIST
     <string>$UDID</string>
     <string>$BUNDLE_ID</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WDA_ASC_KEY_PATH</key><string>$WDA_ASC_KEY_PATH</string>
+    <key>WDA_ASC_KEY_ID</key><string>$WDA_ASC_KEY_ID</string>
+    <key>WDA_ASC_ISSUER_ID</key><string>$WDA_ASC_ISSUER_ID</string>
+  </dict>
   <key>StartCalendarInterval</key>
   <array>
     <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>4</integer></dict>
@@ -185,17 +199,26 @@ cat > "$CR_PLIST" <<PLIST
 </dict>
 </plist>
 PLIST
-launchctl bootout "gui/$(id -u)/$CR_LABEL" 2>/dev/null \
-    || launchctl unload "$CR_PLIST" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$CR_PLIST" 2>/dev/null \
-    || launchctl load -w "$CR_PLIST"
-echo "✓ cert-refresh LaunchAgent installed: $CR_LABEL (every ~5 days @ 04:00)"
+    launchctl bootout "gui/$(id -u)/$CR_LABEL" 2>/dev/null \
+        || launchctl unload "$CR_PLIST" 2>/dev/null || true
+    launchctl bootstrap "gui/$(id -u)" "$CR_PLIST" 2>/dev/null \
+        || launchctl load -w "$CR_PLIST"
+    echo "✓ cert-refresh LaunchAgent installed (paid ASC API key): $CR_LABEL (~every 5 days @ 04:00)"
+else
+    # remove any stale timer from a previous run, then explain.
+    launchctl bootout "gui/$(id -u)/$CR_LABEL" 2>/dev/null || true
+    rm -f "$CR_PLIST"
+    echo "• cert auto-refresh NOT installed — no App Store Connect API key configured."
+    echo "  Free Apple ID can't refresh the 7-day WDA cert unattended (minting a profile"
+    echo "  needs an account; re-adding one to Xcode needs 2FA — not automatable)."
+    echo "  → Manual: before the cert expires, re-add your Apple ID in Xcode (Settings →"
+    echo "    Accounts) if needed, then re-run build-wda.sh $UDID $BUNDLE_ID."
+    echo "  → Automated: paid Apple Developer + an App Store Connect API key, then re-run"
+    echo "    this with WDA_ASC_KEY_PATH=/path/key.p8 WDA_ASC_KEY_ID=... WDA_ASC_ISSUER_ID=..."
+fi
 echo ""
 echo "Logs:"
 echo "  tunneld:      /var/log/agent-fleet-ios-tunneld.log"
 echo "  wda:          $LOG_DIR/wda-$SHORT.log"
-echo "  cert-refresh: $LOG_DIR/cert-refresh-$SHORT.log"
 echo "WDA should be up in ~20-40s. Verify via the ios-device MCP (list_devices /"
 echo "take_screenshot) — it forwards to device port 8100 transparently."
-echo "Cert auto-refreshes every ~5 days (free Apple ID 7-day cert). For a 1-year"
-echo "cert + fully headless signing, switch to a paid Apple Developer account."

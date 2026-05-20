@@ -311,7 +311,16 @@ bash platforms/ios/scripts/uninstall-wda-daemon.sh <udid>   # 只移除该设备
 bash platforms/ios/scripts/uninstall-wda-daemon.sh --all    # 移除全部 + root tunneld（sudo）
 ```
 
-**7 天证书**：免费 Apple ID 签的 WDA 证书 7 天过期，过期后 runwda 起不来。临时方案：cron 定时 `build-wda.sh` 重 build；长期方案：付费 Apple Developer（证书 1 年）。
+**7 天证书（重要约束）**：免费 Apple ID 签的 WDA 证书 7 天过期，过期后 go-ios runwda 授权失败、launchd 一直重试。
+
+- **免费账号无法自动续期**（2026-05-21 实测确认）：mint 新 profile 必须有 Apple ID 账号，而账号会随重启/会话过期从 Xcode 掉出（`No Accounts`），重新加账号必须过密码 + 2FA —— **任何自动化（含 mac-device 驱动 Xcode GUI）都过不了 2FA 这道墙**。免费账号下续期只能**手动**：到期前在 Xcode → Settings → Accounts 重新加 Apple ID（如已掉），再 `build-wda.sh <udid> <bundle_id>` 重建，daemon 自动接管。
+- **付费账号可全自动**：App Store Connect API key（`.p8`）走 `-authenticationKeyPath`，headless 签名、不过 2FA，证书 1 年有效。配好后 `install-wda-daemon.sh` 会装一个 cert-refresh LaunchAgent（每 ~5 天自动重签）：
+  ```bash
+  WDA_ASC_KEY_PATH=/path/AuthKey_XXXX.p8 WDA_ASC_KEY_ID=XXXX WDA_ASC_ISSUER_ID=<issuer-uuid> \
+    bash platforms/ios/scripts/install-wda-daemon.sh <udid> <bundle_id>
+  ```
+  不带这三个环境变量时 cert-refresh LaunchAgent **不安装**（免费下只会每次失败刷屏），脚本提示手动/付费两条路。
+- 常开多设备 fleet **强烈建议付费 Apple Developer（$99/年）**：一次性消除每周手动重建 + 2FA 的运维负担。
 
 ---
 
