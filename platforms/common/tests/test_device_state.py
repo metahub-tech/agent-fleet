@@ -360,3 +360,21 @@ class TestConcurrency:
         failures = [r for r in results if r["acquired"] is False]
         assert len(successes) == 1
         assert len(failures) == 9
+
+
+def test_status_reports_auto_release_in_seconds():
+    from datetime import timedelta
+    reg = DeviceStateRegistry(idle_timeout=timedelta(seconds=600))
+    reg.acquire("host", "tester")
+    st = reg.status("host")
+    assert st["in_use"] is True
+    assert "auto_release_in_seconds" in st
+    assert st["auto_release_in_seconds"] == max(0, 600 - st["idle_seconds"])
+
+
+def test_all_status_reports_auto_release_in_seconds():
+    from datetime import timedelta
+    reg = DeviceStateRegistry(idle_timeout=timedelta(seconds=600))
+    reg.acquire("host", "tester")
+    snap = reg.all_status()["host"]
+    assert snap["auto_release_in_seconds"] == max(0, 600 - snap["idle_seconds"])
