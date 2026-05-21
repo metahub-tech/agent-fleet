@@ -1,0 +1,22 @@
+[platform]
+id           = "win-device"
+display_name = "Windows 10/11"
+port         = 8766
+status       = "released"
+multi_device = false
+host_os      = ["windows"]
+
+[server]
+module = "win_device_mcp"
+
+[install]
+setup_script = "scripts/setup-windows.ps1"
+guidance     = ["windows_postinstall.yaml"]
+
+[tools.aliases]
+tap            = "click"
+acquire        = "acquire_winpc"
+release        = "release_winpc"
+get_status     = "get_winpc_status"
+dump_ui        = "inspect_window"
+terminate_app  = "kill_process"

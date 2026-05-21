@@ -34,7 +34,7 @@ Changelog = "https://github.com/metahub-tech/agent-fleet/blob/main/CHANGELOG.md"
 agent-fleet = "fleet.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-mock>=3.12"]
+dev = ["pytest>=8.0", "pytest-mock>=3.12", "tomli>=2.0; python_version < '3.11'"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fleet"]
