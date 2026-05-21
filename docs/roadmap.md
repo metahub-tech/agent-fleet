@@ -2,7 +2,7 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-18*
+*Last updated: 2026-05-21*
 
 | Version | Theme | Status |
 |---|---|---|
@@ -25,7 +25,10 @@
 | 0.6.11–0.6.15-alpha | Internal renames, wizard hardening, SSE→http sweep, open-source readiness | ✅ Released |
 | **0.7.0-alpha** | **Android multi-device: alias map, 25 tools, per-device holder, MCP instructions/resource** | ✅ Released |
 | **0.8.0-alpha** | **iOS / iPadOS bridge: ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad real-device verified** | ✅ Released |
+| **0.8.2-alpha** | **iOS WDA daemon (boot-survival + keep-alive) · README i18n (9 langs) + demo · architecture diagram** | ✅ Released |
 | 0.9.0 | Cross-device coordination | 🔭 Future |
+| **0.10.0** | **HarmonyOS (鸿蒙) bridge** — 5th platform (hdc + uitest) | 📋 Planned |
+| 0.11.0+ | Expanded device coverage (Android TV · Linux desktop · Wear OS · 车机/AAOS · …) — see [Future device coverage](#future-device-coverage) | 📋 Planned |
 | 1.0.0 | Public open-source stable | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
@@ -100,7 +103,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 ---
 
 ## v0.8.0 — iOS
-**Target: TBD**
+**Released 2026-05-20 (daemon + i18n in 0.8.2-alpha, 2026-05-21)**
 
 ### 范围
 - 必须运行在 macOS 上（Xcode 强依赖）
@@ -112,6 +115,28 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - WebDriverAgent 维护负担：原项目 Facebook 已 archive，跟社区 fork（如 appium-webdriveragent）
 - 真机签名：personal team 7 天有效期 vs 付费开发者账号，文档化双路径
 - iOS 18+ 的 Accessibility 限制：部分操作可能被系统拦截
+
+---
+
+## v0.10.0 — HarmonyOS (鸿蒙) bridge
+**📋 Planned — 5th platform bridge**
+
+沿用 jump-host 架构：电脑（Win/Mac/Linux）经 USB 接入华为 HarmonyOS 手机/平板，agent 经电脑驱动。
+
+### 范围
+- 驱动栈：**hdc**（HarmonyOS Device Connector，adb 的对应物）—— `hdc shell` / `hdc file send` / `hdc shell snapshot_display`（截图）/ `hdc install <hap>`（装包）
+- UI 自动化：HarmonyOS **uitest / hypium**（`@ohos.UiTest`）—— dump 布局 + 控件查找 / 点击 / 输入；accessibility 通道
+- Host：任意装了 hdc 的电脑（Win/Mac/Linux），与 Android 一样挂在跳板电脑上；端口预留 8770
+- 复用 android-device 的多设备架构：别名映射 + per-device holder + `device` 参数 + MCP instructions/resource
+
+### 待解决
+- **HarmonyOS NEXT（纯血鸿蒙，API 12+）vs 旧版 HarmonyOS（≤4，部分兼容 adb/AOSP）**：NEXT 去 AOSP、走 ArkUI，uitest API 与 Android uiautomator 不同，需分别检测/支持
+- HAP 包签名（DevEco 证书 / hdc 签名流程）文档化
+- hdc + uitest 工具链以中文文档为主、仍在演进；CI / 真机验证依赖华为设备
+- 截图朝向 / 多分辨率（折叠屏）处理
+
+### 为什么优先
+华为在中国市场份额 #1–2、HarmonyOS NEXT 推进迅猛 —— 国内 App 跨端测试是生产刚需。难度中等：hdc 与 adb 同构，android-device 的多设备 / 跳板模式可大量复用。
 
 ---
 
@@ -149,9 +174,27 @@ Agent 一次提示，串联多设备。例：
 
 ---
 
-## Out of Scope (for now)
+## Future device coverage
 
-- **Linux 桌面桥** —— 当前没 GUI 测试需求；命令行任务通过 desktop-commander 已能覆盖
-- **Web 浏览器桥** —— Playwright MCP 已覆盖
-- **嵌入式 / IoT 设备** —— 接口太异构，等实际用例出现再考虑
-- **跨平台 browser extension 测试** —— v1.x 之后再讨论
+架构原则：**电脑做跳板 —— 理论上凡是人能经电脑管理的设备，agent 都能接入**。下表把生产场景可能用到的设备，按「普及程度 × 接入难度」排优先级（普及度区分全球 / 中国）。
+
+| 设备类型 | 工具链 | Host | 普及度 | 难度 | Tier | 备注 |
+|---|---|---|---|---|---|---|
+| **HarmonyOS 手机/平板（鸿蒙）** | hdc + uitest | Win/Mac/Linux | 高（CN 极高） | 中 | **1** | 见 [v0.10.0](#v0100--harmonyos-鸿蒙-bridge)；android-device 模式大量复用 |
+| **Android TV / Google TV** | adb（复用 Android 桥） | 任意 | 中高 | 低 | **1** | 近似 Android，主要适配焦点/遥控导航 |
+| **Linux 桌面** | X11: xdotool + AT-SPI · Wayland: ydotool + grim | Linux | 高 | 中 | **1** | X11 易、Wayland 碎片化偏难；从旧 out-of-scope 提上来 |
+| Wear OS（安卓手表） | adb | 任意 | 中 | 低-中 | 2 | 复用 Android；小屏 UI 适配 |
+| Android Automotive / 车机 IVI | adb | 任意 | 中（CN 增长快） | 中 | 2 | IVI 多基于 Android，车机 HMI 测试刚需；需车端调试开放 |
+| Apple TV（tvOS） | Xcode + XCUITest | **Mac** | 中 | 中-高 | 2 | 类 iOS；焦点引擎 + 遥控导航 |
+| 浏览器 / Web 应用 | Playwright / Selenium | 任意 | 极高 | 低 | 2 | **已被 Playwright MCP 覆盖**；agent-fleet 侧做标准化/编排即可 |
+| 树莓派 / Linux SBC | SSH + Linux GUI 工具 | 任意 | 中 | 低-中 | 2 | 同 Linux 桌面；多为 headless/SSH |
+| Apple Watch（watchOS） | Xcode + 配对 iPhone | **Mac** | 中 | 高 | 3 | 自动化能力受限，依赖配对机 |
+| 三星 Tizen（TV/穿戴） | sdb + Tizen Studio | Win/Mac/Linux | 中（区域） | 中-高 | 3 | sdb 类 adb，工具链小众 |
+| LG webOS（TV） | ares-cli（webOS CLI） | Win/Mac/Linux | 中（区域） | 中-高 | 3 | 区域性，主要 TV app 测试 |
+
+**Tier**：1 = 近期排期（高价值且可行）；2 = 中期；3 = 机会性 / 小众。具体版本号待 0.10.0（鸿蒙）落地后按反馈细排。
+
+### 不同模型 / 暂不规划
+- **云真机农场**（BrowserStack / Sauce Labs / AWS Device Farm）：REST API 接入，**不是 jump-host 模型** —— 作为未来「远端设备源」集成单独评估。
+- **游戏主机**（PS / Xbox / Switch）：仅 NDA 开发套件，不可行。
+- **裸 MCU / 嵌入式**（ESP32 / Arduino 等）：无「经电脑管理的 GUI」，仅烧录 / 串口，不在本舰队范畴。
