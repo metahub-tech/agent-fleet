@@ -94,35 +94,28 @@ O assistente conduz você por: escolher um papel → instalar o servidor MCP →
 
 ```mermaid
 flowchart LR
-  subgraph AGENT["🤖 Agent host (any OS)"]
-    A["LLM agent<br/>Claude Code · Cursor · Cline · OpenClaw · Antigravity · Hermes"]
-    TOOLS["Unified MCP tools<br/>take_screenshot · click · type_text · launch_app · swipe · find_elements …"]
-    A --> TOOLS
+  A["🤖 LLM agent<br/>Claude Code · Cursor · Cline · …<br/>unified MCP tools"]
+  A ==>|"① connects to its own computer<br/>MCP over Tailscale (WireGuard, cross-LAN)"| HUB
+  subgraph HUB["🖥️ The computer = the agent's hands · Windows / macOS"]
+    direction TB
+    SELF["drive the computer itself<br/>win-device :8766 · mac-device :8767<br/>pywinauto · AppleScript · shell"]
+    JUMP["② a jump host to attached devices"]
   end
-  TOOLS ==>|"MCP over Tailscale · WireGuard · cross-LAN"| MESH(("Tailscale<br/>mesh"))
-  MESH --> W & M & D & I
-  subgraph DEVICES["Device hosts — one MCP server each"]
-    W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
-    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
-    D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
-    I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
-  end
+  JUMP -->|"USB · adb"| AND["📱 Android<br/>android-device :8768"]
+  JUMP -->|"USB · WebDriverAgent"| IOS["📱 iPhone / iPad<br/>ios-device :8769"]
+  JUMP -.->|"planned · hdc"| HM["📱 HarmonyOS<br/>(planned)"]
+  JUMP -.->|"③ anything a human can manage via the computer"| MORE["⋯ more devices"]
   classDef agent fill:#1f6feb,stroke:#0b3d91,color:#fff
-  classDef srv fill:#0e7490,stroke:#063b46,color:#fff
-  classDef drv fill:#374151,stroke:#111827,color:#fff
+  classDef hub fill:#0e7490,stroke:#053b46,color:#fff
   classDef dev fill:#16a34a,stroke:#064e23,color:#fff
-  class A,TOOLS agent
-  class W,M,D,I srv
-  class WDRV,MDRV,DDRV,IDRV drv
-  class WP,MP,DP,IP dev
+  classDef plan fill:#6b7280,stroke:#374151,color:#fff
+  class A agent
+  class SELF,JUMP hub
+  class AND,IOS dev
+  class HM,MORE plan
 ```
 
-Cada ponte de plataforma é o mesmo pipeline de três etapas:
-
-```
-[Agent Host] ── Tailscale ──> [Device Host] ── Native Drivers ──> [Device / App]
-                  cross-LAN     MCP server         pywinauto / AppleScript / adb / xcrun
-```
+O agente se conecta a um **computador** (Windows/macOS) — suas "mãos" — e o usa tanto para controlar o próprio computador quanto como **jump host** para os dispositivos conectados a ele: hoje Android e iOS, em seguida HarmonyOS. Em princípio, qualquer dispositivo que um humano consiga gerenciar por um computador, o agente também consegue (o host de iOS precisa ser um Mac).
 
 A interface de ferramentas permanece semanticamente consistente entre plataformas (`take_screenshot` / `click` / `launch_app` / …); trocar de dispositivo é apenas trocar uma URL em `~/.claude.json`.
 
