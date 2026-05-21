@@ -5,6 +5,11 @@
 
 [English](README.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
+<p align="center">
+  <img src="docs/assets/agent-fleet-demo.gif" alt="agent-fleet demo — an LLM agent driving a real iPad over MCP" width="320">
+  <br><sub><em>一个 LLM agent 通过 MCP 操作真实 iPad —— 全程无人手。</em></sub>
+</p>
+
 > **给 LLM agent 配一队真实设备。**
 > 通过 MCP 把真实的 Windows / macOS / Android / iOS 硬件接进 LLM agent，让 agent 像人一样操作它们。一行命令安装：
 >

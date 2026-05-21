@@ -5,6 +5,11 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
+<p align="center">
+  <img src="docs/assets/agent-fleet-demo.gif" alt="agent-fleet demo — an LLM agent driving a real iPad over MCP" width="320">
+  <br><sub><em>LLM 에이전트가 MCP로 실제 iPad를 조작 — 사람 손 없이.</em></sub>
+</p>
+
 > **LLM 에이전트에게 자기만의 실제 기기 함대를.**
 > 실제 Windows / macOS / Android / iOS 하드웨어를 MCP로 LLM 에이전트에 연결해 사람처럼 조작하게 합니다. 설치는 명령어 한 줄:
 >

@@ -5,6 +5,11 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
+<p align="center">
+  <img src="docs/assets/agent-fleet-demo.gif" alt="agent-fleet demo — an LLM agent driving a real iPad over MCP" width="320">
+  <br><sub><em>Un agente LLM controlando un iPad real vía MCP, sin manos humanas.</em></sub>
+</p>
+
 > **Dale a tu agente LLM su propia flota de dispositivos físicos.**
 > Conecta hardware real de Windows / macOS / Android / iOS a tu agente LLM mediante MCP para que los maneje como un humano. Instalación en un solo comando:
 >
