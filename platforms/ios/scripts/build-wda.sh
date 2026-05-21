@@ -25,12 +25,23 @@
 # profile and auto-adding the device UDID. Team ID is auto-extracted from the
 # codesigning identity. Verified on iPhone XR + iPad sharing one bundle id.
 #
+# Two signing modes (resolved by _signing.sh, auto-detected from env):
+#   FREE — default. Team ID auto-extracted from the Xcode-configured Apple ID
+#          identity (one-time GUI setup above). 7-day cert.
+#   PAID — set WDA_ASC_KEY_PATH + WDA_ASC_KEY_ID + WDA_ASC_ISSUER_ID for headless
+#          App Store Connect API-key signing (1-year cert, no GUI/2FA). On a fresh
+#          paid account with no identity yet, also set WDA_TEAM_ID (Membership
+#          team id) so the first build can sign before a cert exists.
+#
 # Usage:
 #   build-wda.sh <UDID> <bundle_id>
 #   WDA_BUNDLE_ID=com.you.WebDriverAgentRunner build-wda.sh <UDID>
+#   # paid/headless:
+#   WDA_ASC_KEY_PATH=/path/key.p8 WDA_ASC_KEY_ID=XXXX WDA_ASC_ISSUER_ID=uuid \
+#     WDA_TEAM_ID=ABCDE12345 build-wda.sh <UDID> <bundle_id>
 #
 # Runs `xcodebuild ... test`, which stays attached keeping WDA alive (Ctrl-C to
-# stop). For unattended/daemon operation see the WDA-daemon backlog item.
+# stop). For unattended/daemon operation see install-wda-daemon.sh.
 set -e
 
 UDID="$1"
@@ -52,16 +63,22 @@ if [ ! -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
     exit 1
 fi
 
-TEAM_ID=$(security find-identity -v -p codesigning \
-    | grep "Apple Development" | head -1 \
-    | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')
-if [ -z "$TEAM_ID" ]; then
-    echo "ERROR: no 'Apple Development' codesigning identity found."
-    echo "  Log in to Xcode → Settings → Accounts first (one-time)."
+# Resolve free vs paid signing (see _signing.sh). PAID (WDA_ASC_KEY_PATH/KEY_ID/
+# ISSUER_ID set) signs headless via an App Store Connect API key; FREE uses the
+# Xcode-configured Apple ID account.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_signing.sh"
+resolve_wda_signing
+
+if [ -z "$WDA_TEAM_ID" ]; then
+    echo "ERROR: no Team ID. Set WDA_TEAM_ID, or create an 'Apple Development'"
+    echo "       identity first:"
+    echo "         FREE: Xcode → Settings → Accounts → add your Apple ID (one-time)."
+    echo "         PAID: set WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID + WDA_TEAM_ID (Membership team id)."
     exit 1
 fi
 
-echo "Team ID:   $TEAM_ID   (auto-extracted)"
+echo "Signing:   $WDA_SIGNING_MODE$([ "$WDA_SIGNING_MODE" = paid ] && echo ' (App Store Connect API key — headless)' || echo ' (Xcode Apple ID account)')"
+echo "Team ID:   $WDA_TEAM_ID"
 echo "Bundle ID: $BUNDLE_ID"
 echo "Device:    $UDID"
 echo "Building + launching WDA (stays attached; Ctrl-C to stop)..."
@@ -71,6 +88,7 @@ exec xcodebuild \
     -scheme WebDriverAgentRunner \
     -destination "id=$UDID" \
     -allowProvisioningUpdates \
-    DEVELOPMENT_TEAM="$TEAM_ID" \
+    ${WDA_AUTH_ARGS[@]+"${WDA_AUTH_ARGS[@]}"} \
+    DEVELOPMENT_TEAM="$WDA_TEAM_ID" \
     PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
     test

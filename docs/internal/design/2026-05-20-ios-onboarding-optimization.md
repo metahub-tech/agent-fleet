@@ -64,15 +64,21 @@ security find-identity -v -p codesigning | grep "Apple Development" | head -1 | 
 - **O2**（#157）设备配置自动化：setup-ios.sh 集成 amfi reveal/enable developer-mode + developer-mode-status 检测 + diagnostics restart。
 - **O3**（#158）setup-ios.sh wizard v2：自动化 O1+O2 + 检测每步前置状态 + 4 必须项明确分步引导（带设备路径）+ 多设备循环。
 - **O4**（#159）xcodes CLI 自动装 Xcode（Apple ID + 2FA 一次）+ xcode-select/license 自动。
-- **daemon**（#155）WDA daemon 化 —— **技术链已确认可行**（实测 pymobiledevice3 命令）：
-  - **`developer dvt xcuitest <bundle.xctrunner>`** 直接启动 WDA 的 XCUITest runner，**完全不需要 xcodebuild test 常驻**（这是钥匙）。
-  - iOS 17+ 需 RSD tunnel（`remote tunneld` / `lockdown start-tunnel`），tunnel 创建 tun 接口**需要 root**。
-  - 实测约束：macmini 非交互 sudo 需要密码（`sudo -n` 失败）→ tunneld 不能在远程 shell 非交互起。
-  - **方案**：
-    1. `tunneld` 作为 **root LaunchDaemon**（`/Library/LaunchDaemons/cc.metahub.ios-tunneld.plist`，RunAtLoad as root）— setup 时 `sudo` 装一次（用户输密码一次），之后开机 root 自启，管所有设备 tunnel + bonjour 发现。
-    2. `dvt xcuitest --tunnel <udid> <bundle.xctrunner>` 作为 **per-device 用户 LaunchAgent**（restart loop）经 tunneld 启动 WDA。比 xcodebuild test 轻 + 可 launchd 托管崩溃重启。
-    3. 7 天证书：付费 Apple Developer（1 年，推荐）或 cron 定时 `build-wda.sh` 重 build。
-  - **验证缺口**：tunneld 起 + dvt xcuitest 端到端需用户 sudo 配合（装 root LaunchDaemon）+ 停现有 xcodebuild WDA，本 session 远程非交互 sudo 受限未跑通；dvt xcuitest 命令本身存在性已确认。
+- **daemon**（#155）WDA daemon 化 —— **2026-05-21 真机端到端验证（XR + iPad，iPadOS 26 / iOS 18）**：
+  - **tunneld（root）✅ 验证通过**：`sudo pymobiledevice3 remote tunneld` 为 2 台设备同时建 RSD tunnel，API on `127.0.0.1:49151` 可查（返回每设备 `tunnel-address`/`tunnel-port`/`interface`）。多设备发现 + bonjour 工作正常。
+  - **DVT 服务过 tunnel ✅ 验证通过**：`dvt proclist` / `dvt launch com.apple.Preferences`（返回 `Process launched with pid 774`）/ `dvt pkill` / `dvt process-id-for-bundle-id` 全部正常。tunnel + DVT 通道完全可用。
+  - **`dvt xcuitest` ❌ 证伪（关键假设不成立）**：在 pymobiledevice3 **9.12.3** / iPadOS 26 上，`dvt xcuitest <bundle.xctrunner>`（`--tunnel` 与 `--rsd` 两种形式都试）**稳定在 ~1 秒内 `Connection was terminated abruptly`（DTX reader exiting），WDA 不上线**。**已排除锁屏**（设备解锁亮屏重试仍同样失败）、**已排除残留 runner**（pid 查询=0）、**已排除 tunnel/DVT 层**（proclist+launch 都通）。这是 pymobiledevice3 DVT-based xcuitest 在 iOS 17+ 的已知缺陷。**原计划"dvt xcuitest 替代 xcodebuild test"这一钥匙假设不成立。**
+  - **go-ios `ios runwda` ✅ 验证通过（2026-05-21，定为 launcher，用户选定方案 b）**：
+    - go-ios **v1.0.213** mac release 二进制是 **universal（x86_64 + arm64 原生，免 Rosetta）**，~13MB 直接下载解压即用，**无需 brew/npm/go**（macmini 三者皆无）。
+    - go-ios 自带 RSD 客户端，可经 `--address <ipv6> --rsd-port <port>` **复用任意已建 tunnel**：实测复用上面 pymobiledevice3 tunneld 的 iPad tunnel（`fddd:438d:2890::1` / `60531`），`ios rsd ls` 成功列出全部 RSD 服务（含 `com.apple.dt.testmanagerd.remote.automation:49714`）。
+    - `ios runwda --udid=<udid> --bundleid=<xctrunner> --testrunnerbundleid=<xctrunner> --xctestconfig=WebDriverAgentRunner.xctest`：**`got capabilities` → `authorized:true` → 形成 XCTest plan → WDA 上线**，进程长驻不断（**正是 dvt xcuitest 秒断的那一步，go-ios 干净跨过**）。WDA `/status` = `state:success, ready:True`；ios-device MCP `take_screenshot` 端到端成功。
+  - **最终 daemon 方案（全部部件已真机验证，零新未知）**：
+    1. **tunnel daemon = root LaunchDaemon**：pymobiledevice3 `remote tunneld`（**已验证**多设备 + API on `:49151`）作为 `/Library/LaunchDaemons/cc.metahub.ios-tunneld.plist`，RunAtLoad as root，管所有设备 tunnel + hotplug。setup 时 `sudo` 装一次。
+    2. **WDA launcher = per-device 用户 LaunchAgent**：`cc.metahub.ios-wda-<udid>.plist`（`KeepAlive=true`）跑一个 wrapper：查 tunneld API(`:49151`) 拿该设备 `tunnel-address`/`tunnel-port` → `ios runwda --udid=<udid> --address=<addr> --rsd-port=<port> --bundleid=<base>.xctrunner ...`（**这条调用链已验证 WDA 上线**）。launchd 托管崩溃重启 + 开机自启，比 xcodebuild test 轻、零 Xcode 进程常驻。
+    3. 7 天证书（**2026-05-21 实测定论**）：**免费 Apple ID 无法自动续期** —— mint 新 profile 必须有账号，账号随重启/会话过期从 Xcode 掉出（`No Accounts`，即便 Xcode GUI 开着 headless xcodebuild 也拿不到），重新加账号必须过 **Apple ID 密码 + 2FA**，**任何自动化（含 mac-device 驱动 Xcode GUI）都过不了 2FA**。→ 免费只能手动重建（Xcode 重加账号 + `build-wda.sh`）。**付费 Apple Developer 的 App Store Connect API key**（`-authenticationKeyPath`）才能 headless 重签 + 1 年证书：`refresh-wda-cert.sh` 支持，`install-wda-daemon.sh` 仅在配了 `WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID` 时装 cert-refresh LaunchAgent（每 ~5 天）。
+  - **为何不用 go-ios 自带 `ios tunnel start` 当 tunnel daemon**：go-ios runwda（launcher）已验证；但 go-ios 自己的 tunnel daemon 在本机未验证，而 pymobiledevice3 tunneld 已验证。两者都需要 root LaunchDaemon（同样一次 sudo），所以选已验证的 pymobiledevice3 tunneld 作 tunnel 源，go-ios 经 `--address/--rsd-port` 消费 —— 全链路零新未知。go-ios 自带 tunnel + runwda 自动发现是后续可简化项（少依赖 python），届时单独验证再切。
+  - **结论**：daemon 化全链路验证通过，路径定为 **root LaunchDaemon(pymobiledevice3 `remote tunneld`) + per-device LaunchAgent(wrapper→`ios runwda`, KeepAlive)**。`dvt xcuitest` 放弃（pymobiledevice3 iOS17+ 缺陷）；xcodebuild test 作为 go-ios 不可用时 fallback。
+  - 实测约束保留：macmini 非交互 sudo 需密码（`sudo -n` 失败）→ tunnel LaunchDaemon 必须用户 `sudo` 装一次，不能远程非交互临时起。
 
 ## 五、付费 Apple Developer 的价值（建议）
 $99/年 解锁：证书 1 年（vs 免费 7 天）+ App Store Connect API key 命令行完全自动 provisioning（消除首次 GUI 登录/配 bundle）+ 100 设备注册。对长期多设备 agent-fleet 部署 ROI 高。PoC 已用免费 account 验证全链路，可转付费。

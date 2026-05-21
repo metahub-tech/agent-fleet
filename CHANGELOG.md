@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2-alpha] - 2026-05-21
+
+### 新增
+
+- **WDA 保活 daemon 化（#155）**：`platforms/ios/scripts/install-wda-daemon.sh <udid> <bundle_id>` 把 WebDriverAgent 托管给 launchd —— 开机自启 + 崩溃自动重启 + **不再常驻 `xcodebuild test`**（不占 Xcode 进程、抗重启）。架构：root LaunchDaemon `cc.metahub.ios-tunneld`（pymobiledevice3 `remote tunneld`，所有设备共用 RSD tunnel，API `:49151`）+ per-device 用户 LaunchAgent `cc.metahub.ios-wda-<udid>`（`_wda-daemon-run.sh` 查 tunnel → go-ios `runwda`，`KeepAlive` 自愈 tunnel 重启 / 热插 / 证书过期）。
+- **新脚本**：`install-go-ios.sh`（拉取 go-ios pin v1.0.213 universal 二进制到 `platforms/ios/bin/`，免 brew/npm/go/Rosetta）、`_wda-daemon-run.sh`（per-device launcher，含 pause 哨兵）、`install-wda-daemon.sh`（装 daemon）、`uninstall-wda-daemon.sh`（卸载，支持 `<udid>` / `--all`）、`refresh-wda-cert.sh`（证书重签）。
+- **免费 / 付费签名双模式（一等支持）**：新增 `_signing.sh` 共享解析器，`build-wda.sh` / `refresh-wda-cert.sh` / `install-wda-daemon.sh` / `setup-ios.sh` 统一按环境自动判定 —— **FREE**（Xcode Apple ID 账号，7 天证书，手动续期）vs **PAID**（`WDA_ASC_KEY_PATH`/`KEY_ID`/`ISSUER_ID` → App Store Connect API key headless 签名，1 年证书，自动续期）。`build-wda.sh` 现支持付费 headless 路径（`-authenticationKey*` + `WDA_TEAM_ID` 覆盖，付费首次无证书也能签）；`setup-ios.sh` 引导按模式分流。`docs/platforms/ios.md` 新增「付费账号接入」清单。
+- **WDA 证书续期（诚实结论）**：免费 Apple ID **无法自动续期** 7 天证书（实测：mint profile 需账号，账号随重启掉出 `No Accounts`，重新加账号要过 2FA，任何自动化含 GUI 都过不了）→ 免费只能手动重建。`install-wda-daemon.sh` 仅在配置了 **App Store Connect API key**（`WDA_ASC_KEY_PATH`/`KEY_ID`/`ISSUER_ID`，付费）时才装 cert-refresh LaunchAgent（每 ~5 天 headless 重签）；免费不装失败定时器、改为引导。脚本兼容 macOS bash 3.2。
+- `setup-ios.sh` step [6] 设备引导新增 daemon 化选项（推荐路径）；`docs/platforms/ios.md` 新增「WDA 保活：daemon 化」节。
+
+### 真机验证（iPadOS 26 / iOS 18，2026-05-21）
+
+- **`dvt xcuitest` 路线证伪**：pymobiledevice3 9.12.3 在 iPadOS 26 上 `dvt xcuitest` 启动 WDA 稳定 `Connection terminated abruptly`（已排除锁屏 / 残留 runner / tunnel 层 —— `dvt proclist`/`dvt launch` 普通 app 都通）。这是 pymobiledevice3 DVT-based xcuitest 在 iOS 17+ 的已知缺陷。
+- **go-ios `runwda` 路线验证通过**：经现有 tunnel（`--address/--rsd-port`）授权 testmanagerd 会话 → WDA 上线 `state:success` → ios-device MCP `take_screenshot` 端到端成功。daemon 选用此路径。
+- 设计文档 `docs/internal/design/2026-05-20-ios-onboarding-optimization.md` 记录完整可行性验证与最终方案。
+
 ## [0.8.1-alpha] - 2026-05-20
 
 ### 修复

@@ -282,8 +282,9 @@ echo
 # ---------- 6. iOS device onboarding (per-device prep + WDA status) ----------
 # Detects connected devices, runs Developer-Mode automation + guidance via
 # ios-device-prep.sh, checks WDA reachability, and tells the user exactly what
-# to do next per device. Does NOT auto-build WDA (xcodebuild test stays
-# attached; that's the WDA-daemon backlog item) — it guides build-wda.sh.
+# to do next per device. Does NOT auto-build WDA — it guides build-wda.sh (one-off,
+# attached) or install-wda-daemon.sh (daemonized: kept alive by launchd, survives
+# reboot, no attached xcodebuild).
 LAST_STEP="[6/6] iOS device onboarding"
 echo "$LAST_STEP"
 
@@ -303,19 +304,27 @@ if [ -z "$DEVICE_UDIDS" ]; then
     echo "  Plug a device in + tap 'Trust This Computer', then re-run — or onboard later:"
     echo "      bash $SCRIPT_DIR/ios-device-prep.sh <udid>"
 else
-    # One-time signing prerequisite (free Apple ID): a codesigning identity must
-    # exist (Xcode → Settings → Accounts) before WDA can be built/run.
+    # Signing mode: PAID (App Store Connect API key → headless, 1-year cert) vs
+    # FREE (Xcode Apple ID account → GUI, 7-day cert, manual refresh).
     TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
         | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
-    if [ -z "$TEAM_ID" ]; then
-        echo "  ⚠️  No 'Apple Development' signing identity found — one-time WDA setup needed:"
-        echo "      1. Xcode → Settings → Accounts → add your Apple ID"
-        echo "      2. open ~/WebDriverAgent/WebDriverAgent.xcodeproj → WebDriverAgentRunner target"
-        echo "         → Signing & Capabilities → set Team + a Bundle ID (e.g."
-        echo "         com.<you>.WebDriverAgentRunner) → build once (Product → Test)."
-        echo "      Thereafter every device builds from CLI via build-wda.sh."
+    if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA_ASC_ISSUER_ID:-}" ]; then
+        echo "  Signing mode: PAID (App Store Connect API key) — headless signing, 1-year cert,"
+        echo "                auto cert-refresh. ${TEAM_ID:+Team $TEAM_ID}"
+        echo "                (full setup: docs/platforms/ios.md → 付费账号接入)"
     else
-        echo "  ✓ signing identity present (Team $TEAM_ID)"
+        echo "  Signing mode: FREE (Xcode Apple ID account) — 7-day cert, manual refresh."
+        if [ -z "$TEAM_ID" ]; then
+            echo "  ⚠️  No 'Apple Development' identity yet — one-time:"
+            echo "      1. Xcode → Settings → Accounts → add your Apple ID"
+            echo "      2. open ~/WebDriverAgent/WebDriverAgent.xcodeproj → WebDriverAgentRunner"
+            echo "         → Signing & Capabilities → set Team + Bundle ID → build once (Product → Test)."
+            echo "      Then every device builds from CLI via build-wda.sh."
+        else
+            echo "  ✓ signing identity present (Team $TEAM_ID)"
+        fi
+        echo "  For headless signing + 1-year cert + auto-refresh: go paid + an ASC API key,"
+        echo "  then set WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID (docs/platforms/ios.md)."
     fi
     echo
 
@@ -337,9 +346,14 @@ else
         kill $FWD_PID 2>/dev/null || true
         if [ "$WDA_UP" = "yes" ]; then
             echo "    ✓ WDA already reachable on this device"
+            echo "      For boot-survival + auto-restart, daemonize it (one-time sudo):"
+            echo "        bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
         else
-            echo "    • WDA not running. After the checklist above is satisfied, start it:"
-            echo "        WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
+            echo "    • WDA not running. After the checklist above is satisfied, either:"
+            echo "        (recommended) daemonize — auto-start at boot, kept alive by launchd:"
+            echo "          bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
+            echo "        (one-off, attached, Ctrl-C to stop):"
+            echo "          WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
         fi
         echo
     done
