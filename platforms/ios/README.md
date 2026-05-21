@@ -49,6 +49,19 @@ Setup 脚本会：
 
 WDA 部署（Xcode 操作）**不在** setup 脚本覆盖范围内，见 `docs/platforms/ios.md`。
 
+## Demo — example agent session
+
+```text
+You:   "Open Settings, then Maps, and screenshot each."
+Agent: start_app(bundle_id="com.apple.Preferences")    → launched
+       take_screenshot()                               → Settings
+       start_app(bundle_id="com.apple.Maps")           → launched
+       take_screenshot()                               → Maps
+```
+
+This is exactly the flow in the animated demo GIF in the [main README](../../README.md)
+— a real iPad driven over MCP, no human hands.
+
 ## 工具集（v0.8.2-alpha 实际暴露，共 26 个）
 
 所有工具均接受可选 `device` 参数（UDID 或别名）。未传 `device` 且只连 1 台设备时自动路由。
