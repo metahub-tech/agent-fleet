@@ -12,7 +12,7 @@ Multi-device support (v0.7.0-alpha):
 - Two new session-level tools: `set_default_device` / `get_default_device`.
 - If `device` is omitted and exactly one phone is connected, it is selected
   automatically. Multiple phones with no `device` raises MultipleDevicesError.
-- `acquire_android` / `release_android` / `get_android_status` are per-device.
+- `acquire` / `release` / `get_status` are per-device.
 - FastMCP `instructions=` reports the connected-device list at MCP handshake.
 - Resource `androidfleet://devices` provides a live JSON snapshot.
 
