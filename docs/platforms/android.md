@@ -127,8 +127,6 @@ These should return your phone's model and screen resolution. If they do, `andro
 
 ---
 
----
-
 ## 多设备模式
 
 v0.7.0-alpha 起，单台主机可同时挂多台 Android 手机，通过同一个 MCP 入口控制。

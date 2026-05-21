@@ -3,18 +3,20 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-v0.8.2--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.2-alpha)
 
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
+
 > **Give your LLM agent its own fleet of physical devices.**
-> 给 LLM agent 配一队真实硬件——Windows / macOS / Android / iOS，通过 MCP 让 agent 像人一样操作它们。一行命令安装：
+> Connect real Windows / macOS / Android / iOS hardware to your LLM agent over MCP so it can operate them like a human. One command to install:
 >
 > ```bash
 > uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
-## 是什么
+## What is it
 
-把一台开发机外的**真实设备**（Windows PC、Mac、Android 手机、iPhone）接进 LLM Agent 的工具链，让 Agent 像调用本地命令那样驱动这些设备：截屏、点按钮、跑测试、读日志、调试 GUI。
+Bring **real devices** — Windows PCs, Macs, Android phones, iPhones — into your LLM agent's toolchain so it can drive them just like local commands: take screenshots, tap buttons, run tests, read logs, debug GUIs.
 
-这是给 **agent-driven 软件测试与跨平台验证** 准备的基础设施。
+This is infrastructure for **agent-driven software testing and cross-platform verification** — and, more broadly, for giving agents real perception of and leverage over the physical world.
 
 ```
 ┌─────────────────┐                              ┌──────────────┐
@@ -27,29 +29,30 @@
 └─────────────────┘                              │ iPhone/iPad  │ ios-device     :8769 ✅
                                                  └──────────────┘
             ↑                                                ↑
-   uvx agent-fleet setup           generates 6 frameworks' configs
-   一行命令装 client 端 + 装 server / 配 Tailscale / 引导权限 / 自检 / 生成 snippet
+   uvx agent-fleet setup           generates configs for 6 agent frameworks
+   one command: install client + server / configure Tailscale / guide permissions / self-check / emit snippets
 ```
 
-## 当前状态
+## Status
 
 | Component | Version | Status |
 |---|---|---|
 | Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
 | macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
 | Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **25 tools**, multi-device + USB + Wireless + Hybrid ADB) |
-| agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` 一键安装；6 框架配置生成) |
+| agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
 | v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.15` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
 | iOS / iPadOS bridge | `0.8.0-alpha` | ✅ Released (ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad verified) |
+| iOS WDA daemon (boot-survival + keep-alive) | `0.8.2-alpha` | ✅ Released (go-ios runwda + tunneld launchd; free/paid signing modes) |
 | Cross-device coordination | `0.9.0` | 🔭 Future |
-| Public stable release | `1.0.0` | 🔭 Future (after community feedback on alpha) |
+| Public stable release | `1.0.0` | 🔭 Future (after community feedback on the alpha) |
 
-详见 [`docs/roadmap.md`](docs/roadmap.md)。
+See [`docs/roadmap.md`](docs/roadmap.md).
 
-## 快速开始
+## Quick Start
 
-**新手 / 一键流**：在被控设备（PC / 接了手机的 PC）上：
+**Newcomers / one-shot flow** — on the device to be controlled (a PC, or a PC with phones attached):
 
 ```bash
 # macOS / Linux  —  NOT `curl ... | bash`!  The wizard is interactive and bash
@@ -63,71 +66,64 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.8.2-alpha 阶段从 git 拉，未上 PyPI）：
+Or, if you already have uv (during the v0.8.2-alpha phase it is pulled from git, not yet on PyPI):
 
 ```bash
 uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdirectory=cli" agent-fleet setup
 ```
 
-> macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。
+> macOS 12 users must run `brew install coreutils` first (uv's wrapper uses `realpath`, which macOS 12 lacks by default; see [#2](https://github.com/metahub-tech/agent-fleet/issues/2)).
 
-wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 权限 / ADB 授权交互式引导 → 自动健康检测 → 输出 6 个 agent 框架的配置片段。
+The wizard walks you through: pick a role → install the MCP server → configure Tailscale → interactively guide GUI permissions / ADB authorization → run a health check → emit config snippets for 6 agent frameworks.
 
-**老手**：仍可直接调底层脚本——`docs/install-pattern.md` 仍有效（"高级用户手册"）。
+**Power users** can still call the underlying scripts directly — `docs/install-pattern.md` remains valid (the "advanced manual").
 
-| 你是 | 看哪个 |
+| You are | Read |
 |---|---|
-| **新手**（让 wizard 带你走） | 跑上面那行命令，跟着提示选 |
-| **设备管理员，要自己写脚本编排部署** | [`docs/install-pattern.md`](docs/install-pattern.md)（底层脚本契约）|
-| **Agent 操作员** | wizard 输出的 snippet 直接 paste 到对应 agent 配置；也可参考 [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
-| **设计文档**（贡献者） | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
+| **A newcomer** (let the wizard drive) | run the command above and follow the prompts |
+| **A device admin scripting your own deployment** | [`docs/install-pattern.md`](docs/install-pattern.md) (low-level script contract) |
+| **An agent operator** | paste the wizard's snippet into your agent config; see also [`docs/agent-host-setup.md`](docs/agent-host-setup.md) |
+| **A contributor** (design docs) | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
-## English Quick Start
+## Architecture
 
-The authoritative documentation is currently in Chinese; full English docs ship with the v1.0 milestone. Two pages cover the entire setup:
-
-- Device admin: [`docs/platforms/windows.md`](docs/platforms/windows.md)
-- Agent admin: [`docs/agent-host-setup.md`](docs/agent-host-setup.md)
-
-## 架构
-
-每个平台桥都是同样的三段式：
+Every platform bridge is the same three-stage pipeline:
 
 ```
 [Agent Host] ── Tailscale ──> [Device Host] ── Native Drivers ──> [Device / App]
                   cross-LAN     MCP server         pywinauto / AppleScript / adb / xcrun
 ```
 
-工具接口在所有平台保持语义一致（`take_screenshot` / `click` / `launch_app` / ...），切换设备只需在 `~/.claude.json` 里换 URL。
+The tool interface stays semantically consistent across platforms (`take_screenshot` / `click` / `launch_app` / …); switching devices is just swapping a URL in `~/.claude.json`.
 
-详见 [`docs/architecture.md`](docs/architecture.md)。
+See [`docs/architecture.md`](docs/architecture.md).
 
-## 目录布局
+## Repository layout
 
 ```
 agent-fleet/
-├── docs/                          # 通用文档
-│   ├── install-pattern.md         # 开发者基准：两个角色 / 两条安装路径 / 目录契约
-│   ├── architecture.md            # 通用桥架构
-│   ├── agent-host-setup.md        # Agent 端配置（~/.claude.json + skill 软链）
-│   ├── roadmap.md                 # 平台路线图
-│   └── platforms/<name>.md        # 各平台详细手册（设备端）
-├── platforms/                     # 每平台一舱，自包含
+├── docs/                          # shared docs
+│   ├── install-pattern.md         # developer baseline: two roles / two install paths / directory contract
+│   ├── architecture.md            # common bridge architecture
+│   ├── agent-host-setup.md        # agent-side config (~/.claude.json + skill symlinks)
+│   ├── roadmap.md                 # platform roadmap
+│   └── platforms/<name>.md        # per-platform manual (device side)
+├── platforms/                     # one self-contained bay per platform
 │   ├── windows/
-│   │   ├── README.md              # 速览
-│   │   ├── server/                # MCP server 源码 + 依赖
-│   │   ├── scripts/               # 安装 / 启动 / 排错脚本
-│   │   ├── skills/using-win/    # 给 agent 用的 skill 文档
-│   │   └── examples/              # claude-settings.json 片段
-│   └── macos/                     # 同样子结构
-├── scripts/                       # 仓库级脚本
-│   └── install-agent-side.py      # 一行命令把 MCP + skill 装到 ~/.claude.json
-├── examples/                      # 跨平台示例
+│   │   ├── README.md              # at-a-glance
+│   │   ├── server/                # MCP server source + deps
+│   │   ├── scripts/               # install / launch / troubleshoot scripts
+│   │   ├── skills/using-win/      # skill docs for the agent to use
+│   │   └── examples/              # claude-settings.json snippets
+│   └── macos/                     # same sub-structure
+├── scripts/                       # repo-level scripts
+│   └── install-agent-side.py      # one command to install MCP + skill into ~/.claude.json
+├── examples/                      # cross-platform examples
 │   └── multi-platform-claude-settings.json
 └── CHANGELOG.md
 ```
 
-新增平台 → 在 `platforms/<name>/` 下落入同样的子结构。范式见 [`docs/install-pattern.md` § 添加新平台](docs/install-pattern.md)。
+To add a platform → drop the same sub-structure under `platforms/<name>/`. See [`docs/install-pattern.md` § Adding a new platform](docs/install-pattern.md).
 
 ## License
 
@@ -135,8 +131,6 @@ agent-fleet/
 
 ## Contributing
 
-欢迎贡献！**agent-fleet 已在 Apache 2.0 许可证下公开发布，接受社区贡献。**
+Contributions welcome! **agent-fleet is publicly released under the Apache 2.0 license and accepts community contributions.**
 
-贡献流程和编码约定见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
-行为准则见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。
-安全漏洞请通过 GitHub Security tab → "Report a vulnerability" 私密上报。
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the contribution flow and coding conventions, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for the code of conduct. Report security vulnerabilities privately via the GitHub Security tab → "Report a vulnerability".

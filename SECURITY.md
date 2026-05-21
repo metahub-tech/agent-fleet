@@ -6,7 +6,7 @@ agent-fleet bridges LLM agents to real physical devices. The threat surface is r
 
 **Network isolation via Tailscale**
 
-All MCP bridge servers bind to `0.0.0.0` on their assigned port (Windows `:8766`, macOS `:8767`, Android `:8768`) and rely on Tailscale for network-layer access control. Tailscale's WireGuard-based mesh ensures only authenticated, authorized nodes on your tailnet can reach these ports.
+All MCP bridge servers bind to `0.0.0.0` on their assigned port (Windows `:8766`, macOS `:8767`, Android `:8768`, iOS `:8769`) and rely on Tailscale for network-layer access control. Tailscale's WireGuard-based mesh ensures only authenticated, authorized nodes on your tailnet can reach these ports.
 
 **Critical: do NOT expose MCP ports to the public internet.** If you run the bridges without Tailscale (LAN mode), restrict access at the OS firewall level. The setup wizard configures Windows Firewall rules and macOS pf/Application Firewall rules scoped to the Tailscale interface. Verify these rules are active before relying on them.
 
