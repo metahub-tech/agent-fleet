@@ -10,6 +10,27 @@
 
 **Source:** design §支柱5 + §五P2 + §九; code-explorer map (file:line refs below).
 
+---
+
+## ⚠ REWORK — apply these (from plan review; supersede the body where they conflict)
+
+The plan review (NEEDS-REWORK) found behavior/test gaps. Bake these decisions in:
+
+1. **ABC signatures (verified against `installers/base.py`):** `preflight(self) -> list[str]` and `smoke_tests(self) -> list[SmokeTest]` are **zero-arg**; `is_supported_on(self, os_info: OSInfo) -> bool`. So `ManifestInstaller` stores `host_os`; `is_supported_on` returns **`os_info.kind in manifest.host_os`** (NOT `os_info in ...`). Hook types: `preflight_hook: Callable[[str], list[str]] | None` (**receives host_os** so it can be host-OS-aware), `smoke_hook: Callable[[], list[SmokeTest]] | None`. `ManifestInstaller.preflight(self)` calls `self._preflight_hook(self._host_os)` if set else `[]`.
+2. **android-on-macOS keeps its brew preflight (Issue 11 — behavior regression otherwise):** the current `MacosAndroidBridge.preflight()` checks brew. So the `android-device` hook's `preflight_hook(host_os)` must return the brew check when `host_os=="macos"`, else `[]`. (`mac-device`/`ios-device` hooks ignore host_os and always run their checks.) Reuse the existing brew/python/xcode check helpers — extract them into `_hooks.py` (or a shared `_checks.py`) and DELETE the originals with their classes.
+3. **`collect_options()` must reproduce `_select_android_config` UX exactly (Issue 5):**
+   - If `manifest.config_reuse` has a `check_path` that EXISTS: print its contents (the current code shows a `rich.Panel`), ask "reuse?"; **if yes → set the reuse env var truthy and RETURN EARLY (skip the `[install.options]` prompts entirely)** — this short-circuit is load-bearing (`_env.py`'s old `if/elif` depended on it). If no → set reuse env falsy and continue to options.
+   - Options prompts must keep the **human-readable labels** (current 3 modes have rich descriptions). → **schema change (Issue 5c):** `[install.options].<opt>.choices` becomes a list of `{value, label}` tables; `collect_options` renders `questionary.Choice(label, value=value)`. Update `platforms/android/platform.toml` accordingly (see Task 1b).
+4. **Test files the body missed — ALL must be updated so the suite never goes red (Issues 3,4,7,8):**
+   - `cli/tests/test_smoke_module.py` — imports + parametrizes all 6 deleted classes; rewrite to use `ManifestInstaller` instances (and the cross-host android-smoke-match test).
+   - `cli/tests/test_installers_env.py` — uses `InstallContext(android_mode=…/android_reuse_config=…)` + asserts `ATB_ANDROID_*`; rewrite to `InstallContext(platform_options={...})` + assert generic injection.
+   - `cli/tests/test_installers_macos.py` / `test_installers_windows.py` / `test_installers_linux.py` — import the deleted classes; rewrite metadata/is_supported_on/dry_run assertions against `ManifestInstaller(load_manifest(<real platform.toml>), host_os=...)`.
+   - `cli/tests/test_installers_registry.py` — its `__class__.__name__` assertion is fully invalidated (all instances are now `ManifestInstaller`); assert on `(role_id, host_os)` pairs instead, covering android×{win,mac,linux}, ios×{mac}, mac×{mac}, win×{win}.
+5. **`installers/__init__.py` `__all__` (Issue 12):** remove the deleted class names from `__all__`; export `ManifestInstaller`, `discover_installers`.
+6. Each task: run the FULL `cd cli && PYTHONPATH=src python -m pytest -q` at the end so no task leaves the suite red mid-plan. Re-grep `android_mode|android_reuse_config|_select_android_config|MacosDesktop|MacosAndroidBridge|MacosIosBridge|WindowsDesktop|WindowsAndroidBridge|LinuxAndroidBridge` across `cli/` — must be zero before P2a is done.
+
+> A follow-up plan-review pass should confirm these are absorbed before/at execution.
+
 **Baseline:** `cd cli && PYTHONPATH=src python -m pytest -q` → **95 passed, 1 pre-existing fail** (`test_smoke_module.py::test_has_device_in_result_rejects_unauthorized` — unrelated to P2; do NOT count it as a regression, but do NOT break the other 95).
 
 ---
@@ -58,6 +79,27 @@ Verify those two script files exist (`platforms/android/scripts/setup-android.ps
 - [ ] **Step 5:** Run loader + manifests + conformance tests green. Commit `feat(manifest): per-host-OS setup_script_by_os (android's 3 scripts)`.
 
 ---
+
+## Task 1b: android `[install.options]` rich choice labels → manifest SSOT
+
+**Files:** `platforms/android/platform.toml`; (loader already stores `options` as a raw dict, no `_manifest.py` change needed — verify).
+
+- [ ] **Step 1:** Read `cli/src/fleet/cli.py:92-98` for the EXACT current 3-mode `questionary.Choice` labels + values + the prompt text. These are the human-readable descriptions that must move into the manifest (not be lost — Issue 5c).
+- [ ] **Step 2:** Change android's `[install.options].mode` so `choices` is a list of `{value, label}` tables carrying those exact labels, e.g.:
+```toml
+[install.options.mode]
+prompt = "ADB connection mode"
+env    = "ATB_ANDROID_MODE"
+choices = [
+  { value = "usb",      label = "<exact label from cli.py:92-98>" },
+  { value = "wireless", label = "<exact label>" },
+  { value = "hybrid",   label = "<exact label>" },
+]
+```
+(Keep the default selection if the current prompt has one.) Confirm `[install.config_reuse]` already has `check_path = "~/.atb-android/config.toml"` + `env = "ATB_ANDROID_REUSE_CONFIG"` (it does).
+- [ ] **Step 3:** `python -m pytest platforms/tests -q` still green (manifest still loads; the options dict shape is freeform). Commit `feat(android): move ADB-mode choice labels into platform.toml (SSOT for wizard prompt)`.
+
+> `collect_options()` (Task 2) consumes this: for a `[install.options].<opt>` with `choices` of `{value,label}`, render `questionary.Choice(c["label"], value=c["value"])`; set `env[opt.env] = chosen_value`.
 
 ## Task 2: `ManifestInstaller` + per-role hooks
 
