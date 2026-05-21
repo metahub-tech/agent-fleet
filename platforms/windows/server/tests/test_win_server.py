@@ -38,15 +38,15 @@ def test_default_device_helpers():
 
 
 def test_holder_roundtrip():
-    assert _fn(srv.get_winpc_status)()["in_use"] is False
-    a = _fn(srv.acquire_winpc)("tester")
+    assert _fn(srv.get_status)()["in_use"] is False
+    a = _fn(srv.acquire)("tester")
     assert a.get("acquired") is True
-    s1 = _fn(srv.get_winpc_status)()
+    s1 = _fn(srv.get_status)()
     assert s1["in_use"] is True
     assert s1["holder"] == "tester"
     assert "auto_release_in_seconds" in s1
-    assert _fn(srv.release_winpc)("tester").get("released") is True
-    assert _fn(srv.get_winpc_status)()["in_use"] is False
+    assert _fn(srv.release)("tester").get("released") is True
+    assert _fn(srv.get_status)()["in_use"] is False
 
 
 def test_file_delegation_roundtrip():

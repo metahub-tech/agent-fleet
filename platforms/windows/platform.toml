@@ -13,10 +13,3 @@ module = "win_device_mcp"
 setup_script = "scripts/setup-windows.ps1"
 guidance     = ["windows_postinstall.yaml"]
 
-[tools.aliases]
-tap            = "click"
-acquire        = "acquire_winpc"
-release        = "release_winpc"
-get_status     = "get_winpc_status"
-dump_ui        = "inspect_window"
-terminate_app  = "kill_process"
