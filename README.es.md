@@ -42,8 +42,8 @@ Es infraestructura para **pruebas de software impulsadas por agentes y verificac
 
 | Componente | Versión | Estado |
 |---|---|---|
-| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 38 herramientas, streamable-http) |
-| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 39 herramientas, flujo de permisos GUI) |
+| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 40 herramientas, streamable-http) |
+| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 41 herramientas, flujo de permisos GUI) |
 | Puente Android | `0.7.0-alpha` | ✅ Publicado (android-device, **25 herramientas**, multidispositivo + USB + inalámbrico + ADB híbrido) |
 | Asistente CLI de agent-fleet | `0.5.0-alpha` | ✅ Publicado (`uvx agent-fleet setup` instalación en un paso; configs para 6 frameworks) |
 | Renombrado de rol → `<os>-device` + guía de permisos macOS | `0.6.0-alpha` | ✅ Publicado |
@@ -117,7 +117,7 @@ flowchart LR
 
 El agente se conecta a un **ordenador** (Windows/macOS) —sus "manos"— y lo usa tanto para controlar el propio ordenador como de **jump host** hacia los dispositivos conectados a él: hoy Android e iOS, después HarmonyOS. En principio, cualquier dispositivo que un humano pueda gestionar a través de un ordenador, el agente también (el host de iOS debe ser un Mac).
 
-La interfaz de herramientas se mantiene semánticamente consistente entre plataformas (`take_screenshot` / `click` / `launch_app` / …); cambiar de dispositivo es solo cambiar una URL en `~/.claude.json`.
+La interfaz de herramientas se mantiene semánticamente consistente entre plataformas (`take_screenshot` / `tap` / `launch_app` / …); cambiar de dispositivo es solo cambiar una URL en `~/.claude.json`.
 
 Ver [`docs/architecture.md`](docs/architecture.md).
 

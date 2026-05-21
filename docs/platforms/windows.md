@@ -175,7 +175,7 @@ $ServerDir = "C:\agent-fleet\platforms\windows\server"
 
 ### 7.2 高 DPI 屏点击坐标错位
 
-如果 Agent 那边发现 `click(x, y)` 点的位置和 `take_screenshot` 看到的不一致，要么把 Windows 显示缩放设回 100%（设置 → 系统 → 显示），要么在 `win_device_mcp.py` 顶部 import 后加：
+如果 Agent 那边发现 `tap(x, y)` 点的位置和 `take_screenshot` 看到的不一致，要么把 Windows 显示缩放设回 100%（设置 → 系统 → 显示），要么在 `win_device_mcp.py` 顶部 import 后加：
 
 ```python
 import ctypes
@@ -207,16 +207,16 @@ win-device 是 FastMCP streamable-http，**支持多客户端并发连接**—�
 但 GUI 操作（鼠标、键盘、截屏）有共享物理资源的风险——agent A 在打字时 agent B 抢着点鼠标会互相干扰。所以 win-device 引入了**advisory 单持有者**模式：
 
 ```
-Agent A: acquire_winpc(holder_name="agent-A")     # 声明独占
+Agent A: acquire(holder_name="agent-A")           # 声明独占
 Agent A: take_screenshot()                         # 干活
 Agent A: type_text(...)
-Agent A: release_winpc(holder_name="agent-A")     # 显式释放
+Agent A: release(holder_name="agent-A")           # 显式释放
 
-Agent B: get_winpc_status()                        # 查谁在用
+Agent B: get_status()                              # 查谁在用
   → {"in_use": true, "holder": "agent-A", "idle_seconds": 3, ...}
 ```
 
-- **advisory**：工具不强制阻止——anyone can call tools。但 `get_winpc_status` 显示当前持有者，agent 应该礼貌等待
+- **advisory**：工具不强制阻止——anyone can call tools。但 `get_status` 显示当前持有者，agent 应该礼貌等待
 - **idle 超时 10 分钟**自动释放（防止 holder 忘了 release 锁住设备）
 - 持有者每次调用工具都会刷新 last_used_at
 - 未来版本计划加入强制模式（rejected if not holder）
@@ -229,12 +229,12 @@ Agent B: get_winpc_status()                        # 查谁在用
 
 | 类别 | 工具 |
 |---|---|
-| **使用状态** | `acquire_winpc`, `release_winpc`, `get_winpc_status` |
+| **使用状态** | `acquire`, `release`, `get_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 窗口 | `list_windows`, `inspect_window`, `focus_window` |
-| 鼠标 | `click`, `move_mouse` |
+| 窗口 / UI 内省 | `list_windows`, `focus_window`, `dump_ui`（前台窗口 UI 树）, `inspect_window`（更丰富的窗口内省，平台扩展） |
+| 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
-| 进程（一次性） | `launch_app`, `kill_process`, `list_processes` |
+| 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |

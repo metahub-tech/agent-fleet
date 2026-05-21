@@ -121,16 +121,16 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 | 类别 | 工具 | 备注 |
 |---|---|---|
-| 状态 | `acquire_android` / `release_android` / `get_android_status` | per-device 协作锁 |
+| 状态 | `acquire` / `release` / `get_status` | per-device 协作锁 |
 | 会话默认设备 | `set_default_device` / `get_default_device` | MCP 会话级 sticky 默认 |
 | 设备 | `list_devices` | 列出已连设备（含 alias/brand/model/in_use 字段） |
 | 屏幕 | `take_screenshot` / `get_screen_size` | screencap 直读，1:1 像素，不缩放 |
 | 触控 | `tap` / `swipe` / `long_press` | 物理屏幕坐标系 |
 | 键盘 | `type_text` / `press_key` | press_key 别名：back/home/menu/recent/power/volume_up 等 |
-| 应用 | `list_packages` / `install_apk` / `uninstall_app` / `start_app` / `kill_app` / `current_app` | apk 安装走 host->phone push |
+| 应用 | `list_packages` / `install_apk` / `uninstall_app` / `start_app` / `terminate_app` / `current_app` | apk 安装走 host->phone push |
 | Shell | `adb_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
 | 文件 | `push_file` / `pull_file` | host ↔ device |
-| UI 内省 | `dump_ui_hierarchy` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
+| UI 内省 | `dump_ui` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
 
 > `type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行。
 

@@ -42,8 +42,8 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 38 tools, streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 39 tools, GUI-permission flow) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 40 tools, streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 41 tools, GUI-permission flow) |
 | Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **25 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
@@ -117,7 +117,7 @@ flowchart LR
 
 The agent connects to a **computer** (Windows/macOS) — its "hands" — and uses it both to drive the computer directly and as a **jump host** to the devices attached to it: Android and iOS today, HarmonyOS next. In principle, any device a human can manage through a computer, the agent can too. (The iOS host must be a Mac.)
 
-The tool interface stays semantically consistent across platforms (`take_screenshot` / `click` / `launch_app` / …); switching devices is just swapping a URL in `~/.claude.json`.
+The tool interface stays semantically consistent across platforms (`take_screenshot` / `tap` / `launch_app` / …); switching devices is just swapping a URL in `~/.claude.json`.
 
 See [`docs/architecture.md`](docs/architecture.md).
 

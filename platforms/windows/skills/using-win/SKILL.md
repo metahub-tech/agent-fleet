@@ -5,7 +5,7 @@ description: Use when invoking win-device MCP tools to drive a Windows test mach
 
 # Using win-device
 
-Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, streamable-http on Tailscale). Multi-client native; advisory single-holder coordination; ~33 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
+Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, streamable-http on Tailscale). Multi-client native; advisory single-holder coordination; 40 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
 
 ## Critical patterns
 
@@ -16,10 +16,21 @@ Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, st
 ```
 get_screen_size                       # returns {"width": 1920, "height": 1080}
 take_screenshot                        # PNG of full screen; rendered display may be smaller
-click(x=1096, y=600)                   # x,y MUST be in 1920x1080 space
+tap(x=1096, y=600)                     # x,y MUST be in 1920x1080 space
 ```
 
-If clicks miss: the displayed image is a thumbnail, not the source of truth. Call `get_screen_size` first; reason about coordinates in that coordinate system.
+If taps miss: the displayed image is a thumbnail, not the source of truth. Call `get_screen_size` first; reason about coordinates in that coordinate system.
+
+### UI introspection and app lifecycle
+
+```
+dump_ui()                              # UI-Automation tree of the foreground window
+inspect_window(...)                    # richer per-window introspection (platform extension)
+terminate_app(target="notepad.exe")    # terminate by process name / path substring
+kill_process(pid=...)                  # kill by PID (platform extension)
+```
+
+`dump_ui` and `terminate_app` are the canonical cross-platform tools. `inspect_window` (richer window introspection) and `kill_process` (PID-based kill) remain as Windows-specific extensions for finer control.
 
 ### Long-running tasks: `start_process`, NOT `run_powershell`
 
@@ -49,13 +60,13 @@ Don't use `start_search` to look up content of a single known file -- use `read_
 
 ### Multi-agent coordination (advisory)
 
-Tools work for everyone regardless of who claims the device, but `get_winpc_status` reports the current holder. In shared setups, follow this etiquette:
+Tools work for everyone regardless of who claims the device, but `get_status` reports the current holder. In shared setups, follow this etiquette:
 
 ```
-get_winpc_status                                    # see who has it
-acquire_winpc(holder_name="agent-A")                # claim
+get_status                                          # see who has it
+acquire(holder_name="agent-A")                      # claim
 ... do work; each tool call refreshes idle timer ...
-release_winpc(holder_name="agent-A")                # explicit release
+release(holder_name="agent-A")                      # explicit release
 ```
 
 Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/release for one-off single-tool calls (overhead not worth it for a single screenshot).
@@ -74,7 +85,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 
 - Setup: `docs/platforms/windows.md` in agent-fleet repo
 - Diagnostic: run `platforms/windows/scripts/diagnose.ps1` on the Windows host
-- Tool surface: 33 tools in 9 categories
+- Tool surface: 40 tools in 9 categories
 - Source code: `platforms/windows/server/win_device_mcp.py`
 
 ## Red flags

@@ -68,18 +68,18 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 
 | 类别 | 工具 | 备注 |
 |---|---|---|
-| 状态 | `acquire_ios` / `release_ios` / `get_ios_status` | per-device 协作锁 |
+| 状态 | `acquire` / `release` / `get_status` | per-device 协作锁 |
 | 会话默认设备 | `set_default_device` / `get_default_device` | MCP 会话级 sticky 默认 |
 | 设备 | `list_devices` | 列出连接设备（udid / alias / model / os_version / in_use） |
 | 屏幕 | `take_screenshot` / `get_screen_size` | WDA points 坐标系（非物理像素）|
 | 触控 | `tap` / `swipe` / `long_press` | WDA point 坐标 |
-| 键盘/按键 | `type_text` / `press_button` | type_text 走 UIKit（支持 Unicode）；press_button 仅 home/volume_up/volume_down/lock |
+| 键盘/按键 | `type_text` / `press_key` | type_text 走 UIKit（支持 Unicode）；press_key 仅 home/volume_up/volume_down/lock |
 | 应用 | `list_apps` / `install_ipa` / `uninstall_app` / `start_app` / `terminate_app` / `activate_app` / `current_app` | install = pymobiledevice3；start/terminate/activate/current = WDA |
 | 文件 | `push_file_to_app` / `pull_file_from_app` | 仅限 UIFileSharingEnabled 应用的 Documents 沙箱 |
-| UI 内省 | `dump_ui_hierarchy` / `find_elements` / `tap_element` | WDA /source + /elements；推荐 class chain 定位器 |
+| UI 内省 | `dump_ui` / `find_elements` / `tap_element` | WDA /source + /elements；推荐 class chain 定位器 |
 | 设备信息 | `device_info` | OS 版本、build、电量、型号（pymobiledevice3 lockdown + diagnostics）|
 
-> 与 android-device 的主要差异：**无 `adb_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_button` 只支持 4 个物理按键，坐标系为 WDA points。
+> 与 android-device 的主要差异：**无 `adb_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
 
 ## 已知限制
 

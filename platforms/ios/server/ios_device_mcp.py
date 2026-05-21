@@ -6,7 +6,7 @@ FastMCP server bridging an LLM agent to one or more iOS devices via:
 
 Architecture mirrors android-device v0.7.x exactly:
   - Single MCP entry on 0.0.0.0:8769/mcp (streamable-http)
-  - 24 tools (22 mirror Android + activate_app + device_info; drop adb_shell)
+  - 26 tools (24 mirror Android + activate_app + device_info; drop adb_shell)
   - All tools accept optional `device` parameter (UDID or alias)
   - Alias map auto-derived from ProductType, override via
     ~/.agent-fleet/ios-aliases.json

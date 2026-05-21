@@ -188,15 +188,15 @@ python3 platforms/android/scripts/setup_aliases.py
 
 ```python
 # 会话 A
-acquire_android(device="samsung-galaxy-s23", holder_name="agent-A")
+acquire(device="samsung-galaxy-s23", holder_name="agent-A")
 take_screenshot(device="samsung-galaxy-s23")
 tap(x=540, y=1170, device="samsung-galaxy-s23")
-release_android(device="samsung-galaxy-s23", holder_name="agent-A")
+release(device="samsung-galaxy-s23", holder_name="agent-A")
 
 # 会话 B（同时进行）
-acquire_android(device="pixel-8-emulator", holder_name="agent-B")
+acquire(device="pixel-8-emulator", holder_name="agent-B")
 take_screenshot(device="pixel-8-emulator")
-release_android(device="pixel-8-emulator", holder_name="agent-B")
+release(device="pixel-8-emulator", holder_name="agent-B")
 ```
 
 ### 注意事项

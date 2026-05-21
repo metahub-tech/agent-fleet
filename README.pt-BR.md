@@ -42,8 +42,8 @@ Traga **dispositivos reais** — PCs Windows, Macs, celulares Android, iPhones �
 
 | Componente | Versão | Status |
 |---|---|---|
-| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 38 ferramentas, streamable-http) |
-| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 39 ferramentas, fluxo de permissões GUI) |
+| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 40 ferramentas, streamable-http) |
+| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 41 ferramentas, fluxo de permissões GUI) |
 | Ponte Android | `0.7.0-alpha` | ✅ Lançado (android-device, **25 ferramentas**, multidispositivo + USB + sem fio + ADB híbrido) |
 | Assistente CLI do agent-fleet | `0.5.0-alpha` | ✅ Lançado (`uvx agent-fleet setup` instalação em um passo; configs para 6 frameworks) |
 | Renomeação de papel → `<os>-device` + guia de permissões macOS | `0.6.0-alpha` | ✅ Lançado |
@@ -117,7 +117,7 @@ flowchart LR
 
 O agente se conecta a um **computador** (Windows/macOS) — suas "mãos" — e o usa tanto para controlar o próprio computador quanto como **jump host** para os dispositivos conectados a ele: hoje Android e iOS, em seguida HarmonyOS. Em princípio, qualquer dispositivo que um humano consiga gerenciar por um computador, o agente também consegue (o host de iOS precisa ser um Mac).
 
-A interface de ferramentas permanece semanticamente consistente entre plataformas (`take_screenshot` / `click` / `launch_app` / …); trocar de dispositivo é apenas trocar uma URL em `~/.claude.json`.
+A interface de ferramentas permanece semanticamente consistente entre plataformas (`take_screenshot` / `tap` / `launch_app` / …); trocar de dispositivo é apenas trocar uma URL em `~/.claude.json`.
 
 Ver [`docs/architecture.md`](docs/architecture.md).
 

@@ -5,21 +5,21 @@ description: Use when invoking mac-device MCP tools to drive a Mac test machine 
 
 # Using mac-device
 
-Drive a remote Mac test machine via the `mac-device` MCP server (FastMCP, streamable-http on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 34 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
+Drive a remote Mac test machine via the `mac-device` MCP server (FastMCP, streamable-http on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 41 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
 
 ## Critical patterns
 
 ### Screenshot pixels == click pixels (logical / point space)
 
-`take_screenshot` is sized to **logical pixels** (e.g. 1440x900 on a Retina MacBook), matching `click(x, y)` and `get_screen_size`. So coordinates from a screenshot can be passed directly to `click` without scaling. This is implemented server-side: the raw `ImageGrab` capture is physical (2880x1800) but the tool resizes before returning.
+`take_screenshot` is sized to **logical pixels** (e.g. 1440x900 on a Retina MacBook), matching `tap(x, y)` and `get_screen_size`. So coordinates from a screenshot can be passed directly to `tap` without scaling. This is implemented server-side: the raw `ImageGrab` capture is physical (2880x1800) but the tool resizes before returning.
 
 ```
 get_screen_size                       # {"width": 1440, "height": 900}  -- logical
 take_screenshot                        # PNG also at 1440x900
-click(x=720, y=450)                    # center; same space as screenshot
+tap(x=720, y=450)                      # center; same space as screenshot
 ```
 
-If clicks miss anyway: usually a permission issue, NOT a coordinate issue. Verify Accessibility is granted (System Settings > Privacy & Security > Accessibility shows Python.app, switch on).
+If taps miss anyway: usually a permission issue, NOT a coordinate issue. Verify Accessibility is granted (System Settings > Privacy & Security > Accessibility shows Python.app, switch on).
 
 ### macOS modifiers: `cmd`, not `ctrl`
 
@@ -65,6 +65,18 @@ run_applescript(script='''
 
 **Requires Automation permission** (System Settings > Privacy & Security > Automation). First call to a new app triggers a system permission dialog — user must click Allow. Subsequent calls work permanently.
 
+### UI introspection and app lifecycle
+
+```
+dump_ui()                              # accessibility UI tree of the frontmost app
+list_ui_elements(...)                  # richer element listing (platform extension)
+find_ui_element(...)                   # locate a specific element (platform extension)
+terminate_app(target="Safari")         # terminate by app name / bundle id substring
+kill_process(pid=...)                  # kill by PID (platform extension)
+```
+
+`dump_ui` and `terminate_app` are the canonical cross-platform tools. `list_ui_elements` / `find_ui_element` (richer accessibility introspection) and `kill_process` (PID-based kill) remain as macOS-specific extensions for finer control.
+
 ### File operation decision tree
 
 | Need | Tool |
@@ -107,20 +119,20 @@ take_screenshot()
 # 5. Discover the window via System Events (verifies app is visible)
 run_applescript("tell application \"System Events\" to get name of every window of process \"Foo\"")
 
-# 6. Click / type / press_key as needed for flows
+# 6. tap / type / press_key as needed for flows
 ```
 
 If the app is unsigned and HAS a quarantine xattr, `open` will be blocked by Gatekeeper. Either remove the xattr (above) or `spctl --add /path/to/Foo.app`. For repeat-use test machines, removing quarantine once is fine; for prod-user simulation, leave it on to verify the dialog works.
 
 ### Multi-agent coordination (advisory)
 
-Tools work for everyone regardless of who claims the device, but `get_mac_status` reports the current holder:
+Tools work for everyone regardless of who claims the device, but `get_status` reports the current holder:
 
 ```
-get_mac_status                                      # see who has it
-acquire_mac(holder_name="agent-A")                  # claim
+get_status                                          # see who has it
+acquire(holder_name="agent-A")                      # claim
 ... do work; each tool call refreshes idle timer ...
-release_mac(holder_name="agent-A")                  # explicit release
+release(holder_name="agent-A")                      # explicit release
 ```
 
 Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release for one-off single-tool calls.
@@ -143,7 +155,7 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 - Source code: `platforms/macos/server/mac_device_mcp.py`
 - launchd plist: `~/Library/LaunchAgents/cc.metahub.mac-device.plist`
 - Service log: `platforms/macos/logs/mac-device.log`
-- Tool surface: ~30 tools across 9 categories (no `list_windows` family yet -- use `run_applescript` instead)
+- Tool surface: 41 tools across 9 categories (no `list_windows` family yet -- use `run_applescript` instead)
 
 ## Red flags
 

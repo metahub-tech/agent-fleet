@@ -42,8 +42,8 @@
 
 | 组件 | 版本 | 状态 |
 |---|---|---|
-| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，38 工具，streamable-http）|
-| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，39 工具，GUI 权限流程）|
+| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，40 工具，streamable-http）|
+| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，41 工具，GUI 权限流程）|
 | Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**25 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|
 | 角色改名 → `<os>-device` + macOS 权限引导 | `0.6.0-alpha` | ✅ 已发布 |
@@ -116,7 +116,7 @@ flowchart LR
 
 agent 先连上一台**电脑**（Windows/macOS）——它的"双手"——既直接操作这台电脑，又把它当**跳板**去接入挂在上面的设备：今天是 Android 和 iOS，下一步是鸿蒙。理论上，凡是人能经电脑管理的设备，agent 都能（iOS 的电脑必须是 Mac）。
 
-工具接口在所有平台保持语义一致（`take_screenshot` / `click` / `launch_app` / ...），切换设备只需在 `~/.claude.json` 里换 URL。
+工具接口在所有平台保持语义一致（`take_screenshot` / `tap` / `launch_app` / ...），切换设备只需在 `~/.claude.json` 里换 URL。
 
 详见 [`docs/architecture.md`](docs/architecture.md)。
 

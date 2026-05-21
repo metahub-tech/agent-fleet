@@ -40,12 +40,12 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 | 类别 | 工具 |
 |---|---|
-| **使用状态** | `acquire_winpc`, `release_winpc`, `get_winpc_status` |
+| **使用状态** | `acquire`, `release`, `get_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 窗口 | `list_windows`, `inspect_window`, `focus_window` |
-| 鼠标 | `click`, `move_mouse` |
+| 窗口 / UI 内省 | `list_windows`, `focus_window`, `dump_ui`（前台窗口 UI 树）, `inspect_window`（更丰富的窗口内省，平台扩展） |
+| 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
-| 进程（一次性） | `launch_app`, `kill_process`, `list_processes` |
+| 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
