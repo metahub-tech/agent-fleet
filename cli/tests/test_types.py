@@ -31,3 +31,16 @@ def test_guidance_step_default_only():
     s = GuidanceStep(title="Open dev options", default_description="long-press version 7×")
     assert s.title == "Open dev options"
     assert s.variants == {}
+
+
+def test_install_context_default_platform_options():
+    osi = OSInfo(system="Linux", version="6.1", arch="x86_64", is_apple_silicon=False)
+    ctx = InstallContext(repo_root="/tmp/repo", os_info=osi)
+    assert ctx.platform_options == {}
+
+
+def test_install_context_platform_options():
+    osi = OSInfo(system="Linux", version="6.1", arch="x86_64", is_apple_silicon=False)
+    ctx = InstallContext(repo_root="/tmp/repo", os_info=osi,
+                         platform_options={"ATB_ANDROID_MODE": "usb"})
+    assert ctx.platform_options["ATB_ANDROID_MODE"] == "usb"
