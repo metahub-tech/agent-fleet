@@ -29,6 +29,18 @@ bash platforms/macos/scripts/setup-macos.sh
 
 Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setup.md)。
 
+## Demo — example agent session
+
+```text
+You:   "Run the test suite, then open Safari and screenshot it."
+Agent: run_zsh(script="cd ~/proj && pytest -q")        → 96 passed in 4.1s
+       open_app(app="Safari")                          → frontmost
+       take_screenshot()                               → agent verifies the screen
+```
+
+GUI automation + shell on a real Mac, through one unified MCP tool interface.
+See the animated demo (a real iPad) in the [main README](../../README.md).
+
 ## 暴露的工具
 
 `mac-device` MCP server (FastMCP, native multi-client) 通过 streamable-http 监听 `0.0.0.0:8767/mcp`：

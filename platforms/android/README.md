@@ -102,6 +102,19 @@ setup 脚本会：
 
 > 手机重启后失效，需重新插 USB。仅 Android 5-10 推荐。
 
+## Demo — example agent session
+
+```text
+You:   "Install the build, open it, tap Login, and screenshot."
+Agent: install_apk(apk_path="/builds/app-debug.apk")   → installed
+       start_app(package="com.example.app")            → launched
+       tap_element(text="Login")                       → tapped
+       take_screenshot()                               → agent sees the login screen
+```
+
+Works over USB / Wireless / Hybrid ADB and is multi-device aware (pass `device=`).
+See the animated demo (a real iPad) in the [main README](../../README.md).
+
 ## 工具集（v0.7.0-alpha 实际暴露，共 25 个）
 
 所有工具均接受可选 `device` 参数（serial 或别名）。未传 `device` 且只连 1 台手机时自动路由。

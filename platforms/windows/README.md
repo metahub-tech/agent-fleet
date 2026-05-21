@@ -21,6 +21,19 @@ powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\setup-windo
 
 Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setup.md)。
 
+## Demo — example agent session
+
+```text
+You:   "Open Notepad, write the release note, and screenshot it."
+Agent: launch_app(path="notepad")                     → started (pid 5012)
+       type_text(text="agent-fleet v0.8.2-alpha ✅")   → typed
+       take_screenshot()                              → 1920×1080 PNG returned to the agent
+       list_windows()                                 → ["Untitled - Notepad", ...]
+```
+
+The agent drives the real Windows desktop over MCP — no human at the keyboard.
+See the animated demo (a real iPad) in the [main README](../../README.md).
+
 ## 暴露的工具
 
 `win-device` MCP server（FastMCP，原生多客户端）通过 streamable-http 监听 `0.0.0.0:8766/mcp`：

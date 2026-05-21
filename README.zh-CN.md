@@ -43,7 +43,7 @@
 | 组件 | 版本 | 状态 |
 |---|---|---|
 | Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，33 工具，streamable-http）|
-| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，31 工具，GUI 权限流程）|
+| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，34 工具，GUI 权限流程）|
 | Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**25 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|
 | 角色改名 → `<os>-device` + macOS 权限引导 | `0.6.0-alpha` | ✅ 已发布 |
@@ -90,6 +90,31 @@ wizard 会带你走完：选角色 → 装 MCP server → 配 Tailscale → GUI 
 | **设计文档**（贡献者） | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## 架构
+
+```mermaid
+flowchart LR
+  subgraph AGENT["🤖 Agent host (any OS)"]
+    A["LLM agent<br/>Claude Code · Cursor · Cline · OpenClaw · Antigravity · Hermes"]
+    TOOLS["Unified MCP tools<br/>take_screenshot · click · type_text · launch_app · swipe · find_elements …"]
+    A --> TOOLS
+  end
+  TOOLS ==>|"MCP over Tailscale · WireGuard · cross-LAN"| MESH(("Tailscale<br/>mesh"))
+  MESH --> W & M & D & I
+  subgraph DEVICES["Device hosts — one MCP server each"]
+    W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
+    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
+    D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
+    I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
+  end
+  classDef agent fill:#1f6feb,stroke:#0b3d91,color:#fff
+  classDef srv fill:#0e7490,stroke:#063b46,color:#fff
+  classDef drv fill:#374151,stroke:#111827,color:#fff
+  classDef dev fill:#16a34a,stroke:#064e23,color:#fff
+  class A,TOOLS agent
+  class W,M,D,I srv
+  class WDRV,MDRV,DDRV,IDRV drv
+  class WP,MP,DP,IP dev
+```
 
 每个平台桥都是同样的三段式：
 

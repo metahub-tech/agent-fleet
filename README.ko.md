@@ -43,7 +43,7 @@
 | 구성요소 | 버전 | 상태 |
 |---|---|---|
 | Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 33개 도구, streamable-http) |
-| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 31개 도구, GUI 권한 플로우) |
+| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 34개 도구, GUI 권한 플로우) |
 | Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **25개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
 | 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
@@ -91,6 +91,31 @@ uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdire
 | **기여자** (설계 문서) | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## 아키텍처
+
+```mermaid
+flowchart LR
+  subgraph AGENT["🤖 Agent host (any OS)"]
+    A["LLM agent<br/>Claude Code · Cursor · Cline · OpenClaw · Antigravity · Hermes"]
+    TOOLS["Unified MCP tools<br/>take_screenshot · click · type_text · launch_app · swipe · find_elements …"]
+    A --> TOOLS
+  end
+  TOOLS ==>|"MCP over Tailscale · WireGuard · cross-LAN"| MESH(("Tailscale<br/>mesh"))
+  MESH --> W & M & D & I
+  subgraph DEVICES["Device hosts — one MCP server each"]
+    W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
+    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
+    D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
+    I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
+  end
+  classDef agent fill:#1f6feb,stroke:#0b3d91,color:#fff
+  classDef srv fill:#0e7490,stroke:#063b46,color:#fff
+  classDef drv fill:#374151,stroke:#111827,color:#fff
+  classDef dev fill:#16a34a,stroke:#064e23,color:#fff
+  class A,TOOLS agent
+  class W,M,D,I srv
+  class WDRV,MDRV,DDRV,IDRV drv
+  class WP,MP,DP,IP dev
+```
 
 모든 플랫폼 브리지는 동일한 3단계 파이프라인입니다:
 

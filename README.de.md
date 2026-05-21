@@ -43,7 +43,7 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 | Komponente | Version | Status |
 |---|---|---|
 | Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 33 Tools, streamable-http) |
-| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 31 Tools, GUI-Berechtigungsflow) |
+| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 34 Tools, GUI-Berechtigungsflow) |
 | Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
 | agent-fleet-CLI-Assistent | `0.5.0-alpha` | ✅ Veröffentlicht (`uvx agent-fleet setup` One-Shot-Installation; Configs für 6 Frameworks) |
 | Rollen-Umbenennung → `<os>-device` + macOS-Berechtigungs-Guide | `0.6.0-alpha` | ✅ Veröffentlicht |
@@ -91,6 +91,31 @@ Der Assistent führt dich durch: Rolle wählen → MCP-Server installieren → T
 | **Mitwirkender** (Designdokumente) | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## Architektur
+
+```mermaid
+flowchart LR
+  subgraph AGENT["🤖 Agent host (any OS)"]
+    A["LLM agent<br/>Claude Code · Cursor · Cline · OpenClaw · Antigravity · Hermes"]
+    TOOLS["Unified MCP tools<br/>take_screenshot · click · type_text · launch_app · swipe · find_elements …"]
+    A --> TOOLS
+  end
+  TOOLS ==>|"MCP over Tailscale · WireGuard · cross-LAN"| MESH(("Tailscale<br/>mesh"))
+  MESH --> W & M & D & I
+  subgraph DEVICES["Device hosts — one MCP server each"]
+    W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
+    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
+    D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
+    I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
+  end
+  classDef agent fill:#1f6feb,stroke:#0b3d91,color:#fff
+  classDef srv fill:#0e7490,stroke:#063b46,color:#fff
+  classDef drv fill:#374151,stroke:#111827,color:#fff
+  classDef dev fill:#16a34a,stroke:#064e23,color:#fff
+  class A,TOOLS agent
+  class W,M,D,I srv
+  class WDRV,MDRV,DDRV,IDRV drv
+  class WP,MP,DP,IP dev
+```
 
 Jede Plattformbrücke ist dieselbe dreistufige Pipeline:
 

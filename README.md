@@ -43,7 +43,7 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 | Component | Version | Status |
 |---|---|---|
 | Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 31 tools, GUI-permission flow) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 34 tools, GUI-permission flow) |
 | Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **25 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
@@ -91,6 +91,31 @@ The wizard walks you through: pick a role → install the MCP server → configu
 | **A contributor** (design docs) | [`docs/internal/design/2026-05-11-agent-fleet-cli.md`](docs/internal/design/2026-05-11-agent-fleet-cli.md) |
 
 ## Architecture
+
+```mermaid
+flowchart LR
+  subgraph AGENT["🤖 Agent host (any OS)"]
+    A["LLM agent<br/>Claude Code · Cursor · Cline · OpenClaw · Antigravity · Hermes"]
+    TOOLS["Unified MCP tools<br/>take_screenshot · click · type_text · launch_app · swipe · find_elements …"]
+    A --> TOOLS
+  end
+  TOOLS ==>|"MCP over Tailscale · WireGuard · cross-LAN"| MESH(("Tailscale<br/>mesh"))
+  MESH --> W & M & D & I
+  subgraph DEVICES["Device hosts — one MCP server each"]
+    W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
+    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
+    D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
+    I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
+  end
+  classDef agent fill:#1f6feb,stroke:#0b3d91,color:#fff
+  classDef srv fill:#0e7490,stroke:#063b46,color:#fff
+  classDef drv fill:#374151,stroke:#111827,color:#fff
+  classDef dev fill:#16a34a,stroke:#064e23,color:#fff
+  class A,TOOLS agent
+  class W,M,D,I srv
+  class WDRV,MDRV,DDRV,IDRV drv
+  class WP,MP,DP,IP dev
+```
 
 Every platform bridge is the same three-stage pipeline:
 
