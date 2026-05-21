@@ -306,3 +306,8 @@ Expect `import OK` (no GUI deps pulled in).
 ## Handoff to P1b (real machines — NOT this plan)
 
 P1b (on test-win11 + macmini): replace win/mac inline file/proc/search copies with `from common._fsops/_proc/_search import ...` (inject each platform's `ShellSpec`); migrate win/mac holders to `DeviceStateRegistry("host")`; add single-device CORE tools (`current_app`/`list_devices`/`set_default_device`/`get_default_device`); decide `swipe` (desktop click-drag vs demote to OPTIONAL); then shrink `KNOWN_P1_GAPS` and re-run conformance. Each win/mac change validated by running that server on its real OS.
+
+**P1b wiring notes (from the P1a code reviews — don't lose these when wrapping the shared functions as `@mcp.tool`s):**
+- `_proc.start_process`'s library default is `shell="direct"`. The **per-platform user-facing default must stay at the tool layer** (`Annotated[str, Field(...)] = "zsh"` on mac, `= "powershell"` on win) — do NOT let the library's `"direct"` default become the MCP-exposed default.
+- The FastMCP `Field` validation bounds that lived on the old tools (e.g. `read_process_output` `length` `ge=1, le=5000`; `offset` semantics) are transport-layer constraints stripped during extraction — **re-apply them at the tool wrapper layer** when wiring.
+- The extracted functions return the exact same shapes as the old tools, so the wrappers are thin: `@mcp.tool` + `@with_touch` → call the `common.*` function → return. Inject `ShellSpec` for `start_process`; pass the fixed serial `"host"` to `DeviceStateRegistry` for the holder tools.
