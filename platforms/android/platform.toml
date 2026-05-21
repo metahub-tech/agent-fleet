@@ -13,12 +13,23 @@ module = "android_device_mcp"
 setup_script = "scripts/setup-android.sh"
 guidance     = ["android_dev_options.yaml", "android_usb_debug.yaml", "android_wireless_pair.yaml"]
 
+[install.setup_script_by_os]
+windows = "scripts/setup-android.ps1"
+linux   = "scripts/setup-android-linux.sh"
+# macos falls back to the default setup_script (scripts/setup-android.sh)
+
 [install.config_reuse]
 check_path = "~/.atb-android/config.toml"
 env        = "ATB_ANDROID_REUSE_CONFIG"
 
-[install.options]
-mode = { prompt = "ADB connection mode", choices = ["usb", "wireless", "hybrid"], env = "ATB_ANDROID_MODE" }
+[install.options.mode]
+prompt  = "ADB connection mode"
+env     = "ATB_ANDROID_MODE"
+choices = [
+  { value = "usb",      label = "USB only  (cable required; per-plug auth on phone)" },
+  { value = "wireless", label = "Wireless Debugging  (Android 11+ / HarmonyOS 4 native pairing)" },
+  { value = "hybrid",   label = "Hybrid  (USB enroll then adb tcpip 5555; Android 5-10)" },
+]
 
 [tools.aliases]
 acquire        = "acquire_android"

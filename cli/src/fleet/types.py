@@ -51,8 +51,7 @@ class InstallContext:
     dry_run: bool = False
     selected_network: Literal["lan", "tailscale"] = "tailscale"
     tailscale_hostname: Optional[str] = None
-    android_mode: Optional[str] = None        # "usb"/"wireless"/"hybrid", collected by wizard
-    android_reuse_config: bool = False        # True = reuse existing ~/.atb-android/config.toml
+    platform_options: dict = field(default_factory=dict)  # generic env vars from collect_options()
 
 
 @dataclass

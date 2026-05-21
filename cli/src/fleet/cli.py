@@ -71,37 +71,6 @@ def _select_network(ts):
     return choice or "lan"
 
 
-def _select_android_config() -> tuple[str | None, bool]:
-    """Collect android-device's ADB-mode / config-reuse choice up front.
-
-    Returns (android_mode, android_reuse_config). Called only when
-    android-device is among the selected roles, BEFORE installers run, so the
-    setup scripts receive the answer as an env var and never block on a
-    Read-Host/read inside the wizard's piped stdout.
-    """
-    config_path = Path.home() / ".atb-android" / "config.toml"
-    if config_path.exists():
-        console.print(f"\n[bold]Existing android-device config[/bold] [dim]({config_path})[/dim]:")
-        console.print(Panel(config_path.read_text(encoding="utf-8", errors="replace").rstrip()))
-        reuse = questionary.confirm("Reuse this config?", default=True).ask()
-        if reuse is None:  # Ctrl-C
-            console.print("[yellow]Cancelled.[/yellow]")
-            sys.exit(1)
-        if reuse:
-            return None, True
-    mode = questionary.select(
-        "ADB connection mode:",
-        choices=[
-            questionary.Choice("USB only  (cable required; per-plug auth on phone)", value="usb"),
-            questionary.Choice("Wireless Debugging  (Android 11+ / HarmonyOS 4 native pairing)", value="wireless"),
-            questionary.Choice("Hybrid  (USB enroll then adb tcpip 5555; Android 5-10)", value="hybrid"),
-        ],
-    ).ask()
-    if mode is None:  # Ctrl-C
-        console.print("[yellow]Cancelled.[/yellow]")
-        sys.exit(1)
-    return mode, False
-
 
 def _select_frameworks():
     # Claude Code is pre-checked.  Users who press <enter> without space-toggling
@@ -203,11 +172,10 @@ def _run_smoke_tests(deployed, hostname: str) -> None:
             if "mac-device" in role.role_id:
                 console.print(f"        [dim]launchctl list | grep cc.metahub.mac-device[/dim]")
                 console.print(f"        [dim]tail -20 <repo>/platforms/macos/logs/mac-device.err.log[/dim]")
-            elif role.role_id == "android-device":
-                console.print(f"        [dim](mac/linux) launchctl list | grep cc.metahub.android-device  OR  systemctl --user status agent-fleet-android-device[/dim]")
-                console.print(f"        [dim](windows)   Get-ScheduledTask MCP-AndroidDevice[/dim]")
             elif "win-device" in role.role_id:
                 console.print(f"        [dim]Get-ScheduledTask MCP-WinDevice[/dim]")
+            else:
+                console.print(f"        [dim]check the service is running for {role.role_id}[/dim]")
             continue
 
         for r in results:
@@ -309,14 +277,23 @@ def cmd_setup(args: argparse.Namespace) -> int:
     network = _select_network(ts)
     hostname = ts.hostname if ts else None
 
-    # android-device's ADB-mode / config-reuse choice is collected here, up
-    # front, so the setup script gets it as an env var (ATB_ANDROID_MODE /
-    # ATB_ANDROID_REUSE_CONFIG) instead of blocking on Read-Host inside the
-    # wizard's piped stdout.
-    android_mode = None
-    android_reuse_config = False
-    if any(r.role_id == "android-device" for r in roles):
-        android_mode, android_reuse_config = _select_android_config()
+    # Collect platform-specific options up front (before install), so setup
+    # scripts get them as env vars and never block on Read-Host/read inside the
+    # wizard's piped stdout.  ManifestInstaller.collect_options() only prompts
+    # when the manifest has options/config_reuse; non-android platforms return {}.
+    # Build a preliminary context (without platform_options) so collect_options
+    # can receive it; platform_options will be merged in afterward.
+    _preliminary_ctx = build_install_context(
+        repo_root=str(Path.cwd()),
+        os_info=osi,
+        dry_run=args.dry_run,
+        network=network,
+        tailscale_hostname=hostname,
+    )
+    platform_options: dict[str, str] = {}
+    for inst in roles:
+        if hasattr(inst, "collect_options"):
+            platform_options.update(inst.collect_options(_preliminary_ctx))
 
     ctx = build_install_context(
         repo_root=str(Path.cwd()),
@@ -324,8 +301,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         network=network,
         tailscale_hostname=hostname,
-        android_mode=android_mode,
-        android_reuse_config=android_reuse_config,
+        platform_options=platform_options,
     )
 
     _warn_preflight(roles)
