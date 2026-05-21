@@ -8,7 +8,7 @@ def _ios_bridge_smoke_tests():
     """
     from ..smoke import SmokeTest
     return [
-        SmokeTest("get_ios_status", {},
+        SmokeTest("get_status", {},
             description="server reachable"),
         SmokeTest("list_devices", {},
             description="pymobiledevice3 sees >=1 iOS device",
