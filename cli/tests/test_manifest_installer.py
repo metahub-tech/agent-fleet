@@ -59,12 +59,13 @@ class TestAndroidLinuxInstaller:
     def test_is_supported_on_linux(self):
         assert self.installer.is_supported_on(_osi("linux")) is True
 
-    def test_is_supported_on_windows(self):
-        # android supports windows too
-        assert self.installer.is_supported_on(_osi("windows")) is True
+    def test_is_not_supported_on_windows(self):
+        # this instance targets linux only — windows should return False
+        assert self.installer.is_supported_on(_osi("windows")) is False
 
-    def test_is_supported_on_macos(self):
-        assert self.installer.is_supported_on(_osi("macos")) is True
+    def test_is_not_supported_on_macos(self):
+        # this instance targets linux only — macos should return False
+        assert self.installer.is_supported_on(_osi("macos")) is False
 
     def test_is_not_supported_on_unknown(self):
         osi = OSInfo(system="FreeBSD", version="14", arch="x86_64", is_apple_silicon=False)

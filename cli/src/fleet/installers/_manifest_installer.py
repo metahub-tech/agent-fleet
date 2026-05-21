@@ -124,8 +124,8 @@ class ManifestInstaller(BaseInstaller):
     # ------------------------------------------------------------------
 
     def is_supported_on(self, os_info: OSInfo) -> bool:
-        """True when ``os_info.kind`` is one of the manifest's ``host_os`` list."""
-        return os_info.kind in self._manifest.host_os
+        """True when ``os_info.kind`` matches this instance's own ``host_os``."""
+        return os_info.kind == self._host_os
 
     def preflight(self) -> list[str]:
         """Delegate to the role-specific hook; return [] if none registered."""

@@ -36,22 +36,30 @@ def test_discover_installers_returns_same_set():
 
 def test_filter_for_macos():
     macs = filter_for_os(OSInfo(system="Darwin", version="22", arch="x86_64", is_apple_silicon=False))
-    role_ids = {i.role_id for i in macs}
+    role_ids = [i.role_id for i in macs]
     assert "mac-device" in role_ids
     assert "android-device" in role_ids
     assert "ios-device" in role_ids
     assert "win-device" not in role_ids
+    # android-device must appear EXACTLY once (no duplicates from multi-OS instances)
+    assert role_ids.count("android-device") == 1
+    assert set(role_ids) == {"mac-device", "android-device", "ios-device"}
 
 
 def test_filter_for_windows():
     wins = filter_for_os(OSInfo(system="Windows", version="11", arch="AMD64", is_apple_silicon=False))
-    role_ids = {i.role_id for i in wins}
+    role_ids = [i.role_id for i in wins]
     assert "win-device" in role_ids
     assert "android-device" in role_ids
     assert "mac-device" not in role_ids
+    # android-device must appear EXACTLY once
+    assert role_ids.count("android-device") == 1
+    assert set(role_ids) == {"win-device", "android-device"}
 
 
 def test_filter_for_linux():
     lins = filter_for_os(OSInfo(system="Linux", version="6.5", arch="x86_64", is_apple_silicon=False))
-    role_ids = {i.role_id for i in lins}
-    assert role_ids == {"android-device"}
+    role_ids = [i.role_id for i in lins]
+    assert set(role_ids) == {"android-device"}
+    # android-device must appear EXACTLY once
+    assert role_ids.count("android-device") == 1
