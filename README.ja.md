@@ -50,7 +50,7 @@
 | v0.6.x パッチ（UI イントロスペクション、smoke テスト、バグ修正、インストーラ強化…）| `0.6.1–0.6.15` | ✅ リリース済 —— [CHANGELOG.md](CHANGELOG.md) 参照 |
 | iOS / iPadOS ブリッジ | `0.8.0-alpha` | ✅ リリース済（ios-device、26 ツール、WebDriverAgent + pymobiledevice3、iPad 検証済）|
 | iOS WDA デーモン（起動時自動起動 + キープアライブ） | `0.8.2-alpha` | ✅ リリース済（go-ios runwda + tunneld launchd；無料/有料の署名モード）|
-| デバイス間連携 | `0.9.0` | 🔭 今後 |
+| デバイス間連携 | `0.10.0` | 🔭 今後 |
 | 公開安定版 | `1.0.0` | 🔭 今後（alpha のコミュニティフィードバック後）|
 
 詳細は [`docs/roadmap.md`](docs/roadmap.md)。

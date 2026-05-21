@@ -50,7 +50,7 @@
 | v0.6.x 패치 (UI 인트로스펙션, smoke 테스트, 버그픽스, 인스톨러 강화…) | `0.6.1–0.6.15` | ✅ 릴리스됨 — [CHANGELOG.md](CHANGELOG.md) 참조 |
 | iOS / iPadOS 브리지 | `0.8.0-alpha` | ✅ 릴리스됨 (ios-device, 26개 도구, WebDriverAgent + pymobiledevice3, iPad 검증됨) |
 | iOS WDA 데몬 (부팅 자동 시작 + 킵얼라이브) | `0.8.2-alpha` | ✅ 릴리스됨 (go-ios runwda + tunneld launchd; 무료/유료 서명 모드) |
-| 디바이스 간 협업 | `0.9.0` | 🔭 향후 |
+| 디바이스 간 협업 | `0.10.0` | 🔭 향후 |
 | 공개 안정 릴리스 | `1.0.0` | 🔭 향후 (alpha 커뮤니티 피드백 이후) |
 
 자세한 내용은 [`docs/roadmap.md`](docs/roadmap.md).

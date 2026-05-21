@@ -50,7 +50,7 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 | v0.6.x-Patches (UI-Introspektion, Smoke-Tests, Bugfixes, Installer-Härtung…) | `0.6.1–0.6.15` | ✅ Veröffentlicht — siehe [CHANGELOG.md](CHANGELOG.md) |
 | iOS-/iPadOS-Brücke | `0.8.0-alpha` | ✅ Veröffentlicht (ios-device, 26 Tools, WebDriverAgent + pymobiledevice3, iPad verifiziert) |
 | iOS-WDA-Daemon (Boot-Autostart + Keep-Alive) | `0.8.2-alpha` | ✅ Veröffentlicht (go-ios runwda + tunneld launchd; kostenlose/kostenpflichtige Signiermodi) |
-| Geräteübergreifende Koordination | `0.9.0` | 🔭 Zukünftig |
+| Geräteübergreifende Koordination | `0.10.0` | 🔭 Zukünftig |
 | Öffentliches Stable-Release | `1.0.0` | 🔭 Zukünftig (nach Community-Feedback zur Alpha) |
 
 Siehe [`docs/roadmap.md`](docs/roadmap.md).

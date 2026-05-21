@@ -50,7 +50,7 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 | v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.15` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
 | iOS / iPadOS bridge | `0.8.0-alpha` | ✅ Released (ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad verified) |
 | iOS WDA daemon (boot-survival + keep-alive) | `0.8.2-alpha` | ✅ Released (go-ios runwda + tunneld launchd; free/paid signing modes) |
-| Cross-device coordination | `0.9.0` | 🔭 Future |
+| Cross-device coordination | `0.10.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on the alpha) |
 
 See [`docs/roadmap.md`](docs/roadmap.md).
