@@ -24,6 +24,7 @@ class PlatformManifest:
     options: dict = field(default_factory=dict)        # [install.options]
     config_reuse: dict = field(default_factory=dict)   # [install.config_reuse]
     aliases: dict[str, str] = field(default_factory=dict)  # canonical -> current
+    setup_script_by_os: dict[str, str] = field(default_factory=dict)  # [install.setup_script_by_os]
     toml_path: Path = field(default=Path("."))
 
     @property
@@ -33,6 +34,9 @@ class PlatformManifest:
     @property
     def server_path(self) -> Path:
         return self.dir / "server" / f"{self.server_module}.py"
+
+    def setup_script_for(self, host_os: str) -> str:
+        return self.setup_script_by_os.get(host_os, self.setup_script)
 
 
 def load_manifest(path: str | Path) -> PlatformManifest:
@@ -54,6 +58,7 @@ def load_manifest(path: str | Path) -> PlatformManifest:
         options=install.get("options", {}),
         config_reuse=install.get("config_reuse", {}),
         aliases=dict(data.get("tools", {}).get("aliases", {})),
+        setup_script_by_os=dict(install.get("setup_script_by_os", {})),
         toml_path=path.resolve(),
     )
 

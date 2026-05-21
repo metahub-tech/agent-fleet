@@ -68,6 +68,30 @@ def test_defaults_for_optional_sections(tmp_path):
     assert m.setup_script == ""
 
 
+def test_setup_script_by_os(tmp_path):
+    toml = _write(tmp_path, "byos", textwrap.dedent('''
+        [platform]
+        id = "byos-device"
+        display_name = "ByOs"
+        port = 8797
+        status = "released"
+        host_os = ["windows", "linux", "macos"]
+
+        [server]
+        module = "demo_mcp"
+
+        [install]
+        setup_script = "scripts/setup-default.sh"
+
+        [install.setup_script_by_os]
+        windows = "x.ps1"
+    '''))
+    m = load_manifest(toml)
+    assert m.setup_script_by_os == {"windows": "x.ps1"}
+    assert m.setup_script_for("windows") == "x.ps1"
+    assert m.setup_script_for("macos") == "scripts/setup-default.sh"
+
+
 def test_discover_finds_manifests(tmp_path):
     _write(tmp_path, "aa", textwrap.dedent('''
         [platform]
