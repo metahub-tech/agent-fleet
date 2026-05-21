@@ -21,11 +21,6 @@ from ..types import GuidanceStep, InstallContext, InstallEvent, OSInfo, VerifyRe
 if TYPE_CHECKING:
     from ..smoke import SmokeTest
 
-# Resolve the repo root relative to this file:
-#   cli/src/fleet/installers/_manifest_installer.py → up 5 levels → repo root
-_REPO_ROOT = Path(__file__).resolve().parents[5]
-
-
 def _run_bash(ctx: InstallContext, script_path: Path, role_id: str) -> Iterator[InstallEvent]:
     """Run *script_path* with bash and stream lines as InstallEvents.
 
@@ -56,9 +51,41 @@ def _run_bash(ctx: InstallContext, script_path: Path, role_id: str) -> Iterator[
                            f"{script_path.name} exited rc={proc.returncode}", level="error")
 
 
-# Import the PowerShell runner directly from windows.py so we share the
-# identical UTF-8-encoding wrapper and never diverge.
-from .windows import _run_setup_ps1  # noqa: E402
+def _run_setup_ps1(ctx: InstallContext, script_path: Path, role_id: str) -> Iterator[InstallEvent]:
+    """Run *script_path* with PowerShell and stream lines as InstallEvents.
+
+    Reproduces the exact subprocess pattern used by WindowsDesktop.install()
+    and WindowsAndroidBridge.install(), with the UTF-8 encoding wrapper to
+    avoid GBK mojibake on Chinese Windows machines.
+    """
+    if ctx.dry_run:
+        yield InstallEvent(role_id, "deps", f"[DRY RUN] would run {script_path}")
+        return
+    if not script_path.exists():
+        yield InstallEvent(role_id, "preflight", f"setup script missing at {script_path}", level="error")
+        return
+    # Force PowerShell to emit UTF-8 to stdout (PS 5.1 default is system
+    # codepage = GBK on Chinese Windows, which we'd then decode as UTF-8 and
+    # get mojibake — every Chinese error message comes out as `???...`).
+    ps_wrapped = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$OutputEncoding = [System.Text.Encoding]::UTF8; "
+        f"& '{script_path}'"
+    )
+    proc = subprocess.Popen(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_wrapped],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
+        encoding="utf-8", errors="replace",
+        env=setup_env(ctx, role_id),
+    )
+    for line in iter(proc.stdout.readline, ""):
+        line = line.rstrip()
+        if not line:
+            continue
+        yield InstallEvent(role_id, "install", line)
+    proc.wait()
+    if proc.returncode != 0:
+        yield InstallEvent(role_id, "install", f"setup script exited rc={proc.returncode}", level="error")
 
 
 class ManifestInstaller(BaseInstaller):

@@ -1,32 +1,59 @@
 """Tests for the smoke-test module + installer.smoke_tests() shapes."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from fleet.smoke import SmokeResult, SmokeTest
-from fleet.installers.macos import MacosDesktop, MacosAndroidBridge
 from fleet.installers._android import _has_device_in_result
-from fleet.installers.linux import LinuxAndroidBridge
-from fleet.installers.windows import WindowsDesktop, WindowsAndroidBridge
+
+# Make platforms/common importable
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PLATFORMS_DIR = _REPO_ROOT / "platforms"
+if str(_PLATFORMS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLATFORMS_DIR))
+
+from common._manifest import load_manifest  # noqa: E402
+from fleet.installers._manifest_installer import ManifestInstaller  # noqa: E402
+from fleet.installers._hooks import ROLE_HOOKS  # noqa: E402
+from fleet.types import InstallContext, OSInfo  # noqa: E402
+
+
+def _make_installer(platform: str, host_os: str) -> ManifestInstaller:
+    """Build a ManifestInstaller with its role hooks attached."""
+    m = load_manifest(_PLATFORMS_DIR / platform / "platform.toml")
+    hooks = ROLE_HOOKS.get(m.id, {})
+    return ManifestInstaller(
+        m, host_os,
+        preflight_hook=hooks.get("preflight_hook"),
+        smoke_hook=hooks.get("smoke_hook"),
+    )
 
 
 # ---------------------------------------------------------------
 # Each role declares at least one smoke test
 # ---------------------------------------------------------------
 
-@pytest.mark.parametrize("installer_cls", [
-    MacosDesktop,
-    MacosAndroidBridge,
-    LinuxAndroidBridge,
-    WindowsDesktop,
-    WindowsAndroidBridge,
-])
-def test_every_installer_declares_smoke_tests(installer_cls):
+# Parametrize over (platform, host_os) pairs — one per role×os
+_INSTALLER_PARAMS = [
+    ("macos", "macos"),      # mac-device
+    ("android", "macos"),    # android-device on macos (MacosAndroidBridge equivalent)
+    ("android", "linux"),    # android-device on linux (LinuxAndroidBridge equivalent)
+    ("android", "windows"),  # android-device on windows (WindowsAndroidBridge equivalent)
+    ("windows", "windows"),  # win-device (WindowsDesktop equivalent)
+    ("ios", "macos"),        # ios-device (MacosIosBridge equivalent)
+]
+
+
+@pytest.mark.parametrize("platform,host_os", _INSTALLER_PARAMS)
+def test_every_installer_declares_smoke_tests(platform, host_os):
     """Regression: a new installer must opt in to smoke testing — empty list
     silently skips the new UX safety net."""
-    tests = installer_cls().smoke_tests()
+    installer = _make_installer(platform, host_os)
+    tests = installer.smoke_tests()
     assert len(tests) >= 1
     for t in tests:
         assert isinstance(t, SmokeTest)
@@ -43,9 +70,9 @@ def test_android_bridge_smoke_tests_match_across_hosts():
     all three host installers via the shared _android_bridge_smoke_tests()
     helper.  Catches a future refactor that adds a smoke test on Mac but
     forgets Windows/Linux."""
-    mac = [t.tool_name for t in MacosAndroidBridge().smoke_tests()]
-    linux = [t.tool_name for t in LinuxAndroidBridge().smoke_tests()]
-    win = [t.tool_name for t in WindowsAndroidBridge().smoke_tests()]
+    mac = [t.tool_name for t in _make_installer("android", "macos").smoke_tests()]
+    linux = [t.tool_name for t in _make_installer("android", "linux").smoke_tests()]
+    win = [t.tool_name for t in _make_installer("android", "windows").smoke_tests()]
     assert mac == linux == win
 
 
@@ -142,8 +169,8 @@ def test_run_install_returns_installer_instances_with_smoke_tests():
     osi = OSInfo(system="Darwin", version="22", arch="x86_64", is_apple_silicon=False)
     ctx = InstallContext(repo_root="/tmp/nonexistent-repo", os_info=osi,
                          dry_run=True, selected_network="tailscale", tailscale_hostname="mac-test")
-    macos = MacosDesktop()
-    result = _run_install([macos], ctx)
+    mac_installer = _make_installer("macos", "macos")
+    result = _run_install([mac_installer], ctx)
 
     # Tuple return shape
     assert isinstance(result, tuple) and len(result) == 2
@@ -152,6 +179,6 @@ def test_run_install_returns_installer_instances_with_smoke_tests():
     assert len(installers) == 1
 
     # The installer is the same instance we passed in, so smoke_tests() works
-    assert installers[0] is macos
+    assert installers[0] is mac_installer
     smoke = installers[0].smoke_tests()
     assert len(smoke) >= 1

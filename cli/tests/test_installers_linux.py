@@ -1,28 +1,59 @@
-from fleet.installers.linux import LinuxAndroidBridge
-from fleet.types import OSInfo, InstallContext
+"""Linux installer tests — rewritten to use ManifestInstaller."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Make platforms/common importable
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_PLATFORMS_DIR = _REPO_ROOT / "platforms"
+if str(_PLATFORMS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLATFORMS_DIR))
+
+from common._manifest import load_manifest  # noqa: E402
+from fleet.installers._manifest_installer import ManifestInstaller  # noqa: E402
+from fleet.types import OSInfo, InstallContext  # noqa: E402
 
 
-def test_linux_android_metadata():
-    m = LinuxAndroidBridge()
-    assert m.role_id == "android-device"
-    assert m.port == 8768
+def _osi(kind: str) -> OSInfo:
+    system = {"macos": "Darwin", "windows": "Windows", "linux": "Linux"}.get(kind, kind)
+    return OSInfo(system=system, version="1.0", arch="x86_64", is_apple_silicon=False)
 
 
-def test_linux_supported_only_on_linux():
-    m = LinuxAndroidBridge()
-    osl = OSInfo(system="Linux", version="6.5", arch="x86_64", is_apple_silicon=False)
-    osm = OSInfo(system="Darwin", version="22", arch="x86_64", is_apple_silicon=False)
-    assert m.is_supported_on(osl)
-    assert not m.is_supported_on(osm)
+class TestAndroidLinuxInstaller:
+    """android-device on linux (ManifestInstaller) replaces LinuxAndroidBridge."""
 
+    def setup_method(self):
+        self.manifest = load_manifest(_PLATFORMS_DIR / "android" / "platform.toml")
+        self.installer = ManifestInstaller(self.manifest, "linux")
 
-def test_dry_run_skips_subprocess():
-    osl = OSInfo(system="Linux", version="6.5", arch="x86_64", is_apple_silicon=False)
-    ctx = InstallContext(repo_root="/tmp/repo", os_info=osl, dry_run=True)
-    events = list(LinuxAndroidBridge().install(ctx))
-    assert any("DRY RUN" in e.message for e in events)
+    def test_metadata(self):
+        assert self.installer.role_id == "android-device"
+        assert self.installer.port == 8768
 
+    def test_role_id_is_android_device(self):
+        assert self.installer.role_id == "android-device"
 
-def test_linux_android_bridge_role_id_is_android_device():
-    from fleet.installers.linux import LinuxAndroidBridge
-    assert LinuxAndroidBridge.role_id == "android-device"
+    def test_supported_on_linux(self):
+        assert self.installer.is_supported_on(_osi("linux"))
+
+    def test_supported_on_all_declared_host_os(self):
+        # android-device manifest declares support for linux, macos, and windows
+        # so is_supported_on returns True for all three regardless of host_os arg
+        assert self.installer.is_supported_on(_osi("linux"))
+        assert self.installer.is_supported_on(_osi("macos"))
+        assert self.installer.is_supported_on(_osi("windows"))
+
+    def test_not_supported_on_unknown_os(self):
+        osi = OSInfo(system="FreeBSD", version="14", arch="x86_64", is_apple_silicon=False)
+        assert not self.installer.is_supported_on(osi)
+
+    def test_dry_run_skips_subprocess(self):
+        ctx = InstallContext(repo_root=str(_REPO_ROOT), os_info=_osi("linux"), dry_run=True)
+        events = list(self.installer.install(ctx))
+        assert any("DRY RUN" in e.message for e in events)
+
+    def test_dry_run_references_linux_script(self):
+        ctx = InstallContext(repo_root=str(_REPO_ROOT), os_info=_osi("linux"), dry_run=True)
+        events = list(self.installer.install(ctx))
+        assert any("setup-android-linux.sh" in e.message for e in events)
