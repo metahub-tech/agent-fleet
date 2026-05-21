@@ -146,6 +146,9 @@ class DeviceStateRegistry:
                 "acquired_at": existing.acquired_at.isoformat(),
                 "last_used_at": existing.last_used_at.isoformat(),
                 "idle_seconds": idle,
+                "auto_release_in_seconds": max(
+                    0, int(self._idle_timeout.total_seconds()) - idle
+                ),
             }
 
     def all_status(self) -> dict[str, dict]:
@@ -162,5 +165,8 @@ class DeviceStateRegistry:
                     "acquired_at": h.acquired_at.isoformat(),
                     "last_used_at": h.last_used_at.isoformat(),
                     "idle_seconds": idle,
+                    "auto_release_in_seconds": max(
+                        0, int(self._idle_timeout.total_seconds()) - idle
+                    ),
                 }
             return result
