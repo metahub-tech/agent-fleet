@@ -30,6 +30,10 @@ def _covered(tools, m, canon, spec):
     if impl_name is None or impl_name not in tools:
         return False, impl_name
     actual = [p for p in tools[impl_name] if p not in ct.ALLOWED_EXTRA]
+    # NB: ALLOWED_EXTRA strips `device`/`ctx`. For set_default_device the substantive
+    # arg is itself named `device`, so it gets stripped too -> arity check is vacuous
+    # for that one tool (canonical spec is `["device?"]`, required_arity 0). Acceptable
+    # in P0; P3 renames the param to `target_device` and tightens the spec to required.
     return len(actual) >= ct.required_arity(spec), impl_name
 
 

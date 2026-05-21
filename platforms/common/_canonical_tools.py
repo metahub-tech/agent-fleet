@@ -39,7 +39,7 @@ ALLOWED_EXTRA: set[str] = {"device", "ctx"}
 
 
 def required_params(spec: list[str]) -> set[str]:
-    """Param names with the optional `?` marker stripped of optionals."""
+    """Return the set of required param names (those NOT ending with `?`)."""
     return {p for p in spec if not p.endswith("?")}
 
 
