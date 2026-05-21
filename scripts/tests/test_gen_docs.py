@@ -1,14 +1,7 @@
-"""Tests for scripts/gen_docs.py.
-
-Task 1 state:
-  - test_render_port_table_contains_all_manifest_ports: PASSES now (render_port_table works)
-  - test_check_passes_on_fresh_docs: xfail (Task 2 fixes counts + adds markers; remove xfail then)
-"""
+"""Tests for scripts/gen_docs.py."""
 import subprocess
 import sys
 from pathlib import Path
-
-import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -23,10 +16,6 @@ def test_render_port_table_contains_all_manifest_ports():
     assert "8770" in table, f"Port 8770 (HarmonyOS planned) missing from port table:\n{table}"
 
 
-# Task 2 removes this xfail once it:
-#   1. Adds <!-- gen:port-table --> markers to docs/architecture.md and writes the table
-#   2. Fixes README win-device 33→38 and mac-device 34→39
-@pytest.mark.xfail(reason="Task 2 fixes counts + adds markers to architecture.md", strict=False)
 def test_check_passes_on_fresh_docs():
     r = subprocess.run(
         [sys.executable, "scripts/gen_docs.py", "--check"],

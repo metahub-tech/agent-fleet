@@ -55,13 +55,15 @@ flowchart LR
 
 ### Segment 3 — 原生驱动（每平台不同）
 
-| 平台 | 设备主机 OS | 驱动栈 | 端口预留 |
-|---|---|---|---|
-| Windows | Windows 10/11 | pywinauto + pyautogui + PowerShell | 8766 |
-| macOS | macOS 12+ | AppleScript + pyobjc + Accessibility API | 8767 |
-| Android | 任意（推荐 Linux/Mac） | adb + uiautomator2 + scrcpy | 8768 |
-| iOS | macOS（强制） | xcrun simctl + WebDriverAgent + idb | 8769 |
-| HarmonyOS（鸿蒙，规划中） | 任意 | hdc + uitest | 8770 |
+<!-- gen:port-table -->
+| 平台 | 设备主机 OS | 端口 |
+|---|---|---|
+| Windows 10/11 | Windows | 8766 |
+| macOS | macOS | 8767 |
+| Android | Windows / macOS / Linux | 8768 |
+| iOS / iPadOS | macOS | 8769 |
+| HarmonyOS（鸿蒙，规划中） | 任意 | 8770 |
+<!-- /gen:port-table -->
 
 端口预留按平台递增，避免一台主机同时跑多个桥时冲突（如 Mac 上同时跑 macOS 桥和 iOS 桥）。
 

@@ -42,8 +42,8 @@ Es infraestructura para **pruebas de software impulsadas por agentes y verificac
 
 | Componente | Versión | Estado |
 |---|---|---|
-| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 33 herramientas, streamable-http) |
-| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 34 herramientas, flujo de permisos GUI) |
+| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 38 herramientas, streamable-http) |
+| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 39 herramientas, flujo de permisos GUI) |
 | Puente Android | `0.7.0-alpha` | ✅ Publicado (android-device, **25 herramientas**, multidispositivo + USB + inalámbrico + ADB híbrido) |
 | Asistente CLI de agent-fleet | `0.5.0-alpha` | ✅ Publicado (`uvx agent-fleet setup` instalación en un paso; configs para 6 frameworks) |
 | Renombrado de rol → `<os>-device` + guía de permisos macOS | `0.6.0-alpha` | ✅ Publicado |

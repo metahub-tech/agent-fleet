@@ -42,8 +42,8 @@ C'est une infrastructure pour les **tests logiciels pilotés par agent et la vé
 
 | Composant | Version | État |
 |---|---|---|
-| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 33 outils, streamable-http) |
-| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 34 outils, flux de permissions GUI) |
+| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 38 outils, streamable-http) |
+| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 39 outils, flux de permissions GUI) |
 | Pont Android | `0.7.0-alpha` | ✅ Publié (android-device, **25 outils**, multi-appareils + USB + sans fil + ADB hybride) |
 | Assistant CLI agent-fleet | `0.5.0-alpha` | ✅ Publié (`uvx agent-fleet setup` installation en une fois ; configs pour 6 frameworks) |
 | Renommage de rôle → `<os>-device` + guide de permissions macOS | `0.6.0-alpha` | ✅ Publié |

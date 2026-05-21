@@ -42,8 +42,8 @@ Traga **dispositivos reais** — PCs Windows, Macs, celulares Android, iPhones �
 
 | Componente | Versão | Status |
 |---|---|---|
-| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 33 ferramentas, streamable-http) |
-| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 34 ferramentas, fluxo de permissões GUI) |
+| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 38 ferramentas, streamable-http) |
+| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 39 ferramentas, fluxo de permissões GUI) |
 | Ponte Android | `0.7.0-alpha` | ✅ Lançado (android-device, **25 ferramentas**, multidispositivo + USB + sem fio + ADB híbrido) |
 | Assistente CLI do agent-fleet | `0.5.0-alpha` | ✅ Lançado (`uvx agent-fleet setup` instalação em um passo; configs para 6 frameworks) |
 | Renomeação de papel → `<os>-device` + guia de permissões macOS | `0.6.0-alpha` | ✅ Lançado |
