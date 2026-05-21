@@ -13,13 +13,8 @@ module = "mac_device_mcp"
 setup_script = "scripts/setup-macos.sh"
 guidance     = ["macos_accessibility.yaml", "macos_screen_recording.yaml", "macos_automation.yaml", "macos_full_disk_access.yaml"]
 
-[tools.aliases]
-tap                = "click"
-acquire            = "acquire_mac"
-release            = "release_mac"
-get_status         = "get_mac_status"
-dump_ui            = "list_ui_elements"
-terminate_app      = "kill_process"
 # P1b implemented swipe (click-drag) + the single-device tools current_app/
 # list_devices/set_default_device/get_default_device directly under their canonical
 # names (no aliases needed); KNOWN_P1_GAPS is now {}.
+# P3 renamed CORE tools to canonical names (tap/acquire/release/get_status) and
+# added dump_ui/terminate_app directly — no aliases required.
