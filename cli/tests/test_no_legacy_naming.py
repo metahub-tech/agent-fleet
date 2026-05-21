@@ -81,3 +81,62 @@ def test_no_legacy_naming_strings_in_active_code():
             msg += f"  {path}:{ln}  →  {legacy!r}\n"
         msg += "\nAllowlisted prefixes: " + ", ".join(ALLOW_PATH_PREFIXES)
         raise AssertionError(msg)
+
+
+# ---------------------------------------------------------------------------
+# Guard: renamed-away CORE tool names must not reappear in active code/docs.
+# These were the pre-P3 names superseded by canonical platform-prefixed names.
+# Do NOT add: inspect_window, list_ui_elements, kill_process (kept as platform
+# extensions); or bare "click" (too noisy in prose/extension contexts).
+# ---------------------------------------------------------------------------
+
+LEGACY_TOOL_NAMES = [
+    # win-device CORE renames
+    "acquire_winpc",
+    "release_winpc",
+    "get_winpc_status",
+    # mac-device CORE renames
+    "acquire_mac",
+    "release_mac",
+    "get_mac_status",
+    # android-device CORE renames
+    "acquire_android",
+    "release_android",
+    "get_android_status",
+    # ios-device CORE renames
+    "acquire_ios",
+    "release_ios",
+    "get_ios_status",
+    # cross-platform CORE renames
+    "dump_ui_hierarchy",
+    "kill_app",
+    "press_button",
+]
+
+
+def test_no_legacy_tool_names():
+    """Ensure renamed-away CORE tool names do not reappear in active code/docs."""
+    failures: list[tuple[str, str, int]] = []  # (path, tool_name, line_no)
+    for f in REPO_ROOT.rglob("*"):
+        if not f.is_file():
+            continue
+        if f.suffix not in SCAN_EXTS:
+            continue
+        rel = f.relative_to(REPO_ROOT)
+        if _is_allowlisted(rel):
+            continue
+        try:
+            text = f.read_text(errors="ignore")
+        except OSError:
+            continue
+        for name in LEGACY_TOOL_NAMES:
+            for i, line in enumerate(text.splitlines(), 1):
+                if name in line:
+                    failures.append((str(rel), name, i))
+
+    if failures:
+        msg = f"\nLegacy CORE tool names still present ({len(failures)} hit(s)):\n"
+        for path, name, ln in failures:
+            msg += f"  {path}:{ln}  →  {name!r}\n"
+        msg += "\nAllowlisted prefixes: " + ", ".join(ALLOW_PATH_PREFIXES)
+        raise AssertionError(msg)
