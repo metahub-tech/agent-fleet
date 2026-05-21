@@ -13,13 +13,3 @@ module = "ios_device_mcp"
 setup_script = "scripts/setup-ios.sh"
 guidance     = ["ios_wda_deploy.yaml"]
 
-[tools.aliases]
-# canonical = current  (only where names differ)
-acquire     = "acquire_ios"
-release     = "release_ios"
-get_status  = "get_ios_status"
-press_key   = "press_button"   # iOS physical-button mapping
-dump_ui     = "dump_ui_hierarchy"
-# tap, swipe, type_text, current_app, terminate_app, list_devices,
-# set_default_device, get_default_device, get_screen_size, take_screenshot
-# are already named canonically on iOS — no alias needed.

@@ -198,7 +198,7 @@ class WdaClient:
             {"x": x, "y": y, "duration": duration_ms / 1000.0},
         )
 
-    def press_button(self, name: str) -> dict:
+    def press_key(self, name: str) -> dict:
         sid = self.ensure_session()
         return self._post(f"/session/{sid}/wda/pressButton", {"name": name})
 

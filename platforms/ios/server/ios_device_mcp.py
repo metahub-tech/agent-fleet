@@ -10,7 +10,7 @@ Architecture mirrors android-device v0.7.x exactly:
   - All tools accept optional `device` parameter (UDID or alias)
   - Alias map auto-derived from ProductType, override via
     ~/.agent-fleet/ios-aliases.json
-  - Per-device holder advisory lock (acquire_ios / release_ios)
+  - Per-device holder advisory lock (acquire / release)
   - FastMCP `instructions=` reports connected-device list at handshake
   - Resource `iosfleet://devices` provides live JSON snapshot
   - Session-scoped sticky default via set_default_device / get_default_device
@@ -342,7 +342,7 @@ def get_default_device(ctx: Context = None) -> dict:
 
 
 @mcp.tool
-def acquire_ios(
+def acquire(
     device: Annotated[str | None, Field(description="udid or alias; omit if only 1 device or you've set a default")] = None,
     holder_name: Annotated[str, Field(description="Human-readable identifier (e.g. 'agent-A')")] = "anonymous",
     ctx: Context = None,
@@ -355,9 +355,9 @@ def acquire_ios(
 
 
 @mcp.tool
-def release_ios(
+def release(
     device: Annotated[str | None, Field(description="udid or alias")] = None,
-    holder_name: Annotated[str, Field(description="Must match acquire_ios's holder_name")] = "anonymous",
+    holder_name: Annotated[str, Field(description="Must match acquire's holder_name")] = "anonymous",
     ctx: Context = None,
 ) -> dict:
     """Release the exclusive-use claim. Only the current holder can release."""
@@ -368,7 +368,7 @@ def release_ios(
 
 
 @mcp.tool
-def get_ios_status(
+def get_status(
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
@@ -459,23 +459,23 @@ def long_press(
 
 
 @mcp.tool
-def press_button(
-    button: Annotated[
+def press_key(
+    key: Annotated[
         str,
         Field(description="Physical button name: home | volume_up | volume_down | lock"),
     ],
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
-    """Press a system button on the device.
+    """Press a physical button on the device.
 
-    Supported by WDA: home, volume_up, volume_down, lock.
+    iOS supports the physical buttons: home, volume_up, volume_down, lock.
     Keyboard text input uses type_text instead (iOS has no concept of physical keys).
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    _wda_for(udid).press_button(button)
-    return {"ok": True, "button": button, "device": udid}
+    _wda_for(udid).press_key(key)
+    return {"ok": True, "key": key, "device": udid}
 
 
 @mcp.tool
@@ -501,7 +501,8 @@ def type_text(
 # ============================================================
 
 @mcp.tool
-def dump_ui_hierarchy(
+def dump_ui(
+    max_depth: Annotated[int | None, Field(description="Optional depth limit for the UI tree; currently advisory (WDA returns the full tree, depth limit is not enforced).")] = None,
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
@@ -510,6 +511,9 @@ def dump_ui_hierarchy(
     Returns JSON tree of XCUIElement nodes with type, name, label, value,
     rect (x/y/width/height), enabled, visible flags. Use find_elements()
     for substring filtering or tap_element() for the common find+tap path.
+
+    max_depth: optional depth limit; currently advisory — WDA returns the full
+    tree regardless. Pass None (default) to always get the complete tree.
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
