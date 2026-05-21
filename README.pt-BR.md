@@ -50,7 +50,7 @@ Traga **dispositivos reais** — PCs Windows, Macs, celulares Android, iPhones �
 | Patches v0.6.x (introspecção de UI, smoke tests, correções, fortalecimento do instalador…) | `0.6.1–0.6.15` | ✅ Lançado — ver [CHANGELOG.md](CHANGELOG.md) |
 | Ponte iOS / iPadOS | `0.8.0-alpha` | ✅ Lançado (ios-device, 26 ferramentas, WebDriverAgent + pymobiledevice3, iPad verificado) |
 | Daemon WDA do iOS (autostart no boot + keep-alive) | `0.8.2-alpha` | ✅ Lançado (go-ios runwda + tunneld launchd; modos de assinatura gratuito/pago) |
-| Coordenação entre dispositivos | `0.9.0` | 🔭 Futuro |
+| Coordenação entre dispositivos | `0.10.0` | 🔭 Futuro |
 | Versão estável pública | `1.0.0` | 🔭 Futuro (após feedback da comunidade sobre a alpha) |
 
 Ver [`docs/roadmap.md`](docs/roadmap.md).

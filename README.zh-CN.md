@@ -50,7 +50,7 @@
 | v0.6.x 补丁（UI 自省、smoke 测试、bugfix、安装器加固…）| `0.6.1–0.6.15` | ✅ 已发布 —— 见 [CHANGELOG.md](CHANGELOG.md) |
 | iOS / iPadOS 桥 | `0.8.0-alpha` | ✅ 已发布（ios-device，26 工具，WebDriverAgent + pymobiledevice3，iPad 已验证）|
 | iOS WDA daemon（开机自启 + 保活） | `0.8.2-alpha` | ✅ 已发布（go-ios runwda + tunneld launchd；免费/付费签名双模式）|
-| 跨设备协同 | `0.9.0` | 🔭 未来 |
+| 跨设备协同 | `0.10.0` | 🔭 未来 |
 | 公开稳定版 | `1.0.0` | 🔭 未来（待 alpha 社区反馈后）|
 
 详见 [`docs/roadmap.md`](docs/roadmap.md)。

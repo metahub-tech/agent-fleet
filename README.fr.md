@@ -50,7 +50,7 @@ C'est une infrastructure pour les **tests logiciels pilotés par agent et la vé
 | Correctifs v0.6.x (introspection UI, smoke tests, corrections, durcissement de l'installeur…) | `0.6.1–0.6.15` | ✅ Publié — voir [CHANGELOG.md](CHANGELOG.md) |
 | Pont iOS / iPadOS | `0.8.0-alpha` | ✅ Publié (ios-device, 26 outils, WebDriverAgent + pymobiledevice3, iPad vérifié) |
 | Démon WDA iOS (survie au démarrage + keep-alive) | `0.8.2-alpha` | ✅ Publié (go-ios runwda + tunneld launchd ; modes de signature gratuit/payant) |
-| Coordination entre appareils | `0.9.0` | 🔭 À venir |
+| Coordination entre appareils | `0.10.0` | 🔭 À venir |
 | Version stable publique | `1.0.0` | 🔭 À venir (après les retours de la communauté sur l'alpha) |
 
 Voir [`docs/roadmap.md`](docs/roadmap.md).

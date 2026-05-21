@@ -26,8 +26,8 @@
 | **0.7.0-alpha** | **Android multi-device: alias map, 25 tools, per-device holder, MCP instructions/resource** | ✅ Released |
 | **0.8.0-alpha** | **iOS / iPadOS bridge: ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad real-device verified** | ✅ Released |
 | **0.8.2-alpha** | **iOS WDA daemon (boot-survival + keep-alive) · README i18n (9 langs) + demo · architecture diagram** | ✅ Released |
-| 0.9.0 | Cross-device coordination | 🔭 Future |
-| **0.10.0** | **HarmonyOS (鸿蒙) bridge** — 5th platform (hdc + uitest) | 📋 Planned |
+| **0.9.0** | **HarmonyOS (鸿蒙) bridge** — 5th platform (hdc + uitest) | 📋 Planned |
+| 0.10.0 | Cross-device coordination | 🔭 Future |
 | 0.11.0+ | Expanded device coverage (Android TV · Linux desktop · Wear OS · 车机/AAOS · …) — see [Future device coverage](#future-device-coverage) | 📋 Planned |
 | 1.0.0 | Public open-source stable | 🔭 Future |
 
@@ -118,8 +118,8 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.10.0 — HarmonyOS (鸿蒙) bridge
-**📋 Planned — 5th platform bridge**
+## v0.9.0 — HarmonyOS (鸿蒙) bridge
+**📋 Planned — next platform bridge (5th platform)**
 
 沿用 jump-host 架构：电脑（Win/Mac/Linux）经 USB 接入华为 HarmonyOS 手机/平板，agent 经电脑驱动。
 
@@ -140,7 +140,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 
 ---
 
-## v0.9.0 — Cross-device Coordination
+## v0.10.0 — Cross-device Coordination
 **Future**
 
 Agent 一次提示，串联多设备。例：
@@ -180,9 +180,9 @@ Agent 一次提示，串联多设备。例：
 
 | 设备类型 | 工具链 | Host | 普及度 | 难度 | Tier | 备注 |
 |---|---|---|---|---|---|---|
-| **HarmonyOS 手机/平板（鸿蒙）** | hdc + uitest | Win/Mac/Linux | 高（CN 极高） | 中 | **1** | 见 [v0.10.0](#v0100--harmonyos-鸿蒙-bridge)；android-device 模式大量复用 |
+| **HarmonyOS 手机/平板（鸿蒙）** | hdc + uitest | Win/Mac/Linux | 高（CN 极高） | 中 | **1** | 见 [v0.9.0](#v090--harmonyos-鸿蒙-bridge)；android-device 模式大量复用 |
 | **Android TV / Google TV** | adb（复用 Android 桥） | 任意 | 中高 | 低 | **1** | 近似 Android，主要适配焦点/遥控导航 |
-| **Linux 桌面** | X11: xdotool + AT-SPI · Wayland: ydotool + grim | Linux | 高 | 中 | **1** | X11 易、Wayland 碎片化偏难；从旧 out-of-scope 提上来 |
+| **Linux 桌面** | X11: xdotool + AT-SPI · Wayland: ydotool + grim | Linux | 高 | 中 | **1** | Tier-1 先做 X11；Wayland 因合成器差异 + 无统一注入/截图 API 偏难，后续跟进 |
 | Wear OS（安卓手表） | adb | 任意 | 中 | 低-中 | 2 | 复用 Android；小屏 UI 适配 |
 | Android Automotive / 车机 IVI | adb | 任意 | 中（CN 增长快） | 中 | 2 | IVI 多基于 Android，车机 HMI 测试刚需；需车端调试开放 |
 | Apple TV（tvOS） | Xcode + XCUITest | **Mac** | 中 | 中-高 | 2 | 类 iOS；焦点引擎 + 遥控导航 |

@@ -61,6 +61,7 @@ flowchart LR
 | macOS | macOS 12+ | AppleScript + pyobjc + Accessibility API | 8767 |
 | Android | 任意（推荐 Linux/Mac） | adb + uiautomator2 + scrcpy | 8768 |
 | iOS | macOS（强制） | xcrun simctl + WebDriverAgent + idb | 8769 |
+| HarmonyOS（鸿蒙，规划中） | 任意 | hdc + uitest | 8770 |
 
 端口预留按平台递增，避免一台主机同时跑多个桥时冲突（如 Mac 上同时跑 macOS 桥和 iOS 桥）。
 
