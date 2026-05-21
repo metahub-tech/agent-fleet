@@ -20,7 +20,6 @@ release            = "release_mac"
 get_status         = "get_mac_status"
 dump_ui            = "list_ui_elements"
 terminate_app      = "kill_process"
-# NOTE: 5 CORE tools aren't on mac yet — `swipe` (desktops have no touch gesture)
-# plus the single-device tools list_devices/set_default_device/get_default_device/
-# current_app (P1 adds DeviceStateRegistry single-host). Do NOT alias them here;
-# they're tracked in Task 5's KNOWN_P1_GAPS so the gate is green + the gap stays visible.
+# P1b implemented swipe (click-drag) + the single-device tools current_app/
+# list_devices/set_default_device/get_default_device directly under their canonical
+# names (no aliases needed); KNOWN_P1_GAPS is now {}.
