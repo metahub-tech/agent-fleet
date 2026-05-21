@@ -32,8 +32,9 @@
 > 1. Read the **macOS** version of each function (`platforms/macos/server/mac_device_mcp.py`) as the reference; confirm the Windows version (`platforms/windows/server/win_device_mcp.py`) matches modulo the documented diffs.
 > 2. Strip tool plumbing: remove `@mcp.tool`, `@with_touch`, `Annotated[...]`/`Field(...)` wrappers, any `ctx` param, and any `_touch(...)` / `_state_registry.touch(...)` call. The extracted function takes only the **logic** params and returns the **exact same shape** the tool returns today (so P1b wiring is transparent).
 > 3. Apply `Path(...).expanduser()` **everywhere a path is taken** (this fixes the Windows bug; `expanduser()` is correct on all platforms).
-> 4. Move any module-level state the functions need (registries/locks/constants) into the new module.
-> 5. Reproduce the body logic faithfully — do not "improve" beyond the expanduser fix + the `ShellSpec` parameterization. If you find a *second* genuine behavioral divergence between win and mac not documented here, STOP and report it (do not silently pick one).
+> 4. Move any module-level state the functions need (registries/locks/constants) into the new module. **Also copy the `_now()` helper** (it returns `datetime.now(timezone.utc)`) into `_proc.py`/`_search.py`, or just inline `datetime.now(timezone.utc)` where used — it has no state.
+> 5. Reproduce the body logic faithfully — do not "improve" beyond the expanduser fix + the `ShellSpec` parameterization. If you find a *second* genuine behavioral divergence between win and mac not documented here, STOP and report it (do not silently pick one). NB: `start_search` reads `_searches[search_id]["started_at"]` for its return value *just after* releasing the lock — this is a pre-existing harmless wart in BOTH servers; copy it faithfully (don't "fix" it), it's not a P1a regression.
+> 6. **Test import style:** the new test files live in `platforms/common/tests/`, whose `conftest.py` puts `platforms/common` on `sys.path`. Match the existing sibling tests: an in-test `sys.path.insert(0, str(Path(__file__).resolve().parent.parent))` (= `platforms/common`) + a **bare** `import _fsops` / `import _proc` / `import _search`. Do NOT use `from common import _x` here (that needs `platforms/` on the path, which these tests don't add).
 
 ---
 
@@ -117,8 +118,8 @@ Read the mac versions of all 7 functions. Then create `platforms/common/tests/te
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # platforms/
-from common import _fsops
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # platforms/common
+import _fsops  # bare import — matches existing common tests (test_device_state.py / test_aliases.py)
 
 
 def test_write_then_read_roundtrip(tmp_path):
@@ -208,7 +209,7 @@ Reference: macOS `mac_device_mcp.py` lines ~794-931 (`_run_search` internal, `st
 
 - [ ] **Step 1: Read reference + write failing tests**
 
-Create `platforms/common/tests/test_search.py` (same path-insert pattern, `from common import _search`). Cover with `tmp_path`: create a few files containing a known token, start a search, page through results, list active searches, stop a search; plus an expanduser regression test (token file under a fake HOME, search path `~/...`). Adapt assertions to the real return shapes after reading the reference (e.g. `start_search` likely returns a search id; `get_more_search_results` returns a page). Search runs in a background thread — give it a brief settle (poll `get_more_search_results`/`list_searches` until results appear or a short timeout) rather than asserting immediately.
+Create `platforms/common/tests/test_search.py` (bare `import _search` per Extraction rule 6). Cover with `tmp_path`: create a few files containing a known token, start a search, page through results, list active searches, stop a search; plus an expanduser regression test (token file under a fake HOME via `monkeypatch.setenv("HOME"/"USERPROFILE", str(tmp_path))`, search path `~/...`). Adapt assertions to the real return shapes after reading the reference (e.g. `start_search` likely returns a search id; `get_more_search_results` returns a page). Search runs in a background thread — **poll** with `time.sleep(0.05)` per iteration up to a 3s max (≈60 iterations) until results appear or the search reports done, rather than a single fixed sleep (avoids flakiness under load; a `tmp_path` search finishes in ms).
 
 - [ ] **Step 2: Run → fail** (`ModuleNotFoundError: common._search`).
 
@@ -241,9 +242,20 @@ class ShellSpec:
     default_shell: str
     shlex_posix: bool             # True on POSIX, False on Windows
 ```
-`start_process(command, shell=..., shell_spec: ShellSpec)` uses `shell_spec` to build argv (direct mode: `shlex.split(command, posix=shell_spec.shlex_posix)`; shell mode: `shells[name] + [command]` or the platform's argv convention — match the reference's exact construction, generalized through `shell_spec`).
+`start_process(command, shell=..., shell_spec: ShellSpec)` uses `shell_spec` to build argv — direct mode: `shlex.split(command, posix=shell_spec.shlex_posix)`; shell mode: `shell_spec.shells[name] + [command]` (the shells value is the FULL argv prefix and the command is appended as the single last element). Read both `start_process` bodies and confirm this captures them.
 
-Create `platforms/common/tests/test_proc.py` (`from common import _proc`). Use a **Linux** ShellSpec to test on this box:
+The two platforms inject these specs (P1b will pass these; P1a only needs the seam + the Linux test spec). Document them in the module docstring so P1b is unambiguous — note especially that powershell/pwsh need the **multi-flag** prefix and cmd uses `/c`:
+```python
+# macOS:   ShellSpec(shells={"zsh": ["/bin/zsh","-c"], "bash": ["/bin/bash","-c"], "sh": ["/bin/sh","-c"]},
+#                     default_shell="zsh", shlex_posix=True)
+# Windows: ShellSpec(shells={
+#              "powershell": ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command"],
+#              "pwsh":       ["pwsh.exe",       "-NoProfile", "-NonInteractive", "-Command"],
+#              "cmd":        ["cmd.exe", "/c"],
+#          }, default_shell="powershell", shlex_posix=False)
+```
+
+Create `platforms/common/tests/test_proc.py` (bare `import _proc` per Extraction rule 6). Use a **Linux** ShellSpec to test on this box:
 ```python
 LINUX_SHELL = _proc.ShellSpec(shells={"bash": ["/bin/bash", "-c"], "sh": ["/bin/sh", "-c"]}, default_shell="bash", shlex_posix=True)
 ```
