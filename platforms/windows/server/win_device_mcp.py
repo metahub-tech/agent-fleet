@@ -24,6 +24,7 @@ import contextlib
 import functools
 import io
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -176,10 +177,7 @@ def inspect_window(
     try:
         win = Desktop(backend="uia").window(title_re=f".*{title_substring}.*")
         win.wait("visible", timeout=3)
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            win.print_control_identifiers(depth=max_depth)
-        return buf.getvalue()
+        return _dump_window_tree(win, max_depth)
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
@@ -220,7 +218,7 @@ def dump_ui(
         title = win32gui.GetWindowText(hwnd)
         if not title:
             return "ERROR: No foreground window detected"
-        win = Desktop(backend="uia").window(title_re=f".*{title}.*")
+        win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
         win.wait("visible", timeout=3)
         return _dump_window_tree(win, max_depth)
     except Exception as e:
@@ -340,7 +338,8 @@ def kill_process(pid: int) -> dict:
 def terminate_app(
     target: Annotated[
         str,
-        Field(description="Process name (e.g. 'notepad.exe') or executable path substring to match"),
+        Field(description="Process name (e.g. 'notepad.exe') or executable path substring to match. "
+                          "Short or generic substrings can over-match unintended processes; prefer the full process name."),
     ],
 ) -> dict:
     """Terminate all processes matching the given name or executable path.
