@@ -5,7 +5,7 @@ description: Use when invoking mac-device MCP tools to drive a Mac test machine 
 
 # Using mac-device
 
-Drive a remote Mac test machine via the `mac-device` MCP server (FastMCP, streamable-http on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 31 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
+Drive a remote Mac test machine via the `mac-device` MCP server (FastMCP, streamable-http on Tailscale, port 8767). Multi-client native; advisory single-holder coordination; 34 tools spanning state / screen / mouse / keyboard / process / file / search / zsh / AppleScript.
 
 ## Critical patterns
 

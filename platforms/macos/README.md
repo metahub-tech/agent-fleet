@@ -34,7 +34,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 ```text
 You:   "Run the test suite, then open Safari and screenshot it."
 Agent: run_zsh(script="cd ~/proj && pytest -q")        → 96 passed in 4.1s
-       open_app(name="Safari")                         → frontmost
+       open_app(app="Safari")                          → frontmost
        take_screenshot()                               → agent verifies the screen
 ```
 

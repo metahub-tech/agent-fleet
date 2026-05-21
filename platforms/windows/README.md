@@ -25,7 +25,7 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ```text
 You:   "Open Notepad, write the release note, and screenshot it."
-Agent: launch_app(name="notepad")                     → started (pid 5012)
+Agent: launch_app(path="notepad")                     → started (pid 5012)
        type_text(text="agent-fleet v0.8.2-alpha ✅")   → typed
        take_screenshot()                              → 1920×1080 PNG returned to the agent
        list_windows()                                 → ["Untitled - Notepad", ...]

@@ -43,7 +43,7 @@ Traga **dispositivos reais** — PCs Windows, Macs, celulares Android, iPhones �
 | Componente | Versão | Status |
 |---|---|---|
 | Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 33 ferramentas, streamable-http) |
-| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 31 ferramentas, fluxo de permissões GUI) |
+| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 34 ferramentas, fluxo de permissões GUI) |
 | Ponte Android | `0.7.0-alpha` | ✅ Lançado (android-device, **25 ferramentas**, multidispositivo + USB + sem fio + ADB híbrido) |
 | Assistente CLI do agent-fleet | `0.5.0-alpha` | ✅ Lançado (`uvx agent-fleet setup` instalação em um passo; configs para 6 frameworks) |
 | Renomeação de papel → `<os>-device` + guia de permissões macOS | `0.6.0-alpha` | ✅ Lançado |
@@ -103,7 +103,7 @@ flowchart LR
   MESH --> W & M & D & I
   subgraph DEVICES["Device hosts — one MCP server each"]
     W["win-device :8766<br/>33 tools"] --> WDRV["pywinauto / Win32"] --> WP["🖥️ Windows 10/11"]
-    M["mac-device :8767<br/>31 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
+    M["mac-device :8767<br/>34 tools"] --> MDRV["AppleScript / CGEvent"] --> MP["💻 macOS 12+"]
     D["android-device :8768<br/>25 tools"] --> DDRV["adb / UiAutomator2"] --> DP["📱 Android phones"]
     I["ios-device :8769<br/>26 tools"] --> IDRV["WebDriverAgent / pymobiledevice3"] --> IP["📱 iPhone / iPad"]
   end

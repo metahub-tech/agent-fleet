@@ -106,7 +106,7 @@ setup 脚本会：
 
 ```text
 You:   "Install the build, open it, tap Login, and screenshot."
-Agent: install_apk(path="app-debug.apk")               → installed
+Agent: install_apk(apk_path="/builds/app-debug.apk")   → installed
        start_app(package="com.example.app")            → launched
        tap_element(text="Login")                       → tapped
        take_screenshot()                               → agent sees the login screen
