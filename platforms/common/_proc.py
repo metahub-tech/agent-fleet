@@ -93,7 +93,7 @@ def _pump_output(pid: int, proc: subprocess.Popen) -> None:
 def start_process(
     command: str,
     shell: str = "direct",
-    shell_spec: ShellSpec = None,
+    shell_spec: "ShellSpec | None" = None,
 ) -> dict:
     """Start a long-running process.
 

@@ -54,3 +54,13 @@ def test_expanduser_is_applied(tmp_path, monkeypatch):
     _fsops.write_file("~/tilde.txt", "via tilde")
     assert (tmp_path / "tilde.txt").exists()
     assert "via tilde" in _content(_fsops.read_file("~/tilde.txt"))
+
+
+def test_expanduser_applied_to_move_file_both_paths(tmp_path, monkeypatch):
+    # move_file was a multi-path bug site (win missed expanduser on BOTH src and dst).
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows home var
+    _fsops.write_file("~/src_tilde.txt", "content")
+    _fsops.move_file("~/src_tilde.txt", "~/dst_tilde.txt")
+    assert (tmp_path / "dst_tilde.txt").exists()
+    assert not (tmp_path / "src_tilde.txt").exists()
