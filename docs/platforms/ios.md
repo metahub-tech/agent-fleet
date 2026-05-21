@@ -31,10 +31,10 @@
 
 | 设备 | iOS / iPadOS 版本 | 状态 |
 |---|---|---|
-| iPhone (iOS 13+) | ✅ 完整支持 |
-| iPad (iPadOS 13+) | ✅ 完整支持 |
-| iPhone (iOS 12 及更老) | ⚠️ **untested** — WDA 1.x fork + 老 Xcode/Mac 环境难凑齐，**不推荐** |
-| iPad Mini / Pro 26+ | ✅ 同 iPad，验证机型 iPad15,7 + iPadOS 26.2.1 |
+| iPhone | iOS 13+ | ✅ 完整支持 |
+| iPad | iPadOS 13+ | ✅ 完整支持 |
+| iPhone | iOS 12 及更老 | ⚠️ **untested** — WDA 1.x fork + 老 Xcode/Mac 环境难凑齐，**不推荐** |
+| iPad Mini / Pro | iPadOS 26+ | ✅ 同 iPad，验证机型 iPad15,7 + iPadOS 26.2.1 |
 
 ---
 

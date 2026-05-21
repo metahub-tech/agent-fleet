@@ -45,7 +45,7 @@
 
 ## 工具公约 (Universal Tool Set)
 
-每个平台桥**必须实现下面的通用工具集**，工具名与语义保持一致。这样 Agent 切换设备时几乎不用换思维方式——只在 settings.json 里换 server URL。
+每个平台桥**必须实现下面的通用工具集**，工具名与语义保持一致。这样 Agent 切换设备时几乎不用换思维方式——只在 `~/.claude.json` 里换 server URL。
 
 ### Universal Tools
 

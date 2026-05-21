@@ -171,7 +171,7 @@ Tailscale MagicDNS 可能未开启。两种应对：
 ```bash
 # A. 用 IP（IP 总是有效，主机名可能因 MagicDNS 关闭失效）
 tailscale status        # 找设备主机的 100.x.x.x IP
-# 然后把 settings.json 里的主机名换成 IP
+# 然后把 ~/.claude.json 里的主机名换成 IP
 
 # B. 启用 MagicDNS
 # 浏览器打开 https://login.tailscale.com/admin/dns

@@ -14,7 +14,7 @@
 
 ## 是什么
 
-把开发机之外的**真实设备**（Windows PC、Mac、Android 手机、iPhone）接进 LLM Agent 的工具链，让 Agent 像调用本地命令那样驱动它们：截屏、点按钮、跑测试、读日志、调试 GUI。
+把开发机之外的**真实设备**（Windows PC、Mac、Android 手机、iPhone）接进 LLM agent 的工具链，让 agent 像调用本地命令那样驱动它们：截屏、点按钮、跑测试、读日志、调试 GUI。
 
 这是给 **agent 驱动的软件测试与跨平台验证** 准备的基础设施 —— 更广义地说，是让 agent 真正感知并撬动物理世界的底座。
 
@@ -29,8 +29,8 @@
 └─────────────────┘                              │ iPhone/iPad  │ ios-device     :8769 ✅
                                                  └──────────────┘
             ↑                                                ↑
-   uvx agent-fleet setup           为 6 个 agent 框架生成配置
-   一行命令装 client 端 + 装 server / 配 Tailscale / 引导权限 / 自检 / 生成 snippet
+   uvx agent-fleet setup           generates configs for 6 agent frameworks
+   one command: install client + server / configure Tailscale / guide permissions / self-check / emit snippets
 ```
 
 ## 当前状态

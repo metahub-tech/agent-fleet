@@ -39,7 +39,7 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 |---|---|---|
 | Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 33 Tools, streamable-http) |
 | macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 31 Tools, GUI-Berechtigungsflow) |
-| Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + Funk + Hybrid-ADB) |
+| Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
 | agent-fleet-CLI-Assistent | `0.5.0-alpha` | ✅ Veröffentlicht (`uvx agent-fleet setup` One-Shot-Installation; Configs für 6 Frameworks) |
 | Rollen-Umbenennung → `<os>-device` + macOS-Berechtigungs-Guide | `0.6.0-alpha` | ✅ Veröffentlicht |
 | v0.6.x-Patches (UI-Introspektion, Smoke-Tests, Bugfixes, Installer-Härtung…) | `0.6.1–0.6.15` | ✅ Veröffentlicht — siehe [CHANGELOG.md](CHANGELOG.md) |
@@ -76,7 +76,7 @@ uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdire
 
 Der Assistent führt dich durch: Rolle wählen → MCP-Server installieren → Tailscale konfigurieren → interaktive Anleitung für GUI-Berechtigungen / ADB-Autorisierung → Health-Check → Config-Snippets für 6 Agenten-Frameworks ausgeben.
 
-**Fortgeschrittene** können weiterhin die Low-Level-Skripte direkt aufrufen — `docs/install-pattern.md` bleibt gültig (das „Fortgeschrittenen-Handbuch").
+**Fortgeschrittene** können weiterhin die Low-Level-Skripte direkt aufrufen — `docs/install-pattern.md` bleibt gültig (das „Fortgeschrittenen-Handbuch“).
 
 | Du bist | Lies |
 |---|---|
@@ -133,4 +133,4 @@ Eine Plattform hinzufügen → lege dieselbe Unterstruktur unter `platforms/<nam
 
 Beiträge willkommen! **agent-fleet ist unter der Apache-2.0-Lizenz öffentlich veröffentlicht und nimmt Community-Beiträge an.**
 
-Siehe [`CONTRIBUTING.md`](CONTRIBUTING.md) für den Beitragsablauf und die Coding-Konventionen sowie [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) für den Verhaltenskodex. Melde Sicherheitslücken privat über den GitHub-Security-Tab → „Report a vulnerability".
+Siehe [`CONTRIBUTING.md`](CONTRIBUTING.md) für den Beitragsablauf und die Coding-Konventionen sowie [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) für den Verhaltenskodex. Melde Sicherheitslücken privat über den GitHub-Security-Tab → „Report a vulnerability“.

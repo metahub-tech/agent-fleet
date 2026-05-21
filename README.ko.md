@@ -5,7 +5,7 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
-> **LLM 에이전트에게 자기만의 실기기 함대를.**
+> **LLM 에이전트에게 자기만의 실제 기기 함대를.**
 > 실제 Windows / macOS / Android / iOS 하드웨어를 MCP로 LLM 에이전트에 연결해 사람처럼 조작하게 합니다. 설치는 명령어 한 줄:
 >
 > ```bash
@@ -41,7 +41,7 @@
 | macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 31개 도구, GUI 권한 플로우) |
 | Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **25개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
-| 역할 개명 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
+| 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
 | v0.6.x 패치 (UI 인트로스펙션, smoke 테스트, 버그픽스, 인스톨러 강화…) | `0.6.1–0.6.15` | ✅ 릴리스됨 — [CHANGELOG.md](CHANGELOG.md) 참조 |
 | iOS / iPadOS 브리지 | `0.8.0-alpha` | ✅ 릴리스됨 (ios-device, 26개 도구, WebDriverAgent + pymobiledevice3, iPad 검증됨) |
 | iOS WDA 데몬 (부팅 자동 시작 + 킵얼라이브) | `0.8.2-alpha` | ✅ 릴리스됨 (go-ios runwda + tunneld launchd; 무료/유료 서명 모드) |
