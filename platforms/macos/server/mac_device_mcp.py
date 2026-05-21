@@ -558,15 +558,23 @@ def get_default_device() -> dict:
 @mcp.tool
 @with_touch
 def current_app() -> dict:
-    """Frontmost app on the macOS host."""
-    script = 'tell application "System Events" to get name of first application process whose frontmost is true'
+    """Frontmost app on the macOS host.
+
+    Uses NSWorkspace (public AppKit API — no Automation/TCC permission, unlike the
+    `osascript "System Events"` approach which times out headlessly).
+    """
     try:
-        r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
-    except subprocess.TimeoutExpired:
-        return {"app": None, "error": "osascript timeout"}
+        from AppKit import NSWorkspace
+        app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if app is None:
+            return {"app": None, "error": "no frontmost application"}
+        return {
+            "app": app.localizedName(),
+            "bundle_id": app.bundleIdentifier(),
+            "pid": int(app.processIdentifier()),
+        }
     except Exception as e:  # noqa: BLE001 — surface as a friendly dict, not a framework crash
         return {"app": None, "error": str(e)}
-    return {"app": r.stdout.strip() or None}
 
 
 @mcp.tool
