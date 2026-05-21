@@ -42,8 +42,8 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 33 tools, streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 34 tools, GUI-permission flow) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 38 tools, streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 39 tools, GUI-permission flow) |
 | Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **25 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |

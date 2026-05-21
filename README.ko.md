@@ -42,8 +42,8 @@
 
 | 구성요소 | 버전 | 상태 |
 |---|---|---|
-| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 33개 도구, streamable-http) |
-| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 34개 도구, GUI 권한 플로우) |
+| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 38개 도구, streamable-http) |
+| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 39개 도구, GUI 권한 플로우) |
 | Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **25개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
 | 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |

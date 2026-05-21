@@ -42,8 +42,8 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 
 | Komponente | Version | Status |
 |---|---|---|
-| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 33 Tools, streamable-http) |
-| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 34 Tools, GUI-Berechtigungsflow) |
+| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 38 Tools, streamable-http) |
+| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 39 Tools, GUI-Berechtigungsflow) |
 | Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
 | agent-fleet-CLI-Assistent | `0.5.0-alpha` | ✅ Veröffentlicht (`uvx agent-fleet setup` One-Shot-Installation; Configs für 6 Frameworks) |
 | Rollen-Umbenennung → `<os>-device` + macOS-Berechtigungs-Guide | `0.6.0-alpha` | ✅ Veröffentlicht |

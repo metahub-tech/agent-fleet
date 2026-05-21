@@ -42,8 +42,8 @@
 
 | コンポーネント | バージョン | ステータス |
 |---|---|---|
-| Windows 10/11 ブリッジ | `0.2.0` | ✅ リリース済（win-device、33 ツール、streamable-http）|
-| macOS 12+ ブリッジ | `0.3.0` | ✅ リリース済（mac-device、launchd、34 ツール、GUI 権限フロー）|
+| Windows 10/11 ブリッジ | `0.2.0` | ✅ リリース済（win-device、38 ツール、streamable-http）|
+| macOS 12+ ブリッジ | `0.3.0` | ✅ リリース済（mac-device、launchd、39 ツール、GUI 権限フロー）|
 | Android ブリッジ | `0.7.0-alpha` | ✅ リリース済（android-device、**25 ツール**、マルチデバイス + USB + 無線 + ハイブリッド ADB）|
 | agent-fleet CLI ウィザード | `0.5.0-alpha` | ✅ リリース済（`uvx agent-fleet setup` ワンショットインストール；6 フレームワーク分の設定生成）|
 | ロール改名 → `<os>-device` + macOS 権限ガイド | `0.6.0-alpha` | ✅ リリース済 |

@@ -42,8 +42,8 @@
 
 | 组件 | 版本 | 状态 |
 |---|---|---|
-| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，33 工具，streamable-http）|
-| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，34 工具，GUI 权限流程）|
+| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，38 工具，streamable-http）|
+| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，39 工具，GUI 权限流程）|
 | Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**25 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|
 | 角色改名 → `<os>-device` + macOS 权限引导 | `0.6.0-alpha` | ✅ 已发布 |
