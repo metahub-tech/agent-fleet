@@ -397,10 +397,15 @@ def get_screen_size(
 
 @mcp.tool
 def take_screenshot(
+    region: Annotated[list[int] | None, Field(description="[x,y,w,h] crop; None=full screen (crop not yet implemented)")] = None,
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> Image:
-    """Capture a PNG screenshot of the device. Returns base64-embedded image."""
+    """Capture a PNG screenshot of the device. Returns base64-embedded image.
+
+    `region` accepted for canonical-contract parity; cropping is not implemented
+    yet (full screen always returned). TODO: implement crop via PIL.
+    """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
     png_bytes = _wda_for(udid).screenshot_png_bytes()
