@@ -14,15 +14,11 @@ PLATFORMS_DIR = _here.parent
 MANIFESTS = discover_manifests(PLATFORMS_DIR)
 IDS = [m.id for m in MANIFESTS]
 
-# CORE tools not yet on the two desktop platforms. Tracked explicitly so the gate
-# is green now but the gap stays visible (a P1 tripwire — see test_known_gaps_shrink).
-KNOWN_P1_GAPS = {
-    # swipe: desktops have no touch-swipe. P1 either implements click-drag OR the
-    #        spec demotes swipe to CANONICAL-OPTIONAL (then drop it from CORE + here).
-    # single-device-state tools: P1 adds DeviceStateRegistry single-host support.
-    "win-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
-    "mac-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
-}
+# CORE tools not yet implemented on a platform, tracked explicitly so the gate stays
+# green while the gap stays visible. P1b implemented all of win/mac's former gaps
+# (swipe via click-drag + the single-device-state tools via DeviceStateRegistry), so
+# this is now empty. Re-add an entry only with a documented reason + a removal plan.
+KNOWN_P1_GAPS: dict[str, set[str]] = {}
 
 
 def _covered(tools, m, canon, spec):
@@ -70,10 +66,6 @@ def test_aliases_point_at_real_tools(m):
 
 
 def test_known_gaps_shrink():
-    # Tripwire: P1 must delete entries here as it implements them. Adding a CORE tool
-    # to a desktop platform requires removing it here (then test_core_tools_covered
-    # enforces real coverage).
-    assert KNOWN_P1_GAPS == {
-        "win-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
-        "mac-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
-    }
+    # Tripwire: every platform now covers all CORE directly or via alias. Keep this at
+    # {} — re-adding an entry must come with a documented reason + removal plan.
+    assert KNOWN_P1_GAPS == {}
