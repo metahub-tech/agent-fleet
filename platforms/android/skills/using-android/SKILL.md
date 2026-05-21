@@ -46,7 +46,7 @@ list_packages(filter_substring="weibo", only_user=True)   # find installed user 
 start_app(package="com.sina.weibo")                        # launcher intent (default)
 start_app(package="com.example", activity=".MainActivity") # explicit activity
 current_app()                                              # what's in front
-terminate_app(package="com.sina.weibo")                    # force-stop
+terminate_app(target="com.sina.weibo")                     # force-stop
 install_apk(apk_path="C:\\\\path\\\\to\\\\foo.apk", replace=True)
 uninstall_app(package="com.example.foo")
 ```
