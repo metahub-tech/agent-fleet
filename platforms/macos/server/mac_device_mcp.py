@@ -761,12 +761,31 @@ def dump_ui(
         front_app = NSWorkspace.sharedWorkspace().frontmostApplication()
         if front_app is None:
             return {"ok": False, "error": "no frontmost application"}
-        app_name = front_app.localizedName() or front_app.bundleIdentifier()
+        pid = int(front_app.processIdentifier())
+        # Use localizedName, fall back to bundleIdentifier, fall back to
+        # "pid:<pid>" — purely for the display field; resolution is PID-based.
+        app_label = (
+            front_app.localizedName()
+            or front_app.bundleIdentifier()
+            or f"pid:{pid}"
+        )
+    except ImportError as e:
+        return {"ok": False, "error": f"AppKit unavailable: {e}"}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"NSWorkspace unavailable: {e}"}
 
+    # Resolve AX tree by PID directly — avoids the name→pid round-trip that
+    # would fail when localizedName() is falsy and bundleIdentifier() doesn't
+    # match any psutil process *name* (e.g. "com.apple.Safari").
     depth = max_depth if max_depth is not None else 6
-    return list_ui_elements(app=app_name, max_depth=depth)
+    try:
+        app_elem = _ax_app_for_pid(pid)
+    except ImportError as e:
+        return {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
+
+    elements: list[dict] = []
+    _ax_walk(app_elem, 0, depth, elements)
+    return {"ok": True, "app": app_label, "pid": pid, "count": len(elements), "elements": elements}
 
 
 @mcp.tool
@@ -802,13 +821,12 @@ def terminate_app(
             if target_lower in bundle_id.lower() or target_lower in name.lower():
                 pid = int(app.processIdentifier())
                 try:
-                    import psutil as _psutil
-                    p = _psutil.Process(pid)
+                    p = psutil.Process(pid)
                     p.kill()
                     terminated.append({"pid": pid, "name": name, "bundle_id": bundle_id})
                 except Exception as e:
                     errors.append({"pid": pid, "error": str(e)})
-    except Exception:
+    except ImportError:
         # AppKit unavailable — fall back to psutil process-name match
         for p in psutil.process_iter(["pid", "name", "exe"]):
             try:
@@ -817,7 +835,7 @@ def terminate_app(
                 exe = info.get("exe") or ""
                 if target_lower in name.lower() or target_lower in exe.lower():
                     p.kill()
-                    terminated.append({"pid": info["pid"], "name": name})
+                    terminated.append({"pid": info["pid"], "name": name, "bundle_id": None})
             except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
                 errors.append({"pid": p.pid, "error": str(e)})
             except Exception as e:
