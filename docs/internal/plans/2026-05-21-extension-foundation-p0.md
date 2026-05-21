@@ -19,7 +19,7 @@ Source of truth for this plan: `docs/internal/design/2026-05-21-extension-founda
 - `platforms/common/_canonical_tools.py` — canonical CORE/OPTIONAL contract (names + param specs).
 - `platforms/common/_manifest.py` — `platform.toml` loader → `PlatformManifest` dataclass.
 - `platforms/{windows,macos,android,ios}/platform.toml` — per-platform SSOT + `[tools.aliases]`.
-- `platforms/tests/__init__.py`, `platforms/tests/conftest.py` — repo-level test package + path setup.
+- `platforms/tests/__init__.py` — repo-level test package marker (tests self-insert sys.path; no conftest needed).
 - `platforms/tests/test_canonical_tools.py` — contract well-formedness.
 - `platforms/tests/test_manifests.py` — load all manifests; port-unique; host_os valid; version consistency.
 - `platforms/tests/test_conformance.py` — AST: every CORE canonical tool covered per platform.
@@ -27,27 +27,34 @@ Source of truth for this plan: `docs/internal/design/2026-05-21-extension-founda
 - `platforms/ios/server/tests/test_ios_devices.py` — Linux-runnable iOS helper tests.
 
 **Modify**
-- `platforms/android/server/android_device_mcp.py:51-54` — `sys.path`/import → `common.` package form.
-- `platforms/ios/server/ios_device_mcp.py:52-55` — same.
-- `platforms/ios/server/_ios_devices.py` — same import form (it imports `_aliases`).
-- `platforms/android/server/tests/conftest.py:5-6` — path setup for package form.
-- `platforms/ios/server/ios_device_mcp.py:399-403` — `take_screenshot` add `region=None`.
-- `cli/pyproject.toml` — add `tomli; python_version < "3.11"` to `dev` extras (test dep).
+- `platforms/ios/server/ios_device_mcp.py:398-403` — `take_screenshot` add `region=None` (signature alignment only).
+- `cli/pyproject.toml:37` — add `tomli>=2.0; python_version < "3.11"` to `dev` extras (py3.10 fallback; this env is 3.11 where `tomllib` is stdlib, so the dep is inert here).
+
+> **P0 is additive only — no import migration.** Existing servers/tests keep their current bare `from _aliases`/`from _device_state` imports (they resolve via `platforms/common` on their own sys.path). Adding `common/__init__.py` does NOT break them — **verified empirically**: `platforms/common` tests (70) and `platforms/android/server` tests (34) still pass with the package marker present, and the new `from common.X` package form works in parallel (a directory on `sys.path` serves both direct-module and package imports). Migrating existing bare imports to `common.*` is **deferred to P1** (done alongside the shared-core extraction). This is what keeps P0 low-regression.
 
 > **Deferred to P1 (not P0):** win/mac server unit tests for the holder/process/file/search blocks. Reason: those servers import `pyautogui`/`pywinauto`/`pyobjc` and **cannot be imported on Linux CI**; their core logic moves into testable `platforms/common/` modules during P1's extraction and gets covered there. P0 covers the cross-platform contract via AST (no import) + adds the iOS helper tests that *are* Linux-runnable.
 
+> **Pre-existing breakage (NOT P0 scope):** `platforms/android/scripts/tests/test_setup_aliases.py` already fails at baseline (`ModuleNotFoundError: _aliases`) because `setup_aliases.py` inserts the *server* dir but `_aliases.py` lives in `common/`. This predates P0 and is out of scope — do **not** run the `android/scripts` suite as a P0 baseline, and do not "fix" it here (track it for P1's import migration).
+
 ---
 
-## Task 1: Make `platforms/common/` an importable package
+## Task 1: Make `platforms/common/` an importable package (additive)
 
 **Files:**
 - Create: `platforms/common/__init__.py`
-- Modify: `platforms/android/server/android_device_mcp.py:51-54`, `platforms/ios/server/ios_device_mcp.py:52-55`, `platforms/ios/server/_ios_devices.py`, `platforms/android/server/tests/conftest.py:5-6`
 
-- [ ] **Step 1: Baseline — run existing tests green**
+> **Why this is the whole task:** the only thing P0 needs is for the *new* modules (`_canonical_tools.py`, `_manifest.py`) to be importable as `from common.X` when `platforms/` is on `sys.path`. That requires nothing more than a package marker. Existing servers/tests are left untouched (see the additive note in the File map). Do NOT migrate their bare imports — that is P1.
 
-Run: `cd platforms/common && python -m pytest -q; cd ../android/server && python -m pytest -q`
-Expected: all PASS (this is a refactor; record the baseline).
+- [ ] **Step 1: Baseline — run the two existing suites green (separately)**
+
+Run (separately — running multiple `tests/conftest.py` dirs in one invocation triggers pytest's `ImportPathMismatchError`):
+
+```bash
+(cd platforms/common && python -m pytest -q)
+(cd platforms/android/server && python -m pytest -q)
+```
+
+Expected: `platforms/common` 70 passed; `platforms/android/server` 34 passed. Record these counts.
 
 - [ ] **Step 2: Create the package marker**
 
@@ -57,64 +64,32 @@ Create `platforms/common/__init__.py`:
 """Shared bridge core for agent-fleet platform servers (local package; not published)."""
 ```
 
-- [ ] **Step 3: Switch android server to package imports**
+- [ ] **Step 3: Verify nothing regressed (bare imports still resolve)**
 
-In `platforms/android/server/android_device_mcp.py`, replace lines 51-54:
-
-```python
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-
-from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
-from _device_state import DeviceStateRegistry
-```
-
-with (insert `platforms/`, import via `common.` namespace):
-
-```python
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # platforms/
-
-from common._aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
-from common._device_state import DeviceStateRegistry
-```
-
-- [ ] **Step 4: Switch ios server + `_ios_devices.py` to package imports**
-
-In `platforms/ios/server/ios_device_mcp.py` lines 52-55, apply the identical change (insert `parent.parent.parent` = `platforms/`, import `from common._aliases import ...` / `from common._device_state import ...`).
-
-In `platforms/ios/server/_ios_devices.py`, find its `sys.path.insert(... / "common")` + `from _aliases import ...` and apply the same `common.` form. (Run `grep -n "_aliases\|sys.path" platforms/ios/server/_ios_devices.py` to locate.)
-
-- [ ] **Step 5: Update android test conftest**
-
-In `platforms/android/server/tests/conftest.py`, replace lines 5-6:
-
-```python
-sys.path.insert(0, str(_here.parent))                           # server dir
-sys.path.insert(0, str(_here.parent.parent.parent / "common"))  # platforms/common
-```
-
-with:
-
-```python
-sys.path.insert(0, str(_here.parent))                    # server dir
-sys.path.insert(0, str(_here.parent.parent.parent.parent))  # platforms/ (for `common` package)
-```
-
-(Verify `_here.parent.parent.parent.parent` resolves to `platforms/`: conftest is at `platforms/android/server/tests/conftest.py` → parent=tests, .parent=server, .parent=android, .parent=platforms. Correct.)
-
-- [ ] **Step 6: Update common's own test conftest if it imports bare modules**
-
-Run `grep -rn "from _aliases\|from _device_state\|import _aliases" platforms/common/tests/`. If found, change to `from common._aliases import ...` and ensure `platforms/common/tests/conftest.py` inserts `platforms/` (`_here.parent.parent.parent`). If common tests already use a path that works, leave them.
-
-- [ ] **Step 7: Run all affected tests — still green**
-
-Run: `cd platforms/common && python -m pytest -q; cd ../android/server && python -m pytest -q`
-Expected: same PASS count as Step 1 baseline. (Pure refactor — no behavior change.)
-
-- [ ] **Step 8: Commit**
+Run the same two suites again:
 
 ```bash
-git add platforms/common/__init__.py platforms/android/server/android_device_mcp.py platforms/ios/server/ios_device_mcp.py platforms/ios/server/_ios_devices.py platforms/android/server/tests/conftest.py platforms/common/tests/
-git commit -m "refactor(common): make platforms/common an importable package (common.*)"
+(cd platforms/common && python -m pytest -q)
+(cd platforms/android/server && python -m pytest -q)
+```
+
+Expected: identical counts to Step 1 (70 / 34). Adding `__init__.py` does not break the existing bare `from _aliases` imports — those still resolve via `platforms/common` on each suite's sys.path.
+
+- [ ] **Step 4: Verify the new package-form import works**
+
+Run from repo root:
+
+```bash
+python -c "import sys; sys.path.insert(0,'platforms'); from common import _aliases; print(_aliases.__name__)"
+```
+
+Expected: prints `common._aliases` (confirms the package form the new tests rely on).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add platforms/common/__init__.py
+git commit -m "feat(common): make platforms/common an importable package (additive __init__.py)"
 ```
 
 ---
@@ -190,7 +165,7 @@ CORE: dict[str, list[str]] = {
     "current_app": [],
     "terminate_app": ["target"],
     "list_devices": [],
-    "set_default_device": ["device"],
+    "set_default_device": ["device?"],  # NB: the substantive arg is named `device`, same as the plumbing param the conformance check strips; mark optional so P0 arity stays correct. P3 may rename to `target_device`.
     "get_default_device": [],
     "acquire": ["holder_name?"],
     "release": [],
@@ -465,10 +440,10 @@ release            = "release_mac"
 get_status         = "get_mac_status"
 dump_ui            = "list_ui_elements"
 terminate_app      = "kill_process"
-# NOTE: single-device CORE tools (list_devices/set_default_device/
-# get_default_device/current_app) don't exist on mac yet — added in P1
-# (DeviceStateRegistry single-host). Do NOT alias them here; they are tracked in
-# Task 5's KNOWN_P1_GAPS so the gate is green now and the gap stays visible.
+# NOTE: 5 CORE tools aren't on mac yet — `swipe` (desktops have no touch gesture)
+# plus the single-device tools list_devices/set_default_device/get_default_device/
+# current_app (P1 adds DeviceStateRegistry single-host). Do NOT alias them here;
+# they're tracked in Task 5's KNOWN_P1_GAPS so the gate is green + the gap stays visible.
 ```
 
 > Verify the macOS guidance filenames against `cli/src/fleet/guidance/` (run `ls cli/src/fleet/guidance/ | grep macos`); use the actual filenames.
@@ -646,23 +621,30 @@ def test_aliases_point_at_real_tools(m):
     assert not dangling, f"{m.id} aliases point at non-existent tools: {dangling}"
 ```
 
-- [ ] **Step 6: Run it — expect failures that reveal real gaps**
+- [ ] **Step 6: Run it — expect failures only on the two desktop platforms**
 
 Run: `python -m pytest platforms/tests/test_conformance.py -q`
-Expected: FAILs that surface concrete gaps to resolve in this task, e.g.:
-- `ios-device missing CORE tools: ['take_screenshot (arity...)']` if Task 7 not yet done → do Task 7, OR if running interleaved, expect this resolved by Task 7.
-- `mac-device / win-device missing: ['list_devices','set_default_device','get_default_device','current_app']` — these single-device CORE tools genuinely don't exist on win/mac yet.
+Expected (verified against the live tool inventories): `android-device` and `ios-device` **PASS** (full CORE coverage via direct names + aliases). The only FAILs are win/mac:
+- `win-device missing/under-spec CORE tools: ['swipe', 'current_app', 'list_devices', 'set_default_device', 'get_default_device']`
+- `mac-device missing/under-spec CORE tools: ['swipe', 'current_app', 'list_devices', 'set_default_device', 'get_default_device']`
+
+Two notes:
+- `take_screenshot` does **not** fail even before Task 7 — canonical `take_screenshot(region?)` has required-arity 0, which the current iOS/Android `take_screenshot()` already satisfy. Task 7 is signature alignment, **not** a gate prerequisite.
+- `swipe` fails on win/mac because desktops have no touch-swipe and no aliasable drag tool (the desktop servers expose `click`/`move_mouse`, not a one-call drag).
 
 - [ ] **Step 7: Resolve the single-device CORE gap for win/mac (P0-minimal)**
 
-win/mac genuinely lack `list_devices`/`set_default_device`/`get_default_device`/`current_app`. Full implementation is P1 (DeviceStateRegistry single-host). For P0, mark these as known-not-yet via an explicit allowlist in the test so the gate is green AND the gap is documented (not silently skipped). Edit `test_conformance.py` `test_core_tools_covered` to consult a `KNOWN_P1_GAPS` map:
+win/mac genuinely lack five CORE tools: `swipe` (no touch gesture) plus the single-device-state set `current_app`/`list_devices`/`set_default_device`/`get_default_device`. Full implementation is P1 (DeviceStateRegistry single-host; desktop `swipe` via click-drag — or a spec decision to demote `swipe` to CANONICAL-OPTIONAL). For P0, mark these as known-not-yet via an explicit allowlist in the test so the gate is green AND the gap stays documented (not silently skipped). Edit `test_conformance.py` `test_core_tools_covered` to consult a `KNOWN_P1_GAPS` map:
 
 ```python
-# CORE tools whose implementation is scheduled for P1 (single-device platforms).
-# Tracked explicitly so the gate is green now but the gap is visible.
+# CORE tools not yet on the two desktop platforms. Tracked explicitly so the gate
+# is green now but the gap stays visible (a P1 tripwire — see test_known_gaps_shrink).
 KNOWN_P1_GAPS = {
-    "win-device": {"list_devices", "set_default_device", "get_default_device", "current_app"},
-    "mac-device": {"list_devices", "set_default_device", "get_default_device", "current_app"},
+    # swipe: desktops have no touch-swipe. P1 either implements click-drag OR the
+    #        spec demotes swipe to CANONICAL-OPTIONAL (then drop it from CORE + here).
+    # single-device-state tools: P1 adds DeviceStateRegistry single-host support.
+    "win-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
+    "mac-device": {"swipe", "current_app", "list_devices", "set_default_device", "get_default_device"},
 }
 ```
 
@@ -786,10 +768,10 @@ def take_screenshot(
 
 (Leave the body unchanged — `region` is accepted but unused.)
 
-- [ ] **Step 2: Verify conformance now passes for iOS take_screenshot**
+- [ ] **Step 2: Verify iOS conformance still passes (region is cosmetic, not a gate fix)**
 
 Run: `python -m pytest platforms/tests/test_conformance.py -k ios -q`
-Expected: PASS (`take_screenshot` now has `region` → satisfies canonical `take_screenshot(region?)`).
+Expected: PASS — identical to before this task (iOS already satisfied `take_screenshot` at required-arity 0). This step only confirms adding `region` didn't regress the gate; it does not flip any previously-failing assertion.
 
 - [ ] **Step 3: Commit**
 
@@ -805,52 +787,45 @@ git commit -m "feat(ios): take_screenshot accepts region param (canonical parity
 **Files:**
 - Create: `platforms/ios/server/tests/test_ios_devices.py`
 
-> Scope: only the parts of the iOS bridge that import + run on Linux without a device. `_ios_devices.py` uses `pymobiledevice3` CLI via subprocess; its **parser** (turning CLI/JSON output into `DeviceInfo`) is pure and testable with a mocked subprocess. The WDA HTTP client and tool functions need a device/WDA and are out of P0 scope (covered by real-device runs).
+> Scope: the device-discovery parser in `_ios_devices.py`. **Verified**: that module imports cleanly on Linux — its only deps are `json`/`subprocess`/`sys`/`typing` + `from _aliases import DeviceInfo`; `pymobiledevice3` is invoked via **subprocess inside `_usbmux_list()`**, never imported. So no `importorskip` is needed. The seam to mock is `_usbmux_list() -> list[dict]` (returns the already-parsed JSON array); the parser under test is `detect_ios_devices() -> list[DeviceInfo]`, which maps each dict to `DeviceInfo(serial=_udid_of(d), brand="apple", model=d["ProductType"])` and returns them sorted by serial. The WDA HTTP client + tool functions need a real device and are out of P0 scope.
 
-- [ ] **Step 1: Inspect the parse seam**
+- [ ] **Step 1: Write the failing test against the real parser**
 
-Run: `grep -n "def \|subprocess\|json.loads\|DeviceInfo(" platforms/ios/server/_ios_devices.py`
-Identify the function that parses `pymobiledevice3` output into `DeviceInfo` (e.g. `detect_ios_devices()` and/or an inner `_parse_*`). Note its exact name + how it invokes the CLI (so the test can monkeypatch that boundary).
-
-- [ ] **Step 2: Write the test against the real parse function**
-
-Create `platforms/ios/server/tests/test_ios_devices.py` (adapt the monkeypatch target + sample payload to what Step 1 found):
+Create `platforms/ios/server/tests/test_ios_devices.py`. Path setup inserts `ios/server` (for `_ios_devices`) **and** `platforms/common` (because `_ios_devices` does a bare `from _aliases import` and has no sys.path insert of its own) — NOT `platforms/`:
 
 ```python
 import sys
 from pathlib import Path
 
 _here = Path(__file__).resolve()
-sys.path.insert(0, str(_here.parent.parent))            # ios/server
-sys.path.insert(0, str(_here.parent.parent.parent.parent))  # platforms/ (common pkg)
+sys.path.insert(0, str(_here.parent.parent))                       # platforms/ios/server
+sys.path.insert(0, str(_here.parent.parent.parent.parent / "common"))  # platforms/common
 
 import _ios_devices as iod
 
 
-def test_detect_parses_devices(monkeypatch):
-    # Sample mirrors `pymobiledevice3 usbmux list -u` JSON output.
-    sample = (
-        '[{"Identifier":"00008120-AAA","DeviceName":"iPad",'
-        '"ProductType":"iPad15,7","ProductVersion":"26.2.1","DeviceClass":"iPad"}]'
-    )
-    # Monkeypatch the CLI invocation seam identified in Step 1, e.g.:
-    monkeypatch.setattr(iod, "_run_pmd", lambda *a, **k: sample, raising=False)
+def test_detect_parses_maps_and_sorts(monkeypatch):
+    # Mirrors `pymobiledevice3 usbmux list` parsed JSON. Second entry exercises the
+    # UniqueDeviceID-missing -> Identifier fallback in _udid_of().
+    monkeypatch.setattr(iod, "_usbmux_list", lambda: [
+        {"UniqueDeviceID": "00008120-BBB", "ProductType": "iPad15,7", "DeviceName": "iPad"},
+        {"Identifier": "00008020-AAA", "ProductType": "iPhone11,8", "DeviceName": "iPhone"},
+    ])
     devices = iod.detect_ios_devices()
-    assert len(devices) == 1
-    d = devices[0]
-    assert d.serial == "00008120-AAA"
-    assert d.brand == "apple"
-    assert "iPad15,7" in (d.model or "")
+    assert [d.serial for d in devices] == ["00008020-AAA", "00008120-BBB"]  # sorted by serial
+    assert all(d.brand == "apple" for d in devices)
+    assert devices[0].model == "iPhone11,8"
+    assert devices[1].model == "iPad15,7"
 ```
 
-> If the real function name / CLI seam differs from `_run_pmd`/`detect_ios_devices`, adjust to match Step 1 (do NOT invent names). If `_ios_devices` cannot be imported standalone on Linux (e.g., it imports `pymobiledevice3` at top level), gate the import with `pytest.importorskip("pymobiledevice3")` and instead unit-test the pure brand/model-slug helper from `common/_aliases.py` here, leaving a `# TODO P1: extract iOS parse seam for testability` note.
+(No `raising=False` — `_usbmux_list` is a real attribute, so a typo surfaces as an immediate `AttributeError` instead of silently running the real subprocess.)
 
-- [ ] **Step 3: Run it**
+- [ ] **Step 2: Run it**
 
 Run: `cd platforms/ios/server && python -m pytest tests/test_ios_devices.py -q`
-Expected: PASS (or skipped-with-reason if `pymobiledevice3` isn't importable on the runner — acceptable for P0; the AST conformance test covers the contract regardless).
+Expected: PASS (1 test). If `_ios_devices` ever gains a top-level hard dep that won't import on the runner, gate with `pytest.importorskip(...)` and leave a `# TODO P1` note — but per the verification above this is not needed today.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add platforms/ios/server/tests/test_ios_devices.py
@@ -864,15 +839,23 @@ git commit -m "test(ios): Linux-runnable device-parse unit test"
 **Files:**
 - Modify: (maybe) `cli/pyproject.toml` or a root pytest config so `platforms/tests/` is collected.
 
-- [ ] **Step 1: Confirm collection**
+- [ ] **Step 1: Confirm collection of the new suite**
 
 Run from repo root: `python -m pytest platforms/tests -q`
-Expected: all PASS (canonical, manifest-loader, manifests, ast_tools, conformance).
+Expected: all PASS (canonical, manifest-loader, manifests, ast_tools, conformance). `platforms/tests` has no `conftest.py`, so it collects standalone.
 
-- [ ] **Step 2: Full additive suite green**
+- [ ] **Step 2: Full additive suite green — run each group SEPARATELY**
 
-Run: `python -m pytest platforms/tests platforms/common/tests platforms/android/server/tests -q`
-Expected: all PASS. (win/mac/ios server tests run on their own OS / are import-gated.)
+The three suites must be separate invocations: `platforms/common/tests` and `platforms/android/server/tests` each ship a `tests/conftest.py` with no `__init__.py`, so collecting both in one `pytest` run raises `ImportPathMismatchError`. Run:
+
+```bash
+python -m pytest platforms/tests -q
+(cd platforms/common && python -m pytest -q)
+(cd platforms/android/server && python -m pytest -q)
+(cd platforms/ios/server && python -m pytest -q)   # includes the new Task 8 test
+```
+
+Expected: all four PASS (counts: new suite green; common 70+; android 34; ios = prior + 1). win/mac server tests run on their own OS and are not part of this gate.
 
 - [ ] **Step 3: Commit any config**
 
@@ -885,10 +868,10 @@ git commit -m "chore(tests): collect platforms/tests in the suite"
 
 ## Definition of Done (P0)
 
-- `platforms/common/` is an importable package; android/ios import `common.*`; existing tests still green.
+- `platforms/common/` is an importable package (additive `__init__.py`); existing suites still green (common 70, android/server 34). No existing bare imports migrated — that's P1.
 - `_canonical_tools.py` + `_manifest.py` exist and are tested.
-- 4 `platform.toml` files with alias maps; manifest invariants (unique ports, valid host_os/status) tested.
-- AST conformance gate green for all 4 platforms (coverage via direct names + aliases; single-device gaps tracked in `KNOWN_P1_GAPS` as a P1 tripwire).
-- iOS `take_screenshot` accepts `region`.
-- iOS Linux-runnable parse test added (or import-gated with a documented reason).
-- No tool renames, no behavior changes to existing platforms (additive only) — `git diff` touches servers only for the 3 import-line changes + the iOS `region` param.
+- 4 `platform.toml` files with alias maps; manifest invariants (unique ports, valid host_os/status, setup scripts exist) tested.
+- AST conformance gate green for all 4 platforms: android/ios fully covered (direct names + aliases); win/mac green via `KNOWN_P1_GAPS` (5 tools each — `swipe` + `current_app`/`list_devices`/`set_default_device`/`get_default_device`), with `test_known_gaps_shrink()` as the P1 tripwire.
+- iOS `take_screenshot` accepts `region` (signature alignment; crop deferred).
+- iOS Linux-runnable parse test added (`detect_ios_devices` via mocked `_usbmux_list`).
+- No tool renames, no behavior changes to existing platforms (additive only) — the only server `git diff` is the single iOS `region` param line.

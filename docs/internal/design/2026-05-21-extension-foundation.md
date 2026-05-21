@@ -66,6 +66,7 @@ SSOT 驱动：CLI 自动发现 · README 状态表/架构端口表**生成** · 
   `get_screen_size()` · `take_screenshot(region?)` · `tap(x,y)` · `swipe(x1,y1,x2,y2,duration_ms?)` · `type_text(text)` · `press_key(key)` · `dump_ui(max_depth?)` · `current_app()` · `terminate_app(target)` · `list_devices()` · `set_default_device(device)` · `get_default_device()` · `acquire(holder_name?)` · `release()` · `get_status()`
   - **单设备平台（win/mac）**：`list_devices()` 返回**单元素**列表 `[{"device":"host","model":<hostname>,...}]`（不返回神秘的"本机"）；`acquire(holder_name?)`/`release()`/`get_status()` **不带 device 参数**，底层用 `DeviceStateRegistry` 注入固定 serial `"host"`。即 agent 面对单设备平台无需传 device。
   - iOS 的 `take_screenshot` 当前缺 `region` 参数，P0 补上 `region=None`（签名先对齐，裁剪实现可后置）。
+  - **`swipe` 在桌面平台（win/mac）当前无实现**（桌面无触摸手势，server 只有 `click`/`move_mouse`，无单调用拖拽）。P0 经 `KNOWN_P1_GAPS` 记账保持 conformance 绿；**P1 决策**：要么用 press-drag-release 把 `swipe` 映射成桌面 click-drag（贴合"全设备统一工具集"愿景），要么把 `swipe` 降为 CANONICAL-OPTIONAL（仅触摸平台）。届时同步删 `KNOWN_P1_GAPS` 对应项 / 改 CORE 列表。
 - **CANONICAL-OPTIONAL（平台支持该能力时，用此规范名+签名；签名分歧大的工具放这里而非强塞 CORE）**
   - `launch_app(target)` —— `target` 各平台语义不同（win 路径 / mac 名 / android package / ios·harmony bundle），属 **leaky abstraction**，故不进 CORE；docstring 写明"target 为平台相关 app 标识"。
   - `find_elements(query: str)` / `tap_element(query: str)` —— canonical 签名为"自由文本/可达性 id 模糊匹配"；iOS 的 `(using,value)` 富 locator 作为该平台 EXTENSION 保留。
