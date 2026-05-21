@@ -401,7 +401,7 @@ mcp = FastMCP("android-device", instructions=_build_instructions())
 
 
 @mcp.tool
-def acquire_android(
+def acquire(
     device: Annotated[
         Optional[str],
         Field(description="serial or alias; omit if only 1 phone or you've set a default"),
@@ -420,14 +420,14 @@ def acquire_android(
 
 
 @mcp.tool
-def release_android(
+def release(
     device: Annotated[
         Optional[str],
         Field(description="serial or alias; omit if only 1 phone or you've set a default"),
     ] = None,
     holder_name: Annotated[
         str,
-        Field(description="Must match the name used in acquire_android"),
+        Field(description="Must match the name used in acquire"),
     ] = "anonymous",
     ctx: Context = None,
 ) -> dict:
@@ -439,7 +439,7 @@ def release_android(
 
 
 @mcp.tool
-def get_android_status(
+def get_status(
     device: Annotated[
         Optional[str],
         Field(description="serial or alias; omit if only 1 phone or you've set a default"),
@@ -856,18 +856,18 @@ def start_app(
 
 
 @mcp.tool
-def kill_app(
-    package: Annotated[str, Field(description="Package id to force-stop")],
+def terminate_app(
+    target: Annotated[str, Field(description="Package id to force-stop")],
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
     """Force-stop an app. `am force-stop`."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(f"am force-stop {package}", timeout=10, serial=serial)
+    r = _adb_shell(f"am force-stop {target}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
-    return {"ok": True, "package": package}
+    return {"ok": True, "package": target}
 
 
 @mcp.tool
@@ -1045,7 +1045,7 @@ def _walk_xml(node, depth: int, out: list, max_depth: int):
 
 
 @mcp.tool
-def dump_ui_hierarchy(
+def dump_ui(
     max_depth: Annotated[int, Field(ge=1, le=20, description="Max tree depth to walk")] = 12,
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
@@ -1110,7 +1110,7 @@ def find_elements(
     """Find UI elements matching all provided filters (substring match, AND logic).
 
     At least one filter MUST be provided.  Returns same element shape as
-    dump_ui_hierarchy().
+    dump_ui().
 
     Example:
         find_elements(content_desc="拍照")   # → camera shutter button
@@ -1121,7 +1121,7 @@ def find_elements(
 
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    dump = dump_ui_hierarchy(device=serial)
+    dump = dump_ui(device=serial)
     if not dump.get("ok"):
         return dump
 

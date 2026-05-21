@@ -31,9 +31,3 @@ choices = [
   { value = "hybrid",   label = "Hybrid  (USB enroll then adb tcpip 5555; Android 5-10)" },
 ]
 
-[tools.aliases]
-acquire        = "acquire_android"
-release        = "release_android"
-get_status     = "get_android_status"
-dump_ui        = "dump_ui_hierarchy"
-terminate_app  = "kill_app"

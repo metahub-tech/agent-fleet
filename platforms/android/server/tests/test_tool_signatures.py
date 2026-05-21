@@ -13,12 +13,12 @@ def _iter_mcp_tools():
     in mcp._tool_manager._tools — use that as the source of truth, falling back to attribute scan."""
     # Most reliable: scan the module for callables whose names match the known set.
     tool_names = [
-        "acquire_android", "release_android", "get_android_status", "list_devices",
+        "acquire", "release", "get_status", "list_devices",
         "set_default_device", "get_default_device",
         "get_screen_size", "take_screenshot", "tap", "swipe", "long_press",
         "press_key", "type_text", "list_packages", "install_apk", "uninstall_app",
-        "start_app", "kill_app", "current_app", "adb_shell", "push_file", "pull_file",
-        "dump_ui_hierarchy", "find_elements", "tap_element",
+        "start_app", "terminate_app", "current_app", "adb_shell", "push_file", "pull_file",
+        "dump_ui", "find_elements", "tap_element",
     ]
     return [(n, getattr(srv, n)) for n in tool_names if hasattr(srv, n)]
 
