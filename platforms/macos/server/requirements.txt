@@ -7,3 +7,6 @@ pyperclip>=1.8
 # pyautogui already pulls pyobjc-core + pyobjc-framework-Quartz on macOS, but
 # ApplicationServices is a separate framework wheel.
 pyobjc-framework-ApplicationServices>=10.0; sys_platform == "darwin"
+# current_app uses AppKit.NSWorkspace (pyobjc-framework-Cocoa); arrives transitively
+# via pyautogui's pyobjc, declared here to make the dependency self-documenting.
+pyobjc-framework-Cocoa>=10.0; sys_platform == "darwin"
