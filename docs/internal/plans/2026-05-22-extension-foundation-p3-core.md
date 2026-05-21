@@ -24,6 +24,20 @@
 
 **Source:** design §五P3 + §九; the P3 impact-inventory (this session) — it has the full per-file occurrence checklist; re-grep each name before editing.
 
+---
+
+## ⚠ REWORK — apply these (from plan review; supersede the body where they conflict)
+
+1. **Sequencing — keep every commit green (Issue I1):** delete each platform's `[tools.aliases]` block **in the same task as that platform's server rename** (Task 1 = win rename + delete win aliases; Task 2 = mac; Task 3 = android; Task 4 = ios). Run `python3 -m pytest platforms/tests -q` at the end of EACH of Tasks 1-4 → conformance must be green after each (the renamed canonical names are now direct; no dangling alias). Task 5 then only does smoke hooks + a final cross-platform conformance pass. (Do NOT leave aliases pointing at renamed-away functions across tasks.)
+2. **Update the tests that reference old names — these run on real machines / Linux and WILL break (Issues B1, B3, I4):**
+   - **Task 1** also updates `platforms/windows/server/tests/test_win_server.py`: `srv.get_winpc_status`→`srv.get_status`, `srv.acquire_winpc`→`srv.acquire`, `srv.release_winpc`→`srv.release`.
+   - **Task 2** also updates `platforms/macos/server/tests/test_mac_server.py`: `srv.get_mac_status`→`srv.get_status`, `srv.acquire_mac`→`srv.acquire`, `srv.release_mac`→`srv.release`.
+   - **Task 3** also updates `platforms/android/server/tests/test_tool_signatures.py` (rewrite the hardcoded `tool_names` list: `acquire_android`→`acquire`, `release_android`→`release`, `get_android_status`→`get_status`, `dump_ui_hierarchy`→`dump_ui`, `kill_app`→`terminate_app`; the count stays 25) AND `platforms/android/server/tests/test_multi_device_state.py` (all `m.acquire_android`/`m.release_android`/`m.get_android_status` → `m.acquire`/`m.release`/`m.get_status`).
+3. **Internal callers (Issue B2) — verify the function-body call, not just the def:** Task 3 must change android `find_elements` body line ~1124 `dump_ui_hierarchy(device=serial)` → `dump_ui(device=serial)`. After each server rename, `grep -n "<old_name>(" <server>` must return zero (no internal call left). (mac `find_ui_element`→`list_ui_elements` stays since list_ui_elements is kept.)
+4. **Server module docstrings (Issue I3):** Task 6's old-name sweep MUST include the `.py` server files' module-level docstrings (win ~L15-16, mac ~L14-15, android ~L15, ios ~L13 reference `acquire_winpc`/`get_mac_status`/etc.) — update them, else the Task 7 `test_no_legacy_tool_names` guard fires on them. The guard scans `.py` too.
+5. **Confirm-in-execution (Issues I2, MINORs):** smoke hooks `get_*_status`→`get_status` in `_hooks.py`/`_android.py`/`_ios.py` (Task 5); win/mac counts go **38→40 / 39→41** (each adds dump_ui + terminate_app); android/ios counts unchanged (25/26). android already has NO `terminate_app` and ios already HAS `terminate_app` (no collision) — verified.
+6. **no-legacy guard scope:** forbid the renamed-away names only (`acquire_winpc/release_winpc/get_winpc_status/acquire_mac/release_mac/get_mac_status/acquire_android/release_android/get_android_status/acquire_ios/release_ios/get_ios_status/dump_ui_hierarchy/kill_app/press_button`). Do NOT forbid `inspect_window`/`list_ui_elements`/`kill_process` (kept extensions) or the bare string `click` (renamed, but appears in prose — too noisy; the conformance/AST already proves `click` is gone as a tool).
+
 **Verification:** Linux — `python3 -m pytest platforms/tests -q` (AST conformance must stay green after alias deletion); `cd cli && PYTHONPATH=src python3 -m pytest -q`; `python3 scripts/gen_docs.py --check`; the extended `test_no_legacy_naming`. Real-machine — restart each server, reconnect MCP, call the renamed/added tools.
 
 ---
