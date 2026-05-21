@@ -36,6 +36,7 @@
 > 3. DELETE the now-shared inline definitions: the file ops bodies, the proc subsystem (`_pump_output`, `_processes`/lock/buffer-const, the 6 proc tool bodies), the search subsystem (`_run_search`, `_searches`/state, the 5 search tool bodies), and the holder block (`_Holder`/`_holder`/`_state_lock`/`_now`/`_check_idle_release_locked`/`_touch`). Keep the GUI tools (screenshot/mouse/keyboard/window/AX/app) and `run_powershell`/`run_zsh`/`run_applescript` UNTOUCHED.
 > 4. `start_process` wrapper injects the platform `_SHELL` spec; keep the tool's `shell` default at the agent layer (`= "powershell"` win / `= "zsh"` mac) — do NOT expose the library default `"direct"`.
 > 5. Surgical edits only — never touch the GUI tool code. After editing, `python3 -c "import ast; ast.parse(open(<server>).read())"` must pass on Linux.
+> 6. **ATOMICITY (important):** do the holder-block replacement + the file/proc/search body delegations + the deletion of the now-orphaned helpers as **one editing pass, committed together**. The file is only required to be runnable AFTER the whole pass — not between sub-steps. Specifically: write the new `with_touch` (calling `_state_registry.touch`) BEFORE removing `_touch()` (every GUI tool uses `@with_touch`), and do NOT delete `_now()`/the holder block until the proc/search bodies that referenced `_now()` have been replaced with delegations. Easiest safe order within the single pass: (a) add imports + `_state_registry`/`_SHELL`; (b) replace the proc + search + file tool bodies with delegations; (c) replace the 3 holder tools + `with_touch`; (d) delete all now-unused inline helpers (`_Holder`/`_holder`/`_state_lock`/`_now`/`_check_idle_release_locked`/`_touch`/`_pump_output`/`_processes`/`_searches`/`_run_search` + their state); (e) `ast.parse` check; (f) single commit.
 
 ---
 
@@ -45,7 +46,7 @@
 
 - [ ] **Step 1: Add common imports + the platform ShellSpec.** After the existing imports (the block ends ~line 47, `from pywinauto import Desktop`), add the sys.path insert + `import _fsops, _proc, _search` + `from _device_state import DeviceStateRegistry`, and define:
 ```python
-_state = DeviceStateRegistry()
+_state_registry = DeviceStateRegistry()  # name matches android/ios servers
 _SERIAL = "host"
 _SHELL = _proc.ShellSpec(
     shells={
@@ -63,23 +64,23 @@ _SHELL = _proc.ShellSpec(
 def with_touch(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        _state.touch(_SERIAL)
+        _state_registry.touch(_SERIAL)
         return fn(*args, **kwargs)
     return wrapper
 ```
 Then make the three holder tools delegate (KEEP their `@mcp.tool` signatures):
 ```python
 @mcp.tool
-def acquire_winpc(holder_name: Annotated[str, Field(...)] = "agent") -> dict:
-    return _state.acquire(_SERIAL, holder_name)
+def acquire_winpc(holder_name: Annotated[str, Field(...)] = "anonymous") -> dict:  # KEEP current default
+    return _state_registry.acquire(_SERIAL, holder_name)
 
 @mcp.tool
-def release_winpc(holder_name: Annotated[str, Field(...)] = "agent") -> dict:
-    return _state.release(_SERIAL, holder_name)
+def release_winpc(holder_name: Annotated[str, Field(...)] = "anonymous") -> dict:  # KEEP current default
+    return _state_registry.release(_SERIAL, holder_name)
 
 @mcp.tool
 def get_winpc_status() -> dict:
-    return _state.status(_SERIAL)
+    return _state_registry.status(_SERIAL)
 ```
 (Preserve the real `Field(description=...)` text from the current signatures — read them first. Delete `_Holder`/`_holder`/`_state_lock`/`_now`/`_check_idle_release_locked`/`_touch`.)
 
@@ -97,7 +98,7 @@ import socket  # if not already imported
 @with_touch
 def list_devices() -> list[dict]:
     """Single-device platform: always one entry, the host machine itself."""
-    st = _state.status(_SERIAL)
+    st = _state_registry.status(_SERIAL)
     return [{"serial": _SERIAL, "device": _SERIAL, "model": socket.gethostname(),
              "status": "in_use" if st.get("in_use") else "available", "default": True}]
 
@@ -144,9 +145,11 @@ python3 -c "import sys;sys.path.insert(0,'platforms/tests');from _ast_tools impo
 ```
 Expected: `all CORE-relevant tools present`.
 
+- [ ] **Step 7b: Make the `pywin32` dependency explicit.** `current_app` uses `win32gui`/`win32process`, which today come transitively via `pywinauto`. Add an explicit line to `platforms/windows/server/requirements.txt`: `pywin32>=303; sys_platform == "win32"` (idempotent — pywinauto already pulls it; this just removes the implicit dependency). Include this file in the commit.
+
 - [ ] **Step 8: Commit.**
 ```bash
-git add platforms/windows/server/win_device_mcp.py
+git add platforms/windows/server/win_device_mcp.py platforms/windows/server/requirements.txt
 git commit -m "feat(win): wire server onto common _fsops/_proc/_search + DeviceStateRegistry; add single-device tools + swipe"
 ```
 
@@ -166,7 +169,12 @@ def current_app() -> dict:
     """Frontmost app on the macOS host."""
     import subprocess
     script = 'tell application "System Events" to get name of first application process whose frontmost is true'
-    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
+    try:
+        r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        return {"app": None, "error": "osascript timeout"}
+    except Exception as e:  # noqa: BLE001 — surface as a friendly dict, not a framework crash
+        return {"app": None, "error": str(e)}
     return {"app": r.stdout.strip() or None}
 ```
 - `list_devices`/`set_default_device`/`get_default_device`: identical to win (use `socket.gethostname()`).
