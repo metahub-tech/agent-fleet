@@ -265,11 +265,19 @@ else
     hint "   信任后 build 自动继续(若没动静,Ctrl-C 再重跑本脚本即可,会从这步续上)。现在开始构建 ↓"
     if [ "$NONINTERACTIVE" = "1" ]; then
         info "(non-interactive: 跳过实际 build)"
+    elif WDA_TEAM_ID="$TEAM_ID" bash "$BUILD_WDA" "$UDID" "$BUNDLE_ID"; then
+        # build-wda 是挂着的 test;到这说明它退出了 —— 再探一次活。
+        wda_reachable && ok "WDA 可达,设备就绪" || warn "build 退出但没探到 WDA;若刚信任完证书请重跑本脚本"
     else
-        WDA_TEAM_ID="$TEAM_ID" bash "$BUILD_WDA" "$UDID" "$BUNDLE_ID" || \
-            die "build 没成功。常见:① iPhone 上还没「信任」开发者证书;② Auto-Lock 把屏锁了。处理后重跑本脚本。"
-        # build-wda 是挂着的 test;真到这里说明它退出了 —— 再探一次活。
-        wda_reachable && ok "WDA 可达" || warn "build 退出但 WDA 未探到;若刚信任完证书,请重跑本脚本"
+        # 失败:区分「App 装上了但证书没信任」(首次最常见)vs「根本没装上」。
+        if pmd apps list --udid "$UDID" 2>/dev/null | grep -q "${BUNDLE_ID}.xctrunner"; then
+            warn "WDA 已装到 iPhone,但 iOS 拒绝启动 —— 开发者证书还没在手机上「信任」。"
+            act "去 iPhone:设置 → 通用 → VPN与设备管理 →「开发者 App」下的「Apple Development:你的 Apple ID」→ 信任"
+            hint "信任后重跑本脚本即可(会跳过已完成步骤、直接重试 build/launch)。"
+            die "在 iPhone 上信任开发者证书后,重跑本脚本" 0
+        else
+            die "build 失败、App 未装上。看上面的 xcodebuild error(常见:签名/账号、或设备被锁屏)。"
+        fi
     fi
 fi
 
