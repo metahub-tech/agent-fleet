@@ -126,7 +126,7 @@ def _mac_device_smoke() -> "list[SmokeTest]":
     """Reproduce MacosDesktop.smoke_tests()."""
     from ..smoke import SmokeTest
     return [
-        SmokeTest("get_mac_status", {},
+        SmokeTest("get_status", {},
             description="server reachable"),
         SmokeTest("run_zsh", {"script": "echo ok"},
             description="shell exec",
@@ -173,7 +173,7 @@ def _win_device_smoke() -> "list[SmokeTest]":
     """Reproduce WindowsDesktop.smoke_tests()."""
     from ..smoke import SmokeTest
     return [
-        SmokeTest("get_winpc_status", {},
+        SmokeTest("get_status", {},
             description="server reachable"),
         SmokeTest("run_powershell", {"script": "Write-Output ok"},
             description="shell exec",

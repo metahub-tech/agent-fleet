@@ -12,8 +12,8 @@ server (multi-client native, all-in-one venv).
 Transport: streamable-http on 0.0.0.0:8766/mcp. Windows Firewall + Tailscale ACL gate
 who can reach it.
 
-In-use state model: advisory single-holder. acquire_winpc / release_winpc
-let agents coordinate explicitly; get_winpc_status reports current state.
+In-use state model: advisory single-holder. acquire / release
+let agents coordinate explicitly; get_status reports current state.
 Idle timeout (10 min) auto-clears stale holders. Foundation for future
 multi-agent enforcement.
 """
@@ -24,6 +24,7 @@ import contextlib
 import functools
 import io
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -82,7 +83,7 @@ def with_touch(fn):
 
 
 @mcp.tool
-def acquire_winpc(
+def acquire(
     holder_name: Annotated[
         str,
         Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')"),
@@ -90,7 +91,7 @@ def acquire_winpc(
 ) -> dict:
     """Claim exclusive use of this Windows test machine.
 
-    Advisory: tools still work for everyone, but get_winpc_status will show
+    Advisory: tools still work for everyone, but get_status will show
     your name as the active holder. Use this as a polite signal in
     multi-agent setups so others know the box is busy.
     """
@@ -98,10 +99,10 @@ def acquire_winpc(
 
 
 @mcp.tool
-def release_winpc(
+def release(
     holder_name: Annotated[
         str,
-        Field(description="Must match the holder_name used in acquire_winpc"),
+        Field(description="Must match the holder_name used in acquire"),
     ] = "anonymous",
 ) -> dict:
     """Release the exclusive-use claim. Only the current holder can release."""
@@ -109,7 +110,7 @@ def release_winpc(
 
 
 @mcp.tool
-def get_winpc_status() -> dict:
+def get_status() -> dict:
     """Show whether the Windows test machine is currently claimed and by whom."""
     return _state_registry.status(_SERIAL)
 
@@ -176,10 +177,50 @@ def inspect_window(
     try:
         win = Desktop(backend="uia").window(title_re=f".*{title_substring}.*")
         win.wait("visible", timeout=3)
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            win.print_control_identifiers(depth=max_depth)
-        return buf.getvalue()
+        return _dump_window_tree(win, max_depth)
+    except Exception as e:
+        return f"ERROR: {type(e).__name__}: {e}"
+
+
+def _dump_window_tree(win, max_depth: int | None) -> str:
+    """Print the UIA control tree for a pywinauto window wrapper.
+
+    Shared helper used by both inspect_window and dump_ui.
+    max_depth is passed to print_control_identifiers if provided;
+    pywinauto's depth parameter is an int (no None support), so we
+    default to 4 when not specified.
+    """
+    buf = io.StringIO()
+    depth = max_depth if max_depth is not None else 4
+    with contextlib.redirect_stdout(buf):
+        win.print_control_identifiers(depth=depth)
+    return buf.getvalue()
+
+
+@mcp.tool
+@with_touch
+def dump_ui(
+    max_depth: Annotated[
+        Optional[int],
+        Field(description="UI tree max depth (1-10). Defaults to 4 if not specified.", ge=1, le=10),
+    ] = None,
+) -> str:
+    """Dump the UIA control tree for the current foreground window.
+
+    Resolves the active window via win32gui.GetForegroundWindow() without
+    requiring you to know the window title. Use inspect_window when you need
+    to target a specific window by title substring.
+    Note: max_depth is honored via pywinauto's print_control_identifiers(depth=).
+    """
+    import win32gui  # pywin32 (ships with pywinauto)
+    try:
+        hwnd = win32gui.GetForegroundWindow()
+        title = win32gui.GetWindowText(hwnd)
+        if not title:
+            return "ERROR: No foreground window detected"
+        win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
+        win.wait("visible", timeout=3)
+        return _dump_window_tree(win, max_depth)
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
@@ -204,7 +245,7 @@ def focus_window(
 
 @mcp.tool
 @with_touch
-def click(
+def tap(
     x: Annotated[int, Field(description="Screen x coordinate")],
     y: Annotated[int, Field(description="Screen y coordinate")],
     button: Annotated[str, Field(description="left / right / middle")] = "left",
@@ -290,6 +331,45 @@ def kill_process(pid: int) -> dict:
     name = p.name()
     p.kill()
     return {"ok": True, "pid": pid, "name": name}
+
+
+@mcp.tool
+@with_touch
+def terminate_app(
+    target: Annotated[
+        str,
+        Field(description="Process name (e.g. 'notepad.exe') or executable path substring to match. "
+                          "Short or generic substrings can over-match unintended processes; prefer the full process name."),
+    ],
+) -> dict:
+    """Terminate all processes matching the given name or executable path.
+
+    Enumerates running processes via psutil and kills every match. Use
+    kill_process(pid) for precise single-process termination by PID.
+    Returns a summary of how many processes were terminated.
+    """
+    target_lower = target.lower()
+    terminated: list[dict] = []
+    errors: list[dict] = []
+    for p in psutil.process_iter(["pid", "name", "exe"]):
+        try:
+            info = p.info
+            name = info.get("name") or ""
+            exe = info.get("exe") or ""
+            if target_lower in name.lower() or target_lower in exe.lower():
+                p.kill()
+                terminated.append({"pid": info["pid"], "name": name, "exe": exe})
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            errors.append({"pid": p.pid, "error": str(e)})
+        except Exception as e:
+            errors.append({"pid": getattr(p, "pid", None), "error": str(e)})
+    return {
+        "ok": True,
+        "target": target,
+        "terminated_count": len(terminated),
+        "terminated": terminated,
+        "errors": errors,
+    }
 
 
 @mcp.tool

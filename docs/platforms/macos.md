@@ -30,7 +30,7 @@ brew install --cask tailscale
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.sh)"
 ```
 
-> ⚠️ **`install.sh` 装完之后 GUI 工具（鼠标 / 键盘 / 截屏 / `run_applescript`）默认全部静默失败**——macOS TCC 强制要求你在系统设置里手动授权"辅助功能 / 屏幕录制 / 自动化"，脚本无法替你点。**装完一定要走 [§4 GUI 权限授权](#4-gui-权限授权必须一次性)**，否则 `take_screenshot` 全黑、`click` 不响应。
+> ⚠️ **`install.sh` 装完之后 GUI 工具（鼠标 / 键盘 / 截屏 / `run_applescript`）默认全部静默失败**——macOS TCC 强制要求你在系统设置里手动授权"辅助功能 / 屏幕录制 / 自动化"，脚本无法替你点。**装完一定要走 [§4 GUI 权限授权](#4-gui-权限授权必须一次性)**，否则 `take_screenshot` 全黑、`tap` 不响应。
 
 > **不要用 `curl ... | bash`**：wizard 是交互式的，pipe 形式会把 stdin 占给 bash 自己读脚本，wizard 的 `questionary` 提示会 EOFError 退出。`bash -c "$(curl ...)"` 把脚本放进 argv，stdin 留给终端，这是唯一可靠的形式。
 >
@@ -226,7 +226,7 @@ $VENV_PY -c "from PIL import ImageGrab; print('screen:', ImageGrab.grab().size)"
 
 输出尺寸（如 `(2880, 1800)`，物理像素）→ 屏幕录制 OK。报错或全黑 → 没给权限。
 
-> 注意输出的尺寸是**物理像素**（Retina 上 2x），但 `take_screenshot` 工具会把图缩到**逻辑像素**（与 `click(x,y)` 同坐标系），所以 agent 看到的截图直接 `click(x,y)` 即可，不用再做 2x 换算。
+> 注意输出的尺寸是**物理像素**（Retina 上 2x），但 `take_screenshot` 工具会把图缩到**逻辑像素**（与 `tap(x,y)` 同坐标系），所以 agent 看到的截图直接 `tap(x,y)` 即可，不用再做 2x 换算。
 
 ## 5. 验证
 
@@ -342,10 +342,10 @@ tail -50 ~/agent-fleet/platforms/macos/logs/mac-device.log
 参见 [`platforms/macos/skills/using-mac/SKILL.md`](../../platforms/macos/skills/using-mac/SKILL.md)。基本流程：
 
 ```
-Agent A: get_mac_status                  # 看是否空闲
-Agent A: acquire_mac(holder_name="...")  # 声明
+Agent A: get_status                      # 看是否空闲
+Agent A: acquire(holder_name="...")      # 声明
 Agent A: ... 干活 ...
-Agent A: release_mac(holder_name="...")  # 显式释放
+Agent A: release(holder_name="...")      # 显式释放
 ```
 
 10 分钟无活动自动 release。
@@ -358,11 +358,12 @@ Agent A: release_mac(holder_name="...")  # 显式释放
 
 | 类别 | 工具 |
 |---|---|
-| **使用状态** | `acquire_mac`, `release_mac`, `get_mac_status` |
+| **使用状态** | `acquire`, `release`, `get_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 鼠标 | `click`, `move_mouse` |
+| 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd/option/shift/ctrl) |
-| 进程（一次性） | `open_app`, `kill_process`, `list_processes` |
+| UI 内省 | `dump_ui`（最前台应用 UI 树）, `list_ui_elements`, `find_ui_element`（更丰富的辅助功能内省，平台扩展） |
+| 进程 / 应用（一次性） | `open_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |

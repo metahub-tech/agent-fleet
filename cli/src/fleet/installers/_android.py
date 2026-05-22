@@ -7,7 +7,7 @@ def _android_bridge_smoke_tests():
     (Mac / Windows / Linux all run the same android_device_mcp.py server)."""
     from ..smoke import SmokeTest
     return [
-        SmokeTest("get_android_status", {},
+        SmokeTest("get_status", {},
             description="server reachable"),
         SmokeTest("list_devices", {},
             description="ADB sees at least one device",

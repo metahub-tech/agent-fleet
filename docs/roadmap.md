@@ -49,7 +49,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 **Released 2026-05-08**
 
 - 把 v0.1 的两服务（winpc-shell mcp-proxy + win-device FastMCP）合并到一个 FastMCP server，去掉 Node / mcp-proxy / supergateway / portproxy 依赖链
-- 新增 `acquire_winpc` / `release_winpc` / `get_winpc_status` 多 agent 协作的状态模型
+- 新增 `acquire` / `release` / `get_status` 多 agent 协作的状态模型
 - 启动器加 restart loop，遇 session lock kill python 后自动恢复
 - 日志改 UTF-8（PS 5.1 默认 UTF-16 LE 的坑）
 
@@ -76,7 +76,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - 驱动栈：adb + uiautomator2（Python 库）+ scrcpy（视频流）
 - 设备主机可以是任意 OS，推荐 Linux/Mac
 - USB 或 wireless adb（`adb tcpip 5555`）
-- 工具集除通用外加：`install_apk` / `dump_ui_hierarchy` / `adb_shell`
+- 工具集除通用外加：`install_apk` / `dump_ui` / `adb_shell`
 - 端口 8768
 
 ### 已解决
@@ -95,7 +95,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - 设备别名映射（`~/.agent-fleet/android-aliases.json`），wizard 自动推断 `{brand}-{slug(model)}`
 - 所有 25 个工具新增 `device` 参数（serial 或别名），未传时自动路由单机
 - 新工具 `set_default_device` / `get_default_device`：MCP 会话级 sticky 默认
-- `acquire_android` / `release_android` / `get_android_status` 全部 per-device 路由
+- `acquire` / `release` / `get_status` 全部 per-device 路由
 - FastMCP `instructions=` 在 initialize 握手告知 Claude 当前连接设备清单
 - MCP resource `androidfleet://devices`：实时设备 JSON 快照
 - `list_devices` 返回 `alias` / `brand` / `model` / `in_use` / `holder` / `default_for_session`

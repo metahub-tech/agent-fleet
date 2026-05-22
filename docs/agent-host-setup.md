@@ -102,22 +102,24 @@ win-device  [http]  connected
 
 ```
 # Windows
-> 帮我 acquire winpc 用 holder_name="agent-A"
+> 帮我 acquire 这台 Windows，holder_name="agent-A"
 > （干活...）
-> 用完了，release winpc holder_name="agent-A"
+> 用完了，release，holder_name="agent-A"
 
 # macOS
-> 帮我 acquire mac 用 holder_name="agent-A"
+> 帮我 acquire 这台 Mac，holder_name="agent-A"
 > （干活...）
-> release mac holder_name="agent-A"
+> release，holder_name="agent-A"
 ```
 
-每平台有自己的状态工具：
+所有平台使用统一的状态工具名（canonical）：
 
 | 平台 | acquire | release | status |
 |---|---|---|---|
-| Windows v0.2+ | `acquire_winpc` | `release_winpc` | `get_winpc_status` |
-| macOS v0.3+ | `acquire_mac` | `release_mac` | `get_mac_status` |
+| Windows v0.2+ | `acquire` | `release` | `get_status` |
+| macOS v0.3+ | `acquire` | `release` | `get_status` |
+| Android v0.7+ | `acquire` | `release` | `get_status` |
+| iOS v0.8+ | `acquire` | `release` | `get_status` |
 
 10 分钟无活动会自动 release。详见各平台 setup 文档的状态管理章节。
 

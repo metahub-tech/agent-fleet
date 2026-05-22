@@ -42,8 +42,8 @@ C'est une infrastructure pour les **tests logiciels pilotés par agent et la vé
 
 | Composant | Version | État |
 |---|---|---|
-| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 38 outils, streamable-http) |
-| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 39 outils, flux de permissions GUI) |
+| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 40 outils, streamable-http) |
+| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 41 outils, flux de permissions GUI) |
 | Pont Android | `0.7.0-alpha` | ✅ Publié (android-device, **25 outils**, multi-appareils + USB + sans fil + ADB hybride) |
 | Assistant CLI agent-fleet | `0.5.0-alpha` | ✅ Publié (`uvx agent-fleet setup` installation en une fois ; configs pour 6 frameworks) |
 | Renommage de rôle → `<os>-device` + guide de permissions macOS | `0.6.0-alpha` | ✅ Publié |
@@ -117,7 +117,7 @@ flowchart LR
 
 L'agent se connecte à un **ordinateur** (Windows/macOS) — ses « mains » — et s'en sert à la fois pour piloter l'ordinateur lui-même et comme **rebond (jump host)** vers les appareils qui y sont connectés : Android et iOS aujourd'hui, HarmonyOS ensuite. En principe, tout appareil qu'un humain peut gérer via un ordinateur, l'agent le peut aussi (l'hôte iOS doit être un Mac).
 
-L'interface des outils reste sémantiquement cohérente entre les plateformes (`take_screenshot` / `click` / `launch_app` / …) ; changer d'appareil revient à changer une URL dans `~/.claude.json`.
+L'interface des outils reste sémantiquement cohérente entre les plateformes (`take_screenshot` / `tap` / `launch_app` / …) ; changer d'appareil revient à changer une URL dans `~/.claude.json`.
 
 Voir [`docs/architecture.md`](docs/architecture.md).
 

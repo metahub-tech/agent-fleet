@@ -59,8 +59,8 @@ class FakeCtx:
 
 class TestTwoDeviceAcquire:
     def test_each_device_can_be_acquired_by_different_holder(self, two_devices):
-        r1 = m.acquire_android(device="AAA111", holder_name="alice", ctx=None)
-        r2 = m.acquire_android(device="BBB222", holder_name="bob", ctx=None)
+        r1 = m.acquire(device="AAA111", holder_name="alice", ctx=None)
+        r2 = m.acquire(device="BBB222", holder_name="bob", ctx=None)
 
         assert r1["acquired"] is True
         assert r1["holder"] == "alice"
@@ -71,11 +71,11 @@ class TestTwoDeviceAcquire:
         assert r2["device"] == "BBB222"
 
     def test_holders_isolated_per_serial(self, two_devices):
-        m.acquire_android(device="AAA111", holder_name="alice", ctx=None)
-        m.acquire_android(device="BBB222", holder_name="bob", ctx=None)
+        m.acquire(device="AAA111", holder_name="alice", ctx=None)
+        m.acquire(device="BBB222", holder_name="bob", ctx=None)
 
-        s1 = m.get_android_status(device="AAA111", ctx=None)
-        s2 = m.get_android_status(device="BBB222", ctx=None)
+        s1 = m.get_status(device="AAA111", ctx=None)
+        s2 = m.get_status(device="BBB222", ctx=None)
 
         assert s1["holder"] == "alice"
         assert s2["holder"] == "bob"
@@ -84,26 +84,26 @@ class TestTwoDeviceAcquire:
         assert s2["device"] == "BBB222"
 
     def test_release_one_does_not_affect_the_other(self, two_devices):
-        m.acquire_android(device="AAA111", holder_name="alice", ctx=None)
-        m.acquire_android(device="BBB222", holder_name="bob", ctx=None)
+        m.acquire(device="AAA111", holder_name="alice", ctx=None)
+        m.acquire(device="BBB222", holder_name="bob", ctx=None)
 
-        rel = m.release_android(device="AAA111", holder_name="alice", ctx=None)
+        rel = m.release(device="AAA111", holder_name="alice", ctx=None)
         assert rel["released"] is True
         assert rel["device"] == "AAA111"
 
         # BBB222 still held by bob
-        s2 = m.get_android_status(device="BBB222", ctx=None)
+        s2 = m.get_status(device="BBB222", ctx=None)
         assert s2["in_use"] is True
         assert s2["holder"] == "bob"
 
     def test_acquire_by_alias(self, two_devices):
-        r = m.acquire_android(device="google-pixel-7", holder_name="alice", ctx=None)
+        r = m.acquire(device="google-pixel-7", holder_name="alice", ctx=None)
         assert r["acquired"] is True
         assert r["device"] == "AAA111"
 
     def test_acquire_without_device_raises_when_multiple(self, two_devices):
         with pytest.raises(m.MultipleDevicesError):
-            m.acquire_android(device=None, holder_name="alice", ctx=None)
+            m.acquire(device=None, holder_name="alice", ctx=None)
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ class TestTwoDeviceAcquire:
 
 class TestListDevices:
     def test_list_devices_two_phones_one_held(self, two_devices):
-        m.acquire_android(device="AAA111", holder_name="alice", ctx=None)
+        m.acquire(device="AAA111", holder_name="alice", ctx=None)
 
         result = m.list_devices(ctx=None)
         assert result["count"] == 2
@@ -179,7 +179,7 @@ class TestSessionDefault:
         m.set_default_device(device="BBB222", ctx=ctx)
 
         # No device arg → resolver consults session default
-        r = m.acquire_android(device=None, holder_name="bob", ctx=ctx)
+        r = m.acquire(device=None, holder_name="bob", ctx=ctx)
         assert r["acquired"] is True
         assert r["device"] == "BBB222"
 
@@ -194,7 +194,7 @@ class TestSessionDefault:
         assert m._get_session_default(ctx) is None
 
         with pytest.raises(m.MultipleDevicesError):
-            m.acquire_android(device=None, holder_name="bob", ctx=ctx)
+            m.acquire(device=None, holder_name="bob", ctx=ctx)
 
     def test_set_default_unknown_device_raises(self, two_devices):
         ctx = FakeCtx("session-A")

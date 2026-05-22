@@ -42,8 +42,8 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 
 | Komponente | Version | Status |
 |---|---|---|
-| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 38 Tools, streamable-http) |
-| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 39 Tools, GUI-Berechtigungsflow) |
+| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 40 Tools, streamable-http) |
+| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 41 Tools, GUI-Berechtigungsflow) |
 | Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
 | agent-fleet-CLI-Assistent | `0.5.0-alpha` | ✅ Veröffentlicht (`uvx agent-fleet setup` One-Shot-Installation; Configs für 6 Frameworks) |
 | Rollen-Umbenennung → `<os>-device` + macOS-Berechtigungs-Guide | `0.6.0-alpha` | ✅ Veröffentlicht |
@@ -117,7 +117,7 @@ flowchart LR
 
 Der Agent verbindet sich mit einem **Computer** (Windows/macOS) — seinen „Händen" — und nutzt ihn sowohl zur direkten Steuerung des Computers als auch als **Jump-Host** zu den daran angeschlossenen Geräten: heute Android und iOS, als Nächstes HarmonyOS. Im Prinzip kann der Agent jedes Gerät bedienen, das ein Mensch über einen Computer verwalten kann (der iOS-Host muss ein Mac sein).
 
-Die Tool-Schnittstelle bleibt plattformübergreifend semantisch konsistent (`take_screenshot` / `click` / `launch_app` / …); ein Gerätewechsel ist nur ein Austausch der URL in `~/.claude.json`.
+Die Tool-Schnittstelle bleibt plattformübergreifend semantisch konsistent (`take_screenshot` / `tap` / `launch_app` / …); ein Gerätewechsel ist nur ein Austausch der URL in `~/.claude.json`.
 
 Siehe [`docs/architecture.md`](docs/architecture.md).
 

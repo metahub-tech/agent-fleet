@@ -11,8 +11,8 @@ specific extensions (run_applescript, open_app).
 Transport: streamable-http on 0.0.0.0:8767/mcp. macOS Application Firewall (or pf, if
 enabled) + Tailscale ACL gate who can reach it.
 
-In-use state model: advisory single-holder. acquire_mac / release_mac
-let agents coordinate explicitly; get_mac_status reports current state.
+In-use state model: advisory single-holder. acquire / release
+let agents coordinate explicitly; get_status reports current state.
 Idle timeout (10 min) auto-clears stale holders.
 
 GUI permissions (one-time manual grant in System Settings):
@@ -88,7 +88,7 @@ def with_touch(fn):
 
 
 @mcp.tool
-def acquire_mac(
+def acquire(
     holder_name: Annotated[
         str,
         Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')"),
@@ -96,7 +96,7 @@ def acquire_mac(
 ) -> dict:
     """Claim exclusive use of this Mac test machine.
 
-    Advisory: tools still work for everyone, but get_mac_status will show
+    Advisory: tools still work for everyone, but get_status will show
     your name as the active holder. Use as a polite signal in multi-agent
     setups so others know the box is busy.
     """
@@ -104,10 +104,10 @@ def acquire_mac(
 
 
 @mcp.tool
-def release_mac(
+def release(
     holder_name: Annotated[
         str,
-        Field(description="Must match the holder_name used in acquire_mac"),
+        Field(description="Must match the holder_name used in acquire"),
     ] = "anonymous",
 ) -> dict:
     """Release the exclusive-use claim. Only the current holder can release."""
@@ -115,7 +115,7 @@ def release_mac(
 
 
 @mcp.tool
-def get_mac_status() -> dict:
+def get_status() -> dict:
     """Show whether the Mac test machine is currently claimed and by whom."""
     return _state_registry.status(_SERIAL)
 
@@ -169,7 +169,7 @@ def take_screenshot(
 
 @mcp.tool
 @with_touch
-def click(
+def tap(
     x: Annotated[int, Field(description="Screen x coordinate")],
     y: Annotated[int, Field(description="Screen y coordinate")],
     button: Annotated[str, Field(description="left / right / middle")] = "left",
@@ -738,6 +738,116 @@ def list_ui_elements(
     elements: list[dict] = []
     _ax_walk(app_elem, 0, max_depth, elements)
     return {"ok": True, "app": app, "pid": pid, "count": len(elements), "elements": elements}
+
+
+@mcp.tool
+@with_touch
+def dump_ui(
+    max_depth: Annotated[
+        Optional[int],
+        Field(description="Max AX tree depth (1-15). Defaults to 6 if not specified.", ge=1, le=15),
+    ] = None,
+) -> dict:
+    """Dump the AX (accessibility) tree for the current frontmost macOS application.
+
+    Resolves the active app via NSWorkspace.sharedWorkspace().frontmostApplication()
+    without requiring you to know the app name. Use list_ui_elements when you need
+    to target a specific app by name substring.
+
+    Note: max_depth is honored when provided; defaults to 6 (same as list_ui_elements default).
+    """
+    try:
+        from AppKit import NSWorkspace  # type: ignore
+        front_app = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if front_app is None:
+            return {"ok": False, "error": "no frontmost application"}
+        pid = int(front_app.processIdentifier())
+        # Use localizedName, fall back to bundleIdentifier, fall back to
+        # "pid:<pid>" — purely for the display field; resolution is PID-based.
+        app_label = (
+            front_app.localizedName()
+            or front_app.bundleIdentifier()
+            or f"pid:{pid}"
+        )
+    except ImportError as e:
+        return {"ok": False, "error": f"AppKit unavailable: {e}"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"NSWorkspace unavailable: {e}"}
+
+    # Resolve AX tree by PID directly — avoids the name→pid round-trip that
+    # would fail when localizedName() is falsy and bundleIdentifier() doesn't
+    # match any psutil process *name* (e.g. "com.apple.Safari").
+    depth = max_depth if max_depth is not None else 6
+    try:
+        app_elem = _ax_app_for_pid(pid)
+    except ImportError as e:
+        return {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
+
+    elements: list[dict] = []
+    _ax_walk(app_elem, 0, depth, elements)
+    return {"ok": True, "app": app_label, "pid": pid, "count": len(elements), "elements": elements}
+
+
+@mcp.tool
+@with_touch
+def terminate_app(
+    target: Annotated[
+        str,
+        Field(
+            description="App name or bundle identifier substring to match "
+                        "(e.g. 'Safari', 'com.apple.safari'). "
+                        "Short or generic substrings can over-match unintended processes; "
+                        "prefer the full app name or bundle ID."
+        ),
+    ],
+) -> dict:
+    """Terminate all running processes matching the given app name or bundle identifier.
+
+    Tries NSWorkspace bundle-ID matching first; falls back to psutil process-name
+    substring match. Use kill_process(pid) for precise single-process termination by PID.
+    Returns a summary of how many processes were terminated.
+    """
+    target_lower = target.lower()
+    terminated: list[dict] = []
+    errors: list[dict] = []
+
+    # Attempt NSWorkspace bundle-ID lookup first (preferred, macOS-native).
+    try:
+        from AppKit import NSWorkspace  # type: ignore
+        running_apps = NSWorkspace.sharedWorkspace().runningApplications()
+        for app in running_apps:
+            bundle_id = app.bundleIdentifier() or ""
+            name = app.localizedName() or ""
+            if target_lower in bundle_id.lower() or target_lower in name.lower():
+                pid = int(app.processIdentifier())
+                try:
+                    p = psutil.Process(pid)
+                    p.kill()
+                    terminated.append({"pid": pid, "name": name, "bundle_id": bundle_id})
+                except Exception as e:
+                    errors.append({"pid": pid, "error": str(e)})
+    except ImportError:
+        # AppKit unavailable — fall back to psutil process-name match
+        for p in psutil.process_iter(["pid", "name", "exe"]):
+            try:
+                info = p.info
+                name = info.get("name") or ""
+                exe = info.get("exe") or ""
+                if target_lower in name.lower() or target_lower in exe.lower():
+                    p.kill()
+                    terminated.append({"pid": info["pid"], "name": name, "bundle_id": None})
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                errors.append({"pid": p.pid, "error": str(e)})
+            except Exception as e:
+                errors.append({"pid": getattr(p, "pid", None), "error": str(e)})
+
+    return {
+        "ok": True,
+        "target": target,
+        "terminated_count": len(terminated),
+        "terminated": terminated,
+        "errors": errors,
+    }
 
 
 @mcp.tool

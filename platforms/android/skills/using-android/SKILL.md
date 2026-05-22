@@ -46,7 +46,7 @@ list_packages(filter_substring="weibo", only_user=True)   # find installed user 
 start_app(package="com.sina.weibo")                        # launcher intent (default)
 start_app(package="com.example", activity=".MainActivity") # explicit activity
 current_app()                                              # what's in front
-kill_app(package="com.sina.weibo")                         # force-stop
+terminate_app(target="com.sina.weibo")                     # force-stop
 install_apk(apk_path="C:\\\\path\\\\to\\\\foo.apk", replace=True)
 uninstall_app(package="com.example.foo")
 ```
@@ -67,10 +67,10 @@ Mixing these is the #1 mistake. `adb_shell` always means "on the phone".
 Tools work for everyone regardless of who claims the device:
 
 ```
-get_android_status                     # see who has it
-acquire_android(holder_name="agent-A") # claim
+get_status                             # see who has it
+acquire(holder_name="agent-A")         # claim
 ... do work; tools refresh idle timer ...
-release_android(holder_name="agent-A") # explicit release
+release(holder_name="agent-A")         # explicit release
 ```
 
 10 minutes of idle auto-releases.
@@ -101,7 +101,7 @@ The XML gives `bounds="[L,T][R,B]"` for every clickable element. Compute center 
 - Dumped UI: `protocol_checkbox bounds=[120,2105][168,2153]` → real center (144, 2129)
 - Re-tapped at (144, 2129) → checkbox became ✓
 
-The native UI tools `dump_ui_hierarchy`, `find_elements`, and `tap_element` are available — use them directly instead of the manual shell workaround when you need exact element bounds.
+The native UI tools `dump_ui`, `find_elements`, and `tap_element` are available — use them directly instead of the manual shell workaround when you need exact element bounds.
 
 ### Recipe: read SMS verification code via dual channels
 
@@ -185,8 +185,8 @@ v0.7.0-alpha 起，单 MCP 入口可同时挂多台手机。默认行为：
   1. 先调 `list_devices()` 查看连接清单（返回 `alias` / `serial` / `brand` / `model` / `in_use`）。
   2. 调工具时传 `device="<别名或serial>"`，例如 `take_screenshot(device="pixel-8")`；
      或先调 `set_default_device(device="pixel-8")` 设置会话级默认，后续省略 `device`。
-  3. 并行操作多机时，先 `acquire_android(device="...", holder_name="agent-A")` 拿排他锁，
-     操作完调 `release_android(device="...", holder_name="agent-A")`。
+  3. 并行操作多机时，先 `acquire(device="...", holder_name="agent-A")` 拿排他锁，
+     操作完调 `release(device="...", holder_name="agent-A")`。
 
 别名在 `~/.agent-fleet/android-aliases.json` 中定义，由安装向导自动推断
 （格式：`{brand}-{slug(model)}`，重名按 serial 字典序加 `-1/-2`，fallback 为 `phone-N`）。

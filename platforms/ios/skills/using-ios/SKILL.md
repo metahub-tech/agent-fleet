@@ -35,12 +35,12 @@ tap(x=195, y=422)                # center of screen
 
 iOS uses touchscreens exactly like Android. Use `tap`, `swipe`, `long_press` — not `click`.
 
-### Keyboard: type_text vs press_button
+### Keyboard: type_text vs press_key
 
 | What | Tool | Note |
 |---|---|---|
 | Type into a focused input | `type_text("hello")` | Routes via WDA /wda/keys → UIKit. Supports Unicode. Some custom text fields may not receive it — fall back to tap + clipboard paste if needed. |
-| Physical buttons | `press_button("home")` | Supported: home, volume_up, volume_down, lock only. No adb-style KEYCODE mapping — iOS exposes only these four physical buttons via WDA. |
+| Physical buttons | `press_key(key="home")` | Supported: home, volume_up, volume_down, lock only. No adb-style KEYCODE mapping — iOS exposes only these four physical buttons via WDA. |
 
 ### NO adb_shell equivalent on iOS
 
@@ -79,7 +79,7 @@ Both `host_path` values are absolute paths on the **macOS host**, not on your ag
 ### UI hierarchy introspection
 
 ```
-dump_ui_hierarchy()            # full XCUIElement JSON tree (type, name, label, value, rect)
+dump_ui()                      # full XCUIElement JSON tree (type, name, label, value, rect)
 find_elements(using="class chain", value='**/XCUIElementTypeButton[`name == "Done"`]')
 tap_element(using="accessibility id", value="Login")   # find-and-tap in one call
 ```
@@ -89,10 +89,10 @@ Locator strategies: `class chain` (recommended), `xpath`, `predicate string`, `n
 ### Multi-agent coordination
 
 ```
-get_ios_status()                             # see current holder
-acquire_ios(holder_name="agent-A")           # claim
+get_status()                                 # see current holder
+acquire(holder_name="agent-A")               # claim
 ... do work ...
-release_ios(holder_name="agent-A")           # explicit release
+release(holder_name="agent-A")               # explicit release
 ```
 
 10-minute idle auto-release. Advisory only — tools still work for others.
@@ -113,15 +113,15 @@ Aliases are auto-derived from Apple's `ProductType` (e.g. `iPad15,7` → `apple-
 
 | Category | Tools | Notes |
 |---|---|---|
-| Device / session state | `acquire_ios` / `release_ios` / `get_ios_status` | Per-device advisory holder lock |
+| Device / session state | `acquire` / `release` / `get_status` | Per-device advisory holder lock |
 | Session default | `set_default_device` / `get_default_device` | MCP session-scoped sticky default |
 | Device list | `list_devices` | udid, alias, model, OS version, in_use |
 | Screen | `take_screenshot` / `get_screen_size` | Points (WDA coordinate space), PNG |
 | Touch | `tap` / `swipe` / `long_press` | WDA point coordinates |
-| Keyboard / buttons | `type_text` / `press_button` | type_text = UIKit; press_button = home/volume_up/volume_down/lock only |
+| Keyboard / buttons | `type_text` / `press_key` | type_text = UIKit; press_key = home/volume_up/volume_down/lock only |
 | App lifecycle | `list_apps` / `install_ipa` / `uninstall_app` / `start_app` / `terminate_app` / `activate_app` / `current_app` | install = pymobiledevice3; start/terminate/activate/current = WDA |
 | File transfer | `push_file_to_app` / `pull_file_from_app` | UIFileSharingEnabled apps only; host paths are on the macmini |
-| UI introspection | `dump_ui_hierarchy` / `find_elements` / `tap_element` | WDA /source + /elements; class chain locator recommended |
+| UI introspection | `dump_ui` / `find_elements` / `tap_element` | WDA /source + /elements; class chain locator recommended |
 | Device info | `device_info` | OS version, build, battery, model via pymobiledevice3 lockdown + diagnostics |
 
 ## Common failures and recovery
@@ -133,14 +133,14 @@ Aliases are auto-derived from Apple's `ProductType` (e.g. `iPad15,7` → `apple-
 | `WDA not reachable` / timeout on `get_screen_size` | WDA is not running. Launch it in Xcode (scheme `WebDriverAgentRunner` on your device) or via `xcodebuild test`. See docs/platforms/ios.md. |
 | `take_screenshot` hangs then errors | WDA forwarder subprocess died. Call `get_screen_size` first to trigger a reconnect, then retry. |
 | `type_text` doesn't land | Some apps use custom text rendering that bypasses UIKit key injection. Workaround: tap a standard text field first, then type. Or use clipboard paste via run_zsh + pbcopy on the host. |
-| `press_button("menu")` fails | Only home / volume_up / volume_down / lock are supported. There is no Android-style KEYCODE_MENU on iOS. |
+| `press_key(key="menu")` fails | Only home / volume_up / volume_down / lock are supported. There is no Android-style KEYCODE_MENU on iOS. |
 | `push_file_to_app` returns permission error | Target app does not have `UIFileSharingEnabled=true`. You cannot push files to sandboxed system apps. |
 | Service not on 8769 | `launchctl kickstart -k gui/$(id -u)/cc.metahub.ios-device` |
 
 ## iOS-specific notes
 
 - **No `adb_shell`** — iOS is sandboxed. For host-side shell use mac-device's `run_zsh`.
-- **`press_button` only supports 4 buttons**: home, volume_up, volume_down, lock. No menu/back/recent.
+- **`press_key` only supports 4 buttons**: home, volume_up, volume_down, lock. No menu/back/recent.
 - **File transfer is sandbox-limited** to UIFileSharingEnabled apps (visible in Files.app on device).
 - **WDA must be running** before any UI/screen/input tools work. It is NOT started by the MCP server — it must be deployed and started separately (Xcode or xcodebuild). See docs/platforms/ios.md.
 - **`type_text` supports Unicode** (WDA /wda/keys → UIKit), unlike Android's `adb input text` which is ASCII-only.
@@ -160,4 +160,4 @@ Aliases are auto-derived from Apple's `ProductType` (e.g. `iPad15,7` → `apple-
 - "I'll type in physical pixel coordinates" → WDA uses points not pixels; divide by screen scale (~3x for most modern iPhones)
 - "I'll push a file to system app Documents" → won't work; iOS sandbox limits file access to UIFileSharingEnabled apps
 - "The screenshot returns but taps don't register" → check WDA is still alive; forwarder may have dropped. Call `get_screen_size` to trigger reconnect.
-- "I'll press the back button" → iOS has no back button in WDA; use `press_button("home")` or swipe gesture to navigate
+- "I'll press the back button" → iOS has no back button in WDA; use `press_key(key="home")` or swipe gesture to navigate

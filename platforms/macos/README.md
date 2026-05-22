@@ -47,11 +47,12 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 | 类别 | 工具 |
 |---|---|
-| **使用状态** | `acquire_mac`, `release_mac`, `get_mac_status` |
+| **使用状态** | `acquire`, `release`, `get_status` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 鼠标 | `click`, `move_mouse` |
+| 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd / option / shift / ctrl) |
-| 进程（一次性） | `open_app` (uses `open -a`), `kill_process`, `list_processes` |
+| UI 内省 | `dump_ui`（最前台应用 UI 树）, `list_ui_elements`, `find_ui_element`（更丰富的辅助功能内省，平台扩展） |
+| 进程 / 应用（一次性） | `open_app` (uses `open -a`), `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |

@@ -42,8 +42,8 @@
 
 | 구성요소 | 버전 | 상태 |
 |---|---|---|
-| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 38개 도구, streamable-http) |
-| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 39개 도구, GUI 권한 플로우) |
+| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 40개 도구, streamable-http) |
+| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 41개 도구, GUI 권한 플로우) |
 | Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **25개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
 | 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
@@ -117,7 +117,7 @@ flowchart LR
 
 에이전트는 먼저 **컴퓨터**(Windows/macOS) — 그 "손" — 에 연결해, 그 컴퓨터를 직접 조작하는 동시에 거기에 연결된 기기들로 가는 **점프 호스트**로 사용합니다: 현재 Android와 iOS, 다음은 HarmonyOS. 원칙적으로 사람이 컴퓨터로 관리할 수 있는 기기라면 에이전트도 할 수 있습니다(iOS 호스트는 Mac이어야 함).
 
-도구 인터페이스는 모든 플랫폼에서 의미적으로 일관됩니다 (`take_screenshot` / `click` / `launch_app` / …). 기기 전환은 `~/.claude.json`의 URL만 바꾸면 됩니다.
+도구 인터페이스는 모든 플랫폼에서 의미적으로 일관됩니다 (`take_screenshot` / `tap` / `launch_app` / …). 기기 전환은 `~/.claude.json`의 URL만 바꾸면 됩니다.
 
 자세한 내용은 [`docs/architecture.md`](docs/architecture.md).
 
