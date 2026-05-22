@@ -30,8 +30,12 @@
 resolve_wda_signing() {
     # WDA_TEAM_ID env override wins; else extract from the keychain identity.
     if [ -z "${WDA_TEAM_ID:-}" ]; then
-        WDA_TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
-            | grep 'Apple Development' | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
+        # Team ID = the signing cert's OU. NOT the CN parens: for free/personal
+        # Apple IDs the CN "(…)" value differs from the real Team ID (seen: CN
+        # "(X6K6QH36UZ)" vs OU "TTS982TAM4" — only the OU is the DEVELOPMENT_TEAM).
+        WDA_TEAM_ID="$(security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+            | openssl x509 -noout -subject 2>/dev/null \
+            | grep -oE 'OU ?= ?[A-Z0-9]{10}' | head -1 | grep -oE '[A-Z0-9]{10}')"
     fi
 
     WDA_AUTH_ARGS=()

@@ -19,6 +19,14 @@ XCODE_APPSTORE="macappstore://apps.apple.com/app/xcode/id497799835"
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 
 pmd(){ "$VENV_PY" -m pymobiledevice3 "$@"; }
+# Team ID = the signing cert's OU. NOT the CN parens — for free/personal Apple IDs
+# the CN "(…)" value differs from the real Team ID (e.g. CN "(X6K6QH36UZ)" but OU
+# "TTS982TAM4"; only the OU is the DEVELOPMENT_TEAM xcodebuild accepts).
+team_id_from_cert(){
+    security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+        | openssl x509 -noout -subject 2>/dev/null \
+        | grep -oE 'OU ?= ?[A-Z0-9]{10}' | head -1 | grep -oE '[A-Z0-9]{10}'
+}
 
 ok(){   printf '  \033[32m✓\033[0m %s\n' "$*"; }
 info(){ printf '  • %s\n' "$*"; }
@@ -160,7 +168,7 @@ if [ -z "$TEAM_ID" ]; then
     hint "(若没自动跳到:Xcode 顶部菜单 → Settings…(Xcode 14 叫 Preferences…,快捷键都是 ⌘,)→ Accounts 标签)"
     hint "(加完 Apple ID 顺手可在 WebDriverAgentRunner → Signing & Capabilities 选你的 Team)"
     pause
-    TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
+    TEAM_ID="$(team_id_from_cert)"
     [ -z "$TEAM_ID" ] && die "仍没检测到开发证书;在 Xcode 里登好 Apple ID 后重跑本脚本"
 fi
 ok "签名证书就绪(Team $TEAM_ID)"
