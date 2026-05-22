@@ -187,6 +187,7 @@ wda_reachable(){
     local p=18290
     pmd usbmux forward "$p" 8100 --udid "$UDID" >/dev/null 2>&1 &
     local fpid=$!
+    disown "$fpid" 2>/dev/null || true   # don't let the shell print "Terminated: 15" when we kill it
     local up=1 i=0
     while [ $i -lt 5 ]; do
         if curl -s --max-time 2 "http://127.0.0.1:$p/status" 2>/dev/null | grep -q '"state"'; then up=0; break; fi
