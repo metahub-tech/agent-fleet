@@ -154,7 +154,7 @@ fi
 
 # ───────── Phase 0.2 · Apple ID / 签名证书 ─────────
 step 0.2 "检查 Apple ID 签名证书(WDA 签名必须)"
-TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
+TEAM_ID="$(team_id_from_cert)"
 if [ -z "$TEAM_ID" ]; then
     warn "钥匙串里没有 'Apple Development' 证书 —— 还没在 Xcode 里登 Apple ID。"
     act "在 Xcode 里加 Apple ID(免费账号即可,7 天证书):"
