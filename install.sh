@@ -190,4 +190,8 @@ fi
 #      where the system `git` CLI succeeds — our user hit this on first try.
 #      Using a local path bypasses uv's git entirely.
 echo "  Running: uvx --from \"$(pwd)/cli\" agent-fleet setup"
+# uv caches built tools by package version, so a same-version source change (or a
+# missed version bump) would silently reuse a stale build of the local cli. Clear
+# our package's cache entry first so the installer always runs the current source.
+uv cache clean agent-fleet >/dev/null 2>&1 || true
 exec uvx --from "$(pwd)/cli" agent-fleet setup "$@"

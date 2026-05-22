@@ -148,4 +148,7 @@ if (-not $inClone) {
 # entirely AND is faster (no second clone).
 $LocalCli = Join-Path (Get-Location) "cli"
 Write-Host "  Running: uvx --from `"$LocalCli`" agent-fleet setup"
+# uv caches built tools by package version; clear our package's cache entry so a
+# same-version source change isn't masked by a stale build.
+uv cache clean agent-fleet 2>$null
 uvx --from "$LocalCli" agent-fleet setup @args
