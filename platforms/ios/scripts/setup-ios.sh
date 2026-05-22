@@ -279,86 +279,39 @@ if [ $attempts -ge 8 ]; then
 fi
 echo
 
-# ---------- 6. iOS device onboarding (per-device prep + WDA status) ----------
-# Detects connected devices, runs Developer-Mode automation + guidance via
-# ios-device-prep.sh, checks WDA reachability, and tells the user exactly what
-# to do next per device. Does NOT auto-build WDA — it guides build-wda.sh (one-off,
-# attached) or install-wda-daemon.sh (daemonized: kept alive by launchd, survives
-# reboot, no attached xcodebuild).
+# ---------- 6. iOS device onboarding (guided, per device) ----------
+# Hands off to ios-device-prep.sh — a guided, idempotent, version-aware flow that
+# checks Xcode + Apple-ID, captures the UDID, skips Developer Mode on iOS<16, walks
+# the device settings, and builds WDA, pausing only for the steps the user must do.
 LAST_STEP="[6/6] iOS device onboarding"
 echo "$LAST_STEP"
 
-PMD="$VENV_PY -m pymobiledevice3"
-DEVICE_UDIDS="$($PMD usbmux list 2>/dev/null \
+PREP="$SCRIPT_DIR/ios-device-prep.sh"
+DEVICE_UDIDS="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null \
     | python3 -c 'import json,sys
 try:
     data=json.load(sys.stdin)
 except Exception:
     data=[]
 for d in data:
-    u=d.get("UniqueDeviceID") or d.get("Identifier")
+    u=d.get("UniqueDeviceID")
     if u: print(u)' 2>/dev/null || true)"
 
 if [ -z "$DEVICE_UDIDS" ]; then
-    echo "  No iOS devices connected over USB yet."
-    echo "  Plug a device in + tap 'Trust This Computer', then re-run — or onboard later:"
-    echo "      bash $SCRIPT_DIR/ios-device-prep.sh <udid>"
-else
-    # Signing mode: PAID (App Store Connect API key → headless, 1-year cert) vs
-    # FREE (Xcode Apple ID account → GUI, 7-day cert, manual refresh).
-    TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
-        | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
-    if [ -n "${WDA_ASC_KEY_PATH:-}" ] && [ -n "${WDA_ASC_KEY_ID:-}" ] && [ -n "${WDA_ASC_ISSUER_ID:-}" ]; then
-        echo "  Signing mode: PAID (App Store Connect API key) — headless signing, 1-year cert,"
-        echo "                auto cert-refresh. ${TEAM_ID:+Team $TEAM_ID}"
-        echo "                (full setup: docs/platforms/ios.md → 付费账号接入)"
-    else
-        echo "  Signing mode: FREE (Xcode Apple ID account) — 7-day cert, manual refresh."
-        if [ -z "$TEAM_ID" ]; then
-            echo "  ⚠️  No 'Apple Development' identity yet — one-time:"
-            echo "      1. Xcode → Settings → Accounts → add your Apple ID"
-            echo "      2. open ~/WebDriverAgent/WebDriverAgent.xcodeproj → WebDriverAgentRunner"
-            echo "         → Signing & Capabilities → set Team + Bundle ID → build once (Product → Test)."
-            echo "      Then every device builds from CLI via build-wda.sh."
-        else
-            echo "  ✓ signing identity present (Team $TEAM_ID)"
-        fi
-        echo "  For headless signing + 1-year cert + auto-refresh: go paid + an ASC API key,"
-        echo "  then set WDA_ASC_KEY_PATH/KEY_ID/ISSUER_ID (docs/platforms/ios.md)."
-    fi
-    echo
-
+    echo "  还没检测到 USB 连接的 iOS 设备。"
+    echo "  插上设备 + 在设备上点「信任此电脑」后,跑这条进入引导(可重复跑、断点续):"
+    echo "      bash $PREP"
+elif [ -t 0 ]; then
+    # 有交互终端:直接逐台进引导
     for udid in $DEVICE_UDIDS; do
-        echo "  ════ device $udid ════"
-        # (a) Developer Mode automation + remaining-steps checklist
-        bash "$SCRIPT_DIR/ios-device-prep.sh" "$udid" 2>&1 | sed 's/^/    /' || true
-        # (b) WDA reachability check (temporary forward, then drop)
-        FWD_PORT=18190
-        $PMD usbmux forward "$FWD_PORT" 8100 --udid "$udid" >/dev/null 2>&1 &
-        FWD_PID=$!
-        WDA_UP="no"
-        for i in 1 2 3 4 5; do
-            if curl -s --max-time 2 "http://127.0.0.1:$FWD_PORT/status" 2>/dev/null | grep -q '"state"'; then
-                WDA_UP="yes"; break
-            fi
-            sleep 1
-        done
-        kill $FWD_PID 2>/dev/null || true
-        if [ "$WDA_UP" = "yes" ]; then
-            echo "    ✓ WDA already reachable on this device"
-            echo "      For boot-survival + auto-restart, daemonize it (one-time sudo):"
-            echo "        bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
-        else
-            echo "    • WDA not running. After the checklist above is satisfied, either:"
-            echo "        (recommended) daemonize — auto-start at boot, kept alive by launchd:"
-            echo "          bash $SCRIPT_DIR/install-wda-daemon.sh $udid com.<you>.WebDriverAgentRunner"
-            echo "        (one-off, attached, Ctrl-C to stop):"
-            echo "          WDA_BUNDLE_ID=com.<you>.WebDriverAgentRunner bash $SCRIPT_DIR/build-wda.sh $udid"
-        fi
-        echo
+        bash "$PREP" "$udid" || true
     done
-    echo "  Tip: ios-device server auto-detects devices on each tool call;"
-    echo "       re-run list_devices() after WDA comes up."
+else
+    # 非交互(被向导以非 tty 方式调用):打印命令,让用户在终端里直接跑引导
+    echo "  检测到设备:"
+    for udid in $DEVICE_UDIDS; do echo "    - $udid"; done
+    echo "  在终端里跑下面这条进入引导(自动检 Xcode/Apple ID/设备/iOS 版本,带你一步步装好 WDA):"
+    for udid in $DEVICE_UDIDS; do echo "      bash $PREP $udid"; done
 fi
 echo
 
