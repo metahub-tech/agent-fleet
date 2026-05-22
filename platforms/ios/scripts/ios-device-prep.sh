@@ -33,6 +33,38 @@ pause(){
     read -r _ || true
 }
 maybe_open(){ [ "$NONINTERACTIVE" = "1" ] && return 0; open "$@" 2>/dev/null || true; }
+# best-effort: drive Xcode to open Settings/Preferences → Accounts. Needs Automation
+# permission; the first run may prompt "Terminal wants to control Xcode/System Events".
+# If it fails/denied, the printed menu path is the fallback.
+open_xcode_accounts(){
+    [ "$NONINTERACTIVE" = "1" ] && return 0
+    osascript >/dev/null 2>&1 <<'OSA' || true
+tell application "Xcode" to activate
+delay 0.6
+tell application "System Events" to tell process "Xcode"
+  set frontmost to true
+  delay 0.3
+  repeat with mi in (menu items of menu 1 of menu bar item "Xcode" of menu bar 1)
+    set nm to (name of mi)
+    if nm is not missing value and (nm contains "Settings" or nm contains "Preferences") then
+      click mi
+      exit repeat
+    end if
+  end repeat
+  delay 1.2
+  repeat with w in windows
+    try
+      repeat with b in (buttons of toolbar 1 of w)
+        if (description of b is "Accounts") or (name of b is "Accounts") then
+          click b
+          exit repeat
+        end if
+      end repeat
+    end try
+  end repeat
+end tell
+OSA
+}
 
 [ -x "$VENV_PY" ] || die "ios server venv 未就绪($VENV_PY);先在仓库根跑:bash platforms/ios/scripts/setup-ios.sh"
 
@@ -118,14 +150,15 @@ TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple De
 if [ -z "$TEAM_ID" ]; then
     warn "钥匙串里没有 'Apple Development' 证书 —— 还没在 Xcode 里登 Apple ID。"
     act "在 Xcode 里加 Apple ID(免费账号即可,7 天证书):"
-    hint "Xcode → 菜单 Settings(⌘,) → Accounts → 左下「+」→ Apple ID → 登录"
-    hint "(开了两步验证的话,验证码会发到你其它 Apple 设备,输进去)"
     if [ -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
         maybe_open "$WDA_DIR/WebDriverAgent.xcodeproj"   # 直接打开 WDA 工程(比 Xcode 欢迎页有用)
-        hint "(已为你打开 WebDriverAgent 工程;加完 Apple ID 顺手可在 WebDriverAgentRunner → Signing & Capabilities 选你的 Team)"
     else
         maybe_open -a Xcode
     fi
+    open_xcode_accounts   # 自动把 Xcode 切到 偏好设置 → Accounts 页
+    hint "已为你打开 Xcode 的 Accounts 页 → 点左下「+」→ Apple ID → 登录(2FA 验证码在你其它 Apple 设备上)"
+    hint "(若没自动跳到:Xcode 顶部菜单 → Settings…(Xcode 14 叫 Preferences…,快捷键都是 ⌘,)→ Accounts 标签)"
+    hint "(加完 Apple ID 顺手可在 WebDriverAgentRunner → Signing & Capabilities 选你的 Team)"
     pause
     TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
     [ -z "$TEAM_ID" ] && die "仍没检测到开发证书;在 Xcode 里登好 Apple ID 后重跑本脚本"
