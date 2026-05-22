@@ -130,9 +130,8 @@ ok "签名证书就绪(Team $TEAM_ID)"
 # ───────── Phase 2 · 设备设置(版本感知) ─────────
 # 2a. Developer Mode —— 仅 iOS≥16;iOS 15 没有这个开关。
 step 2a "Developer Mode(开发者模式)"
-if [ "$IOS_MAJ" -lt 16 ] 2>/dev/null; then
-    ok "iOS $IOSVER 没有 Developer Mode 这个开关 —— 跳过"
-else
+# 仅 iOS≥16 有 Developer Mode;版本未知/为空时也走「跳过」分支(不复现旧 bug)。
+if [ -n "$IOS_MAJ" ] && [ "$IOS_MAJ" -ge 16 ] 2>/dev/null; then
     DM="$(pmd amfi developer-mode-status --udid "$UDID" 2>/dev/null | tr -d '[:space:]' | tail -c 5)"
     if printf '%s' "$DM" | grep -qi true; then
         ok "Developer Mode 已开"
@@ -147,6 +146,8 @@ else
         printf '%s' "$DM" | grep -qi true || die "Developer Mode 仍未开;开好后重跑本脚本"
         ok "Developer Mode 已开"
     fi
+else
+    ok "iOS ${IOSVER:-未知} 无需 Developer Mode(iOS<16 没有此开关)—— 跳过"
 fi
 
 # 2b. Enable UI Automation(无法自动检测 → 引导 + 标记)
@@ -155,9 +156,10 @@ if marked ui-automation; then
     ok "已确认(之前标记过)"
 else
     act "在 iPhone 上:设置 → 开发者 → Enable UI Automation → 打开 → 然后重启 iPhone"
-    hint "(「开发者」菜单在设备连过 Xcode 后出现;不重启会一直 'Timed out while enabling automation mode')"
+    hint "(「开发者」菜单要等设备连过 Xcode 后才出现;若没有,先在 Xcode → Window → Devices and Simulators 里连一次这台设备)"
+    hint "(开完务必重启,否则 WDA 会一直 'Timed out while enabling automation mode')"
     pause
-    mark ui-automation
+    [ "$NONINTERACTIVE" = "1" ] || mark ui-automation
 fi
 
 # 2c. Auto-Lock=永不 + 屏幕使用时间安装限制关(无法自动检测 → 引导 + 标记)
@@ -169,7 +171,7 @@ else
     hint "设置 → 显示与亮度 → 自动锁定 → 永不(build 期间别息屏锁屏)"
     hint "设置 → 屏幕使用时间 → 内容和隐私访问限制 →(若开着)关掉对「安装 App」的限制"
     pause
-    mark device-misc
+    [ "$NONINTERACTIVE" = "1" ] || mark device-misc
 fi
 
 # ───────── Phase 3 · 构建 WDA ─────────
@@ -212,9 +214,9 @@ else
     fi
     info "Bundle ID: $BUNDLE_ID    Team: $TEAM_ID    Device: $UDID"
     act "接下来跑 build(xcodebuild test,约 5-10 分钟,会一直挂着以保持 WDA 运行)。"
-    hint "首次 build 把 App 装上后,iPhone 会提示「未受信任的开发者」——这时去信任一下:"
-    hint "   设置 → 通用 → VPN与设备管理 → 你的 Apple ID($TEAM_ID)→ 信任"
-    hint "信任后 build 会继续/或重跑本脚本即可。现在开始构建 ↓"
+    hint "⚠ 首次 build 把 App 装上后,iPhone 会弹「未受信任的开发者」,build 会卡住等你信任 —— 这不是死机!"
+    hint "   去手机:设置 → 通用 → VPN与设备管理 → 你的 Apple ID($TEAM_ID)→ 信任"
+    hint "   信任后 build 自动继续(若没动静,Ctrl-C 再重跑本脚本即可,会从这步续上)。现在开始构建 ↓"
     if [ "$NONINTERACTIVE" = "1" ]; then
         info "(non-interactive: 跳过实际 build)"
     else

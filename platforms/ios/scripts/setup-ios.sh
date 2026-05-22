@@ -288,7 +288,7 @@ echo "$LAST_STEP"
 
 PREP="$SCRIPT_DIR/ios-device-prep.sh"
 DEVICE_UDIDS="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null \
-    | python3 -c 'import json,sys
+    | "$VENV_PY" -c 'import json,sys
 try:
     data=json.load(sys.stdin)
 except Exception:
