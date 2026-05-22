@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fleet-ios"
-version = "0.8.2a1"
+version = "0.8.3a1"
 description = "iOS device MCP bridge for agent-fleet (drives iOS via WebDriverAgent + pymobiledevice3)"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
