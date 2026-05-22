@@ -9,15 +9,35 @@ from ._manifest_installer import ManifestInstaller
 from ._hooks import ROLE_HOOKS
 from ..types import OSInfo
 
-# Resolve the repo root and make platforms/common importable.
-# cli/src/fleet/installers/__init__.py:
-#   parents[0] = installers/  parents[1] = fleet/  parents[2] = src/
-#   parents[3] = cli/         parents[4] = repo-root  (agent-fleet/)
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_PLATFORMS_DIR = _REPO_ROOT / "platforms"
-_PLATFORMS_COMMON = str(_PLATFORMS_DIR)
-if _PLATFORMS_COMMON not in sys.path:
-    sys.path.insert(0, _PLATFORMS_COMMON)
+def _resolve_platforms_dir(start: "Path | None" = None, cwd: "Path | None" = None) -> Path:
+    """Locate the repo's ``platforms/`` dir (holds the ``common`` package + each
+    platform's manifest).
+
+    Dev checkout: this file is ``cli/src/fleet/installers/__init__.py`` so the repo
+    root is ``parents[4]``. When the CLI is pip/uvx-installed, ``__file__`` lands in
+    ``site-packages`` and no longer points at the repo, so fall back to the current
+    working directory (and its parents) — the CLI is always run from the repo root,
+    same assumption ``cli.py`` makes with ``repo_root=Path.cwd()``.
+    """
+    start = (start or Path(__file__)).resolve()
+    cwd = (cwd or Path.cwd()).resolve()
+    candidates: list[Path] = []
+    if len(start.parents) > 4:
+        candidates.append(start.parents[4] / "platforms")          # dev checkout (parents[4] valid iff >=5 parents)
+    candidates += [base / "platforms" for base in (cwd, *cwd.parents)]  # installed, run from repo (or a subdir)
+    for c in candidates:
+        if (c / "common" / "_manifest.py").is_file():
+            return c
+    raise ModuleNotFoundError(
+        "agent-fleet: could not locate the 'platforms/' directory (which holds the "
+        "'common' package + platform manifests). Run the installer from inside an "
+        f"agent-fleet checkout. Tried __file__={start} and cwd={cwd}."
+    )
+
+
+_PLATFORMS_DIR = _resolve_platforms_dir()
+if str(_PLATFORMS_DIR) not in sys.path:
+    sys.path.insert(0, str(_PLATFORMS_DIR))
 
 from common._manifest import discover_manifests  # type: ignore[import]  # noqa: E402
 
@@ -30,8 +50,9 @@ def discover_installers(platforms_dir: "str | Path | None" = None) -> "list[Base
     :data:`ROLE_HOOKS`).
 
     Args:
-        platforms_dir: Path to the ``platforms/`` directory.  Defaults to the
-            repo's ``platforms/`` folder (resolved relative to this file).
+        platforms_dir: Path to the ``platforms/`` directory.  Defaults to
+            ``_PLATFORMS_DIR`` (located at import time from ``__file__`` in a dev
+            checkout, else from the current working directory).
     """
     if platforms_dir is None:
         platforms_dir = _PLATFORMS_DIR
