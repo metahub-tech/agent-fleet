@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.2--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.2-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.3--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.3-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · **Português (BR)** · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > Conecte hardware real de Windows / macOS / Android / iOS ao seu agente LLM via MCP para que ele os opere como um humano. Instalação em um único comando:
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## O que é
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-Ou, se você já tem o uv (durante a fase v0.8.2-alpha ele é baixado do git, ainda não está no PyPI):
+Ou, se você já tem o uv (durante a fase v0.8.3-alpha ele é baixado do git, ainda não está no PyPI):
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.2-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > Usuários de macOS 12 precisam rodar `brew install coreutils` primeiro (o wrapper do uv usa `realpath`, ausente por padrão no macOS 12; ver [#2](https://github.com/metahub-tech/agent-fleet/issues/2)).
