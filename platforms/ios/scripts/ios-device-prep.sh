@@ -120,7 +120,12 @@ if [ -z "$TEAM_ID" ]; then
     act "在 Xcode 里加 Apple ID(免费账号即可,7 天证书):"
     hint "Xcode → 菜单 Settings(⌘,) → Accounts → 左下「+」→ Apple ID → 登录"
     hint "(开了两步验证的话,验证码会发到你其它 Apple 设备,输进去)"
-    maybe_open -a Xcode
+    if [ -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
+        maybe_open "$WDA_DIR/WebDriverAgent.xcodeproj"   # 直接打开 WDA 工程(比 Xcode 欢迎页有用)
+        hint "(已为你打开 WebDriverAgent 工程;加完 Apple ID 顺手可在 WebDriverAgentRunner → Signing & Capabilities 选你的 Team)"
+    else
+        maybe_open -a Xcode
+    fi
     pause
     TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed -E 's/.*\(([A-Z0-9]{10})\)".*/\1/')"
     [ -z "$TEAM_ID" ] && die "仍没检测到开发证书;在 Xcode 里登好 Apple ID 后重跑本脚本"
