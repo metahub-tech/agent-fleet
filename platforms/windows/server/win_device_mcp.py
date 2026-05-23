@@ -266,11 +266,17 @@ def _uia_descendants_with_timeout(win, control_type, timeout_s: int = 8):
     """Run pywinauto's `descendants()` under a hard timeout. UIA traversal can
     block for seconds (or hang) on complex windows and would otherwise wedge the
     whole MCP server; a worker thread + timeout keeps the tool responsive."""
-    with _cf.ThreadPoolExecutor(max_workers=1) as ex:
-        fut = ex.submit(
-            (lambda: win.descendants(control_type=control_type)) if control_type else win.descendants
-        )
+    ex = _cf.ThreadPoolExecutor(max_workers=1)
+    fut = ex.submit(
+        (lambda: win.descendants(control_type=control_type)) if control_type else win.descendants
+    )
+    try:
         return fut.result(timeout=timeout_s)
+    finally:
+        # NOT a `with` block: its shutdown(wait=True) would block on the wedged
+        # worker and defeat the timeout. Detach (wait=False) so a hung UIA call
+        # dies in the background while the tool returns promptly.
+        ex.shutdown(wait=False)
 
 
 def _resolve_uia_window(window_title):
@@ -281,6 +287,13 @@ def _resolve_uia_window(window_title):
     if window_title:
         win = Desktop(backend="uia").window(title_re=f".*{re.escape(window_title)}.*")
         win.wait("visible", timeout=3)
+        try:
+            cls = win.class_name()
+        except Exception:
+            cls = ""
+        if _is_console_window(cls):
+            return None, {"ok": False, "reason": "console_window",
+                          "error": _console_skip_message(cls, target=f"window matching {window_title!r}")}
         return win, None
     hwnd = win32gui.GetForegroundWindow()
     title = win32gui.GetWindowText(hwnd)
@@ -398,7 +411,7 @@ def tap_element(
     query: Annotated[str, Field(description="Element query (see find_elements). The best-ranked match is clicked.")],
     window_title: Annotated[Optional[str], Field(description="Restrict to this window; default = foreground")] = None,
     control_type: Annotated[Optional[str], Field(description="Pre-filter by UIA control type")] = None,
-    nth: Annotated[int, Field(ge=0, description="Click the nth candidate (0 = best-ranked). Use after find_elements when several match.")] = 0,
+    nth: Annotated[Optional[int], Field(ge=0, description="Click the nth candidate (0 = first/best-ranked). Omit for auto (single/exact → click; multiple ambiguous → returns candidates). Pass an explicit nth after find_elements to disambiguate.")] = None,
     button: Annotated[str, Field(description="left / right / middle")] = "left",
     include_disabled: Annotated[bool, Field(description="Allow clicking disabled elements")] = False,
 ) -> dict:
@@ -415,7 +428,7 @@ def tap_element(
     els = res["elements"]
     if not els:
         return {"ok": False, "reason": "not_found", "error": f"no element matched query={query!r}", "total_matched": 0}
-    if nth:
+    if nth is not None:
         if nth >= len(els):
             return {"ok": False, "reason": "nth_out_of_range",
                     "error": f"only {len(els)} candidate(s), requested nth={nth}", "total_matched": res["total_matched"]}

@@ -902,6 +902,8 @@ def _ax_scope(app):
         return _ax_app_for_pid(pid), pid, app_label, None
     except ImportError as e:
         return None, None, None, {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
+    except Exception as e:  # noqa: BLE001 — match the frontmost path's graceful error return
+        return None, None, None, {"ok": False, "error": f"AX init failed: {type(e).__name__}: {e}"}
 
 
 def _mac_find_elements(query, app, include_disabled, max_results, max_depth):
@@ -954,7 +956,7 @@ def find_elements(
 def tap_element(
     query: Annotated[str, Field(description="Element query (see find_elements). The best-ranked match is clicked.")],
     app: Annotated[Optional[str], Field(description="App name substring to scope; default = frontmost")] = None,
-    nth: Annotated[int, Field(ge=0, description="Click the nth candidate (0 = best-ranked). Use after find_elements when several match.")] = 0,
+    nth: Annotated[Optional[int], Field(ge=0, description="Click the nth candidate (0 = first/best-ranked). Omit for auto (single/exact → click; multiple ambiguous → returns candidates). Pass an explicit nth after find_elements to disambiguate.")] = None,
     include_disabled: Annotated[bool, Field(description="Allow clicking disabled elements")] = False,
 ) -> dict:
     """Find an element by query and click its current center (element-located click).
@@ -970,7 +972,7 @@ def tap_element(
     els = res["elements"]
     if not els:
         return {"ok": False, "reason": "not_found", "error": f"no element matched query={query!r}", "total_matched": 0}
-    if nth:
+    if nth is not None:
         if nth >= len(els):
             return {"ok": False, "reason": "nth_out_of_range",
                     "error": f"only {len(els)} candidate(s), requested nth={nth}", "total_matched": res["total_matched"]}
