@@ -16,8 +16,8 @@ def _iter_mcp_tools():
         "acquire", "release", "get_status", "list_devices",
         "set_default_device", "get_default_device",
         "get_screen_size", "take_screenshot", "tap", "swipe", "long_press",
-        "press_key", "type_text", "list_packages", "install_apk", "uninstall_app",
-        "start_app", "terminate_app", "current_app", "adb_shell", "push_file", "pull_file",
+        "press_key", "type_text", "list_packages", "install_app", "uninstall_app",
+        "launch_app", "terminate_app", "current_app", "run_shell", "push_file", "pull_file",
         "dump_ui", "find_elements", "tap_element",
     ]
     return [(n, getattr(srv, n)) for n in tool_names if hasattr(srv, n)]

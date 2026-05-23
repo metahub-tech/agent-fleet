@@ -85,7 +85,7 @@ _ADB = _resolve_adb()
 # (jlowin/fastmcp#823, #508): any tool call exceeding ~30s crashes the entire
 # MCP session. We hard-cap subprocess timeout here at 25s (leaving 5s margin)
 # regardless of what the caller requests. Callers that legitimately need long
-# adb ops (install_apk, push_file, pull_file) still pass their original
+# adb ops (install_app, push_file, pull_file) still pass their original
 # timeout — it's preserved in the return dict as `requested_timeout` for
 # diagnostics, and an `effective_timeout` field shows what we actually used.
 # A planned start_process-based async API will replace the long-path callers
@@ -778,8 +778,8 @@ def list_packages(
 
 
 @mcp.tool
-def install_apk(
-    apk_path: Annotated[str, Field(description="Absolute path to .apk on the HOST machine")],
+def install_app(
+    path: Annotated[str, Field(description="Absolute path to .apk on the HOST machine")],
     replace: Annotated[bool, Field(description="-r flag: replace existing")] = True,
     grant_runtime: Annotated[bool, Field(description="-g flag: grant all runtime permissions")] = False,
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
@@ -794,9 +794,9 @@ def install_apk(
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    p = Path(apk_path).expanduser()
+    p = Path(path).expanduser()
     if not p.is_file():
-        return {"ok": False, "error": f"apk not found: {apk_path}"}
+        return {"ok": False, "error": f"apk not found: {path}"}
     args = ["install"]
     if replace:
         args.append("-r")
@@ -806,12 +806,12 @@ def install_apk(
     r = _adb_run(args, timeout=120, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
-    return {"ok": True, "apk": str(p)}
+    return {"ok": True, "path": str(p)}
 
 
 @mcp.tool
 def uninstall_app(
-    package: Annotated[str, Field(description="Package id, e.g. 'com.example.app'")],
+    target: Annotated[str, Field(description="Package id, e.g. 'com.example.app'")],
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
 ) -> dict:
@@ -823,15 +823,15 @@ def uninstall_app(
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_run(["uninstall", package], timeout=30, serial=serial)
+    r = _adb_run(["uninstall", target], timeout=30, serial=serial)
     if r["returncode"] != 0 or "Success" not in r["stdout"]:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
-    return {"ok": True, "package": package}
+    return {"ok": True, "target": target}
 
 
 @mcp.tool
-def start_app(
-    package: Annotated[str, Field(description="Package id, e.g. 'com.android.settings'")],
+def launch_app(
+    target: Annotated[str, Field(description="Package id, e.g. 'com.android.settings'")],
     activity: Annotated[
         Optional[str],
         Field(description="Activity name (e.g. '.MainActivity'). None = use launcher intent."),
@@ -844,15 +844,15 @@ def start_app(
     _state_registry.touch(serial)
     if activity:
         if not activity.startswith("."):
-            target = f"{package}/{activity}"
+            am_component = f"{target}/{activity}"
         else:
-            target = f"{package}/{package}{activity}"
-        r = _adb_shell(f"am start -n {target}", timeout=15, serial=serial)
+            am_component = f"{target}/{target}{activity}"
+        r = _adb_shell(f"am start -n {am_component}", timeout=15, serial=serial)
     else:
-        r = _adb_shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
+        r = _adb_shell(f"monkey -p {target} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], "stdout": r["stdout"], **_diag(r)}
-    return {"ok": True, "package": package, "stdout": r["stdout"][:500]}
+    return {"ok": True, "target": target, "stdout": r["stdout"][:500]}
 
 
 @mcp.tool
@@ -867,7 +867,7 @@ def terminate_app(
     r = _adb_shell(f"am force-stop {target}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
-    return {"ok": True, "package": target}
+    return {"ok": True, "target": target}
 
 
 @mcp.tool
@@ -910,8 +910,8 @@ def current_app(
 # ============================================================
 
 @mcp.tool
-def adb_shell(
-    command: Annotated[str, Field(description="Shell command to run ON the device")],
+def run_shell(
+    script: Annotated[str, Field(description="Shell command to run ON the device")],
     timeout: Annotated[int, Field(ge=1, le=25, description="Seconds; hard-capped to 25 — fastmcp transport dies past ~30s (jlowin/fastmcp#823)")] = 25,
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
@@ -923,7 +923,7 @@ def adb_shell(
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(command, timeout=min(timeout, 25), serial=serial)
+    r = _adb_shell(script, timeout=min(timeout, 25), serial=serial)
     out = r["stdout"]
     if len(out) > 100_000:
         out = out[:100_000] + f"\n[... truncated, total {len(r['stdout'])} chars]"
