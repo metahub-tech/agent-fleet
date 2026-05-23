@@ -24,6 +24,21 @@ def test_module_imports():
     assert srv is not None  # floor: wired server imports on real macOS
 
 
+def test_ax_match_query_ranking():
+    mq = srv._ax_match_query
+    # exact title match; case-insensitive
+    assert mq("SAVE", {"title": "save"}) == (True, "title", True)
+    assert mq("sav", {"title": "Save Document"}) == (True, "title", False)
+    # exact wins over substring even on a lower-priority field
+    assert mq("ok", {"title": "ok cancel", "label": "ok"}) == (True, "label", True)
+    # same exactness → higher-priority field wins (title > label)
+    assert mq("9", {"title": "9", "label": "9"}) == (True, "title", True)
+    # role is lowest priority but still matches; non-str value is ignored safely
+    assert mq("axbutton", {"role": "AXButton", "value": None}) == (True, "role", True)
+    assert mq("xyz", {"title": "abc"}) == (False, "", False)
+    assert mq("", {"title": "abc"}) == (False, "", False)
+
+
 def test_list_devices_single_host():
     devs = _fn(srv.list_devices)()
     assert isinstance(devs, list) and len(devs) == 1

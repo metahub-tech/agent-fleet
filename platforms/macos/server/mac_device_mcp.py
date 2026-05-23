@@ -850,74 +850,146 @@ def terminate_app(
     }
 
 
+# Ordered identifying AX attributes for find_elements/tap_element query matching;
+# earlier = higher priority (AXTitle hit ranks above AXRole hit). Keys index into
+# the dicts produced by _ax_element_dict.
+_AX_MATCH_FIELDS = ("title", "label", "value", "role")
+
+
+def _ax_match_query(query: str, el: dict) -> tuple:
+    """Case-insensitive match of `query` against an _ax_element_dict's identifying
+    fields. Returns (matched, match_field, is_exact): highest-priority field wins,
+    exact (==) preferred over substring. Pure — unit-testable."""
+    q = (query or "").strip().lower()
+    if not q:
+        return (False, "", False)
+    best = None
+    for i, f in enumerate(_AX_MATCH_FIELDS):
+        v = el.get(f)
+        v = v.lower() if isinstance(v, str) else ""
+        if not v:
+            continue
+        if v == q:
+            cand = (i, True, f)
+        elif q in v:
+            cand = (i, False, f)
+        else:
+            continue
+        if best is None or (cand[1], -cand[0]) > (best[1], -best[0]):
+            best = cand
+    return (True, best[2], best[1]) if best else (False, "", False)
+
+
+def _ax_scope(app):
+    """Resolve (app_elem, pid, app_label, error). Default (app=None) = frontmost
+    application; else substring match on process name."""
+    if app:
+        pid = _ax_pid_of_app(app)
+        if pid is None:
+            return None, None, None, {"ok": False, "error": f"no running process matches {app!r}"}
+        app_label = app
+    else:
+        try:
+            from AppKit import NSWorkspace  # type: ignore
+            front = NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is None:
+                return None, None, None, {"ok": False, "error": "no frontmost application"}
+            pid = int(front.processIdentifier())
+            app_label = front.localizedName() or front.bundleIdentifier() or f"pid:{pid}"
+        except Exception as e:  # noqa: BLE001
+            return None, None, None, {"ok": False, "error": f"NSWorkspace unavailable: {e}"}
+    try:
+        return _ax_app_for_pid(pid), pid, app_label, None
+    except ImportError as e:
+        return None, None, None, {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
+
+
+def _mac_find_elements(query, app, include_disabled, max_results, max_depth):
+    """Core AX element search shared by find_elements + tap_element."""
+    app_elem, pid, app_label, err = _ax_scope(app)
+    if err:
+        return err
+    raw: list = []
+    _ax_walk(app_elem, 0, max_depth, raw)
+    sw, sh = pyautogui.size()
+    matched = []
+    for el in raw:
+        ok, field, exact = _ax_match_query(query, el)
+        if not ok:
+            continue
+        if not include_disabled and el.get("enabled") is False:
+            continue
+        c = el.get("center")
+        on_screen = bool(c) and 0 <= c[0] < sw and 0 <= c[1] < sh
+        matched.append({**el, "match_field": field, "exact": exact, "on_screen": on_screen})
+    matched.sort(key=lambda m: (0 if m["exact"] else 1, _AX_MATCH_FIELDS.index(m["match_field"])))
+    total = len(matched)
+    return {"ok": True, "app": app_label, "pid": pid, "count": min(total, max_results),
+            "total_matched": total, "truncated": total > max_results, "elements": matched[:max_results]}
+
+
 @mcp.tool
 @with_touch
-def find_ui_element(
-    app: Annotated[str, Field(description="App name (e.g. 'Safari')")],
-    title: Annotated[Optional[str], Field(description="Substring-match Element.title")] = None,
-    role: Annotated[Optional[str], Field(description="Exact-match AX role (e.g. 'AXButton', 'AXMenuItem')")] = None,
-    label: Annotated[Optional[str], Field(description="Substring-match AXDescription")] = None,
-    max_depth: Annotated[int, Field(ge=1, le=15)] = 8,
+def find_elements(
+    query: Annotated[str, Field(description="Case-insensitive substring matched against an element's AXTitle / AXDescription(label) / value / AXRole (highest-priority field wins; exact match ranks first). e.g. 'Save', '9'")],
+    app: Annotated[Optional[str], Field(description="App name substring to scope the AX search; default = current frontmost app")] = None,
+    include_disabled: Annotated[bool, Field(description="Include disabled (AXEnabled=false) elements (default: only enabled)")] = False,
+    max_results: Annotated[int, Field(ge=1, le=100, description="Cap on returned candidates")] = 20,
+    max_depth: Annotated[int, Field(ge=1, le=15, description="Max AX tree depth")] = 8,
 ) -> dict:
-    """Find AX elements matching all provided filters (AND logic).
+    """Locate UI elements in an app's AX tree by a single query string.
 
-    Example:
-        find_ui_element(app="Calculator", title="9")
-        find_ui_element(app="Safari", role="AXButton", title="Reload")
+    Element-located alternative to guessing coordinates off a screenshot: finds
+    LIVE elements by accessibility attributes (resilient to layout changes) and
+    returns ranked candidates with center coords. Prefer this + tap_element over
+    screenshot+tap for native UI. NOTE: a browser's web page content is not
+    exposed via AX — for web, fall back to take_screenshot + tap. Some apps
+    (Electron a11y-off, Java Swing, Flutter) expose no usable AX tree.
     """
-    if not any([title, role, label]):
-        return {"ok": False, "error": "at least one of title/role/label required"}
-
-    dump = list_ui_elements(app=app, max_depth=max_depth)
-    if not dump.get("ok"):
-        return dump
-
-    def matches(e: dict) -> bool:
-        if title and title not in e["title"]:
-            return False
-        if role and e["role"] != role:
-            return False
-        if label and label not in e["label"]:
-            return False
-        return True
-
-    matches_list = [e for e in dump["elements"] if matches(e)]
-    return {"ok": True, "app": app, "count": len(matches_list), "elements": matches_list}
+    return _mac_find_elements(query, app, include_disabled, max_results, max_depth)
 
 
 @mcp.tool
 @with_touch
-def click_ui_element(
-    app: Annotated[str, Field(description="App name")],
-    title: Annotated[Optional[str], Field()] = None,
-    role: Annotated[Optional[str], Field()] = None,
-    label: Annotated[Optional[str], Field()] = None,
-    nth: Annotated[int, Field(ge=0, description="If multiple match, click the nth (0-indexed)")] = 0,
+def tap_element(
+    query: Annotated[str, Field(description="Element query (see find_elements). The best-ranked match is clicked.")],
+    app: Annotated[Optional[str], Field(description="App name substring to scope; default = frontmost")] = None,
+    nth: Annotated[int, Field(ge=0, description="Click the nth candidate (0 = best-ranked). Use after find_elements when several match.")] = 0,
+    include_disabled: Annotated[bool, Field(description="Allow clicking disabled elements")] = False,
 ) -> dict:
-    """Find an AX element by filter and click its center.
+    """Find an element by query and click its current center (element-located click).
 
-    The element-driven equivalent of click(x, y), but resilient to window
-    layout changes since it looks up by AX attributes.
-
-    Errors out if no element matches OR nth is out of range — agent sees a
-    clear failure instead of silently clicking nothing.
+    Resilient to layout changes vs hardcoded click(x,y). On 'not_found' refine the
+    query (use dump_ui / list_ui_elements to see real attributes); on 'ambiguous'
+    pass a more specific query or an nth; for browser web content fall back to
+    take_screenshot + tap.
     """
-    found = find_ui_element(app=app, title=title, role=role, label=label)
-    if not found.get("ok"):
-        return found
-    matches_list = found["elements"]
-    if not matches_list:
-        return {"ok": False, "error": "no element matched the filter"}
-    if nth >= len(matches_list):
-        return {"ok": False, "error": f"only {len(matches_list)} element(s) matched, requested nth={nth}"}
-
-    el = matches_list[nth]
-    if not el["center"]:
-        return {"ok": False, "error": "matched element has no bounds — cannot click"}
-
-    cx, cy = el["center"]
-    pyautogui.click(cx, cy)
-    return {"ok": True, "clicked_at": [cx, cy], "element": el, "total_matches": len(matches_list)}
+    res = _mac_find_elements(query, app, include_disabled, max_results=20, max_depth=10)
+    if not res.get("ok"):
+        return res
+    els = res["elements"]
+    if not els:
+        return {"ok": False, "reason": "not_found", "error": f"no element matched query={query!r}", "total_matched": 0}
+    if nth:
+        if nth >= len(els):
+            return {"ok": False, "reason": "nth_out_of_range",
+                    "error": f"only {len(els)} candidate(s), requested nth={nth}", "total_matched": res["total_matched"]}
+        chosen = els[nth]
+    elif len(els) == 1 or els[0]["exact"]:
+        chosen = els[0]
+    else:
+        return {"ok": False, "reason": "ambiguous",
+                "error": f"{len(els)} elements matched query={query!r}; refine the query or pass nth",
+                "candidates": els[:10], "total_matched": res["total_matched"]}
+    c = chosen.get("center")
+    if not c:
+        return {"ok": False, "reason": "no_bounds", "error": "matched element has no bounds — cannot click", "element": chosen}
+    pyautogui.click(c[0], c[1])
+    resp = {"ok": True, "action_type": "coordinate_click", "clicked_at": [c[0], c[1]],
+            "element": chosen, "total_matched": res["total_matched"]}
+    if not chosen["on_screen"]:
+        resp["warning"] = "element_may_be_off_screen"
+    return resp
 
 
 # ============================================================
