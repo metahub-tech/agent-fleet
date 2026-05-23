@@ -212,7 +212,7 @@ def _console_skip_message(class_name: str, target: str = "foreground window") ->
     return (
         f"ERROR: {target} is a console/terminal ('{class_name}'); its UIA tree hangs "
         "pywinauto's control walk. Use take_screenshot to view it, or the process "
-        "tools (start_process / read_process_output / run_powershell) to read console text."
+        "tools (start_process / read_process_output / run_shell) to read console text."
     )
 
 
@@ -351,11 +351,11 @@ def press_key(
 @mcp.tool
 @with_touch
 def launch_app(
-    path: Annotated[str, Field(description="Executable path or PATH-resolvable command")],
+    target: Annotated[str, Field(description="Executable path or PATH-resolvable command")],
     args: Annotated[Optional[list[str]], Field(description="Command-line arguments")] = None,
 ) -> dict:
     """Launch a Windows application; return its PID."""
-    cmd = [path, *(args or [])]
+    cmd = [target, *(args or [])]
     p = subprocess.Popen(cmd, shell=False)
     return {"pid": p.pid, "cmd": cmd}
 
@@ -461,11 +461,11 @@ def _run_with_clamp(cmd: list[str], requested_timeout: int) -> dict:
 
 @mcp.tool
 @with_touch
-def run_powershell(
+def run_shell(
     script: Annotated[str, Field(description="PowerShell script content")],
     timeout: Annotated[int, Field(ge=1, le=25, description=f"Hard-capped to {_FASTMCP_DEADLINE_SAFE_SECONDS}s — fastmcp transport dies past ~30s. Use start_process for longer jobs.")] = 25,
 ) -> dict:
-    """Execute a PowerShell script; return stdout / stderr / exit code. Max 25s — see start_process for longer jobs."""
+    """Execute a shell script (PowerShell); return stdout / stderr / exit code. Max 25s — see start_process for longer jobs."""
     return _run_with_clamp(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
         requested_timeout=timeout,
