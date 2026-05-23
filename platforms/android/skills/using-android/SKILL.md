@@ -48,7 +48,7 @@ launch_app(target="com.example", activity=".MainActivity") # explicit activity
 current_app()                                              # what's in front
 terminate_app(target="com.sina.weibo")                     # force-stop
 install_app(path="C:\\\\path\\\\to\\\\foo.apk", replace=True)
-uninstall_app(package="com.example.foo")
+uninstall_app(target="com.example.foo")
 ```
 
 `launch_app` without `activity` uses `monkey -p <pkg> -c android.intent.category.LAUNCHER 1` -- the same intent the launcher sends. With `activity` it uses `am start -n pkg/activity` for explicit deep links.
