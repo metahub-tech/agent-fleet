@@ -146,7 +146,7 @@ def _adb_run(args: list[str], timeout: int = 30, capture_bytes: bool = False, se
     return out
 
 
-def _adb_shell(cmd: str, timeout: int = 30, capture_bytes: bool = False, serial: str | None = None) -> dict:
+def _adb_exec(cmd: str, timeout: int = 30, capture_bytes: bool = False, serial: str | None = None) -> dict:
     """`adb shell <cmd>`. Convenience wrapper.
 
     serial: when provided, targets the specified device via -s.
@@ -160,7 +160,7 @@ _DIAG_FIELDS = ("timed_out", "requested_timeout", "effective_timeout", "hint")
 
 
 def _diag(r: dict) -> dict:
-    """Pick optional timeout-diagnostic fields from an _adb_run / _adb_shell result.
+    """Pick optional timeout-diagnostic fields from an _adb_run / _adb_exec result.
     Returns empty dict on success (no timeout)."""
     return {k: r[k] for k in _DIAG_FIELDS if k in r}
 
@@ -554,7 +554,7 @@ def get_screen_size(
     """Return the device screen resolution as reported by `wm size`."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell("wm size", timeout=5, serial=serial)
+    r = _adb_exec("wm size", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"error": r["stderr"], **_diag(r)}
     # Format: "Physical size: 1080x2340"  (sometimes also "Override size: 720x1560")
@@ -601,7 +601,7 @@ def take_screenshot(
 def _take_screenshot_fallback(serial: str | None = None) -> Image:
     """Fallback: write to /sdcard, pull, read."""
     remote = "/sdcard/atb_screenshot.png"
-    r1 = _adb_shell(f"screencap -p {remote}", timeout=10, serial=serial)
+    r1 = _adb_exec(f"screencap -p {remote}", timeout=10, serial=serial)
     if r1["returncode"] != 0:
         raise RuntimeError(f"screencap failed: {r1['stderr']}")
     import tempfile
@@ -610,7 +610,7 @@ def _take_screenshot_fallback(serial: str | None = None) -> Image:
     r2 = _adb_run(["pull", remote, local_path], timeout=15, serial=serial)
     if r2["returncode"] != 0:
         raise RuntimeError(f"adb pull failed: {r2['stderr']}")
-    _adb_shell(f"rm {remote}", timeout=5, serial=serial)
+    _adb_exec(f"rm {remote}", timeout=5, serial=serial)
     raw = Path(local_path).read_bytes()
     Path(local_path).unlink(missing_ok=True)
     return Image(data=raw, format="png")
@@ -630,7 +630,7 @@ def tap(
     """Tap the screen at (x, y). Coordinates are in the same space as get_screen_size."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(f"input tap {x} {y}", timeout=5, serial=serial)
+    r = _adb_exec(f"input tap {x} {y}", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "x": x, "y": y}
@@ -649,7 +649,7 @@ def swipe(
     """Swipe from (x1,y1) to (x2,y2) over duration_ms milliseconds."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", timeout=15, serial=serial)
+    r = _adb_exec(f"input swipe {x1} {y1} {x2} {y2} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "from": (x1, y1), "to": (x2, y2), "duration_ms": duration_ms}
@@ -666,7 +666,7 @@ def long_press(
     """Long-press at (x, y). Implemented as a 0-distance swipe."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(f"input swipe {x} {y} {x} {y} {duration_ms}", timeout=15, serial=serial)
+    r = _adb_exec(f"input swipe {x} {y} {x} {y} {duration_ms}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "x": x, "y": y, "duration_ms": duration_ms}
@@ -719,7 +719,7 @@ def press_key(
             "ok": False,
             "error": f"unknown key '{key}'. Allowed: {sorted(_KEY_ALIASES.keys())}",
         }
-    r = _adb_shell(f"input keyevent {code}", timeout=5, serial=serial)
+    r = _adb_exec(f"input keyevent {code}", timeout=5, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "key": key, "keycode": code}
@@ -741,7 +741,7 @@ def type_text(
     _state_registry.touch(serial)
     # `input text` interprets some chars specially. Escape spaces and quotes.
     escaped = text.replace(" ", "%s").replace("'", "\\'").replace('"', '\\"')
-    r = _adb_shell(f"input text '{escaped}'", timeout=15, serial=serial)
+    r = _adb_exec(f"input text '{escaped}'", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "chars": len(text)}
@@ -765,7 +765,7 @@ def list_packages(
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
     flag = "-3" if only_user else ""
-    r = _adb_shell(f"pm list packages {flag}".strip(), timeout=15, serial=serial)
+    r = _adb_exec(f"pm list packages {flag}".strip(), timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"error": r["stderr"], **_diag(r)}
     pkgs = []
@@ -847,9 +847,9 @@ def launch_app(
             am_component = f"{target}/{activity}"
         else:
             am_component = f"{target}/{target}{activity}"
-        r = _adb_shell(f"am start -n {am_component}", timeout=15, serial=serial)
+        r = _adb_exec(f"am start -n {am_component}", timeout=15, serial=serial)
     else:
-        r = _adb_shell(f"monkey -p {target} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
+        r = _adb_exec(f"monkey -p {target} -c android.intent.category.LAUNCHER 1", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], "stdout": r["stdout"], **_diag(r)}
     return {"ok": True, "target": target, "stdout": r["stdout"][:500]}
@@ -864,7 +864,7 @@ def terminate_app(
     """Force-stop an app. `am force-stop`."""
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(f"am force-stop {target}", timeout=10, serial=serial)
+    r = _adb_exec(f"am force-stop {target}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": r["stderr"], **_diag(r)}
     return {"ok": True, "target": target}
@@ -893,7 +893,7 @@ def current_app(
         ("dumpsys activity activities", "topResumedActivity"),
         ("dumpsys window windows", "mCurrentFocus"),
     ]:
-        r = _adb_shell(cmd, timeout=10, serial=serial)
+        r = _adb_exec(cmd, timeout=10, serial=serial)
         if r["returncode"] != 0:
             continue
         for ln in r["stdout"].splitlines():
@@ -923,7 +923,7 @@ def run_shell(
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    r = _adb_shell(script, timeout=min(timeout, 25), serial=serial)
+    r = _adb_exec(script, timeout=min(timeout, 25), serial=serial)
     out = r["stdout"]
     if len(out) > 100_000:
         out = out[:100_000] + f"\n[... truncated, total {len(r['stdout'])} chars]"
@@ -1069,12 +1069,12 @@ def dump_ui(
     _state_registry.touch(serial)
     # 1. uiautomator dump on device → /sdcard/window_dump.xml
     dump_path_device = "/sdcard/window_dump.xml"
-    r = _adb_shell(f"uiautomator dump {dump_path_device}", timeout=15, serial=serial)
+    r = _adb_exec(f"uiautomator dump {dump_path_device}", timeout=15, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "uiautomator dump failed", "stderr": r["stderr"]}
 
     # 2. cat the XML back (avoids needing a host tmp file)
-    r = _adb_shell(f"cat {dump_path_device}", timeout=10, capture_bytes=True, serial=serial)
+    r = _adb_exec(f"cat {dump_path_device}", timeout=10, capture_bytes=True, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "cat dump failed", "stderr": r["stderr"]}
     # _adb_run(capture_bytes=True) puts raw bytes in "stdout_bytes" and sets
@@ -1183,7 +1183,7 @@ def tap_element(
         return {"ok": False, "error": "matched element has no bounds — cannot tap"}
 
     cx, cy = el["center"]
-    r = _adb_shell(f"input tap {cx} {cy}", timeout=10, serial=serial)
+    r = _adb_exec(f"input tap {cx} {cy}", timeout=10, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "input tap failed", "stderr": r["stderr"]}
 

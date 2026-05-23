@@ -76,7 +76,7 @@ Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
 - 驱动栈：adb + uiautomator2（Python 库）+ scrcpy（视频流）
 - 设备主机可以是任意 OS，推荐 Linux/Mac
 - USB 或 wireless adb（`adb tcpip 5555`）
-- 工具集除通用外加：`install_apk` / `dump_ui` / `adb_shell`
+- 工具集除通用外加：`install_app` / `dump_ui` / `run_shell`
 - 端口 8768
 
 ### 已解决

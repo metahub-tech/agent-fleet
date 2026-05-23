@@ -49,7 +49,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
-| Shell | `run_powershell` |
+| Shell | `run_shell`（底层 PowerShell） |
 
 > **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `win-device`。`setup-windows.ps1` 会自动清理老版本残留。
 
@@ -90,7 +90,7 @@ platforms/windows/
 
 ## Universal Tool Set 兼容
 
-本平台桥实现了 [`docs/architecture.md`](../../docs/architecture.md) 定义的 Universal Tool Set 全部工具。`run_powershell` 是平台扩展（同时也是 `run_shell` 的 PowerShell 实现）。
+本平台桥实现了 [`docs/architecture.md`](../../docs/architecture.md) 定义的 Universal Tool Set 全部工具。`run_shell` 在 Windows 上的底层实现是 PowerShell。
 
 ## License
 

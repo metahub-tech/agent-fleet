@@ -128,7 +128,7 @@ def _mac_device_smoke() -> "list[SmokeTest]":
     return [
         SmokeTest("get_status", {},
             description="server reachable"),
-        SmokeTest("run_zsh", {"script": "echo ok"},
+        SmokeTest("run_shell", {"script": "echo ok"},
             description="shell exec",
             hint_on_failure=(
                 "setup-macos.sh probably exited without starting the launchd plist; "
@@ -175,7 +175,7 @@ def _win_device_smoke() -> "list[SmokeTest]":
     return [
         SmokeTest("get_status", {},
             description="server reachable"),
-        SmokeTest("run_powershell", {"script": "Write-Output ok"},
+        SmokeTest("run_shell", {"script": "Write-Output ok"},
             description="shell exec",
             hint_on_failure=(
                 "setup-windows.ps1 probably exited without registering the "

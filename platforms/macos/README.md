@@ -33,8 +33,8 @@ Agent 端配置见 [`../../docs/agent-host-setup.md`](../../docs/agent-host-setu
 
 ```text
 You:   "Run the test suite, then open Safari and screenshot it."
-Agent: run_zsh(script="cd ~/proj && pytest -q")        → 96 passed in 4.1s
-       open_app(app="Safari")                          → frontmost
+Agent: run_shell(script="cd ~/proj && pytest -q")      → 96 passed in 4.1s
+       launch_app(target="Safari")                     → frontmost
        take_screenshot()                               → agent verifies the screen
 ```
 
@@ -52,16 +52,16 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd / option / shift / ctrl) |
 | UI 内省 | `dump_ui`（最前台应用 UI 树）, `list_ui_elements`, `find_ui_element`（更丰富的辅助功能内省，平台扩展） |
-| 进程 / 应用（一次性） | `open_app` (uses `open -a`), `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
+| 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
-| Shell | `run_zsh`, `run_applescript` |
+| Shell | `run_shell`（底层 zsh）, `run_applescript`（macOS 扩展） |
 
 > **与 Windows win-device 的差异**：
 > - 没有 `list_windows` / `inspect_window` / `focus_window`（Windows 用 pywinauto，macOS 等价物用 AppleScript / NSAccessibility，v0.3.0 暂未实现，可通过 `run_applescript` 间接达成）
-> - `launch_app` → `open_app`（macOS 习惯用 `open -a`）
-> - `run_powershell` → `run_zsh` + 新增 `run_applescript`
+> - `launch_app` 在 macOS 上底层用 `open -a` 实现（与 Windows 同名，仅实现差异）
+> - `run_shell` 在 macOS 上底层用 zsh 实现，另有 macOS 扩展工具 `run_applescript`
 > - `press_key` 支持 `cmd` / `option` 别名（pyautogui 的 `command` / `option`）
 
 ## 目录布局

@@ -363,10 +363,10 @@ Agent A: release(holder_name="...")      # 显式释放
 | 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd/option/shift/ctrl) |
 | UI 内省 | `dump_ui`（最前台应用 UI 树）, `list_ui_elements`, `find_ui_element`（更丰富的辅助功能内省，平台扩展） |
-| 进程 / 应用（一次性） | `open_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
+| 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
-| Shell | `run_zsh`, `run_applescript` |
+| Shell | `run_shell`（底层 zsh）, `run_applescript`（macOS 扩展） |
 
 > v0.3.0 暂未实现 `list_windows` / `inspect_window` / `focus_window` —— 这些在 Windows 上靠 pywinauto；macOS 等价物需用 AppleScript 或 NSAccessibility 重写，下个版本补。当前可通过 `run_applescript` 调 `tell application "System Events" to get title of every window of every process` 实现。

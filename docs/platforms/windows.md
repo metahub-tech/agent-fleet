@@ -238,6 +238,6 @@ Agent B: get_status()                              # 查谁在用
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
-| Shell | `run_powershell` |
+| Shell | `run_shell`（底层 PowerShell） |
 
 > v0.1 还有一个独立的 `winpc-shell` MCP（端口 8765，npm `desktop-commander` + Python `mcp-proxy`），由于 single-client 限制 + npm 缓存竞争 + IPv6-only 绑定 + Windows ENOTEMPTY 等等多个上游问题，v0.2 整层并入 win-device。原来 desktop-commander 的工具按等价语义重写为 Python，FastMCP streamable-http 原生支持多客户端，且不再依赖 Node.js / npm。

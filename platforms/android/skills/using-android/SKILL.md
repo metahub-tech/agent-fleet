@@ -43,24 +43,24 @@ Phones use touchscreens. The tool is `tap`, not `click`. Calling `click` will fa
 
 ```
 list_packages(filter_substring="weibo", only_user=True)   # find installed user apps
-start_app(package="com.sina.weibo")                        # launcher intent (default)
-start_app(package="com.example", activity=".MainActivity") # explicit activity
+launch_app(target="com.sina.weibo")                        # launcher intent (default)
+launch_app(target="com.example", activity=".MainActivity") # explicit activity
 current_app()                                              # what's in front
 terminate_app(target="com.sina.weibo")                     # force-stop
-install_apk(apk_path="C:\\\\path\\\\to\\\\foo.apk", replace=True)
+install_app(path="C:\\\\path\\\\to\\\\foo.apk", replace=True)
 uninstall_app(package="com.example.foo")
 ```
 
-`start_app` without `activity` uses `monkey -p <pkg> -c android.intent.category.LAUNCHER 1` -- the same intent the launcher sends. With `activity` it uses `am start -n pkg/activity` for explicit deep links.
+`launch_app` without `activity` uses `monkey -p <pkg> -c android.intent.category.LAUNCHER 1` -- the same intent the launcher sends. With `activity` it uses `am start -n pkg/activity` for explicit deep links.
 
 ### On-device shell vs host shell
 
 | Need | Tool | Runs on |
 |---|---|---|
-| `getprop`, `dumpsys`, `pm`, `am`, `settings`, `cmd` on the phone | `adb_shell("getprop ro.build.version.release")` | Phone |
-| `dir`, `Get-Process`, `python` on the host PC | NOT EXPOSED in this server -- use win-device's `run_powershell` if the Android host is Windows; mac-device's `run_zsh` if macOS | Host |
+| `getprop`, `dumpsys`, `pm`, `am`, `settings`, `cmd` on the phone | `run_shell("getprop ro.build.version.release")` | Phone |
+| `dir`, `Get-Process`, `python` on the host PC | NOT EXPOSED in this server -- use win-device's `run_shell` if the Android host is Windows; mac-device's `run_shell` if macOS | Host |
 
-Mixing these is the #1 mistake. `adb_shell` always means "on the phone".
+Mixing these is the #1 mistake. `run_shell` always means "on the phone".
 
 ### Multi-agent coordination (advisory)
 
@@ -82,7 +82,7 @@ push_file(host_path="C:\\\\reports\\\\test.txt", device_path="/sdcard/test.txt")
 pull_file(device_path="/sdcard/screenshots/foo.png", host_path="/tmp/foo.png")
 ```
 
-Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs use `install_apk` instead, which is APK-aware).
+Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs use `install_app` instead, which is APK-aware).
 
 ## Recipes (battle-tested on real deploys)
 
@@ -91,8 +91,8 @@ Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs 
 **The single biggest time-saver.** Visual coordinate estimation from a screenshot is ±50px at best (especially when the screenshot is rendered at thumbnail size). Modern apps' touch targets are often smaller. If your first 1-2 taps don't produce a state change, **stop tapping and dump the UI hierarchy** to get exact bounds:
 
 ```
-adb_shell("uiautomator dump /sdcard/ui.xml")
-adb_shell("cat /sdcard/ui.xml | tr '>' '\n' | grep -E 'TARGET_TEXT|TARGET_RESOURCE_ID' | head -5")
+run_shell("uiautomator dump /sdcard/ui.xml")
+run_shell("cat /sdcard/ui.xml | tr '>' '\n' | grep -E 'TARGET_TEXT|TARGET_RESOURCE_ID' | head -5")
 ```
 
 The XML gives `bounds="[L,T][R,B]"` for every clickable element. Compute center `((L+R)/2, (T+B)/2)`. Real example from a Kuaishou login flow:
@@ -109,10 +109,10 @@ The SMS provider on EMUI / MIUI is permission-gated for `adb shell` — but the 
 
 ```
 # Channel 1: notification dump (fast; works even when SMS provider is locked)
-adb_shell("dumpsys notification --noredact | grep -A 1 -E 'mms|sms|验证码|verification' | head -20")
+run_shell("dumpsys notification --noredact | grep -A 1 -E 'mms|sms|验证码|verification' | head -20")
 
 # Channel 2: SMS provider (works on most ROMs once an SMS has actually arrived)
-adb_shell("content query --uri content://sms/inbox --projection address:body --sort 'date DESC' | head -3")
+run_shell("content query --uri content://sms/inbox --projection address:body --sort 'date DESC' | head -3")
 ```
 
 Wait ~5-10s after triggering the SMS before querying. Provider returns "No result found" if there is no message yet — not the same as denial.
@@ -122,7 +122,7 @@ Wait ~5-10s after triggering the SMS before querying. Provider returns "No resul
 `adb input text` is ASCII-only on most ROMs (Chinese / emoji silently dropped). For SMS specifically, **route around the IME entirely** by passing the body as an Intent extra — bytes go directly from adb to the SMS app via Binder IPC, no keyboard involved:
 
 ```
-adb_shell("am start -a android.intent.action.SENDTO -d 'smsto:13800138000' --es sms_body '你好，这是中文短信'")
+run_shell("am start -a android.intent.action.SENDTO -d 'smsto:13800138000' --es sms_body '你好，这是中文短信'")
 ```
 
 The default SMS app opens with recipient + body pre-filled. Then tap the send button (use the UI-dump recipe to find exact bounds — on EMUI 14 / Android 10 it's `button_singlesim_model_parent` at [924,2196][1044,2236] → center (984, 2216)):
@@ -134,7 +134,7 @@ tap(x=984, y=2216)
 Verify via the sent provider:
 
 ```
-adb_shell("content query --uri content://sms/sent --projection address:body:date --sort 'date DESC' | head -3")
+run_shell("content query --uri content://sms/sent --projection address:body:date --sort 'date DESC' | head -3")
 ```
 
 If a fresh SENDTO arrives while the SMS app is already open on another conversation, you may see `Activity not started, intent has been delivered to currently running top-most instance` — informational, not an error; the composer's recipient + body do swap to the new intent.
@@ -143,18 +143,18 @@ If a fresh SENDTO arrives while the SMS app is already open on another conversat
 
 ### Recipe: hardware health snapshot
 
-One adb_shell call per subsystem. Use to verify a freshly-deployed test box, or as a sanity check before / after a long test run:
+One run_shell call per subsystem. Use to verify a freshly-deployed test box, or as a sanity check before / after a long test run:
 
 ```
-adb_shell("dumpsys battery | head -16")                                       # level/voltage/temp/health
-adb_shell("wm size; wm density; dumpsys display | grep mScreenBrightness")   # screen
-adb_shell("cat /proc/meminfo | head -4")                                      # RAM
-adb_shell("nproc; cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq") # CPU cores+freq
-adb_shell("df -h /data /sdcard 2>&1 | head -5")                               # storage
-adb_shell("dumpsys wifi | grep -E 'mWifiInfo|RSSI|LinkSpeed' | head -5")      # WiFi
-adb_shell("dumpsys telephony.registry | grep mServiceState= | head -1")       # cellular
-adb_shell("getprop gsm.sim.state; getprop gsm.operator.alpha")                # SIM
-adb_shell("dumpsys sensorservice | grep -oE 'android\\.sensor\\.[a-z_]+' | sort -u")  # sensor list
+run_shell("dumpsys battery | head -16")                                       # level/voltage/temp/health
+run_shell("wm size; wm density; dumpsys display | grep mScreenBrightness")   # screen
+run_shell("cat /proc/meminfo | head -4")                                      # RAM
+run_shell("nproc; cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq") # CPU cores+freq
+run_shell("df -h /data /sdcard 2>&1 | head -5")                               # storage
+run_shell("dumpsys wifi | grep -E 'mWifiInfo|RSSI|LinkSpeed' | head -5")      # WiFi
+run_shell("dumpsys telephony.registry | grep mServiceState= | head -1")       # cellular
+run_shell("getprop gsm.sim.state; getprop gsm.operator.alpha")                # SIM
+run_shell("dumpsys sensorservice | grep -oE 'android\\.sensor\\.[a-z_]+' | sort -u")  # sensor list
 ```
 
 ### Recipe: active hardware drive (vibrate as proof-of-execution)
@@ -162,7 +162,7 @@ adb_shell("dumpsys sensorservice | grep -oE 'android\\.sensor\\.[a-z_]+' | sort 
 When you need a physically-perceptible signal that the agent is actually driving the device (e.g. demo, post-deploy verify, "ping" between agent and device admin):
 
 ```
-adb_shell("cmd vibrator vibrate 800 atb-test")    # 800ms; the second arg is the reason logged
+run_shell("cmd vibrator vibrate 800 atb-test")    # 800ms; the second arg is the reason logged
 ```
 
 Returncode 0 + empty stdout = vibration triggered. The reason string shows up in `dumpsys vibrator` history.
@@ -170,7 +170,7 @@ Returncode 0 + empty stdout = vibration triggered. The reason string shows up in
 For sensor liveness without raw values (EMUI redacts the values but keeps timestamps):
 
 ```
-adb_shell("dumpsys sensorservice | grep -A 6 'Recent Sensor events' | head -30")
+run_shell("dumpsys sensorservice | grep -A 6 'Recent Sensor events' | head -30")
 ```
 
 Recent event timestamps prove the sensor is actively sampling; useful for sanity-checking that step counter / accelerometer hardware is alive even when content is `[value masked]`.
@@ -219,7 +219,7 @@ MCP 握手时 `instructions=` 中已列出当前所有连接设备的摘要；�
 ## Red flags
 
 - "I'll use click" -> wrong, phones use `tap`
-- "I'll just bump the timeout for this APK install" -> `install_apk` already has 120s; a slow ADB connection means USB or driver issue, not timeout
+- "I'll just bump the timeout for this APK install" -> `install_app` already has 120s; a slow ADB connection means USB or driver issue, not timeout
 - "I'll skip acquire/release for one tap" -> fine for one-off; required for multi-step automated tests where another agent might intervene
 - "I'll send Chinese text via type_text" -> silently dropped on most ROMs, plan around it (clipboard paste / IME / hardcoded test data)
 - "MCP errors are intermittent" -> on streamable-http transport this is rare; if it persists, your client config is still on legacy SSE -- re-run install-agent-side.py + restart Claude Code

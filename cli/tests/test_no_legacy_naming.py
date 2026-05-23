@@ -111,6 +111,14 @@ LEGACY_TOOL_NAMES = [
     "dump_ui_hierarchy",
     "kill_app",
     "press_button",
+    # OPTIONAL renames (P3 OPTIONAL batch) — superseded by canonical names
+    "run_powershell",   # win  → run_shell
+    "run_zsh",          # mac  → run_shell
+    "adb_shell",        # android → run_shell (internal helper renamed _adb_exec)
+    "open_app",         # mac  → launch_app
+    "start_app",        # android+ios → launch_app
+    "install_apk",      # android → install_app
+    "install_ipa",      # ios  → install_app
 ]
 
 

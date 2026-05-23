@@ -120,7 +120,7 @@ platforms/<name>/
 **强约束**：
 
 - 所有平台的工具命名共享 [Universal Tool Set](architecture.md) 公约：`take_screenshot`、`click`、`run_shell` 等同名跨平台
-- 平台相关的工具命名带平台前缀或采用平台原生名：`run_powershell`（Windows）/ `run_zsh` + `run_applescript`（macOS）
+- 通用 `run_shell` 四平台同名，底层实现按平台不同（Windows 走 PowerShell / macOS 走 zsh / Android 走 adb shell）；平台扩展工具仍保留平台原生名，如 macOS 的 `run_applescript`
 - Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`win-device`、`mac-device`、`android`、`iphone`
 
 ---
@@ -130,7 +130,7 @@ platforms/<name>/
 按这八步从零起手一个新平台桥（以未来要加的 `linux-device` 为虚构示例）：
 
 1. **建骨架**：`mkdir -p platforms/linux/{server,scripts,skills/using-linuxbox,examples}`
-2. **port server**：从最近的平台（macOS 最近）port `<name>_gui_mcp.py`，把平台特定 API 替换掉（pyautogui 在 X11 也能用；shell 由 `run_zsh` 改 `run_bash`；`run_applescript` 替换为 `run_dbus` / 删除）
+2. **port server**：从最近的平台（macOS 最近）port `<name>_gui_mcp.py`，把平台特定 API 替换掉（pyautogui 在 X11 也能用；`run_shell` 沿用同名，底层由 zsh 改 bash；`run_applescript` 替换为 `run_dbus` / 删除）
 3. **port setup script**：从 setup-macos.sh 改造，brew 改 apt，launchd 改 systemd
 4. **port skill**：从 using-mac 复制，把 macOS 特定坑（TCC 双 entry / FDA / `osascript` 责任链）替换为 Linux 等价物（X11 vs Wayland 的差异）
 5. **port examples**：claude-settings.json 改 hostname + 端口

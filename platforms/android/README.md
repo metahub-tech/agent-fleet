@@ -106,8 +106,8 @@ setup 脚本会：
 
 ```text
 You:   "Install the build, open it, tap Login, and screenshot."
-Agent: install_apk(apk_path="/builds/app-debug.apk")   → installed
-       start_app(package="com.example.app")            → launched
+Agent: install_app(path="/builds/app-debug.apk")       → installed
+       launch_app(target="com.example.app")            → launched
        tap_element(text="Login")                       → tapped
        take_screenshot()                               → agent sees the login screen
 ```
@@ -127,8 +127,8 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 屏幕 | `take_screenshot` / `get_screen_size` | screencap 直读，1:1 像素，不缩放 |
 | 触控 | `tap` / `swipe` / `long_press` | 物理屏幕坐标系 |
 | 键盘 | `type_text` / `press_key` | press_key 别名：back/home/menu/recent/power/volume_up 等 |
-| 应用 | `list_packages` / `install_apk` / `uninstall_app` / `start_app` / `terminate_app` / `current_app` | apk 安装走 host->phone push |
-| Shell | `adb_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
+| 应用 | `list_packages` / `install_app` / `uninstall_app` / `launch_app` / `terminate_app` / `current_app` | apk 安装走 host->phone push |
+| Shell | `run_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
 | 文件 | `push_file` / `pull_file` | host ↔ device |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
 

@@ -32,9 +32,9 @@ kill_process(pid=...)                  # kill by PID (platform extension)
 
 `dump_ui` and `terminate_app` are the canonical cross-platform tools. `inspect_window` (richer window introspection) and `kill_process` (PID-based kill) remain as Windows-specific extensions for finer control.
 
-### Long-running tasks: `start_process`, NOT `run_powershell`
+### Long-running tasks: `start_process`, NOT `run_shell`
 
-`run_powershell` caps at 60s default (max 600s). For anything that may exceed -- installs, builds, slow networks, downloads:
+`run_shell` caps at 60s default (max 600s). For anything that may exceed -- installs, builds, slow networks, downloads:
 
 ```
 {pid} = start_process(command="...", shell="powershell")
@@ -44,7 +44,7 @@ force_terminate(pid)                                     # if abandoned
 list_sessions()                                          # see all started_process slots
 ```
 
-`run_powershell` is fine for one-shot < 60s commands like `Get-Date`, port checks, simple file moves.
+`run_shell` is fine for one-shot < 60s commands like `Get-Date`, port checks, simple file moves.
 
 ### File operation decision tree
 
@@ -78,7 +78,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 | `MCP error -32602: Invalid request parameters` on every tool | **Should not happen on v0.2.x post-patch** -- the SSE→streamable-http migration eliminated this. If you still see it, your client config is on `"type": "sse"` / `/sse` URL. Re-run `python3 scripts/install-agent-side.py --platform win-device --hostname <HOST>` to rewrite to `"type": "http"` / `/mcp`, then `/exit` + reopen. |
 | `edit_block` returns `old_string not unique` | Pass `replace_all=True`, or extend `old_string` with surrounding context to make it unique |
 | Click landed wrong place | Coordinate system confusion -- call `get_screen_size`; treat displayed image as thumbnail; don't compute coords from rendered dimensions |
-| Service not listening on 8766 | Restart task: `run_powershell` calling `Stop-ScheduledTask MCP-WinDevice; Start-ScheduledTask MCP-WinDevice` |
+| Service not listening on 8766 | Restart task: `run_shell` calling `Stop-ScheduledTask MCP-WinDevice; Start-ScheduledTask MCP-WinDevice` |
 | `mcp__win-device__*` not in available tools | Schema not loaded -- ToolSearch with `select:mcp__win-device__<name>` first |
 
 ## Reference
@@ -91,6 +91,6 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 ## Red flags
 
 - "I'll just use the displayed image's pixel position" → wrong, use `get_screen_size`
-- "I'll bump `run_powershell` timeout to 600 for this big install" → fragile, use `start_process` + poll
+- "I'll bump `run_shell` timeout to 600 for this big install" → fragile, use `start_process` + poll
 - "I'll skip acquire/release, this is just one tool call" → fine for single calls; required for multi-step flows
 - "MCP errors are intermittent, I'll retry" → on streamable-http transport this is rare; if persists, client config is still on legacy SSE -- re-run install-agent-side.py + restart

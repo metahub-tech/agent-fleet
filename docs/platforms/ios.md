@@ -247,7 +247,7 @@ cd ~/agent-fleet/platforms/ios/server
 nohup ./.venv/bin/python ios_device_mcp.py >> ~/agent-fleet-ios-server.log 2>&1 &
 ```
 
-⚠️ **不要**用 `Start-Process -RedirectStandardOutput` 等会让父 shell 持 child stdio handle 的方式，会导致远程 `mac-device.run_zsh` 调用看似 hang（与 [Android 同 bug](android.md#server-管理)）。
+⚠️ **不要**用 `Start-Process -RedirectStandardOutput` 等会让父 shell 持 child stdio handle 的方式，会导致远程 `mac-device.run_shell` 调用看似 hang（与 [Android 同 bug](android.md#server-管理)）。
 
 ---
 

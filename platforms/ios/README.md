@@ -53,9 +53,9 @@ WDA 部署（Xcode 操作）**不在** setup 脚本覆盖范围内，见 `docs/p
 
 ```text
 You:   "Open Settings, then Maps, and screenshot each."
-Agent: start_app(bundle_id="com.apple.Preferences")    → launched
+Agent: launch_app(target="com.apple.Preferences")      → launched
        take_screenshot()                               → Settings
-       start_app(bundle_id="com.apple.Maps")           → launched
+       launch_app(target="com.apple.Maps")             → launched
        take_screenshot()                               → Maps
 ```
 
@@ -74,20 +74,20 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 | 屏幕 | `take_screenshot` / `get_screen_size` | WDA points 坐标系（非物理像素）|
 | 触控 | `tap` / `swipe` / `long_press` | WDA point 坐标 |
 | 键盘/按键 | `type_text` / `press_key` | type_text 走 UIKit（支持 Unicode）；press_key 仅 home/volume_up/volume_down/lock |
-| 应用 | `list_apps` / `install_ipa` / `uninstall_app` / `start_app` / `terminate_app` / `activate_app` / `current_app` | install = pymobiledevice3；start/terminate/activate/current = WDA |
+| 应用 | `list_apps` / `install_app` / `uninstall_app` / `launch_app` / `terminate_app` / `activate_app` / `current_app` | install = pymobiledevice3；launch/terminate/activate/current = WDA |
 | 文件 | `push_file_to_app` / `pull_file_from_app` | 仅限 UIFileSharingEnabled 应用的 Documents 沙箱 |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | WDA /source + /elements；推荐 class chain 定位器 |
 | 设备信息 | `device_info` | OS 版本、build、电量、型号（pymobiledevice3 lockdown + diagnostics）|
 
-> 与 android-device 的主要差异：**无 `adb_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
+> 与 android-device 的主要差异：**无 `run_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
 
 ## 已知限制
 
-1. **无 shell 工具**——iOS 完全沙箱化，不暴露 shell 访问；主机侧 shell 请用 mac-device 的 `run_zsh`
+1. **无 shell 工具**——iOS 完全沙箱化，不暴露 shell 访问；主机侧 shell 请用 mac-device 的 `run_shell`
 2. **文件传输受限**——只能访问有 `UIFileSharingEnabled=true` 的应用 Documents 目录
 3. **WDA 需手动部署**——每次证书过期（免费 Apple ID 7 天，付费 Developer 1 年）需在 Xcode 重新签名并启动
 4. **hot-plug 通知未实现**——新插入/拔出设备需调 `list_devices()` 主动刷新
-5. **install_ipa 大文件受限**——pymobiledevice3 子进程超时硬限 25s（fastmcp transport deadline），超大 ipa 需异步安装方案（规划中）
+5. **install_app 大文件受限**——pymobiledevice3 子进程超时硬限 25s（fastmcp transport deadline），超大 ipa 需异步安装方案（规划中）
 
 ## 详细安装文档
 

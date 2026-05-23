@@ -32,9 +32,9 @@ If taps miss anyway: usually a permission issue, NOT a coordinate issue. Verify 
 | `ctrl` | `ctrl` |
 | `shift` | `shift` |
 
-### Long-running tasks: `start_process`, NOT `run_zsh`
+### Long-running tasks: `start_process`, NOT `run_shell`
 
-`run_zsh` caps at 60s (max 600s). For builds, installs, slow networks:
+`run_shell` caps at 60s (max 600s). For builds, installs, slow networks:
 
 ```
 {pid} = start_process(command="...", shell="zsh")
@@ -43,7 +43,7 @@ force_terminate(pid)                                     # if abandoned
 list_sessions()                                          # see all started_process slots
 ```
 
-`run_zsh` is fine for one-shot < 60s commands like `date`, port checks, simple file moves.
+`run_shell` is fine for one-shot < 60s commands like `date`, port checks, simple file moves.
 
 ### Controlling other apps: `run_applescript`
 
@@ -94,7 +94,7 @@ macOS Privacy independently gates each of: `~/Documents`, `~/Desktop`, `~/Downlo
 
 Best practice for mac-device workflows:
 - Scope `start_search` and `list_directory` to the project's actual workspace dir (e.g. `~/qjl-workspace/...`, `~/code/...`).
-- Use `run_zsh "ls -d ~/*workspace* ~/code 2>/dev/null"` to discover candidate roots before scanning.
+- Use `run_shell "ls -d ~/*workspace* ~/code 2>/dev/null"` to discover candidate roots before scanning.
 - If broad access is genuinely needed, ask the operator to grant Python.app **Full Disk Access** once -- it covers Documents/Desktop/Downloads/all of ~/Library, but NOT Photos / Calendar / Reminders / Contacts (which agents shouldn't touch anyway).
 
 ### Recipe: smoke-test a GUI .app bundle
@@ -104,13 +104,13 @@ The canonical end-to-end pattern after the operator hands you an .app path:
 ```
 # 1. Strip Gatekeeper quarantine if downloaded via browser/Safari (curl
 #    via API doesn't set it; AirDrop / Safari / DMG-mount do).
-run_zsh("xattr -dr com.apple.quarantine /path/to/Foo.app 2>/dev/null || true")
+run_shell("xattr -dr com.apple.quarantine /path/to/Foo.app 2>/dev/null || true")
 
 # 2. Launch
-open_app(app="/path/to/Foo.app")            # uses macOS `open -a` semantics
+launch_app(target="/path/to/Foo.app")       # uses macOS `open -a` semantics
 
 # 3. Confirm process tree (Electron typically spawns Helper / GPU / Renderer)
-run_zsh("pgrep -fl 'Foo' | head -10")
+run_shell("pgrep -fl 'Foo' | head -10")
 
 # 4. First screenshot once UI settles
 sleep ~3-5s server-side or wait briefly client-side
@@ -160,7 +160,7 @@ Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release fo
 ## Red flags
 
 - "I'll just use the displayed image's pixel position" -> wrong, use `get_screen_size`
-- "I'll bump `run_zsh` timeout to 600 for this big install" -> fragile, use `start_process` + poll
+- "I'll bump `run_shell` timeout to 600 for this big install" -> fragile, use `start_process` + poll
 - "I'll skip acquire/release, this is just one tool call" -> fine for single calls; required for multi-step flows
 - "MCP errors are intermittent, I'll retry" -> on v0.4.x+ streamable-http transport this is rare; if it persists, your client config is still on legacy SSE -- re-run install-agent-side.py and restart Claude Code
 - "I'll keep clicking, maybe permission will magically appear" -> macOS won't grant silently. Check the permission panes.

@@ -98,9 +98,9 @@ flowchart LR
 
 | 平台 | 额外工具 |
 |---|---|
-| Windows | `run_powershell`（`run_shell` 的 PowerShell 别名） |
+| Windows | `inspect_window`, `kill_process`, `list_windows` |
 | macOS | `run_applescript`, `osascript_window_action` |
-| Android | `adb_command`, `install_apk`, `dump_uiautomator_xml` |
+| Android | `list_packages`, `push_file`, `pull_file` |
 | iOS | `xcrun_simctl`, `wda_action`, `boot_simulator` |
 
 扩展工具名必须与 Universal Tool Set 不冲突。建议用 `<platform>_<verb>` 前缀避免歧义。
