@@ -6,7 +6,7 @@ write / list / search) for agent-driven testing and remote operation.
 
 Mirrors the architecture of the Windows win-device server. Same tool
 contract for cross-platform Universal Tool Set compliance, with macOS-
-specific extensions (run_applescript, open_app).
+specific extensions (run_applescript).
 
 Transport: streamable-http on 0.0.0.0:8767/mcp. macOS Application Firewall (or pf, if
 enabled) + Tailscale ACL gate who can reach it.
@@ -240,18 +240,18 @@ def press_key(
 
 @mcp.tool
 @with_touch
-def open_app(
-    app: Annotated[str, Field(description="App name (e.g. 'Safari', 'Terminal') or full path")],
+def launch_app(
+    target: Annotated[str, Field(description="App name (e.g. 'Safari', 'Terminal') or full path")],
     args: Annotated[Optional[list[str]], Field(description="Files / URLs to open with the app")] = None,
 ) -> dict:
     """Launch a macOS application by name (uses 'open -a').
 
     Examples:
-      open_app("Safari")
-      open_app("Safari", args=["https://example.com"])
-      open_app("Terminal")
+      launch_app("Safari")
+      launch_app("Safari", args=["https://example.com"])
+      launch_app("Terminal")
     """
-    cmd = ["open", "-a", app]
+    cmd = ["open", "-a", target]
     if args:
         cmd.extend(args)
     p = subprocess.Popen(cmd)
@@ -320,11 +320,11 @@ def _run_with_clamp(cmd: list[str], requested_timeout: int) -> dict:
 
 @mcp.tool
 @with_touch
-def run_zsh(
+def run_shell(
     script: Annotated[str, Field(description="zsh script content")],
     timeout: Annotated[int, Field(ge=1, le=25, description=f"Hard-capped to {_FASTMCP_DEADLINE_SAFE_SECONDS}s — fastmcp transport dies past ~30s. Use start_process for longer jobs.")] = 25,
 ) -> dict:
-    """Execute a zsh script; return stdout / stderr / exit code. Max 25s — see start_process for longer jobs."""
+    """Execute a shell script (zsh); return stdout / stderr / exit code. Max 25s — see start_process for longer jobs."""
     return _run_with_clamp(["/bin/zsh", "-c", script], requested_timeout=timeout)
 
 
@@ -934,7 +934,7 @@ if __name__ == "__main__":
     #
     # Transport: streamable-http (FastMCP's "http" alias). Replaces the
     # legacy SSE transport in v0.3.0 because long tool calls (>60s,
-    # take_screenshot under load, run_zsh installs) caused the SSE keep-
+    # take_screenshot under load, run_shell installs) caused the SSE keep-
     # alive to time out at intermediate hops; the client kept the old
     # session_id, the server no longer knew it, and every subsequent call
     # returned -32602 until the user did /exit + reopen Claude Code.
