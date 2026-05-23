@@ -67,6 +67,10 @@ def test_console_window_detection():
     assert srv._is_console_window(None) is False
     msg = srv._console_skip_message("ConsoleWindowClass")
     assert "ConsoleWindowClass" in msg and "take_screenshot" in msg
+    assert msg.startswith("ERROR: foreground window")
+    # inspect_window path passes a custom target (not necessarily the foreground window)
+    msg2 = srv._console_skip_message("ConsoleWindowClass", target="window matching 'foo'")
+    assert "window matching 'foo'" in msg2 and "foreground window" not in msg2
 
 
 def test_proc_delegation_runs_a_command():

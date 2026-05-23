@@ -177,12 +177,15 @@ def inspect_window(
     try:
         win = Desktop(backend="uia").window(title_re=f".*{title_substring}.*")
         win.wait("visible", timeout=3)
+        # A top-level class read is safe on consoles (list_windows does the same on
+        # every window, consoles included); only the deep recursive walk in
+        # print_control_identifiers hangs — which is exactly what we skip below.
         try:
             cls = win.class_name()
         except Exception:
             cls = ""
         if _is_console_window(cls):
-            return _console_skip_message(cls)
+            return _console_skip_message(cls, target=f"window matching '{title_substring}'")
         return _dump_window_tree(win, max_depth)
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
@@ -205,12 +208,11 @@ def _is_console_window(class_name: str | None) -> bool:
     return (class_name or "") in _CONSOLE_WINDOW_CLASSES
 
 
-def _console_skip_message(class_name: str) -> str:
+def _console_skip_message(class_name: str, target: str = "foreground window") -> str:
     return (
-        f"ERROR: foreground window is a console/terminal ('{class_name}'); its UIA "
-        "tree hangs pywinauto's control walk. Use take_screenshot to view it, or the "
-        "process tools (start_process / read_process_output / run_powershell) to read "
-        "console text."
+        f"ERROR: {target} is a console/terminal ('{class_name}'); its UIA tree hangs "
+        "pywinauto's control walk. Use take_screenshot to view it, or the process "
+        "tools (start_process / read_process_output / run_powershell) to read console text."
     )
 
 
