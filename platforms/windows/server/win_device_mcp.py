@@ -177,9 +177,41 @@ def inspect_window(
     try:
         win = Desktop(backend="uia").window(title_re=f".*{title_substring}.*")
         win.wait("visible", timeout=3)
+        try:
+            cls = win.class_name()
+        except Exception:
+            cls = ""
+        if _is_console_window(cls):
+            return _console_skip_message(cls)
         return _dump_window_tree(win, max_depth)
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
+
+
+# Console / terminal host windows whose UIA tree makes pywinauto's
+# print_control_identifiers walk the (huge, often streaming) text buffer and hang.
+# We refuse to dump these and point at screenshot / process-output tools instead.
+_CONSOLE_WINDOW_CLASSES = frozenset(
+    {
+        "ConsoleWindowClass",             # classic conhost: cmd.exe, powershell.exe
+        "CASCADIA_HOSTING_WINDOW_CLASS",  # Windows Terminal
+        "PseudoConsoleWindow",
+    }
+)
+
+
+def _is_console_window(class_name: str | None) -> bool:
+    """True if a window class is a console/terminal host that hangs UIA dumps."""
+    return (class_name or "") in _CONSOLE_WINDOW_CLASSES
+
+
+def _console_skip_message(class_name: str) -> str:
+    return (
+        f"ERROR: foreground window is a console/terminal ('{class_name}'); its UIA "
+        "tree hangs pywinauto's control walk. Use take_screenshot to view it, or the "
+        "process tools (start_process / read_process_output / run_powershell) to read "
+        "console text."
+    )
 
 
 def _dump_window_tree(win, max_depth: int | None) -> str:
@@ -218,6 +250,9 @@ def dump_ui(
         title = win32gui.GetWindowText(hwnd)
         if not title:
             return "ERROR: No foreground window detected"
+        cls = win32gui.GetClassName(hwnd)
+        if _is_console_window(cls):
+            return _console_skip_message(cls)
         win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
         win.wait("visible", timeout=3)
         return _dump_window_tree(win, max_depth)

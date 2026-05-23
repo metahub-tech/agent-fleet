@@ -56,6 +56,19 @@ def test_file_delegation_roundtrip():
         assert "hello win" in _content(_fn(srv.read_file)(p))
 
 
+def test_console_window_detection():
+    # console/terminal host classes are refused (their UIA tree hangs pywinauto)
+    assert srv._is_console_window("ConsoleWindowClass") is True
+    assert srv._is_console_window("CASCADIA_HOSTING_WINDOW_CLASS") is True
+    assert srv._is_console_window("PseudoConsoleWindow") is True
+    # ordinary GUI windows / empties pass through
+    assert srv._is_console_window("Notepad") is False
+    assert srv._is_console_window("") is False
+    assert srv._is_console_window(None) is False
+    msg = srv._console_skip_message("ConsoleWindowClass")
+    assert "ConsoleWindowClass" in msg and "take_screenshot" in msg
+
+
 def test_proc_delegation_runs_a_command():
     # default shell is powershell; echo round-trips through _proc + the win ShellSpec.
     import time
