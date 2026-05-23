@@ -231,6 +231,116 @@ def _dump_window_tree(win, max_depth: int | None) -> str:
     return buf.getvalue()
 
 
+import concurrent.futures as _cf
+
+# Ordered identifying attributes for find_elements/tap_element query matching;
+# earlier = higher priority (a Name hit ranks above a ControlType hit).
+_WIN_MATCH_FIELDS = ("name", "automation_id", "control_type", "class_name")
+
+
+def _match_query(query: str, fields: dict) -> tuple:
+    """Case-insensitive match of `query` against the ordered identifying fields.
+    Returns (matched, match_field, is_exact): the highest-priority field that
+    matches wins, with an exact (==) match preferred over a substring one. Pure
+    (no pywinauto) — unit-testable on any platform."""
+    q = (query or "").strip().lower()
+    if not q:
+        return (False, "", False)
+    best = None  # (priority_index, is_exact, field)
+    for i, f in enumerate(_WIN_MATCH_FIELDS):
+        v = (fields.get(f) or "").lower()
+        if not v:
+            continue
+        if v == q:
+            cand = (i, True, f)
+        elif q in v:
+            cand = (i, False, f)
+        else:
+            continue
+        if best is None or (cand[1], -cand[0]) > (best[1], -best[0]):
+            best = cand
+    return (True, best[2], best[1]) if best else (False, "", False)
+
+
+def _uia_descendants_with_timeout(win, control_type, timeout_s: int = 8):
+    """Run pywinauto's `descendants()` under a hard timeout. UIA traversal can
+    block for seconds (or hang) on complex windows and would otherwise wedge the
+    whole MCP server; a worker thread + timeout keeps the tool responsive."""
+    with _cf.ThreadPoolExecutor(max_workers=1) as ex:
+        fut = ex.submit(
+            (lambda: win.descendants(control_type=control_type)) if control_type else win.descendants
+        )
+        return fut.result(timeout=timeout_s)
+
+
+def _resolve_uia_window(window_title):
+    """Return (win, error_dict): the target UIA window. Default = foreground
+    window; refuse console windows (their UIA tree hangs the walk — same guard
+    as dump_ui)."""
+    import win32gui
+    if window_title:
+        win = Desktop(backend="uia").window(title_re=f".*{re.escape(window_title)}.*")
+        win.wait("visible", timeout=3)
+        return win, None
+    hwnd = win32gui.GetForegroundWindow()
+    title = win32gui.GetWindowText(hwnd)
+    if not title:
+        return None, {"ok": False, "error": "No foreground window detected"}
+    cls = win32gui.GetClassName(hwnd)
+    if _is_console_window(cls):
+        return None, {"ok": False, "reason": "console_window", "error": _console_skip_message(cls)}
+    win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
+    win.wait("visible", timeout=3)
+    return win, None
+
+
+def _win_find_elements(query, window_title, control_type, include_disabled, max_results):
+    """Core UIA element search shared by find_elements + tap_element."""
+    win, err = _resolve_uia_window(window_title)
+    if err:
+        return err
+    try:
+        descendants = _uia_descendants_with_timeout(win, control_type, timeout_s=8)
+    except _cf.TimeoutError:
+        return {"ok": False, "reason": "uia_timeout",
+                "error": "UIA tree traversal timed out (8s); narrow with control_type or window_title"}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    sw, sh = pyautogui.size()
+    matched = []
+    for e in descendants:
+        try:
+            info = e.element_info
+            fields = {
+                "name": info.name or "",
+                "automation_id": info.automation_id or "",
+                "control_type": info.control_type or "",
+                "class_name": info.class_name or "",
+            }
+            ok, field, exact = _match_query(query, fields)
+            if not ok:
+                continue
+            enabled = bool(e.is_enabled())
+            if not include_disabled and not enabled:
+                continue
+            r = e.rectangle()
+            cx, cy = (r.left + r.right) // 2, (r.top + r.bottom) // 2
+            matched.append({
+                "name": fields["name"], "automation_id": fields["automation_id"],
+                "control_type": fields["control_type"], "class_name": fields["class_name"],
+                "rect": [r.left, r.top, r.right, r.bottom], "center": [cx, cy],
+                "enabled": enabled, "visible": bool(e.is_visible()),
+                "on_screen": 0 <= cx < sw and 0 <= cy < sh,
+                "match_field": field, "exact": exact,
+            })
+        except Exception:
+            continue
+    matched.sort(key=lambda m: (0 if m["exact"] else 1, _WIN_MATCH_FIELDS.index(m["match_field"])))
+    total = len(matched)
+    return {"ok": True, "count": min(total, max_results), "total_matched": total,
+            "truncated": total > max_results, "elements": matched[:max_results]}
+
+
 @mcp.tool
 @with_touch
 def dump_ui(
@@ -260,6 +370,69 @@ def dump_ui(
         return _dump_window_tree(win, max_depth)
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
+
+
+@mcp.tool
+@with_touch
+def find_elements(
+    query: Annotated[str, Field(description="Case-insensitive substring matched against an element's name / automation-id / control-type / class-name (highest-priority field wins; exact match ranks first). e.g. 'Save', 'Submit'")],
+    window_title: Annotated[Optional[str], Field(description="Restrict to the window whose title contains this; default = current foreground window")] = None,
+    control_type: Annotated[Optional[str], Field(description="Pre-filter by UIA control type (e.g. 'Button', 'Edit', 'MenuItem', 'CheckBox') to narrow + speed up the search")] = None,
+    include_disabled: Annotated[bool, Field(description="Include disabled elements (default: only enabled)")] = False,
+    max_results: Annotated[int, Field(ge=1, le=100, description="Cap on returned candidates")] = 20,
+) -> dict:
+    """Locate UI elements in a window's UIA tree by a single query string.
+
+    Element-located alternative to guessing coordinates off a screenshot: finds
+    LIVE elements by accessibility attributes (resilient to layout/scroll/size
+    changes) and returns ranked candidates with center coords. Prefer this +
+    tap_element over screenshot+tap for native UI. NOTE: a browser's web page
+    content is NOT exposed via UIA — for web, fall back to take_screenshot + tap.
+    """
+    return _win_find_elements(query, window_title, control_type, include_disabled, max_results)
+
+
+@mcp.tool
+@with_touch
+def tap_element(
+    query: Annotated[str, Field(description="Element query (see find_elements). The best-ranked match is clicked.")],
+    window_title: Annotated[Optional[str], Field(description="Restrict to this window; default = foreground")] = None,
+    control_type: Annotated[Optional[str], Field(description="Pre-filter by UIA control type")] = None,
+    nth: Annotated[int, Field(ge=0, description="Click the nth candidate (0 = best-ranked). Use after find_elements when several match.")] = 0,
+    button: Annotated[str, Field(description="left / right / middle")] = "left",
+    include_disabled: Annotated[bool, Field(description="Allow clicking disabled elements")] = False,
+) -> dict:
+    """Find an element by query and click its current center (element-located click).
+
+    Resilient to layout changes vs hardcoded tap(x,y) since it locates the element
+    live. On 'not_found' refine the query (use dump_ui to see real attributes);
+    on 'ambiguous' pass a more specific query or an nth from find_elements; for
+    browser web content fall back to take_screenshot + tap.
+    """
+    res = _win_find_elements(query, window_title, control_type, include_disabled, max_results=20)
+    if not res.get("ok"):
+        return res
+    els = res["elements"]
+    if not els:
+        return {"ok": False, "reason": "not_found", "error": f"no element matched query={query!r}", "total_matched": 0}
+    if nth:
+        if nth >= len(els):
+            return {"ok": False, "reason": "nth_out_of_range",
+                    "error": f"only {len(els)} candidate(s), requested nth={nth}", "total_matched": res["total_matched"]}
+        chosen = els[nth]
+    elif len(els) == 1 or els[0]["exact"]:
+        chosen = els[0]
+    else:
+        return {"ok": False, "reason": "ambiguous",
+                "error": f"{len(els)} elements matched query={query!r}; refine the query or pass nth",
+                "candidates": els[:10], "total_matched": res["total_matched"]}
+    cx, cy = chosen["center"]
+    pyautogui.click(x=cx, y=cy, button=button)
+    resp = {"ok": True, "action_type": "coordinate_click", "clicked_at": [cx, cy],
+            "element": chosen, "total_matched": res["total_matched"]}
+    if not chosen["on_screen"]:
+        resp["warning"] = "element_may_be_off_screen"
+    return resp
 
 
 @mcp.tool

@@ -73,6 +73,23 @@ def test_console_window_detection():
     assert "window matching 'foo'" in msg2 and "foreground window" not in msg2
 
 
+def test_match_query_ranking():
+    mq = srv._match_query
+    # exact match beats substring; case-insensitive
+    assert mq("SAVE", {"name": "save"}) == (True, "name", True)
+    assert mq("sav", {"name": "Save Document"}) == (True, "name", False)
+    # exact wins over substring even on a lower-priority field
+    assert mq("ok", {"name": "ok cancel", "automation_id": "ok"}) == (True, "automation_id", True)
+    # same exactness → higher-priority field wins (name > automation_id)
+    assert mq("save", {"name": "save", "automation_id": "save"}) == (True, "name", True)
+    # control_type / class_name are lowest priority but still match
+    assert mq("button", {"control_type": "Button"}) == (True, "control_type", True)
+    # no match / empty query
+    assert mq("xyz", {"name": "abc"}) == (False, "", False)
+    assert mq("", {"name": "abc"}) == (False, "", False)
+    assert mq("a", {}) == (False, "", False)
+
+
 def test_proc_delegation_runs_a_command():
     # default shell is powershell; echo round-trips through _proc + the win ShellSpec.
     import time
