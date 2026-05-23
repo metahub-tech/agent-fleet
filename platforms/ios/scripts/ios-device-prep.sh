@@ -233,7 +233,12 @@ step 3 "WebDriverAgent 构建 / 启动"
 
 # 已经在跑就跳过(幂等)。用一个临时 forward 探活。
 wda_reachable(){
-    local p=18290
+    # randomize the local forward port: this fn is called repeatedly in tight
+    # polling loops, and a fixed port would collide with the prior call's
+    # forward (kill is async — the socket may not be released yet) → false
+    # "unreachable". A fresh port per call sidesteps the race (and concurrent
+    # multi-device preps on the same host).
+    local p=$(( 18200 + RANDOM % 400 ))
     pmd usbmux forward "$p" 8100 --udid "$UDID" >/dev/null 2>&1 &
     local fpid=$!
     disown "$fpid" 2>/dev/null || true   # don't let the shell print "Terminated: 15" when we kill it
@@ -281,7 +286,11 @@ else
         done
         if [ "$_reached" = 1 ]; then
             ok "WDA 构建+启动验证通过"
-            kill "$BUILD_PID" 2>/dev/null; wait "$BUILD_PID" 2>/dev/null   # 停临时 build,交给 daemon
+            # 停临时 build,交给 daemon。先杀 build wrapper 的子进程(xcodebuild 及其
+            # XCUITest 会话),否则杀了 wrapper 后 xcodebuild 会被 reparent 继续跑,残留
+            # 的 WDA 会话会与 daemon 的 go-ios runwda 抢同一个 runner bundle。
+            pkill -P "$BUILD_PID" 2>/dev/null || true
+            kill "$BUILD_PID" 2>/dev/null; wait "$BUILD_PID" 2>/dev/null
             break
         fi
         wait "$BUILD_PID" 2>/dev/null
@@ -305,14 +314,15 @@ if [ "$NONINTERACTIVE" = "1" ]; then
 else
     bash "$INSTALL_DAEMON" "$UDID" "$BUNDLE_ID" || warn "daemon 安装返回非零 —— 看上面输出"
     _up=0
-    for _i in $(seq 1 12); do                           # 等 daemon 经 go-ios 把 WDA 拉起来(~60s)
+    for _i in $(seq 1 24); do                           # 等 daemon 经 go-ios 把 WDA 拉起来(~120s,冷启动偏慢)
         if wda_reachable; then _up=1; break; fi
         sleep 5
     done
     if [ "$_up" = 1 ]; then
         ok "daemon 已接管,WDA 后台常驻可达(go-ios runwda)"
     else
-        warn "daemon 已装但暂未探到 WDA;看日志 ~/Library/Logs/agent-fleet/wda-*.log,或稍等再 list_devices"
+        warn "daemon 已装但暂未探到 WDA;看日志 ~/Library/Logs/agent-fleet/wda-*.log。"
+        warn "(若日志反复刷「无法检测 iOS 版本」,多半是设备未解锁/未信任,处理后 launchd 会自动重试。)"
     fi
 fi
 

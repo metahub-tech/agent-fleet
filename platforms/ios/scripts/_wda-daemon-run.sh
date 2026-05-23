@@ -46,20 +46,42 @@ RUNNER_BUNDLE="${BUNDLE_ID}.xctrunner"
 
 # iOS version decides connectivity: iOS<17 uses the CLASSIC path (no RSD tunnel —
 # go-ios runwda over usbmux/lockdown directly); iOS17+ needs the tunneld RSD tunnel.
+# A WRONG guess is costly: an iOS17+ device sent down the classic path makes runwda
+# fail instantly → launchd KeepAlive restart storm with no clear cause. So detection
+# retries (the device may still be settling after hot-plug) and, if it STILL can't
+# tell, we do NOT guess "<17" — we exit nonzero and let launchd retry cleanly.
+# UDID is passed to Python via the environment (not string-interpolated) to avoid
+# any code-injection surface.
 VENV_PY="$(cd "$SCRIPT_DIR/.." && pwd)/server/.venv/bin/python"
-IOS_MAJ="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | "$VENV_PY" -c "
-import sys, json
-u = '$UDID'
+detect_ios_major() {
+    local maj i
+    for i in 1 2 3; do
+        maj="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | DEVICE_UDID="$UDID" "$VENV_PY" -c "
+import sys, json, os
+u = os.environ['DEVICE_UDID']
 try:
     for d in json.load(sys.stdin):
         if d.get('UniqueDeviceID') == u:
             print((d.get('ProductVersion') or '').split('.')[0]); break
 except Exception:
     pass" 2>/dev/null)"
+        maj="$(printf '%s' "$maj" | grep -oE '^[0-9]+' | head -1)"
+        [ -n "$maj" ] && { printf '%s' "$maj"; return 0; }
+        sleep 2
+    done
+    return 1
+}
+IOS_MAJ="$(detect_ios_major)" || IOS_MAJ=""
 
-if [ -z "$IOS_MAJ" ] || [ "$IOS_MAJ" -lt 17 ] 2>/dev/null; then
+if [ -z "$IOS_MAJ" ]; then
+    echo "[$(date -u +%FT%TZ)] ERROR: 无法检测 $UDID 的 iOS 版本(设备未就绪?);15s 后由 launchd KeepAlive 重试" >&2
+    sleep 15
+    exit 1
+fi
+
+if [ "$IOS_MAJ" -lt 17 ]; then
     # ---- classic path (iOS < 17): no RSD tunnel, no tunneld dependency ----
-    echo "[$(date -u +%FT%TZ)] WDA daemon (classic, iOS ${IOS_MAJ:-?}): $UDID runner=$RUNNER_BUNDLE" >&2
+    echo "[$(date -u +%FT%TZ)] WDA daemon (classic, iOS ${IOS_MAJ}): $UDID runner=$RUNNER_BUNDLE" >&2
     exec "$IOS_BIN" runwda \
         --udid="$UDID" \
         --bundleid="$RUNNER_BUNDLE" \

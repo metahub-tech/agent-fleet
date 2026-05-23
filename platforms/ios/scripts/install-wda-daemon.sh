@@ -74,24 +74,43 @@ else
 fi
 
 # iOS version decides the path: <17 = classic (go-ios runwda over usbmux — no RSD
-# tunnel, no root/sudo); 17+ = needs the shared root tunneld RSD tunnel.
-IOS_MAJ="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | "$VENV_PY" -c "
-import sys, json
-u = '$UDID'
+# tunnel, no root/sudo); 17+ = needs the shared root tunneld RSD tunnel. A wrong
+# guess is costly (17+ down the classic path → daemon never connects, silently), so
+# detection retries and, if it still can't tell, we error out rather than guess.
+# UDID is passed to Python via the environment (not interpolated) to avoid injection.
+detect_ios_major() {
+    local maj i
+    for i in 1 2 3; do
+        maj="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | DEVICE_UDID="$UDID" "$VENV_PY" -c "
+import sys, json, os
+u = os.environ['DEVICE_UDID']
 try:
     for d in json.load(sys.stdin):
         if d.get('UniqueDeviceID') == u:
             print((d.get('ProductVersion') or '').split('.')[0]); break
 except Exception:
     pass" 2>/dev/null)"
+        maj="$(printf '%s' "$maj" | grep -oE '^[0-9]+' | head -1)"
+        [ -n "$maj" ] && { printf '%s' "$maj"; return 0; }
+        sleep 2
+    done
+    return 1
+}
+IOS_MAJ="$(detect_ios_major)" || IOS_MAJ=""
+if [ -z "$IOS_MAJ" ]; then
+    echo "ERROR: 无法检测 $UDID 的 iOS 版本(设备未连接/未解锁/未信任此电脑?)。" >&2
+    echo "       无法判定 classic(<17) 还是 tunnel(17+) 路径,已中止以免装错 daemon。" >&2
+    echo "       请确认设备已插好、解锁并已「信任此电脑」,再重跑。" >&2
+    exit 1
+fi
 
 # 3. Shared root LaunchDaemon: pymobiledevice3 tunneld — iOS 17+ ONLY.
 #    `remote tunneld` creates a tun interface (requires root). iOS<17 skips this
 #    entirely (classic path needs no tunnel, no sudo).
 TUNNELD_LABEL="cc.metahub.ios-tunneld"
 TUNNELD_PLIST="/Library/LaunchDaemons/$TUNNELD_LABEL.plist"
-if [ -z "$IOS_MAJ" ] || [ "$IOS_MAJ" -lt 17 ] 2>/dev/null; then
-    echo "• iOS ${IOS_MAJ:-未知}(<17)→ classic 模式:跳过 root tunneld(无需 sudo、无需 RSD tunnel)。"
+if [ "$IOS_MAJ" -lt 17 ]; then
+    echo "• iOS ${IOS_MAJ}(<17)→ classic 模式:跳过 root tunneld(无需 sudo、无需 RSD tunnel)。"
 elif [ ! -f "$TUNNELD_PLIST" ]; then
     echo "── installing root tunneld LaunchDaemon (sudo; you'll be prompted) ──"
     tmp_plist="$(mktemp)"
