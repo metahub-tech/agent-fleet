@@ -5,7 +5,7 @@ description: Use when invoking win-device MCP tools to drive a Windows test mach
 
 # Using win-device
 
-Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, streamable-http on Tailscale). Multi-client native; advisory single-holder coordination; 40 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
+Drive a remote Windows test machine via the `win-device` MCP server (FastMCP, streamable-http on Tailscale). Multi-client native; advisory single-holder coordination; 42 tools spanning state / screen / window / mouse / keyboard / process / file / search / shell.
 
 ## Critical patterns
 
@@ -25,12 +25,35 @@ If taps miss: the displayed image is a thumbnail, not the source of truth. Call 
 
 ```
 dump_ui()                              # UI-Automation tree of the foreground window
+find_elements(query="Save")            # locate elements by UIA attributes -> ranked candidates + center coords
+tap_element(query="Save")              # find + click an element's live center
 inspect_window(...)                    # richer per-window introspection (platform extension)
 terminate_app(target="notepad.exe")    # terminate by process name / path substring
 kill_process(pid=...)                  # kill by PID (platform extension)
 ```
 
-`dump_ui` and `terminate_app` are the canonical cross-platform tools. `inspect_window` (richer window introspection) and `kill_process` (PID-based kill) remain as Windows-specific extensions for finer control.
+`dump_ui`, `find_elements` / `tap_element`, and `terminate_app` are the canonical cross-platform tools. `inspect_window` (richer window introspection) and `kill_process` (PID-based kill) remain as Windows-specific extensions for finer control.
+
+### Element-first, screenshot as fallback
+
+Prefer **`find_elements` / `tap_element(query)`** over hardcoded `tap(x, y)`. Element location queries the live UIA tree by accessibility attributes (name / automation-id / control-type), so it survives layout / scroll / resolution drift that breaks fixed coordinates.
+
+Decision tree:
+
+```
+tap_element(query="Submit")                 # default: locate by semantics, click center
+  ├─ ok            -> done
+  ├─ "not_found"   -> dump_ui() to see the REAL attribute strings -> refine query & retry
+  │                   -> still nothing? take_screenshot() + tap(x, y) as last resort
+  └─ "ambiguous"   -> inspect candidates[] -> use a more specific query, or pass nth=
+```
+
+- Narrow + speed up with `control_type` (e.g. `'Button'`, `'Edit'`, `'MenuItem'`, `'CheckBox'`); scope with `window_title`.
+- After `find_elements`, click a specific candidate with `tap_element(query=..., nth=N)`.
+
+**Known limits:**
+- **Browser web content is NOT in the UIA tree** — page elements (links, buttons inside a web page) won't be found. For web, use `take_screenshot` + `tap(x, y)`, or a dedicated browser tool.
+- **Multi-monitor:** element coords on secondary displays can be off; if a tap misses, fall back to `take_screenshot` + manual `tap(x, y)`.
 
 ### Long-running tasks: `start_process`, NOT `run_shell`
 
@@ -85,7 +108,7 @@ Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/releas
 
 - Setup: `docs/platforms/windows.md` in agent-fleet repo
 - Diagnostic: run `platforms/windows/scripts/diagnose.ps1` on the Windows host
-- Tool surface: 40 tools in 9 categories
+- Tool surface: 42 tools in 9 categories
 - Source code: `platforms/windows/server/win_device_mcp.py`
 
 ## Red flags

@@ -82,6 +82,9 @@ flowchart LR
 | 窗口 | `list_windows()` | 列可见顶层窗口 |
 | 窗口 | `inspect_window(title_substring, max_depth?)` | 返回窗口的 UI 树 |
 | 窗口 | `focus_window(title_substring)` | 把窗口拉到前台 |
+| UI 内省 | `dump_ui()` | 返回前台窗口 / 应用的 UI 树 |
+| UI 内省 | `find_elements(query, ...)` | 按语义查 UI 元素，返回带中心坐标的候选列表 |
+| UI 内省 | `tap_element(query, nth?)` | 找到元素并点其当前中心（element-first，抗布局漂移） |
 | 鼠标 | `click(x, y, button?, clicks?)` | 屏幕坐标点击 |
 | 鼠标 | `move_mouse(x, y, duration?)` | 移动指针 |
 | 键盘 | `type_text(text, interval?)` | 键入 ASCII 文本 |

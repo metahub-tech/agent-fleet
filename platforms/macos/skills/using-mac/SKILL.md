@@ -69,13 +69,35 @@ run_applescript(script='''
 
 ```
 dump_ui()                              # accessibility UI tree of the frontmost app
-list_ui_elements(...)                  # richer element listing (platform extension)
-find_ui_element(...)                   # locate a specific element (platform extension)
+find_elements(query="Save")            # locate elements by AX attributes -> ranked candidates + center coords
+tap_element(query="Save")              # find + click an element's live center
+list_ui_elements(app="Safari")         # full AX tree dump of a named app (macOS extension)
 terminate_app(target="Safari")         # terminate by app name / bundle id substring
 kill_process(pid=...)                  # kill by PID (platform extension)
 ```
 
-`dump_ui` and `terminate_app` are the canonical cross-platform tools. `list_ui_elements` / `find_ui_element` (richer accessibility introspection) and `kill_process` (PID-based kill) remain as macOS-specific extensions for finer control.
+`dump_ui`, `find_elements` / `tap_element`, and `terminate_app` are the canonical cross-platform tools. `list_ui_elements` (full-tree AX dump of a named app) and `kill_process` (PID-based kill) remain as macOS-specific extensions for finer control.
+
+### Element-first, screenshot as fallback
+
+Prefer **`find_elements` / `tap_element(query)`** over hardcoded `tap(x, y)`. Element location queries the live AX tree by accessibility attributes (AXTitle / AXDescription / value / AXRole), so it survives layout / scroll / resolution drift that breaks fixed coordinates.
+
+Decision tree:
+
+```
+tap_element(query="Save")                   # default: locate by semantics, click center
+  ├─ ok            -> done
+  ├─ "not_found"   -> dump_ui() (frontmost) or list_ui_elements(app=...) to see the REAL
+  │                   attribute strings -> refine query & retry
+  │                   -> still nothing? take_screenshot() + tap(x, y) as last resort
+  └─ "ambiguous"   -> inspect candidates[] -> use a more specific query, or pass nth=
+```
+
+- Scope the search with `app=` (substring of the app name); after `find_elements`, click a specific candidate with `tap_element(query=..., nth=N)`.
+
+**Known limits:**
+- **Browser web content is NOT in the AX tree** — page elements (links, buttons inside a web page) won't be found. For web, use `take_screenshot` + `tap(x, y)`, or a dedicated browser tool. Some apps (Electron with a11y off, Java Swing, Flutter) also expose no usable AX tree.
+- **Multi-monitor:** element coords on secondary displays can be off; if a tap misses, fall back to `take_screenshot` + manual `tap(x, y)`.
 
 ### File operation decision tree
 

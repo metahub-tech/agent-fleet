@@ -362,7 +362,7 @@ Agent A: release(holder_name="...")      # 显式释放
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 鼠标 | `tap`, `move_mouse` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd/option/shift/ctrl) |
-| UI 内省 | `dump_ui`（最前台应用 UI 树）, `list_ui_elements`, `find_ui_element`（更丰富的辅助功能内省，平台扩展） |
+| UI 内省 | `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
 | 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |

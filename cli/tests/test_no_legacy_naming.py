@@ -119,6 +119,9 @@ LEGACY_TOOL_NAMES = [
     "start_app",        # android+ios → launch_app
     "install_apk",      # android → install_app
     "install_ipa",      # ios  → install_app
+    # mac element-action convergence (win/mac element-action batch)
+    "find_ui_element",  # mac  → find_elements (canonical)
+    "click_ui_element", # mac  → tap_element (canonical)
 ]
 
 
