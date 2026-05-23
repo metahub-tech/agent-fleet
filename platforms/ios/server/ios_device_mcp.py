@@ -6,7 +6,7 @@ FastMCP server bridging an LLM agent to one or more iOS devices via:
 
 Architecture mirrors android-device v0.7.x exactly:
   - Single MCP entry on 0.0.0.0:8769/mcp (streamable-http)
-  - 26 tools (24 mirror Android + activate_app + device_info; drop adb_shell)
+  - 26 tools (24 mirror Android + activate_app + device_info; drop run_shell)
   - All tools accept optional `device` parameter (UDID or alias)
   - Alias map auto-derived from ProductType, override via
     ~/.agent-fleet/ios-aliases.json
@@ -27,7 +27,7 @@ Transport: streamable-http on 0.0.0.0:8769/mcp.
 
 Same fastmcp/mcp transport caveats as Android (jlowin/fastmcp#823):
   - All long subprocess ops clamped to 25s via _adb_run-style helper
-  - install_ipa / push_file / pull_file warn for large files
+  - install_app / push_file / pull_file warn for large files
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ def _run_pmd(args: list[str], timeout: int = 25) -> dict:
             "timed_out": True,
             "requested_timeout": timeout,
             "effective_timeout": effective,
-            "hint": "Long pymobiledevice3 ops (install_ipa with big bundles) exceed the fastmcp transport deadline. See jlowin/fastmcp#823.",
+            "hint": "Long pymobiledevice3 ops (install_app with big bundles) exceed the fastmcp transport deadline. See jlowin/fastmcp#823.",
         }
 
 
@@ -633,8 +633,8 @@ def list_apps(
 
 
 @mcp.tool
-def install_ipa(
-    ipa_path: Annotated[str, Field(description="Absolute path to .ipa on the HOST (macmini)")],
+def install_app(
+    path: Annotated[str, Field(description="Absolute path to .ipa on the HOST (macmini)")],
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
@@ -646,54 +646,54 @@ def install_ipa(
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    p = Path(ipa_path).expanduser()
+    p = Path(path).expanduser()
     if not p.is_file():
-        return {"ok": False, "error": f"ipa not found: {ipa_path}", "device": udid}
+        return {"ok": False, "error": f"ipa not found: {path}", "device": udid}
     r = _run_pmd(["apps", "install", str(p), "--udid", udid], timeout=120)
     if r["returncode"] != 0:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], "device": udid, **_diag(r)}
-    return {"ok": True, "ipa": str(p), "device": udid}
+    return {"ok": True, "path": str(p), "device": udid}
 
 
 @mcp.tool
 def uninstall_app(
-    bundle_id: Annotated[str, Field(description="Bundle ID to uninstall, e.g. 'com.example.MyApp'")],
+    target: Annotated[str, Field(description="Bundle ID to uninstall, e.g. 'com.example.MyApp'")],
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
     """Uninstall an app by bundle ID. `pymobiledevice3 apps uninstall`."""
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    r = _run_pmd(["apps", "uninstall", bundle_id, "--udid", udid], timeout=30)
+    r = _run_pmd(["apps", "uninstall", target, "--udid", udid], timeout=30)
     if r["returncode"] != 0:
         return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], "device": udid, **_diag(r)}
-    return {"ok": True, "bundle_id": bundle_id, "device": udid}
+    return {"ok": True, "target": target, "device": udid}
 
 
 @mcp.tool
-def start_app(
-    bundle_id: Annotated[str, Field(description="Bundle ID to launch, e.g. 'com.apple.MobileSafari'")],
+def launch_app(
+    target: Annotated[str, Field(description="Bundle ID to launch, e.g. 'com.apple.MobileSafari'")],
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
     """Launch an app by bundle ID via WDA /wda/apps/launch."""
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    _wda_for(udid).launch_app(bundle_id)
-    return {"ok": True, "bundle_id": bundle_id, "device": udid}
+    _wda_for(udid).launch_app(target)
+    return {"ok": True, "target": target, "device": udid}
 
 
 @mcp.tool
 def terminate_app(
-    bundle_id: Annotated[str, Field(description="Bundle ID to terminate")],
+    target: Annotated[str, Field(description="Bundle ID to terminate")],
     device: Annotated[str | None, Field(description="udid or alias")] = None,
     ctx: Context = None,
 ) -> dict:
     """Force-terminate an app by bundle ID via WDA /wda/apps/terminate."""
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    _wda_for(udid).terminate_app(bundle_id)
-    return {"ok": True, "bundle_id": bundle_id, "device": udid}
+    _wda_for(udid).terminate_app(target)
+    return {"ok": True, "target": target, "device": udid}
 
 
 @mcp.tool
