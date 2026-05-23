@@ -73,15 +73,26 @@ else
     echo "  (could not list device apps to pre-verify bundle id — proceeding; watch the wda log)"
 fi
 
-# 3. Shared root LaunchDaemon: pymobiledevice3 tunneld
-#    MUST be a root LaunchDaemon, not a user LaunchAgent: `remote tunneld`
-#    creates a tun network interface, which requires root. A LaunchAgent runs as
-#    the (non-root) logged-in user and cannot create the tunnel. Verified: the
-#    same `sudo <venv-python> -m pymobiledevice3 remote tunneld` invocation runs
-#    fine as root and finds pairing records in system-wide /var/db/lockdown.
+# iOS version decides the path: <17 = classic (go-ios runwda over usbmux — no RSD
+# tunnel, no root/sudo); 17+ = needs the shared root tunneld RSD tunnel.
+IOS_MAJ="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | "$VENV_PY" -c "
+import sys, json
+u = '$UDID'
+try:
+    for d in json.load(sys.stdin):
+        if d.get('UniqueDeviceID') == u:
+            print((d.get('ProductVersion') or '').split('.')[0]); break
+except Exception:
+    pass" 2>/dev/null)"
+
+# 3. Shared root LaunchDaemon: pymobiledevice3 tunneld — iOS 17+ ONLY.
+#    `remote tunneld` creates a tun interface (requires root). iOS<17 skips this
+#    entirely (classic path needs no tunnel, no sudo).
 TUNNELD_LABEL="cc.metahub.ios-tunneld"
 TUNNELD_PLIST="/Library/LaunchDaemons/$TUNNELD_LABEL.plist"
-if [ ! -f "$TUNNELD_PLIST" ]; then
+if [ -z "$IOS_MAJ" ] || [ "$IOS_MAJ" -lt 17 ] 2>/dev/null; then
+    echo "• iOS ${IOS_MAJ:-未知}(<17)→ classic 模式:跳过 root tunneld(无需 sudo、无需 RSD tunnel)。"
+elif [ ! -f "$TUNNELD_PLIST" ]; then
     echo "── installing root tunneld LaunchDaemon (sudo; you'll be prompted) ──"
     tmp_plist="$(mktemp)"
     cat > "$tmp_plist" <<PLIST

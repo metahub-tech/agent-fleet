@@ -44,6 +44,30 @@ fi
 
 RUNNER_BUNDLE="${BUNDLE_ID}.xctrunner"
 
+# iOS version decides connectivity: iOS<17 uses the CLASSIC path (no RSD tunnel —
+# go-ios runwda over usbmux/lockdown directly); iOS17+ needs the tunneld RSD tunnel.
+VENV_PY="$(cd "$SCRIPT_DIR/.." && pwd)/server/.venv/bin/python"
+IOS_MAJ="$("$VENV_PY" -m pymobiledevice3 usbmux list 2>/dev/null | "$VENV_PY" -c "
+import sys, json
+u = '$UDID'
+try:
+    for d in json.load(sys.stdin):
+        if d.get('UniqueDeviceID') == u:
+            print((d.get('ProductVersion') or '').split('.')[0]); break
+except Exception:
+    pass" 2>/dev/null)"
+
+if [ -z "$IOS_MAJ" ] || [ "$IOS_MAJ" -lt 17 ] 2>/dev/null; then
+    # ---- classic path (iOS < 17): no RSD tunnel, no tunneld dependency ----
+    echo "[$(date -u +%FT%TZ)] WDA daemon (classic, iOS ${IOS_MAJ:-?}): $UDID runner=$RUNNER_BUNDLE" >&2
+    exec "$IOS_BIN" runwda \
+        --udid="$UDID" \
+        --bundleid="$RUNNER_BUNDLE" \
+        --testrunnerbundleid="$RUNNER_BUNDLE" \
+        --xctestconfig=WebDriverAgentRunner.xctest
+fi
+
+# ---- tunnel path (iOS 17+) ----
 # Wait (up to ~2min) for tunneld to publish a tunnel for this device. tunneld
 # lags boot/hot-plug; exiting nonzero lets launchd KeepAlive retry cleanly.
 ADDR=""; PORT=""

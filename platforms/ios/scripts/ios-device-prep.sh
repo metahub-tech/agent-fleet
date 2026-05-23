@@ -15,6 +15,7 @@ SERVER_DIR="$(cd "$SCRIPT_DIR/../server" && pwd)"
 VENV_PY="$SERVER_DIR/.venv/bin/python"
 WDA_DIR="${WDA_DIR:-$HOME/WebDriverAgent}"
 BUILD_WDA="$SCRIPT_DIR/build-wda.sh"
+INSTALL_DAEMON="$SCRIPT_DIR/install-wda-daemon.sh"
 XCODE_APPSTORE="macappstore://apps.apple.com/app/xcode/id497799835"
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 
@@ -244,53 +245,79 @@ wda_reachable(){
     kill "$fpid" 2>/dev/null || true
     return $up
 }
-if wda_reachable; then
-    ok "WDA 已在设备上运行且可达 —— 跳过构建"
-else
-    DEF_BUNDLE="com.$(id -un | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9').WebDriverAgentRunner"
-    BUNDLE_ID="${WDA_BUNDLE_ID:-}"
-    if [ -z "$BUNDLE_ID" ]; then
-        if [ "$NONINTERACTIVE" = "1" ]; then
-            BUNDLE_ID="$DEF_BUNDLE"
-        else
-            printf '\n   输入 WDA 的 Bundle ID(全局唯一;直接回车用默认 \033[1m%s\033[0m): ' "$DEF_BUNDLE"
-            read -r BUNDLE_ID || true
-            [ -z "$BUNDLE_ID" ] && BUNDLE_ID="$DEF_BUNDLE"
-        fi
-    fi
-    info "Bundle ID: $BUNDLE_ID    Team: $TEAM_ID    Device: $UDID"
-    act "接下来跑 build(xcodebuild test,约 5-10 分钟,会一直挂着以保持 WDA 运行)。"
-    hint "⚠ 首次 build 把 App 装上后,iPhone 会弹「未受信任的开发者」,build 会卡住等你信任 —— 这不是死机!"
-    hint "   去手机:设置 → 通用 → VPN与设备管理 → 你的 Apple ID($TEAM_ID)→ 信任"
-    hint "   信任后 build 自动继续(若没动静,Ctrl-C 再重跑本脚本即可,会从这步续上)。现在开始构建 ↓"
+# Bundle ID —— build 和 daemon 都要用,所以先确定(即便 WDA 已在跑,daemon 也要它)。
+DEF_BUNDLE="com.$(id -un | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9').WebDriverAgentRunner"
+BUNDLE_ID="${WDA_BUNDLE_ID:-}"
+if [ -z "$BUNDLE_ID" ]; then
     if [ "$NONINTERACTIVE" = "1" ]; then
-        info "(non-interactive: 跳过实际 build)"
+        BUNDLE_ID="$DEF_BUNDLE"
     else
-        # 首次 build 会把 App 装上、但同一条 build 立刻尝试启动会因「证书未信任」失败
-        # —— 这是 iOS 的正常一步。检测到「装上了但没信任」就暂停让你在 iPhone 上信任,
-        # 然后**自动重试启动**,全在一次运行内完成(不用手动重跑)。
-        _attempt=1
-        while : ; do
-            if WDA_TEAM_ID="$TEAM_ID" bash "$BUILD_WDA" "$UDID" "$BUNDLE_ID"; then
-                wda_reachable && ok "WDA 可达,设备就绪" || warn "build 退出但没探到 WDA;刚信任完的话请重跑本脚本"
-                break
-            fi
-            if [ "$_attempt" -le 2 ] && pmd apps list --udid "$UDID" 2>/dev/null | grep -q "${BUNDLE_ID}.xctrunner"; then
-                warn "WDA 已装到 iPhone,但 iOS 拒绝启动 —— 开发者证书还没在手机上「信任」(这步只能你在手机上点)。"
-                act "现在去 iPhone:设置 → 通用 → VPN与设备管理 →「开发者 App」下的「Apple Development:你的 Apple ID」→ 信任"
-                hint "(「VPN与设备管理」装了 App 后才出现;信任完回来按回车,我自动重试启动)"
-                pause
-                _attempt=$((_attempt + 1))
-                info "重试 build / launch…"
-                continue
-            fi
-            die "build 失败。看上面的 xcodebuild error(常见:签名/账号、设备被锁屏);或在 iPhone 信任证书后重跑本脚本。"
+        printf '\n   输入 WDA 的 Bundle ID(全局唯一;直接回车用默认 \033[1m%s\033[0m): ' "$DEF_BUNDLE"
+        read -r BUNDLE_ID || true
+        [ -z "$BUNDLE_ID" ] && BUNDLE_ID="$DEF_BUNDLE"
+    fi
+fi
+info "Bundle ID: $BUNDLE_ID    Team: $TEAM_ID    Device: $UDID"
+
+if [ "$NONINTERACTIVE" = "1" ]; then
+    info "(non-interactive: 跳过实际 build)"
+elif wda_reachable; then
+    ok "WDA 已在运行 —— 跳过构建"
+else
+    # 后台跑 build-wda 来「构建+安装+(引导)信任」WDA:它会装上 App 并尝试启动。轮询 WDA
+    # 是否可达 —— 可达 = 装好且已信任 → 杀掉这个临时 build,下一步交给 daemon 常驻。首次启动
+    # 若因「证书未信任」失败,build 进程会退出 → 暂停让你在 iPhone 信任 → 自动重试。
+    BUILD_LOG="${TMPDIR:-/tmp}/agent-fleet-buildwda-${UDID}.log"
+    _attempt=1
+    while : ; do
+        info "构建+安装 WDA(后台,首次约 5-10 分钟;实时日志: tail -f $BUILD_LOG)…"
+        WDA_TEAM_ID="$TEAM_ID" bash "$BUILD_WDA" "$UDID" "$BUNDLE_ID" >"$BUILD_LOG" 2>&1 &
+        BUILD_PID=$!
+        _reached=0
+        for _i in $(seq 1 90); do                       # 最长 ~15 分钟(覆盖首次编译)
+            if wda_reachable; then _reached=1; break; fi
+            kill -0 "$BUILD_PID" 2>/dev/null || break   # build 进程已退出(失败/未信任)
+            sleep 10
         done
+        if [ "$_reached" = 1 ]; then
+            ok "WDA 构建+启动验证通过"
+            kill "$BUILD_PID" 2>/dev/null; wait "$BUILD_PID" 2>/dev/null   # 停临时 build,交给 daemon
+            break
+        fi
+        wait "$BUILD_PID" 2>/dev/null
+        if [ "$_attempt" -le 2 ] && pmd apps list --udid "$UDID" 2>/dev/null | grep -q "${BUNDLE_ID}.xctrunner"; then
+            warn "WDA 已装到 iPhone,但启动被拒 —— 开发者证书还没在手机上「信任」(只能你在手机上点)。"
+            act "去 iPhone:设置 → 通用 → VPN与设备管理 →「开发者 App」下的「Apple Development:你的 Apple ID」→ 信任"
+            hint "(「VPN与设备管理」装了 App 后才出现;信任完回来按回车,我自动重试)"
+            pause
+            _attempt=$((_attempt + 1))
+            continue
+        fi
+        warn "build 没成功 —— 看日志 $BUILD_LOG(常见:签名/账号、设备被锁屏)。"
+        die "在 iPhone 信任证书后重跑本脚本,或查上面日志"
+    done
+fi
+
+# ───────── Phase 4 · 持久化(launchd 后台常驻)─────────
+step 4 "持久化 WDA(launchd 守护:登录自启、崩溃自拉、关终端/重启都不掉)"
+if [ "$NONINTERACTIVE" = "1" ]; then
+    info "(non-interactive: 跳过 daemon 安装)"
+else
+    bash "$INSTALL_DAEMON" "$UDID" "$BUNDLE_ID" || warn "daemon 安装返回非零 —— 看上面输出"
+    _up=0
+    for _i in $(seq 1 12); do                           # 等 daemon 经 go-ios 把 WDA 拉起来(~60s)
+        if wda_reachable; then _up=1; break; fi
+        sleep 5
+    done
+    if [ "$_up" = 1 ]; then
+        ok "daemon 已接管,WDA 后台常驻可达(go-ios runwda)"
+    else
+        warn "daemon 已装但暂未探到 WDA;看日志 ~/Library/Logs/agent-fleet/wda-*.log,或稍等再 list_devices"
     fi
 fi
 
-# ───────── Phase 4 · 完成 ─────────
-step 4 "完成"
-ok "设备 $MODEL($UDID)前置就绪。"
-info "ios-device server 每次工具调用都会自动重新枚举设备;WDA 起来后在 agent 端重连 + list_devices() 即可看到它。"
+# ───────── Phase 5 · 完成 ─────────
+step 5 "完成"
+ok "设备 $MODEL($UDID)已上线,WDA 由 launchd 后台常驻(不再依赖前台 xcodebuild)。"
+info "证书 7 天到期(免费账号)→ 重跑本脚本重建即可。ios-device server 自动枚举设备;agent 端 list_devices() 就能看到它。"
 printf '\n════════ done ════════\n\n'
