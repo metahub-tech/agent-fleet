@@ -348,7 +348,9 @@ def _win_find_elements(query, window_title, control_type, include_disabled, max_
             })
         except Exception:
             continue
-    matched.sort(key=lambda m: (0 if m["exact"] else 1, _WIN_MATCH_FIELDS.index(m["match_field"])))
+    # on-screen first (only those are clickable; avoids auto-picking off-screen
+    # zero-geometry nodes like closed menu items), then exact, then field priority.
+    matched.sort(key=lambda m: (0 if m["on_screen"] else 1, 0 if m["exact"] else 1, _WIN_MATCH_FIELDS.index(m["match_field"])))
     total = len(matched)
     return {"ok": True, "count": min(total, max_results), "total_matched": total,
             "truncated": total > max_results, "elements": matched[:max_results]}
