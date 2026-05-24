@@ -25,6 +25,7 @@ class PlatformManifest:
     config_reuse: dict = field(default_factory=dict)   # [install.config_reuse]
     aliases: dict[str, str] = field(default_factory=dict)  # canonical -> current
     setup_script_by_os: dict[str, str] = field(default_factory=dict)  # [install.setup_script_by_os]
+    capabilities: dict = field(default_factory=dict)   # [capabilities] (e.g. {"enabled": [...]})
     toml_path: Path = field(default=Path("."))
 
     @property
@@ -59,6 +60,7 @@ def load_manifest(path: str | Path) -> PlatformManifest:
         config_reuse=install.get("config_reuse", {}),
         aliases=dict(data.get("tools", {}).get("aliases", {})),
         setup_script_by_os=dict(install.get("setup_script_by_os", {})),
+        capabilities=dict(data.get("capabilities", {})),
         toml_path=path.resolve(),
     )
 

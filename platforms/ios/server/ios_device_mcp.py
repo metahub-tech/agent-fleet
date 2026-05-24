@@ -55,6 +55,13 @@ from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
 from _device_state import DeviceStateRegistry
 from _ios_devices import detect_ios_devices, device_extras
 from _wda_client import WdaClient, WdaForwarder
+from _manifest import load_manifest
+from capabilities import (
+    CapabilityRegistry,
+    CoreCapability,
+    current_host_os,
+    resolve_enabled_capabilities,
+)
 
 
 # ============================================================
@@ -845,6 +852,29 @@ def device_info(
         "build_version": extras.get("build_version"),
         "battery": battery,
     }
+
+
+# ============================================================
+#                  CAPABILITY MODULE FRAMEWORK
+# ============================================================
+# core tools (above) stay inline — registered the normal way (zero behavior
+# change). The registry adds list_capabilities() and registers optional
+# capability modules (browser, ...) when enabled in config. Static registration
+# at import → the client defers tool schemas (design §1), no upfront token cost.
+_PLATFORM_DIR = Path(__file__).resolve().parent.parent      # platforms/ios
+_REPO_ROOT = _PLATFORM_DIR.parent.parent                    # repo root
+try:
+    _enabled_caps = resolve_enabled_capabilities(
+        load_manifest(_PLATFORM_DIR / "platform.toml").capabilities, _REPO_ROOT
+    )
+except Exception as e:  # never let capability config crash server startup
+    print(f"[capabilities] config load failed, defaulting to core only: "
+          f"{type(e).__name__}: {e}", file=sys.stderr)
+    _enabled_caps = ["core"]
+
+_cap_registry = CapabilityRegistry(host_os=current_host_os())
+_cap_registry.add(CoreCapability(skill="using-ios"))
+_cap_registry.setup(mcp, _enabled_caps)
 
 
 # ============================================================

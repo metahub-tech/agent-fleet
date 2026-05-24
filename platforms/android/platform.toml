@@ -9,6 +9,12 @@ host_os      = ["windows", "macos", "linux"]
 [server]
 module = "android_device_mcp"
 
+# Capability modules to enable on this host (core is always on; design §3.7).
+# Optional modules (e.g. browser) get added here once implemented (Phase 2).
+# Overridable per-host via <repo_root>/.fleet/config.toml [capabilities].enabled.
+[capabilities]
+enabled = ["core"]
+
 [install]
 setup_script = "scripts/setup-android.sh"
 guidance     = ["android_dev_options.yaml", "android_usb_debug.yaml", "android_wireless_pair.yaml"]

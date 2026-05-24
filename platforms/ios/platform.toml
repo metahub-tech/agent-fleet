@@ -9,6 +9,12 @@ host_os      = ["macos"]
 [server]
 module = "ios_device_mcp"
 
+# Capability modules to enable on this host (core is always on; design §3.7).
+# Optional modules (e.g. browser) get added here once implemented (Phase 2).
+# Overridable per-host via <repo_root>/.fleet/config.toml [capabilities].enabled.
+[capabilities]
+enabled = ["core"]
+
 [install]
 setup_script = "scripts/setup-ios.sh"
 guidance     = ["ios_wda_deploy.yaml"]

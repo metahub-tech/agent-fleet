@@ -45,6 +45,13 @@ from pywinauto import Desktop
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
 from _device_state import DeviceStateRegistry
+from _manifest import load_manifest
+from capabilities import (
+    CapabilityRegistry,
+    CoreCapability,
+    current_host_os,
+    resolve_enabled_capabilities,
+)
 
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
@@ -897,6 +904,29 @@ def swipe(
     pyautogui.moveTo(x1, y1)
     pyautogui.dragTo(x2, y2, duration=max(0.0, duration_ms / 1000.0), button="left")
     return {"ok": True, "from": [x1, y1], "to": [x2, y2], "duration_ms": duration_ms}
+
+
+# ============================================================
+#                  CAPABILITY MODULE FRAMEWORK
+# ============================================================
+# core tools (above) stay inline — registered the normal way (zero behavior
+# change). The registry adds list_capabilities() and registers optional
+# capability modules (browser, ...) when enabled in config. Static registration
+# at import → the client defers tool schemas (design §1), no upfront token cost.
+_PLATFORM_DIR = Path(__file__).resolve().parent.parent      # platforms/windows
+_REPO_ROOT = _PLATFORM_DIR.parent.parent                    # repo root
+try:
+    _enabled_caps = resolve_enabled_capabilities(
+        load_manifest(_PLATFORM_DIR / "platform.toml").capabilities, _REPO_ROOT
+    )
+except Exception as e:  # never let capability config crash server startup
+    print(f"[capabilities] config load failed, defaulting to core only: "
+          f"{type(e).__name__}: {e}", file=sys.stderr)
+    _enabled_caps = ["core"]
+
+_cap_registry = CapabilityRegistry(host_os=current_host_os())
+_cap_registry.add(CoreCapability(skill="using-win"))
+_cap_registry.setup(mcp, _enabled_caps)
 
 
 # ============================================================
