@@ -163,30 +163,31 @@ def _frame_is_black(img) -> bool:
 _caffeinate_proc: Optional[subprocess.Popen] = None
 
 
-def _wake_display() -> bool:
-    """Wake the panel / exit the screensaver so a capture reflects the real
-    desktop instead of a black (display-asleep) or wallpaper (screensaver)
-    frame. Idle hosts (e.g. a mac mini with an HDMI dongle and no user) sleep
-    the display after a while. Returns True if a screensaver was just killed,
-    so the caller waits for the panel to light up before grabbing.
+def _screensaver_running() -> bool:
+    """A running ScreenSaverEngine means the panel shows wallpaper, not the
+    real desktop. Checked before waking (cheap pgrep)."""
+    try:
+        return subprocess.run(
+            ["pgrep", "-x", "ScreenSaverEngine"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode == 0
+    except Exception:
+        return False
 
-    Non-blocking on the normal (awake) path: just a pgrep + a fire-and-forget
-    caffeinate. The wake settles within ~0.5s (measured), covered by the
-    caller's re-grab delay, so we don't block here every screenshot."""
+
+def _wake_display() -> None:
+    """Exit the screensaver and declare user activity to wake the panel.
+    Idle hosts (e.g. a mac mini with an HDMI dongle and no user) sleep the
+    display after a while. Caller must wait for the wake + fade-in to finish
+    before grabbing."""
     global _caffeinate_proc
-    woke = False
     try:
         if _caffeinate_proc is not None:
             _caffeinate_proc.poll()  # reap the previous caffeinate if it exited
-        if subprocess.run(
-            ["pgrep", "-x", "ScreenSaverEngine"],
+        subprocess.run(
+            ["killall", "ScreenSaverEngine"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        ).returncode == 0:
-            subprocess.run(
-                ["killall", "ScreenSaverEngine"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            woke = True
+        )
         # -u declares user activity (wakes the display); -t lets caffeinate
         # exit shortly after so the assertion doesn't linger. Fire-and-forget;
         # reaped on the next call (poll above) and by subprocess._cleanup.
@@ -196,7 +197,6 @@ def _wake_display() -> bool:
         )
     except Exception:
         pass
-    return woke
 
 
 @mcp.tool
@@ -215,15 +215,17 @@ def take_screenshot(
     directly to `click(x, y)` without scaling math.
 
     On idle hosts the panel may be asleep (black frame) or showing a
-    screensaver; we wake it first and re-grab only if needed, so the capture
-    reflects the real desktop without slowing the normal (awake) path.
+    screensaver; we detect that and wake + re-grab, so the capture reflects
+    the real desktop without slowing the normal (awake) path.
     """
-    woke = _wake_display()
+    # Check state BEFORE waking: a slept panel reads all-black and a screensaver
+    # shows as a process -- both detect cleanly here. Don't wake-then-test the
+    # grab: the wake fade-in yields non-black, half-transparent frames that slip
+    # past the black test, so we'd return a half-faded frame.
     img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
-    if woke or _frame_is_black(img):
-        # Let the panel light up AND the wake fade-in animation finish, else the
-        # re-grab catches a half-transparent frame (~0.8s lands mid-animation).
-        time.sleep(1.3)
+    if _frame_is_black(img) or _screensaver_running():
+        _wake_display()
+        time.sleep(1.5)  # wait for the panel wake + fade-in animation to finish
         img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
     if region is None:
         target = pyautogui.size()
