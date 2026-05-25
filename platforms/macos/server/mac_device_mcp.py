@@ -221,7 +221,9 @@ def take_screenshot(
     woke = _wake_display()
     img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
     if woke or _frame_is_black(img):
-        time.sleep(0.8)  # let the panel light up after wake / screensaver exit
+        # Let the panel light up AND the wake fade-in animation finish, else the
+        # re-grab catches a half-transparent frame (~0.8s lands mid-animation).
+        time.sleep(1.3)
         img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
     if region is None:
         target = pyautogui.size()
