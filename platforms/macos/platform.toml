@@ -13,7 +13,7 @@ module = "mac_device_mcp"
 # Optional modules (e.g. browser) get added here once implemented (Phase 2).
 # Overridable per-host via <repo_root>/.fleet/config.toml [capabilities].enabled.
 [capabilities]
-enabled = ["core", "agent_browser"]
+enabled = ["core", "agent_browser", "human_browser"]
 
 [install]
 setup_script = "scripts/setup-macos.sh"

@@ -11,7 +11,7 @@ from ._base import (
     resolve_enabled_capabilities,
 )
 from ._core import CoreCapability
-from .browser import AgentBrowserCapability
+from .browser import AgentBrowserCapability, HumanBrowserCapability
 
 __all__ = [
     "CORE_ID",
@@ -22,6 +22,7 @@ __all__ = [
     "ProxiedCapability",
     "CoreCapability",
     "AgentBrowserCapability",
+    "HumanBrowserCapability",
     "current_host_os",
     "register_list_capabilities",
     "resolve_enabled_capabilities",

@@ -55,6 +55,7 @@ from capabilities import (
     AgentBrowserCapability,
     CapabilityRegistry,
     CoreCapability,
+    HumanBrowserCapability,
     current_host_os,
     resolve_enabled_capabilities,
 )
@@ -1026,6 +1027,7 @@ except Exception as e:  # never let capability config crash server startup
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())
+_cap_registry.add(HumanBrowserCapability())
 _cap_registry.setup(mcp, _enabled_caps)
 
 
