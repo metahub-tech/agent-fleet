@@ -47,6 +47,7 @@ import _fsops, _proc, _search
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
 from capabilities import (
+    AgentBrowserCapability,
     CapabilityRegistry,
     CoreCapability,
     current_host_os,
@@ -926,6 +927,7 @@ except Exception as e:  # never let capability config crash server startup
 
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
+_cap_registry.add(AgentBrowserCapability())
 _cap_registry.setup(mcp, _enabled_caps)
 
 

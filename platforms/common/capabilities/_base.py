@@ -22,6 +22,7 @@ core = every live tool NOT claimed by an optional module.
 from __future__ import annotations
 
 import platform as _platform
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -73,6 +74,35 @@ class CapabilityModule:
         return []
 
 
+class ProxiedCapability(CapabilityModule):
+    """A capability that grafts a mature MCP server (design §9.1, origin=proxied).
+
+    register() wraps a backend MCP (e.g. a Playwright MCP stdio subprocess) in a
+    FastMCP proxy and mounts it onto the device server, so the backend's tools are
+    re-exposed (keeping their own names — no prefix). The backend connects lazily
+    on first request and stays alive for the server's lifetime (use keep_alive on
+    the transport). Subclasses implement make_transport() + proxied_tools()."""
+
+    origin = ORIGIN_PROXIED
+
+    def make_transport(self):
+        """Return a fastmcp ClientTransport for the backend MCP (subclass impl)."""
+        raise NotImplementedError
+
+    def proxied_tools(self) -> list[str]:
+        """The backend's tool-name contract (for list_capabilities bucketing).
+        The live tools come from the mount; this list is the advertised surface."""
+        raise NotImplementedError
+
+    def register(self, mcp) -> list[str]:
+        from fastmcp.server import create_proxy
+        from fastmcp.server.providers.proxy import ProxyClient
+
+        proxy = create_proxy(ProxyClient(self.make_transport()))
+        mcp.mount(proxy)  # no prefix — backend tools keep their own names
+        return list(self.proxied_tools())
+
+
 class CapabilityRegistry:
     """Holds capability modules, activates the enabled ones, and produces the
     list_capabilities() discovery payload."""
@@ -100,7 +130,11 @@ class CapabilityRegistry:
             self._availability[mid] = (ok, reason)
             if not ok:
                 continue
-            self._module_tools[mid] = list(mod.register(mcp) or [])
+            try:
+                self._module_tools[mid] = list(mod.register(mcp) or [])
+            except Exception as exc:  # a capability must never crash server startup
+                self._availability[mid] = (False, f"register() failed: {type(exc).__name__}: {exc}")
+                print(f"[capabilities] {mid} register() failed: {exc}", file=sys.stderr)
 
     def setup(self, mcp, enabled: list[str]) -> None:
         """Full integration entry point: activate enabled optional modules, THEN

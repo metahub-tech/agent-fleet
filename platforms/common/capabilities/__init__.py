@@ -5,11 +5,13 @@ from ._base import (
     ORIGIN_SELF_BUILT,
     CapabilityModule,
     CapabilityRegistry,
+    ProxiedCapability,
     current_host_os,
     register_list_capabilities,
     resolve_enabled_capabilities,
 )
 from ._core import CoreCapability
+from .browser import AgentBrowserCapability
 
 __all__ = [
     "CORE_ID",
@@ -17,7 +19,9 @@ __all__ = [
     "ORIGIN_PROXIED",
     "CapabilityModule",
     "CapabilityRegistry",
+    "ProxiedCapability",
     "CoreCapability",
+    "AgentBrowserCapability",
     "current_host_os",
     "register_list_capabilities",
     "resolve_enabled_capabilities",
