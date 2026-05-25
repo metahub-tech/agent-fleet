@@ -137,6 +137,9 @@ def _make_wrapper(tool_name: str, doc: str, props: dict, required: list):
     async def handler(**kwargs):
         profile = kwargs.pop("profile", "isolated")
         holder = kwargs.pop("holder", "agent")
+        # fastmcp passes UNSET optionals as None; @playwright/mcp's schema rejects
+        # null for typed optionals, so forward only real values (omitted = backend default).
+        args = {k: v for k, v in kwargs.items() if v is not None}
         udd, pdir, key = _resolve_profile(profile)
         reg = shared_registry()
         sess = reg.get_instance(key, holder)
@@ -148,7 +151,7 @@ def _make_wrapper(tool_name: str, doc: str, props: dict, required: list):
             sess = reg.get_instance(key, holder)
             if sess is None:  # extreme race (bind then immediate expiry) -- don't crash
                 return {"error": "session unavailable right after bind; retry", "profile_key": key}
-        return await sess.call(tool_name, kwargs)
+        return await sess.call(tool_name, args)
 
     params = [
         inspect.Parameter("profile", inspect.Parameter.KEYWORD_ONLY, annotation=str, default="isolated"),
