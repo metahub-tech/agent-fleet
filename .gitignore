@@ -79,3 +79,7 @@ cli/.venv/
 
 # go-ios binary (fetched by install-go-ios.sh, not vendored)
 platforms/ios/bin/
+
+# Playwright MCP output dir (snapshots / console logs) + agent_browser profile
+**/.playwright-mcp/
+.fleet/
