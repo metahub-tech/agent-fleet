@@ -10,10 +10,10 @@ host_os      = ["windows"]
 module = "win_device_mcp"
 
 # Capability modules to enable on this host (core is always on; design §3.7).
-# Optional modules (e.g. browser) get added here once implemented (Phase 2).
+# browser (agent_browser/human_browser) needs Google Chrome; agent_browser also needs node/npx.
 # Overridable per-host via <repo_root>/.fleet/config.toml [capabilities].enabled.
 [capabilities]
-enabled = ["core"]
+enabled = ["core", "agent_browser", "human_browser"]
 
 [install]
 setup_script = "scripts/setup-windows.ps1"
