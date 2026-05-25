@@ -35,6 +35,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -143,6 +144,61 @@ def get_screen_size() -> dict:
     return {"width": w, "height": h}
 
 
+def _frame_is_black(img) -> bool:
+    """A display-asleep grab is all-black; sample a 7x7 grid and report black if
+    even the brightest sampled point has R+G+B <= 18 (~each channel <= 6)."""
+    rgb = img.convert("RGB")
+    w, h = rgb.size
+    if w < 8 or h < 8:
+        return False
+    return max(
+        sum(rgb.getpixel((w * i // 8, h * j // 8)))
+        for i in range(1, 8)
+        for j in range(1, 8)
+    ) <= 18
+
+
+# Holds the most recent caffeinate child so the next call can reap it
+# (non-blocking) and avoid leaving a zombie on this long-lived server.
+_caffeinate_proc: Optional[subprocess.Popen] = None
+
+
+def _wake_display() -> bool:
+    """Wake the panel / exit the screensaver so a capture reflects the real
+    desktop instead of a black (display-asleep) or wallpaper (screensaver)
+    frame. Idle hosts (e.g. a mac mini with an HDMI dongle and no user) sleep
+    the display after a while. Returns True if a screensaver was just killed,
+    so the caller waits for the panel to light up before grabbing.
+
+    Non-blocking on the normal (awake) path: just a pgrep + a fire-and-forget
+    caffeinate. The wake settles within ~0.5s (measured), covered by the
+    caller's re-grab delay, so we don't block here every screenshot."""
+    global _caffeinate_proc
+    woke = False
+    try:
+        if _caffeinate_proc is not None:
+            _caffeinate_proc.poll()  # reap the previous caffeinate if it exited
+        if subprocess.run(
+            ["pgrep", "-x", "ScreenSaverEngine"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode == 0:
+            subprocess.run(
+                ["killall", "ScreenSaverEngine"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            woke = True
+        # -u declares user activity (wakes the display); -t lets caffeinate
+        # exit shortly after so the assertion doesn't linger. Fire-and-forget;
+        # reaped on the next call (poll above) and by subprocess._cleanup.
+        _caffeinate_proc = subprocess.Popen(
+            ["caffeinate", "-u", "-t", "2"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+    return woke
+
+
 @mcp.tool
 @with_touch
 def take_screenshot(
@@ -157,8 +213,16 @@ def take_screenshot(
     pyautogui clicks use logical pixels (e.g. 1440x900). We resize the
     grab to logical size so screenshot pixel coordinates can be passed
     directly to `click(x, y)` without scaling math.
+
+    On idle hosts the panel may be asleep (black frame) or showing a
+    screensaver; we wake it first and re-grab only if needed, so the capture
+    reflects the real desktop without slowing the normal (awake) path.
     """
+    woke = _wake_display()
     img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
+    if woke or _frame_is_black(img):
+        time.sleep(0.8)  # let the panel light up after wake / screensaver exit
+        img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
     if region is None:
         target = pyautogui.size()
     else:
