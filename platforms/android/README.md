@@ -134,6 +134,17 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 > `type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行。
 
+### Platform-specific extensions · 平台特定扩展
+
+上面工具集表里属于 Android 平台特定扩展（不在四平台 universal tool set 内）的工具：
+
+- `list_packages` / `push_file` / `pull_file` — Android-only（PackageManager + adb push/pull）
+- `long_press` — mobile-only（Android / iOS 共有，桌面平台未对齐）
+- `install_app` / `uninstall_app` — mobile-only（PackageManager；桌面平台无对应概念）
+- `run_shell` — Android + desktop 都有，但 Android 的 shell 跑在设备上（不是 host）
+
+跨平台对照见 [`docs/architecture.md` 平台扩展节](../../docs/architecture.md#平台扩展)；完整签名见 [`docs/internal/blueprint/INTERFACE.md`](../../docs/internal/blueprint/INTERFACE.md)。
+
 ## 已知限制
 
 1. **`type_text` 不支持中文 / emoji** —— `adb input text` 在大多数 ROM 上是 ASCII-only

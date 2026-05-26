@@ -26,6 +26,9 @@ trap 'rm -f "${TMP}"' EXIT
   echo ""
   echo "_由 \`scripts/gen-blueprint-interface.sh\` 从代码自动生成。各平台 MCP server 上的工具签名集 = agent 跨平台调用的 universal tool set。_"
   echo ""
+  echo "> **覆盖范围**：仅列各 server 里 \`@*.tool\` 静态装饰的函数。"
+  echo "> **不在覆盖范围**：能力框架运行时动态注入的可选能力工具（如 Windows / macOS 上的 \`agent_browser\` / \`human_browser_open\` 系列，共 ~28 个）——这些工具运行时通过 \`list_capabilities()\` 取真实清单；文档侧见各平台 README 的 \"浏览器能力（可选）/ Platform-specific extensions\" 节。"
+  echo ""
 
   for p in $(ls platforms/ 2>/dev/null | sort); do
     case "${p}" in

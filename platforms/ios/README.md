@@ -81,6 +81,17 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 
 > 与 android-device 的主要差异：**无 `run_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
 
+### Platform-specific extensions · 平台特定扩展
+
+上面工具集表里属于 iOS 平台特定扩展（不在四平台 universal tool set 内）的工具：
+
+- `activate_app` / `device_info` / `list_apps` — iOS-only（WDA `/wda/apps` + pymobiledevice3 lockdown/diagnostics）
+- `push_file_to_app` / `pull_file_from_app` — iOS-only（pymobiledevice3 AFC，沙箱受限）
+- `long_press` — mobile-only（Android / iOS 共有，桌面平台未对齐）
+- `install_app` / `uninstall_app` — mobile-only（pymobiledevice3）
+
+跨平台对照见 [`docs/architecture.md` 平台扩展节](../../docs/architecture.md#平台扩展)；完整签名见 [`docs/internal/blueprint/INTERFACE.md`](../../docs/internal/blueprint/INTERFACE.md)。
+
 ## 已知限制
 
 1. **无 shell 工具**——iOS 完全沙箱化，不暴露 shell 访问；主机侧 shell 请用 mac-device 的 `run_shell`

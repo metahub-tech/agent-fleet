@@ -70,6 +70,17 @@ agent-fleet CLI
 - `cli/src/fleet/verify.py`
 - `cli/src/fleet/wizard.py`
 
+**Guidance 资产（CLI 安装向导用的剧本 yaml）**：
+- `cli/src/fleet/guidance/android_dev_options.yaml`
+- `cli/src/fleet/guidance/android_usb_debug.yaml`
+- `cli/src/fleet/guidance/android_wireless_pair.yaml`
+- `cli/src/fleet/guidance/ios_wda_deploy.yaml`
+- `cli/src/fleet/guidance/macos_accessibility.yaml`
+- `cli/src/fleet/guidance/macos_automation.yaml`
+- `cli/src/fleet/guidance/macos_full_disk_access.yaml`
+- `cli/src/fleet/guidance/macos_screen_recording.yaml`
+- `cli/src/fleet/guidance/windows_postinstall.yaml`
+
 ## scripts/
 
 **仓库级运维脚本**：

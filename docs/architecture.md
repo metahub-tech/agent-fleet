@@ -75,38 +75,54 @@ flowchart LR
 
 ### Universal Tools
 
-| 类别 | 工具 | 语义 |
+> **支持列**：`✓ all` = 四平台都实现；`desktop` = Windows + macOS；`mobile` = Android + iOS；`+ Android` 表示在 desktop 之外 Android 也实现。权威清单始终是 [`docs/internal/blueprint/INTERFACE.md`](internal/blueprint/INTERFACE.md)（自动生成）；下面这张表是人读的设计契约。
+
+| 类别 | 工具 | 语义 | 支持平台 |
+|---|---|---|---|
+| 屏幕 | `get_screen_size()` | 返回 `{width, height}` | ✓ all |
+| 屏幕 | `take_screenshot(region?)` | 返回 PNG bytes | ✓ all |
+| UI 内省 | `dump_ui()` | 返回前台窗口 / 应用的 UI 树 | ✓ all |
+| UI 内省 | `find_elements(query, ...)` | 按语义查 UI 元素，返回带中心坐标的候选列表 | ✓ all |
+| UI 内省 | `tap_element(query, nth?)` | 找到元素并点其当前中心（element-first，抗布局漂移） | ✓ all |
+| 触控 / 鼠标 | `tap(x, y, button?, clicks?)` | 屏幕坐标点击（touch 或 mouse，按平台） | ✓ all |
+| 触控 / 鼠标 | `swipe(x1, y1, x2, y2, duration_ms?)` | 拖拽 / 滑动 | ✓ all |
+| 触控（仅移动） | `long_press(x, y, duration_ms)` | 长按 | mobile（Android / iOS）|
+| 键盘 | `type_text(text, interval?)` | 键入文本（Android 仅 ASCII；iOS / desktop 支持 Unicode） | ✓ all |
+| 键盘 | `press_key(keys)` | 按键 / 组合键（移动端为物理按键如 `home`/`volume_up`；桌面为 `enter` / `cmd+s`） | ✓ all |
+| 应用生命周期 | `launch_app(target, ...)` | 启动应用（target 平台语义不同：Win exe path / Android package / mac bundle / iOS bundle） | ✓ all |
+| 应用生命周期 | `terminate_app(target)` | 终止应用 | ✓ all |
+| 应用生命周期 | `current_app()` | 当前前台应用 | ✓ all |
+| 设备生命周期 | `acquire` / `release` / `get_status` / `list_devices` / `set_default_device` / `get_default_device` | 设备资源租约 + 多设备路由 | ✓ all |
+
+**桌面专属（仅 Windows / macOS）**——iOS 沙箱 / Android 受限，无完整对应：
+
+| 类别 | 工具 | 语义 | 支持平台 |
+|---|---|---|---|
+| 鼠标 | `move_mouse(x, y, duration?)` | 移动指针 | desktop |
+| 键盘 | `paste_text(text)` | 通过剪贴板贴入 Unicode | desktop |
+| 进程 | `kill_process(pid)` | 按 PID 杀进程 | desktop |
+| 进程 | `list_processes(name_filter?)` | 列运行中进程 | desktop |
+
+**Shell 网关**（跨三平台，iOS 无）：
+
+| 工具 | 语义 | 支持平台 |
 |---|---|---|
-| 屏幕 | `get_screen_size()` | 返回 `{width, height}` |
-| 屏幕 | `take_screenshot(region?)` | 返回 PNG bytes |
-| 窗口 | `list_windows()` | 列可见顶层窗口 |
-| 窗口 | `inspect_window(title_substring, max_depth?)` | 返回窗口的 UI 树 |
-| 窗口 | `focus_window(title_substring)` | 把窗口拉到前台 |
-| UI 内省 | `dump_ui()` | 返回前台窗口 / 应用的 UI 树 |
-| UI 内省 | `find_elements(query, ...)` | 按语义查 UI 元素，返回带中心坐标的候选列表 |
-| UI 内省 | `tap_element(query, nth?)` | 找到元素并点其当前中心（element-first，抗布局漂移） |
-| 鼠标 | `click(x, y, button?, clicks?)` | 屏幕坐标点击 |
-| 鼠标 | `move_mouse(x, y, duration?)` | 移动指针 |
-| 键盘 | `type_text(text, interval?)` | 键入 ASCII 文本 |
-| 键盘 | `paste_text(text)` | 通过剪贴板贴入文本（支持 Unicode） |
-| 键盘 | `press_key(keys)` | 单键或组合键（`enter` / `cmd+s`） |
-| 进程 | `launch_app(path, args?)` | 启动应用，返回 PID |
-| 进程 | `kill_process(pid)` | 根据 PID 杀进程 |
-| 进程 | `list_processes(name_filter?)` | 列运行中进程 |
-| Shell | `run_shell(script, timeout?)` | 执行平台原生 shell |
+| `run_shell(script, timeout?)` | 执行平台原生 shell（Windows PowerShell / macOS zsh / Android device shell） | Windows + macOS + Android |
+
+iOS 完全沙箱无 shell 工具；移动端 shell 命令请用 mac-device 的 `run_shell`（如果要操作 host），或 android-device 的 `run_shell`（如果要操作设备）。
 
 实现新平台桥时如果某个工具语义无法对应（例如 iOS 没有传统"窗口"概念），优先做语义映射（窗口 ≈ App + Scene），实在不能映射的工具留 stub 抛 `NotImplementedError`，并在该平台 README 里登记不支持。
 
 ### 平台扩展
 
-| 平台 | 额外工具 |
+| 平台 | 额外工具（实际代码） |
 |---|---|
-| Windows | `inspect_window`, `kill_process`, `list_windows` |
-| macOS | `run_applescript`, `osascript_window_action` |
-| Android | `list_packages`, `push_file`, `pull_file` |
-| iOS | `xcrun_simctl`, `wda_action`, `boot_simulator` |
+| Windows | `list_windows`, `inspect_window`, `focus_window`（pywinauto 窗口操作）+ `human_browser_open` + `browser_*`（共 27 个 playwright-mcp 嫁接，能力框架动态注入，不在 INTERFACE.md 静态清单） + 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
+| macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
+| Android | `list_packages`, `push_file`, `pull_file`（PackageManager 与 adb push/pull）|
+| iOS | `activate_app`, `device_info`, `list_apps`, `push_file_to_app`, `pull_file_from_app`（pymobiledevice3 + WDA 专属）|
 
-扩展工具名必须与 Universal Tool Set 不冲突。建议用 `<platform>_<verb>` 前缀避免歧义。
+扩展工具名必须与 Universal Tool Set 不冲突。建议用 `<platform>_<verb>` 前缀避免歧义。**完整运行时清单**：调 `list_capabilities()`（能力框架统一注入），它返回每个能力模块（含可选浏览器能力）的实际工具列表。
 
 ## 为什么是 Tailscale + MCP
 

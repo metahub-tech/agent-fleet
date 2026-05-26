@@ -17,7 +17,7 @@
 platforms/<name>/
 ├── platform.toml      # manifest：id / port / host_os / [capabilities].enabled / 安装入口
 ├── README.md          # 平台快速上手 + 工具速查
-├── server/            # MCP server 源码 + requirements.txt + pyproject.toml
+├── server/            # MCP server 源码 + 依赖声明（pyproject.toml 必备；requirements.txt 可选——iOS 仅用 pyproject.toml，其余 3 平台双声明并存以适配 venv 工具链）
 ├── scripts/           # 安装脚本（setup-<platform>.<ext>）
 ├── skills/            # 给 agent 用的 skill 文档（using-<platform>/SKILL.md 等）
 └── examples/          # claude-settings.json 等参考配置
