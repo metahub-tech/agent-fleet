@@ -6,7 +6,7 @@ import pytest
 _here = Path(__file__).resolve().parent
 sys.path.insert(0, str(_here))          # platforms/tests (for _ast_tools)
 sys.path.insert(0, str(_here.parent))   # platforms/ (for common)
-from _ast_tools import extract_mcp_tools
+from _ast_tools import extract_mcp_tools, func_return_annotation
 from common import _canonical_tools as ct
 from common._manifest import discover_manifests
 
@@ -69,3 +69,13 @@ def test_known_gaps_shrink():
     # Tripwire: every platform now covers all CORE directly or via alias. Keep this at
     # {} — re-adding an entry must come with a documented reason + removal plan.
     assert KNOWN_P1_GAPS == {}
+
+
+@pytest.mark.parametrize("m", MANIFESTS, ids=IDS)
+def test_dump_ui_returns_dict(m):
+    """Contract: dump_ui returns a structured dict ({"ok": ...}) on every
+    platform so agents can branch on the result uniformly. Static guard (AST
+    return annotation) — caught win-device returning a bare str (incl.
+    "ERROR: ..." on failure) instead of {"ok": False, ...}."""
+    ann = func_return_annotation(m.server_path, "dump_ui")
+    assert ann == "dict", f"{m.id}: dump_ui must be annotated -> dict, got {ann!r}"

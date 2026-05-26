@@ -372,28 +372,34 @@ def dump_ui(
         Optional[int],
         Field(description="UI tree max depth (1-10). Defaults to 4 if not specified.", ge=1, le=10),
     ] = None,
-) -> str:
+) -> dict:
     """Dump the UIA control tree for the current foreground window.
 
     Resolves the active window via win32gui.GetForegroundWindow() without
     requiring you to know the window title. Use inspect_window when you need
     to target a specific window by title substring.
     Note: max_depth is honored via pywinauto's print_control_identifiers(depth=).
+
+    Returns {"ok": True, "window", "max_depth", "tree"} on success; on failure
+    {"ok": False, "error", ...} — same structured contract as the other
+    platforms' dump_ui (mac/android/ios), so agents can branch on `ok`.
     """
     import win32gui  # pywin32 (ships with pywinauto)
     try:
         hwnd = win32gui.GetForegroundWindow()
         title = win32gui.GetWindowText(hwnd)
         if not title:
-            return "ERROR: No foreground window detected"
+            return {"ok": False, "error": "no foreground window detected"}
         cls = win32gui.GetClassName(hwnd)
         if _is_console_window(cls):
-            return _console_skip_message(cls)
+            return {"ok": False, "reason": "console_window", "error": _console_skip_message(cls)}
         win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
         win.wait("visible", timeout=3)
-        return _dump_window_tree(win, max_depth)
+        tree = _dump_window_tree(win, max_depth)
+        return {"ok": True, "window": title,
+                "max_depth": max_depth if max_depth is not None else 4, "tree": tree}
     except Exception as e:
-        return f"ERROR: {type(e).__name__}: {e}"
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 @mcp.tool

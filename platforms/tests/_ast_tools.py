@@ -31,3 +31,14 @@ def extract_mcp_tools(path: str | Path) -> dict[str, list[str]]:
             if any(_is_mcp_tool(d) for d in node.decorator_list):
                 out[node.name] = _param_names(node)
     return out
+
+
+def func_return_annotation(path: str | Path, func_name: str) -> str | None:
+    """Source text of a top-level function's return annotation (e.g. 'dict',
+    'str'), or None if the function is missing / has no annotation. AST-only —
+    never imports the module (servers can't import on Linux CI)."""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
+            return None if node.returns is None else ast.unparse(node.returns)
+    return None
