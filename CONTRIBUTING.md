@@ -15,9 +15,11 @@
 
 ```
 platforms/<name>/
+├── platform.toml      # manifest：id / port / host_os / [capabilities].enabled / 安装入口
 ├── README.md          # 平台快速上手 + 工具速查
 ├── server/            # MCP server 源码 + requirements.txt + pyproject.toml
 ├── scripts/           # 安装脚本（setup-<platform>.<ext>）
+├── skills/            # 给 agent 用的 skill 文档（using-<platform>/SKILL.md 等）
 └── examples/          # claude-settings.json 等参考配置
 ```
 
@@ -63,6 +65,15 @@ platforms/<name>/
 - 中文为主（项目主要使用者是中文母语开发者）
 - 路径、命令、变量名保持英文原文
 - 操作手册按"占位符约定 → 步骤 → 验证清单"结构
+
+## 贡献文档（运营 / 内容团队）
+
+运营 / 内容团队的完整上手见 [`ONBOARDING.md`](ONBOARDING.md)。核心规则：
+
+- **主战场**：`docs/platforms/<name>.md`、`platforms/<name>/README.md`、`platforms/<name>/skills/`、9 语 `README*.md`。**不动** `server/` / `scripts/` / `platform.toml` / `docs/internal/`（这些属代码改动，需先开 Issue）。
+- **工具数 / 工具名以代码为准**：用 `list_capabilities`（运行时）或 `extract_mcp_tools`（静态）取真实清单，别手抄；改工具数后跑 `python3 scripts/gen_docs.py --check`。
+- **9 语同步**：`README.md`（英文）为源，改其结构 / 内容须在同一 PR 同步各语言版本（至少 `zh-CN`），未同步的语言在 PR 里显式列出。
+- **流程**：从 `main` 切 `docs/...` 分支 → `docs:` 前缀 commit → 套用 [docs PR 模板](.github/PULL_REQUEST_TEMPLATE/docs.md) → 打 `needs-review` 标签 + @ reviewer → reviewer 审核后合并（纯文档 PR 免跑 pytest）。
 
 ## Versioning
 
