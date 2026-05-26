@@ -2,7 +2,10 @@
 
 > 给任何 agent 装载用——读完这一份就拿到 agent-fleet 当下的鸟瞰全貌。
 >
-> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-05-26** 初版（Phase 1 工程地基刚落地）。
+> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-05-26** 修订（Phase 1 工程地基落地 + blueprint-drift 一次修订）。
+
+**base_commit**: `448e957af93ca91ab899c3a026a9e19bdaaa9db7`
+（将来由 gen-blueprint-snapshot.sh（待建）自动注入；当前手工填——Iris 装载时按这个 SHA 校验，比日期更可靠。）
 
 ## 项目一句话
 
@@ -30,11 +33,14 @@ agent-fleet 是一套**让 LLM agent 操作真实物理设备的 MCP 基座**—
 |---|---|---|
 | device-lifecycle | `acquire` / `release` / `get_status` / `list_devices` / `set_default_device` / `get_default_device` | 设备资源租约 |
 | screen | `take_screenshot` / `get_screen_size` | 屏幕状态 |
-| input | `tap` / `swipe` / `long_press` / `press_key` / `type_text` | 模拟用户输入 |
+| input | `tap` / `swipe` / `press_key` / `type_text` | 模拟用户输入（跨四平台一致） |
+| input (mobile-only) | `long_press` | 仅 Android / iOS；桌面平台暂未对齐（可用 `tap` + sleep 间接） |
 | app | `launch_app` / `terminate_app` / `current_app` | 应用生命周期 |
 | ui-tree | `dump_ui` / `find_elements` / `tap_element` | 无障碍树（OS 级 UI 探查） |
 
-平台特定扩展（macOS 有 `browser_*` 系列、Win 有 `human_browser_open` 等）见 INTERFACE.md。
+平台特定扩展（如 macOS / Win 的 `browser_*` 系列 + `human_browser_open`）由**能力框架运行时动态注入**——它们不是 `@mcp.tool` 静态装饰函数，因此**不在 `INTERFACE.md` 静态清单内**。取真实运行时清单的两条路：
+1. 装载时调 `list_capabilities()`（框架统一注入，每平台都有）
+2. 读各平台 README 的 `### 浏览器能力（可选）/ Platform-specific extensions` 节
 
 ## 决策史（ADR）
 
@@ -61,8 +67,9 @@ _暂无（项目早期 alpha，0 外部 contributor）。当有真实进展时�
 
 - iOS WDA 客户端实现细节未进 ADR
 - `platforms/common/` 共享代码作用范围未文档化
-- 4 平台 `human_browser` 能力分布不一致（仅 win / mac 有），未在 INTERFACE.md 标注差异
+- `human_browser` 能力仅 win / mac 实现，android / iOS 无可对应能力（运行时通过 `list_capabilities` 自报，文档侧待统一注明）
+- gen-blueprint-snapshot.sh 尚未实现——SNAPSHOT 周更目前手工跑（见 BLUEPRINT-SPEC §二.5、blueprint-maintenance SOP §Step 5）；该脚本到位后 `base_commit:` 行将由它自动写入
 
 ---
 
-_快照 timestamp = main HEAD commit SHA（请见 git log）；偏差 > 7 天即视为过期，Iris 装载前会校验并 stop cc Atlas。_
+_快照基线 = 上面的 `base_commit:`；偏差 > 7 天即视为过期，Iris 装载前会校验并 stop cc Atlas。日期是辅助字段，SHA 才是权威。_

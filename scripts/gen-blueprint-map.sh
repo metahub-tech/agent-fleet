@@ -67,6 +67,13 @@ trap 'rm -f "${TMP}"' EXIT
     echo "- \`${f}\`"
   done
   echo ""
+  if ls cli/src/fleet/guidance/*.yaml >/dev/null 2>&1; then
+    echo "**Guidance 资产（CLI 安装向导用的剧本 yaml）**："
+    for f in $(ls cli/src/fleet/guidance/*.yaml 2>/dev/null | sort); do
+      echo "- \`${f}\`"
+    done
+    echo ""
+  fi
 
   echo "## scripts/"
   echo ""
