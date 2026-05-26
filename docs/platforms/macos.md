@@ -356,13 +356,18 @@ Agent A: release(holder_name="...")      # 显式释放
 
 `mac-device` MCP（监听 `0.0.0.0:8767/mcp`）暴露的工具：
 
+### 附录 A · core 工具（41 个）
+
+server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
+
 | 类别 | 工具 |
 |---|---|
 | **使用状态** | `acquire`, `release`, `get_status` |
+| 设备路由 | `list_devices`, `get_default_device`, `set_default_device` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 鼠标 | `tap`, `move_mouse` |
+| 鼠标 | `tap`, `move_mouse`, `swipe` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd/option/shift/ctrl) |
-| UI 内省 | `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
+| UI 内省 | `current_app`（当前前台应用）, `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
 | 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
@@ -370,3 +375,39 @@ Agent A: release(holder_name="...")      # 显式释放
 | Shell | `run_shell`（底层 zsh）, `run_applescript`（macOS 扩展） |
 
 > v0.3.0 暂未实现 `list_windows` / `inspect_window` / `focus_window` —— 这些在 Windows 上靠 pywinauto；macOS 等价物需用 AppleScript 或 NSAccessibility 重写，下个版本补。当前可通过 `run_applescript` 调 `tell application "System Events" to get title of every window of every process` 实现。
+
+### 附录 B · 浏览器能力（可选）
+
+除上面 41 个 core 工具外，mac-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块**（与 Windows win-device 同款）。算上它们，mac-device 满配运行时共暴露 **70 个工具**（41 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser）。
+
+可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
+
+| 工具 | 说明 |
+|---|---|
+| `list_capabilities` | 能力发现入口（所有平台 always-on）。返回每个能力模块的 `id` / `display_name` / `origin` / `status` / `tools` / `skill` / `usage_hint`，是判断"本机有哪些能力、缺什么依赖"的唯一权威途径。 |
+
+#### agent_browser（origin = proxied）
+
+嫁接 Playwright MCP，驱动一个**真实有头 Chrome**、通过 CDP 操作。因走 CDP / `navigator.webdriver`，**带自动化痕迹**——适合端到端测试、抓取、浏览学习这类不绑定真实个人身份的场景。
+
+- **27 个工具** = 23 个 `browser_*` 操作工具 + 4 个租约管理工具：
+  - 操作：`browser_navigate`, `browser_navigate_back`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_fill_form`, `browser_press_key`, `browser_hover`, `browser_drag`, `browser_drop`, `browser_select_option`, `browser_file_upload`, `browser_take_screenshot`, `browser_evaluate`, `browser_run_code_unsafe`, `browser_console_messages`, `browser_network_requests`, `browser_network_request`, `browser_handle_dialog`, `browser_wait_for`, `browser_tabs`, `browser_resize`, `browser_close`
+  - 租约管理：`browser_bind`, `browser_release`, `browser_quit`, `browser_status`
+- **多 profile 真并行**：每个 `browser_*` 工具带 `profile`（默认 `isolated`）+ `holder`（默认 `agent`）两个参数；首次调用自动 bind 起该 profile 的 Chrome。租约机制：被他人占用 → 返回 busy 拒绝 + `auto_release_in_seconds`；idle 10 分钟自动回收；`browser_release` 解绑但保留进程供秒级复用；`browser_quit` 关进程。
+- **典型工作流**：`browser_navigate` 开页 → `browser_snapshot` 取无障碍树 + `ref` → `browser_click(ref=...)` / `browser_type` 按 `ref` 操作。
+- **依赖**：Google Chrome + Node.js/npx（`@playwright/mcp`）。缺任一项该能力 `status=unavailable`、不暴露这 27 个工具。
+- **对应 skill**：`using-fleet-browser`。
+
+#### human_browser（origin = self-built）
+
+驱动宿主上的**真人日常 Chrome**（真实登录身份、历史、扩展），通过 OS 级输入 + 截图操作，**零自动化痕迹**。适合需要操作真实个人账号 / 身份的场景。
+
+- **1 个工具**：`human_browser_open(url)`。它只负责把日常 Chrome 打开到指定页面；之后页面内容**不在无障碍树里**，需用 core 工具操作——`take_screenshot` 看页面、`tap(x, y)` / `type_text` 按坐标操作。
+- **依赖**：Google Chrome。
+- **使用约束**：**仅限自有设备 / 已授权账号 / 正当用途**。
+- **对应 skill**：`using-human-browser`。
+
+#### 路由原则
+
+- 操作**真实个人账号 / 身份** → `human_browser`。
+- **端到端测试 / 抓取 / 浏览学习**（无需绑定真实身份） → `agent_browser`。

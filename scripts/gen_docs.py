@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -51,8 +52,45 @@ def _manifests():
     return discover_manifests(REPO_ROOT / "platforms")
 
 
+# Optional-capability tool counts come from the capability source (AST-only —
+# never import a server). The framework (CapabilityRegistry.setup) registers the
+# discovery tool list_capabilities on EVERY server, so it's always-on.
+CAP_DIR = REPO_ROOT / "platforms" / "common" / "capabilities"
+FRAMEWORK_TOOLS = ["list_capabilities"]
+
+
+def _count_list_literal(path: Path, name: str) -> int:
+    """Count elements of a module-level `name = [...]` list literal via AST."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == name for t in node.targets)
+            and isinstance(node.value, ast.List)
+        ):
+            return len(node.value.elts)
+    raise RuntimeError(f"{name} list literal not found in {path}")
+
+
+def capability_tool_count(cap_id: str) -> int:
+    """Tools an enabled OPTIONAL capability contributes (static). core is counted
+    via the inline server tools; unknown optionals contribute 0 (add a branch)."""
+    if cap_id == "agent_browser":
+        f = CAP_DIR / "browser" / "_agent_browser.py"
+        return _count_list_literal(f, "PLAYWRIGHT_TOOLS") + _count_list_literal(f, "_MGMT_TOOLS")
+    if cap_id == "human_browser":
+        return len(extract_mcp_tools(CAP_DIR / "browser" / "_human_browser.py"))
+    return 0
+
+
 def tool_count(m) -> int:
-    return len(extract_mcp_tools(m.server_path))
+    """Total tools a platform exposes at runtime — mirrors list_capabilities():
+    inline core (@mcp.tool in the server) + framework discovery tool(s) + every
+    enabled optional capability's tools."""
+    core = len(extract_mcp_tools(m.server_path))
+    enabled = list((getattr(m, "capabilities", None) or {}).get("enabled") or ["core"])
+    optional = sum(capability_tool_count(c) for c in enabled if c != "core")
+    return core + len(FRAMEWORK_TOOLS) + optional
 
 
 def host_label(m) -> str:

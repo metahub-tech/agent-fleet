@@ -45,18 +45,25 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 `mac-device` MCP server (FastMCP, native multi-client) 通过 streamable-http 监听 `0.0.0.0:8767/mcp`：
 
+### core 工具（41 个）
+
 | 类别 | 工具 |
 |---|---|
 | **使用状态** | `acquire`, `release`, `get_status` |
+| 设备路由 | `list_devices`, `get_default_device`, `set_default_device` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
-| 鼠标 | `tap`, `move_mouse` |
+| 鼠标 | `tap`, `move_mouse`, `swipe` |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd / option / shift / ctrl) |
-| UI 内省 | `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
+| UI 内省 | `current_app`（当前前台应用）, `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
 | 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_shell`（底层 zsh）, `run_applescript`（macOS 扩展） |
+
+### 浏览器能力（可选）
+
+除上面 41 个 core 工具外，mac-device 运行时还由能力框架额外暴露 1 个发现工具 `list_capabilities`（all-platform always-on）+ 两个可选浏览器能力（与 Windows win-device 同款）：`agent_browser`（嫁接 Playwright MCP，有头 Chrome / CDP，带自动化痕迹，27 个工具，依赖 Chrome + Node/npx，skill `using-fleet-browser`）与 `human_browser`（驱动真人日常 Chrome，零自动化痕迹，1 个工具 `human_browser_open`，依赖 Chrome，skill `using-human-browser`）。满配运行时共 **70 个工具**（41 + 1 + 27 + 1）。能力按"依赖齐全才暴露"渐进披露，调 `list_capabilities` 查本机实际可用的能力与工具。详见 [`../../docs/platforms/macos.md` 附录 B · 浏览器能力](../../docs/platforms/macos.md#附录-b--浏览器能力可选)。
 
 > **与 Windows win-device 的差异**：
 > - 没有 `list_windows` / `inspect_window` / `focus_window`（Windows 用 pywinauto，macOS 等价物用 AppleScript / NSAccessibility，v0.3.0 暂未实现，可通过 `run_applescript` 间接达成）
