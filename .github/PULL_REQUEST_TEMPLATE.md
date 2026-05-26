@@ -26,6 +26,9 @@ find platforms scripts -name '*.sh' -exec bash -n {} \;
 ## Checklist
 
 - [ ] Tests pass locally
+- [ ] **All commits are `Signed-off-by:` (DCO)** — use `git commit -s` or `git rebase --signoff main`
+- [ ] If AI-assisted: added `Co-Authored-By:` trailer (see `CONTRIBUTING.md` § AI-assisted contributions)
 - [ ] Docs updated if behavior changed
+- [ ] If touching platform code: also ran `./scripts/gen-blueprint-map.sh` and `./scripts/gen-blueprint-interface.sh` (蓝图同步)
 - [ ] No version bump (unless this is the release PR)
 - [ ] For new platforms / tool-contract changes: linked a discussion Issue first

@@ -110,6 +110,38 @@ platforms/<name>/
      **Issue first** to discuss before writing code.
    - At least one maintainer approval is required before merge.
 
+### 签名 / Sign-off · DCO（必需）
+
+本项目使用 [DCO（Developer Certificate of Origin）](https://developercertificate.org/) 而非 CLA。**每个 commit message 必须以 `Signed-off-by:` 结尾**，证明你有权以本仓库的 Apache-2.0 license 提交该代码。
+
+操作：
+
+```bash
+git commit -s -m "feat: 简短描述"
+# -s 等价于在 commit message 末尾追加：
+# Signed-off-by: Your Name <your-email@example.com>
+```
+
+PR 中**任何一个 commit** 缺 Signed-off-by → DCO bot 会把那个 PR 标红 → 你需要 `git rebase --signoff main` 后强推。
+
+This project uses [DCO](https://developercertificate.org/) (not a CLA). Every commit must end with a `Signed-off-by:` line. Use `git commit -s` to add it automatically. PRs with any unsigned commit will be blocked by the DCO check.
+
+### AI-assisted contributions
+
+We welcome contributions where you collaborated with an AI coding assistant (Copilot / Claude Code / Cursor / etc.), **as long as you**:
+
+- understand and have reviewed every line you're submitting
+- can defend the design choices in the PR review
+- sign off via DCO (above) under your own real identity, taking authorship responsibility
+
+When most of the meaningful authorship was an AI's, please add a trailer:
+
+```
+Co-Authored-By: <Claude Sonnet|Claude Opus|Copilot|...> <noreply@anthropic.com>
+```
+
+这有助于把"AI 协作"和"完全人类编写"在 git history 里透明区分；不影响 DCO 检查（DCO 仅看你本人的 Signed-off-by）。
+
 ### 提问 / Questions
 
 有疑问请在 [GitHub Issues](https://github.com/metahub-tech/agent-fleet/issues) 或

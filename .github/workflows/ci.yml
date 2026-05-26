@@ -1,0 +1,87 @@
+name: ci
+
+# Phase 1 最小 CI：foundation 工程基线
+# 设计原则：稳定先行，覆盖率渐进；
+# 这里 4 个 job 之中 shell-syntax / powershell-syntax / blueprint-check 三个
+# 设为分支保护的 required status check。python-tests 暂不要求（待 cli 测试稳定后加）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  shell-syntax:
+    name: shell-syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n on all .sh
+        run: |
+          set -e
+          fail=0
+          while IFS= read -r f; do
+            if ! bash -n "$f"; then
+              echo "  ❌ syntax error: $f"; fail=1
+            fi
+          done < <(find platforms scripts install.sh -name '*.sh' 2>/dev/null)
+          [ "$fail" = "0" ] && echo "✓ all .sh syntax-OK"
+          exit "$fail"
+
+  powershell-syntax:
+    name: powershell-syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PowerShell 7+
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https software-properties-common
+          . /etc/os-release
+          wget -q "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" -O /tmp/ms.deb
+          sudo dpkg -i /tmp/ms.deb || true
+          sudo apt-get update
+          sudo apt-get install -y powershell
+          pwsh --version
+      - name: scripts/check-ps-syntax.sh
+        run: ./scripts/check-ps-syntax.sh
+
+  blueprint-check:
+    name: blueprint-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: gen-blueprint-map.sh --check
+        run: ./scripts/gen-blueprint-map.sh --check
+      - name: gen-blueprint-interface.sh --check
+        run: ./scripts/gen-blueprint-interface.sh --check
+      - name: check-blueprint-refs.sh
+        run: ./scripts/check-blueprint-refs.sh
+
+  python-tests:
+    # 非 required（待 cli 测试稳定后再纳入分支保护）
+    name: python-tests
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: install cli + pytest
+        run: |
+          cd cli
+          pip install -e . 2>&1 | tail -5 || echo "install warnings, continuing"
+          pip install pytest
+      - name: pytest cli
+        run: |
+          cd cli
+          if [ -d tests ] && [ -n "$(ls tests/*.py 2>/dev/null)" ]; then
+            PYTHONPATH=src python3 -m pytest -x --tb=short
+          else
+            echo "no cli tests, skip"
+          fi

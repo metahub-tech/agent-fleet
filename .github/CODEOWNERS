@@ -1,0 +1,37 @@
+# CODEOWNERS · agent-fleet
+#
+# 任何匹配下列模式的文件改动，PR 必须由 @qin-jiangli 审批后才能 merge。
+# 配合 main 分支保护的 "Require review from Code Owners" 一起生效。
+#
+# 设计原则：能远程控制物理设备的项目，安全敏感面（认证 / 网络绑定 / 安装脚本
+# / 各平台 MCP server 主入口 / CI / org settings）必须真人审。
+
+# === 仓库默认（catch-all）===
+*                                       @qin-jiangli
+
+# === 安装与启动（高敏感：决定设备如何被绑定到 fleet）===
+/install.sh                             @qin-jiangli
+/install.ps1                            @qin-jiangli
+/platforms/*/scripts/                   @qin-jiangli
+
+# === MCP server 主入口（决定设备暴露的工具集 + 网络绑定）===
+/platforms/windows/server/win_device_mcp.py     @qin-jiangli
+/platforms/macos/server/mac_device_mcp.py       @qin-jiangli
+/platforms/android/server/android_device_mcp.py @qin-jiangli
+/platforms/ios/server/ios_device_mcp.py         @qin-jiangli
+
+# === 平台 manifest（端口 / host_os / 启用能力 = 信任边界）===
+/platforms/*/platform.toml              @qin-jiangli
+
+# === CI / GitHub 配置（决定 PR 合并门）===
+/.github/                               @qin-jiangli
+
+# === License / 安全策略（法律 / 合规边界）===
+/LICENSE                                @qin-jiangli
+/SECURITY.md                            @qin-jiangli
+/CODE_OF_CONDUCT.md                     @qin-jiangli
+
+# === 蓝图（项目全貌资产，影响所有 agent 的认知）===
+/docs/internal/blueprint/               @qin-jiangli
+/scripts/gen-blueprint-*.sh             @qin-jiangli
+/scripts/check-blueprint-*.sh           @qin-jiangli
