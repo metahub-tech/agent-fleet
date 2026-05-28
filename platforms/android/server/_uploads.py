@@ -101,3 +101,65 @@ def validate_url(url: str) -> None:
 
 def is_image(name: str) -> bool:
     return Path(name).suffix.lower() in IMAGE_EXTS
+
+
+# ============================================================
+#                     STAGING (分片会话)
+# ============================================================
+
+def _free_bytes() -> int:
+    target = UPLOADS_DIR if UPLOADS_DIR.exists() else UPLOADS_DIR.parent
+    return shutil.disk_usage(target).free
+
+
+def _check_space() -> None:
+    if _free_bytes() < MIN_FREE_BYTES:
+        raise UploadError("暂存目录可用空间不足（< 500MB），拒绝新上传")
+
+
+def stage_path(stage_id: str) -> Path:
+    return UPLOADS_DIR / f"{stage_id}.part"
+
+
+def _stage_meta(stage_id: str) -> Path:
+    return UPLOADS_DIR / f"{stage_id}.done"
+
+
+def _stage_name_file(stage_id: str) -> Path:
+    return UPLOADS_DIR / f"{stage_id}.name"
+
+
+def new_stage(filename: str) -> str:
+    _check_space()
+    ensure_dirs()
+    safe = sanitize_filename(filename)
+    stage_id = uuid.uuid4().hex
+    _stage_name_file(stage_id).write_text(safe)
+    stage_path(stage_id).touch()
+    return stage_id
+
+
+def stage_filename(stage_id: str) -> str:
+    f = _stage_name_file(stage_id)
+    return f.read_text() if f.exists() else f"{stage_id}.bin"
+
+
+def append_chunk(stage_id: str, data: bytes, last: bool) -> dict:
+    p = stage_path(stage_id)
+    if not p.exists():
+        raise UploadError(f"未知 stage_id: {stage_id}")
+    with p.open("ab") as fh:
+        fh.write(data)
+    if last:
+        _stage_meta(stage_id).touch()
+    return {"bytes_received": p.stat().st_size, "complete": last}
+
+
+def stage_is_complete(stage_id: str) -> bool:
+    return _stage_meta(stage_id).exists()
+
+
+def _clear_stage(stage_id: str) -> None:
+    stage_path(stage_id).unlink(missing_ok=True)
+    _stage_meta(stage_id).unlink(missing_ok=True)
+    _stage_name_file(stage_id).unlink(missing_ok=True)

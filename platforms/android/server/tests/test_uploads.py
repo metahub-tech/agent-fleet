@@ -71,3 +71,36 @@ def test_is_image():
     assert up.is_image("a.JPG") is True
     assert up.is_image("a.png") is True
     assert up.is_image("a.apk") is False
+
+
+# ----- Task 3: 分片暂存 + 空间守卫 -----
+
+def _patch_dirs(tmp_path, monkeypatch):
+    monkeypatch.setattr(up, "UPLOADS_DIR", tmp_path / "u")
+    monkeypatch.setattr(up, "JOBS_DIR", tmp_path / "u" / "jobs")
+    up.ensure_dirs()
+
+
+def test_staging_chunks(tmp_path, monkeypatch):
+    _patch_dirs(tmp_path, monkeypatch)
+    sid = up.new_stage("big.apk")
+    r1 = up.append_chunk(sid, b"AAAA", last=False)
+    assert r1["bytes_received"] == 4 and r1["complete"] is False
+    r2 = up.append_chunk(sid, b"BB", last=True)
+    assert r2["bytes_received"] == 6 and r2["complete"] is True
+    assert up.stage_is_complete(sid) is True
+    assert up.stage_path(sid).read_bytes() == b"AAAABB"
+    assert up.stage_filename(sid) == "big.apk"
+
+
+def test_append_unknown_stage(tmp_path, monkeypatch):
+    _patch_dirs(tmp_path, monkeypatch)
+    with pytest.raises(up.UploadError):
+        up.append_chunk("nonexistent", b"x", last=False)
+
+
+def test_free_space_guard(tmp_path, monkeypatch):
+    _patch_dirs(tmp_path, monkeypatch)
+    monkeypatch.setattr(up, "_free_bytes", lambda: up.MIN_FREE_BYTES - 1)
+    with pytest.raises(up.UploadError):
+        up.new_stage("x.bin")
