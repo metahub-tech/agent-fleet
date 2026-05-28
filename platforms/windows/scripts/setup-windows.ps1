@@ -232,7 +232,8 @@ if (-not (Test-Path $GuiLauncher)) {
 }
 
 $commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
-    -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries
+    -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries `
+    -MultipleInstances IgnoreNew
 
 $guiAction = New-ScheduledTaskAction -Execute "powershell.exe" `
     -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$GuiLauncher`""
@@ -257,8 +258,15 @@ if ($legacyTask) {
 }
 
 try {
+    # 登录自启 + 每 5 分钟 self-heal 兜底（锁屏/休眠/注销后整条 launcher 死掉时，
+    # AtLogOn 不重触发；周期触发器在 ~5min 内重新拉起，配合 launcher kill-stale 避端口冲突）。
+    $winTriggers = @(
+        (New-ScheduledTaskTrigger -AtLogOn -User $RunUser),
+        (New-ScheduledTaskTrigger -Once -At (Get-Date) `
+            -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue))
+    )
     Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
-        -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $RunUser) `
+        -Trigger $winTriggers `
         -Settings $commonSettings -RunLevel Highest -User $RunUser -Force `
         -ErrorAction Stop | Out-Null
     Write-Host "  ok MCP-WinDevice registered (hidden, logged, auto-restart on failure)"

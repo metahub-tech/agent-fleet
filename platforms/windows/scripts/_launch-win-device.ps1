@@ -51,6 +51,17 @@ if (-not (Test-Path $Server)) {
     exit 1
 }
 
+# kill-stale：杀掉上一个 launcher 残留、仍在跑本 server 的 python。否则被重启 /
+# periodic 触发拉起新实例时，旧进程仍占端口 → 新实例 bind 失败 exit 1 → rapid-fail 放弃。
+# 本 launcher 此刻尚未起 python，不会误杀自己的子进程。
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -and $_.CommandLine -like "*$Server*" } |
+    ForEach-Object {
+        "$(Get-Date -Format o) kill-stale: 杀掉残留 python pid=$($_.ProcessId)" | Out-File -FilePath $Log -Append -Encoding utf8
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+Start-Sleep -Milliseconds 800
+
 # Rapid-fail detection (config error vs benign external kill).
 $rapidFailWindow = 6
 $rapidFailLimit  = 3
