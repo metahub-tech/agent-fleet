@@ -1054,7 +1054,7 @@ def upload_media(
             if r["returncode"] != 0:
                 return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
             visible = False
-            if make_visible and up.is_image(fname):
+            if make_visible and up.is_image(dpath):  # 按目标路径判图，不靠可能缺省的 fname
                 _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
                 # 扫描是异步的（华为 EMUI10 实测 ~2s）；用规范 _data 路径轮询确认。
                 # 注意：MediaStore 存 /storage/emulated/0/...，不能用 /sdcard/... 否则假阴性。
@@ -1133,7 +1133,7 @@ def deliver_staged(
                     if rc2 != 0:
                         raise RuntimeError(f"pm install failed rc={rc2}: {e2}")
                     res["installed"] = True
-                elif make_visible and up.is_image(fname):
+                elif make_visible and up.is_image(dpath):  # 按目标路径判图，与 upload_media 一致
                     up.run_proc(job_id, ["-s", serial] + up.media_scan_args(dpath))
                     res["scanned"] = True
                 return res
