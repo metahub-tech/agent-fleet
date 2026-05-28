@@ -264,11 +264,19 @@ $Launcher = Join-Path $ScriptDir "_launch-android.ps1"
 $action = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Launcher`""
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
+# 触发器：登录自启 + 每 5 分钟 self-heal 兜底。任何死法（锁屏/休眠/注销/崩溃使
+# 整条 launcher 进程树消失，AtLogOn 不会在解锁时重触发）都会在 ~5min 内被重新拉起；
+# 配合 launcher 的 kill-stale 避免与残留 python 端口冲突。IgnoreNew：launcher 仍在跑
+# 时周期触发被忽略，不会起第二份。
+$logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
+$healTrigger  = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+    -RepetitionInterval (New-TimeSpan -Minutes 5)  # 省略 Duration = 无限重复（MaxValue 超出 XML 合法范围）
+$trigger = @($logonTrigger, $healTrigger)
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
+    -MultipleInstances IgnoreNew `
     -RestartCount 5 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
     -ExecutionTimeLimit (New-TimeSpan -Days 365)

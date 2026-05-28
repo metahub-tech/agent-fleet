@@ -119,7 +119,7 @@ iOS 完全沙箱无 shell 工具；移动端 shell 命令请用 mac-device 的 `
 |---|---|
 | Windows | `list_windows`, `inspect_window`, `focus_window`（pywinauto 窗口操作）+ `human_browser_open` + `browser_*`（共 27 个 playwright-mcp 嫁接，能力框架动态注入，不在 INTERFACE.md 静态清单） + 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
 | macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
-| Android | `list_packages`, `push_file`, `pull_file`（PackageManager 与 adb push/pull）|
+| Android | `list_packages`, `push_file`, `pull_file`（PackageManager 与 adb push/pull）+ `upload_media`/`stage_upload`/`deliver_staged`/`job_status`/`get_upload_endpoint` 与 HTTP `POST /upload`（agent 自带字节传手机：落主机暂存→adb push→可选 install/媒体扫描）|
 | iOS | `activate_app`, `device_info`, `list_apps`, `push_file_to_app`, `pull_file_from_app`（pymobiledevice3 + WDA 专属）|
 
 扩展工具名必须与 Universal Tool Set 不冲突。建议用 `<platform>_<verb>` 前缀避免歧义。**完整运行时清单**：调 `list_capabilities()`（能力框架统一注入），它返回每个能力模块（含可选浏览器能力）的实际工具列表。
