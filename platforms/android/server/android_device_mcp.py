@@ -1021,7 +1021,11 @@ def upload_media(
     device: Annotated[str | None, Field(description="serial/alias；单机可省")] = None,
     ctx: Context = None,
 ) -> dict:
-    """同步上传小文件/图片到手机。图片自动进相册。大文件用 stage_upload/deliver_staged 异步路径。"""
+    """同步上传小文件/图片到手机。图片自动触发相册扫描。大文件用 stage_upload/deliver_staged 异步路径。
+
+    返回 scan_triggered（是否已触发媒体扫描）+ visible_in_gallery（数秒内 best-effort 确认是否已进相册）。
+    媒体扫描异步、延迟可变；visible_in_gallery=false 但 scan_triggered=true 时图片仍会在数秒内出现在相册/选图器。
+    """
     try:
         up.require_xor(content_base64, url, ("content_base64", "url"))
         serial = _resolve_device(device, _get_session_default(ctx))
@@ -1054,17 +1058,21 @@ def upload_media(
             if r["returncode"] != 0:
                 return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
             visible = False
+            scan_triggered = False
             if make_visible and up.is_image(dpath):  # 按目标路径判图，不靠可能缺省的 fname
                 _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
-                # 扫描是异步的（华为 EMUI10 实测 ~2s）；用规范 _data 路径轮询确认。
-                # 注意：MediaStore 存 /storage/emulated/0/...，不能用 /sdcard/... 否则假阴性。
-                for _ in range(4):
-                    q = _adb_run(up.mediastore_query_args(dpath), timeout=10, serial=serial)
+                scan_triggered = True
+                # 扫描异步、延迟可变（华为 EMUI10 实测 2s~10s+）；best-effort 确认。
+                # 用规范 _data 路径（/storage/emulated/0/…，非 /sdcard/… 否则假阴性）。
+                # visible_in_gallery=false 不代表失败——scan_triggered 为真即会在数秒内出现。
+                for _ in range(8):
+                    q = _adb_run(up.mediastore_query_args(dpath), timeout=8, serial=serial)
                     if "Row:" in q.get("stdout", ""):
                         visible = True
                         break
                     time.sleep(1)
-            return {"ok": True, "device_path": dpath, "size": size, "visible_in_gallery": visible}
+            return {"ok": True, "device_path": dpath, "size": size,
+                    "scan_triggered": scan_triggered, "visible_in_gallery": visible}
         finally:
             tmp.unlink(missing_ok=True)
     except up.UploadError as e:
