@@ -163,3 +163,34 @@ def _clear_stage(stage_id: str) -> None:
     stage_path(stage_id).unlink(missing_ok=True)
     _stage_meta(stage_id).unlink(missing_ok=True)
     _stage_name_file(stage_id).unlink(missing_ok=True)
+
+
+# ============================================================
+#                   ADB COMMAND BUILDERS (纯函数)
+# ============================================================
+
+def push_args(serial: str, host_path: str, device_path: str) -> list[str]:
+    return ["-s", serial, "push", host_path, device_path]
+
+
+def install_args(serial: str, apk_path: str, replace: bool = True) -> list[str]:
+    args = ["-s", serial, "install"]
+    if replace:
+        args.append("-r")
+    args.append(apk_path)
+    return args
+
+
+def media_scan_args(device_path: str) -> list[str]:
+    # 列表参数逐项传；file://<path> 整体作为一个 arg，避免设备端 shell 再切分
+    return ["shell", "am", "broadcast", "-a",
+            "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+            "-d", f"file://{device_path}"]
+
+
+def media_insert_args(device_path: str) -> list[str]:
+    # 兜底：经 adb shell content（shell uid，绕过 Android10+ MANAGE_MEDIA 限制）直插 MediaStore
+    return ["shell", "content", "insert",
+            "--uri", "content://media/external/images/media",
+            "--bind", f"_data:s:{device_path}",
+            "--bind", "mime_type:s:image/jpeg"]

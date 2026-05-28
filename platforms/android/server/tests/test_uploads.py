@@ -104,3 +104,21 @@ def test_free_space_guard(tmp_path, monkeypatch):
     monkeypatch.setattr(up, "_free_bytes", lambda: up.MIN_FREE_BYTES - 1)
     with pytest.raises(up.UploadError):
         up.new_stage("x.bin")
+
+
+# ----- Task 4: adb 命令构造器 -----
+
+def test_command_builders():
+    assert up.push_args("S", "/host/x.jpg", "/sdcard/Pictures/x.jpg") == \
+        ["-s", "S", "push", "/host/x.jpg", "/sdcard/Pictures/x.jpg"]
+    assert up.media_scan_args("/sdcard/Pictures/x.jpg") == \
+        ["shell", "am", "broadcast", "-a",
+         "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+         "-d", "file:///sdcard/Pictures/x.jpg"]
+    ins = up.media_insert_args("/sdcard/Pictures/x.jpg")
+    assert ins[:3] == ["shell", "content", "insert"]
+    assert "content://media/external/images/media" in ins
+    assert up.install_args("S", "/host/app.apk", replace=True) == \
+        ["-s", "S", "install", "-r", "/host/app.apk"]
+    assert up.install_args("S", "/host/app.apk", replace=False) == \
+        ["-s", "S", "install", "/host/app.apk"]
