@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import urllib.parse
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -405,6 +406,12 @@ def _build_instructions() -> str:
 
 
 mcp = FastMCP("android-device", instructions=_build_instructions())
+
+# 文件上传支撑：注入真实 adb 路径 + 后台 job 注册表
+import _uploads as up  # noqa: E402
+
+up.ADB_BIN = _ADB
+_job_registry = up.JobRegistry()
 
 
 @mcp.tool
@@ -1000,6 +1007,151 @@ def pull_file(
 
 
 # ============================================================
+#        AGENT → DEVICE FILE UPLOAD (快路径同步 + 稳路径异步)
+# ============================================================
+
+@mcp.tool
+def upload_media(
+    content_base64: Annotated[str | None, Field(description="文件字节的 base64；与 url 二选一")] = None,
+    url: Annotated[str | None, Field(description="http/https 链接；与 content_base64 二选一")] = None,
+    device_path: Annotated[str | None, Field(description="设备目标路径；缺省 /sdcard/Pictures/<filename>")] = None,
+    filename: Annotated[str | None, Field(description="文件名；缺省从 url 尾段或自动生成")] = None,
+    make_visible: Annotated[bool, Field(description="图片 push 后触发 MediaStore 扫描使相册可见")] = True,
+    device: Annotated[str | None, Field(description="serial/alias；单机可省")] = None,
+    ctx: Context = None,
+) -> dict:
+    """同步上传小文件/图片到手机。图片自动进相册。大文件用 stage_upload/deliver_staged 异步路径。"""
+    try:
+        up.require_xor(content_base64, url, ("content_base64", "url"))
+        serial = _resolve_device(device, _get_session_default(ctx))
+        _state_registry.touch(serial)
+        up.ensure_dirs()
+        tmp = up.UPLOADS_DIR / f"sync_{up.uuid.uuid4().hex}"
+        if content_base64 is not None:
+            data = up.decode_b64(content_base64)
+            if len(data) > up.SYNC_B64_MAX:
+                return {"ok": False, "error": "超过同步上限（base64 解码后 > 6MB）",
+                        "hint": "用 stage_upload + deliver_staged 异步路径"}
+            tmp.write_bytes(data)
+            fname = up.sanitize_filename(filename or "upload.bin")
+        else:
+            fname = up.sanitize_filename(
+                filename or Path(urllib.parse.urlparse(url).path).name or "upload.bin")
+            try:
+                up.download_url(url, tmp, max_bytes=up.SYNC_URL_MAX_USB)
+            except up.UploadError as e:
+                tmp.unlink(missing_ok=True)
+                return {"ok": False, "error": str(e),
+                        "hint": "大文件用 deliver_staged(url=...) 异步路径"}
+        size = tmp.stat().st_size
+        dpath = up.validate_device_path(device_path or f"/sdcard/Pictures/{fname}")
+        r = _adb_run(up.push_args(serial, str(tmp), dpath), timeout=25, serial=None)
+        if r["returncode"] != 0:
+            tmp.unlink(missing_ok=True)
+            return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
+        visible = False
+        if make_visible and up.is_image(fname):
+            _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
+            q = _adb_run(["shell", "content", "query", "--uri",
+                          "content://media/external/images/media",
+                          "--where", f"_data='{dpath}'"], timeout=10, serial=serial)
+            visible = "Row:" in q.get("stdout", "")
+        tmp.unlink(missing_ok=True)
+        return {"ok": True, "device_path": dpath, "size": size, "visible_in_gallery": visible}
+    except up.UploadError as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def stage_upload(
+    content_base64: Annotated[str, Field(description="本片字节的 base64")],
+    stage_id: Annotated[str | None, Field(description="缺省=新建会话；给定=向该会话追加")] = None,
+    last: Annotated[bool, Field(description="true=收尾，标记暂存文件完成")] = False,
+    filename: Annotated[str | None, Field(description="新建会话时的文件名")] = None,
+    device: Annotated[str | None, Field(description="serial/alias；单机可省")] = None,
+    ctx: Context = None,
+) -> dict:
+    """为大本地文件分片暂存：多次调用把字节追加进主机暂存文件，再用 deliver_staged 交付。"""
+    try:
+        data = up.decode_b64(content_base64)
+        if stage_id is None:
+            stage_id = up.new_stage(filename or "upload.bin")
+        r = up.append_chunk(stage_id, data, last=last)
+        return {"ok": True, "stage_id": stage_id, **r}
+    except up.UploadError as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def deliver_staged(
+    stage_id: Annotated[str | None, Field(description="已完成的分片暂存 id；与 url 二选一")] = None,
+    url: Annotated[str | None, Field(description="http/https 链接（主机后台下载）；与 stage_id 二选一")] = None,
+    device_path: Annotated[str | None, Field(description="设备目标路径；缺省 /sdcard/Download/<filename>")] = None,
+    install: Annotated[bool, Field(description="true=push 后 pm install（APK）")] = False,
+    make_visible: Annotated[bool, Field(description="图片则 push 后扫描进相册")] = True,
+    device: Annotated[str | None, Field(description="serial/alias；单机可省")] = None,
+    ctx: Context = None,
+) -> dict:
+    """异步交付：后台 adb push（url 则先下载）+ 可选 pm install/媒体扫描。返回 job_id，用 job_status 轮询。"""
+    try:
+        up.require_xor(stage_id, url, ("stage_id", "url"))
+        serial = _resolve_device(device, _get_session_default(ctx))
+        _state_registry.touch(serial)
+        if stage_id is not None and not up.stage_is_complete(stage_id):
+            return {"ok": False, "error": f"stage {stage_id} 未收尾（需 last=True）"}
+        if stage_id is not None:
+            fname = up.stage_filename(stage_id)
+        else:
+            up.validate_url(url)
+            fname = up.sanitize_filename(
+                Path(urllib.parse.urlparse(url).path).name or "upload.bin")
+        default_dir = "/sdcard/Pictures" if up.is_image(fname) else "/sdcard/Download"
+        dpath = up.validate_device_path(device_path or f"{default_dir}/{fname}")
+
+        job_id = up.uuid.uuid4().hex
+
+        def work():
+            host = up.stage_path(stage_id) if stage_id else (up.UPLOADS_DIR / f"dl_{job_id}")
+            if url is not None:
+                up.download_url(url, host, max_bytes=up.URL_HARD_MAX)
+            rc, _out, err = up.run_proc(job_id, up.push_args(serial, str(host), dpath))
+            if rc != 0:
+                raise RuntimeError(f"adb push failed rc={rc}: {err}")
+            res = {"device_path": dpath, "returncode": rc, "bytes_total": host.stat().st_size}
+            if install:
+                rc2, _o, e2 = up.run_proc(job_id, up.install_args(serial, str(host)))
+                if rc2 != 0:
+                    raise RuntimeError(f"pm install failed rc={rc2}: {e2}")
+                res["installed"] = True
+            elif make_visible and up.is_image(fname):
+                up.run_proc(job_id, ["-s", serial] + up.media_scan_args(dpath))
+                res["scanned"] = True
+            if stage_id:
+                up._clear_stage(stage_id)
+            else:
+                host.unlink(missing_ok=True)
+            return res
+
+        _job_registry.submit(kind="deliver", serial=serial, work=work, job_id=job_id)
+        return {"ok": True, "job_id": job_id, "state": "running"}
+    except up.UploadError as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def job_status(
+    job_id: Annotated[str, Field(description="deliver_staged 返回的 job_id")],
+    ctx: Context = None,
+) -> dict:
+    """轮询后台上传/安装任务状态：running / succeeded / failed。"""
+    _job_registry.gc()
+    j = _job_registry.get(job_id)
+    if j is None:
+        return {"ok": False, "error": f"未知 job_id: {job_id}"}
+    return {"ok": True, **j}
+
+
+# ============================================================
 #                    UI ELEMENT INTROSPECTION
 # ============================================================
 
@@ -1255,4 +1407,6 @@ if __name__ == "__main__":
     # broke SSE keep-alive and yielded -32602 forever after.
     # Endpoint: http://<host>:8768/mcp  (was /sse)
     print(f"  transport = http (streamable) on 0.0.0.0:8768/mcp")
+    # 清掉上次残留的后台上传子进程 + 暂存临时文件（孤儿清场）
+    up.reap_orphans()
     mcp.run(transport="http", host="0.0.0.0", port=8768)
