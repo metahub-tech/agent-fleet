@@ -19,13 +19,14 @@ def _iter_mcp_tools():
         "press_key", "type_text", "list_packages", "install_app", "uninstall_app",
         "launch_app", "terminate_app", "current_app", "run_shell", "push_file", "pull_file",
         "dump_ui", "find_elements", "tap_element",
+        "upload_media", "stage_upload", "deliver_staged", "job_status",
     ]
     return [(n, getattr(srv, n)) for n in tool_names if hasattr(srv, n)]
 
 
-def test_all_25_tools_present():
+def test_all_29_tools_present():
     tools = _iter_mcp_tools()
-    assert len(tools) == 25, f"expected 25 tools, found {len(tools)}: {[n for n,_ in tools]}"
+    assert len(tools) == 29, f"expected 29 tools, found {len(tools)}: {[n for n,_ in tools]}"
 
 
 def test_action_tools_accept_device_param():
@@ -34,7 +35,8 @@ def test_action_tools_accept_device_param():
     #   set_default_device  — `device` is a required positional arg (not None-default)
     #   get_default_device  — has no `device` param; returns the session default
     #   list_devices        — lists ALL devices; no per-device routing needed
-    no_device_param = {"set_default_device", "get_default_device", "list_devices"}
+    #   job_status          — 只按 job_id 查询；不路由设备
+    no_device_param = {"set_default_device", "get_default_device", "list_devices", "job_status"}
     for name, fn in _iter_mcp_tools():
         if name in no_device_param:
             continue
