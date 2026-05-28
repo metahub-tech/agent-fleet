@@ -194,3 +194,31 @@ def media_insert_args(device_path: str) -> list[str]:
             "--uri", "content://media/external/images/media",
             "--bind", f"_data:s:{device_path}",
             "--bind", "mime_type:s:image/jpeg"]
+
+
+# ============================================================
+#                     URL DOWNLOAD (主机侧)
+# ============================================================
+
+def download_url(url: str, dest: Path, max_bytes: int) -> int:
+    """下载 url 到 dest，SSRF 校验 + 大小上限。返回写入字节数。"""
+    validate_url(url)
+    cap = min(max_bytes, URL_HARD_MAX)
+    written = 0
+    req = urllib.request.Request(url, headers={"User-Agent": "agent-fleet-android"})
+    with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 (scheme 已校验)
+        clen = resp.headers.get("Content-Length")
+        if clen and int(clen) > cap:
+            raise UploadError(f"文件超过上限 {cap} 字节（Content-Length={clen}）")
+        with dest.open("wb") as fh:
+            while True:
+                buf = resp.read(64 * 1024)
+                if not buf:
+                    break
+                written += len(buf)
+                if written > cap:
+                    fh.close()
+                    dest.unlink(missing_ok=True)
+                    raise UploadError(f"下载超过上限 {cap} 字节")
+                fh.write(buf)
+    return written

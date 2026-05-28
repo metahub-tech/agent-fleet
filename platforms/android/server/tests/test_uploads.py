@@ -122,3 +122,44 @@ def test_command_builders():
         ["-s", "S", "install", "-r", "/host/app.apk"]
     assert up.install_args("S", "/host/app.apk", replace=False) == \
         ["-s", "S", "install", "/host/app.apk"]
+
+
+# ----- Task 5: url 下载 -----
+
+import functools
+import http.server
+
+
+def _serve(directory):
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
+    srv = http.server.HTTPServer(("127.0.0.1", 0), handler)
+    _t.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, srv.server_address[1]
+
+
+def test_download_url_ok(tmp_path, monkeypatch):
+    (tmp_path / "a.bin").write_bytes(b"X" * 100)
+    srv, port = _serve(tmp_path)
+    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)  # 放行 127.0.0.1 仅为测试
+    dest = tmp_path / "out.bin"
+    try:
+        n = up.download_url(f"http://127.0.0.1:{port}/a.bin", dest, max_bytes=1000)
+        assert n == 100 and dest.read_bytes() == b"X" * 100
+    finally:
+        srv.shutdown()
+
+
+def test_download_url_over_limit(tmp_path, monkeypatch):
+    (tmp_path / "big.bin").write_bytes(b"X" * 5000)
+    srv, port = _serve(tmp_path)
+    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)
+    try:
+        with pytest.raises(up.UploadError):
+            up.download_url(f"http://127.0.0.1:{port}/big.bin", tmp_path / "o", max_bytes=1000)
+    finally:
+        srv.shutdown()
+
+
+def test_download_url_ssrf_blocked(tmp_path):
+    with pytest.raises(up.UploadError):
+        up.download_url("http://127.0.0.1/x", tmp_path / "o", max_bytes=1000)
