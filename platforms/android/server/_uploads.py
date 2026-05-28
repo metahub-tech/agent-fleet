@@ -222,3 +222,60 @@ def download_url(url: str, dest: Path, max_bytes: int) -> int:
                     raise UploadError(f"下载超过上限 {cap} 字节")
                 fh.write(buf)
     return written
+
+
+# ============================================================
+#                       JOB REGISTRY
+# ============================================================
+
+class JobRegistry:
+    """内存态后台任务注册表：submit() 在守护线程跑注入的 work()。
+
+    状态机 running → succeeded / failed。重启丢失（接受，文档说明）。
+    """
+
+    def __init__(self) -> None:
+        self._jobs: dict[str, dict] = {}
+        self._lock = threading.Lock()
+
+    def submit(self, *, kind: str, serial: str, work, on_done=None, job_id: str | None = None) -> str:
+        job_id = job_id or uuid.uuid4().hex
+        with self._lock:
+            self._jobs[job_id] = {
+                "job_id": job_id, "kind": kind, "serial": serial,
+                "state": "running", "started_at": time.time(), "finished_at": None,
+            }
+        t = threading.Thread(target=self._run, args=(job_id, work, on_done), daemon=True)
+        t.start()
+        return job_id
+
+    def _run(self, job_id, work, on_done) -> None:
+        try:
+            result = work() or {}
+            self._update(job_id, state="succeeded", **result)
+        except Exception as e:  # noqa: BLE001
+            self._update(job_id, state="failed", error=str(e))
+        finally:
+            if on_done:
+                on_done()
+
+    def _update(self, job_id, **fields) -> None:
+        with self._lock:
+            j = self._jobs.get(job_id)
+            if j is None:
+                return
+            j.update(fields)
+            j["finished_at"] = time.time()
+
+    def get(self, job_id: str) -> dict | None:
+        with self._lock:
+            j = self._jobs.get(job_id)
+            return dict(j) if j else None
+
+    def gc(self) -> None:
+        now = time.time()
+        with self._lock:
+            stale = [k for k, v in self._jobs.items()
+                     if v.get("finished_at") and now - v["finished_at"] > JOB_TTL_SEC]
+            for jid in stale:
+                del self._jobs[jid]

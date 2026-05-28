@@ -163,3 +163,45 @@ def test_download_url_over_limit(tmp_path, monkeypatch):
 def test_download_url_ssrf_blocked(tmp_path):
     with pytest.raises(up.UploadError):
         up.download_url("http://127.0.0.1/x", tmp_path / "o", max_bytes=1000)
+
+
+# ----- Task 6: JobRegistry -----
+
+def test_job_success_and_get():
+    reg = up.JobRegistry()
+    done = _t.Event()
+
+    def work():
+        return {"device_path": "/sdcard/x", "returncode": 0}
+
+    jid = reg.submit(kind="deliver", serial="S", work=work, on_done=done.set)
+    assert reg.get(jid)["state"] in ("running", "succeeded")
+    assert done.wait(2)
+    j = reg.get(jid)
+    assert j["state"] == "succeeded" and j["returncode"] == 0 and j["finished_at"]
+
+
+def test_job_failure_records_error():
+    reg = up.JobRegistry()
+    done = _t.Event()
+
+    def work():
+        raise RuntimeError("adb push failed")
+
+    jid = reg.submit(kind="deliver", serial="S", work=work, on_done=done.set)
+    assert done.wait(2)
+    j = reg.get(jid)
+    assert j["state"] == "failed" and "adb push failed" in j["error"]
+
+
+def test_job_get_unknown():
+    assert up.JobRegistry().get("nope") is None
+
+
+def test_job_submit_with_preset_id():
+    reg = up.JobRegistry()
+    done = _t.Event()
+    jid = reg.submit(kind="deliver", serial="S", work=lambda: {}, on_done=done.set, job_id="fixed123")
+    assert jid == "fixed123"
+    assert done.wait(2)
+    assert reg.get("fixed123")["state"] == "succeeded"
