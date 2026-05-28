@@ -225,6 +225,30 @@ def mediastore_query_args(device_path: str) -> list[str]:
 
 
 # ============================================================
+#                  HTTP /upload 端点支撑（纯逻辑）
+# ============================================================
+
+def parse_bool(s, default: bool = False) -> bool:
+    if s is None:
+        return default
+    return str(s).strip().lower() in ("1", "true", "yes", "on")
+
+
+def resolve_upload_target(device_path: str | None, filename: str | None) -> tuple[str, str]:
+    """由 device_path / filename 推出 (fname, 校验后的 device_path)。
+    只给 filename 时按是否图片落 Pictures / Download；两者都缺 → 报错。"""
+    fname = sanitize_filename(filename) if filename else None
+    if device_path:
+        dpath = validate_device_path(device_path)
+        fname = fname or dpath.rsplit("/", 1)[-1]
+        return fname, dpath
+    if not fname:
+        raise UploadError("必须提供 device_path 或 filename 之一")
+    default_dir = "/sdcard/Pictures" if is_image(fname) else "/sdcard/Download"
+    return fname, validate_device_path(f"{default_dir}/{fname}")
+
+
+# ============================================================
 #                     URL DOWNLOAD (主机侧)
 # ============================================================
 

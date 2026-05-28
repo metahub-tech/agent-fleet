@@ -97,6 +97,39 @@ def test_ip_is_blocked():
     assert up._ip_is_blocked("not-an-ip") is False
 
 
+# ----- HTTP /upload helpers -----
+
+def test_parse_bool():
+    assert up.parse_bool(None, True) is True
+    assert up.parse_bool(None, False) is False
+    assert up.parse_bool("true") is True
+    assert up.parse_bool("1") is True
+    assert up.parse_bool("YES") is True
+    assert up.parse_bool("false") is False
+    assert up.parse_bool("0") is False
+
+
+def test_resolve_upload_target_with_device_path():
+    fname, dpath = up.resolve_upload_target("/sdcard/Pictures/a.png", None)
+    assert dpath == "/sdcard/Pictures/a.png" and fname == "a.png"
+
+
+def test_resolve_upload_target_filename_only_image_vs_other():
+    # 图片默认进 Pictures，其它进 Download
+    _, dpath_img = up.resolve_upload_target(None, "pic.jpg")
+    assert dpath_img == "/sdcard/Pictures/pic.jpg"
+    _, dpath_apk = up.resolve_upload_target(None, "app.apk")
+    assert dpath_apk == "/sdcard/Download/app.apk"
+
+
+def test_resolve_upload_target_requires_one():
+    with pytest.raises(up.UploadError):
+        up.resolve_upload_target(None, None)
+    # 路径穿越仍被拒
+    with pytest.raises(up.UploadError):
+        up.resolve_upload_target("/data/local/tmp/x", None)
+
+
 # ----- Task 3: 分片暂存 + 空间守卫 -----
 
 def _patch_dirs(tmp_path, monkeypatch):

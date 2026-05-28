@@ -48,6 +48,9 @@ from pydantic import Field
 
 from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 # _aliases / _device_state are shared across platform servers — see platforms/common/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
@@ -1170,6 +1173,104 @@ def job_status(
     if j is None:
         return {"ok": False, "error": f"未知 job_id: {job_id}"}
     return {"ok": True, **j}
+
+
+# ============================================================
+#     HTTP /upload —— agent 直接 POST 文件字节，host 落盘后 adb push
+#     （绕过 base64/分片/MCP 25s 死线；agent→host 方向可达）
+# ============================================================
+
+def _http_upload_worker(serial: str, host_path: str, dpath: str, size: int,
+                        install: bool, make_visible: bool) -> dict:
+    """同步执行 push(+install/scan)。在 threadpool 线程里跑，不经 _adb_run 的 25s 钳制。"""
+    job = "http_" + up.uuid.uuid4().hex
+    rc, _out, err = up.run_proc(job, up.push_args(serial, host_path, dpath))
+    if rc != 0:
+        return {"ok": False, "stage": "push", "returncode": rc, "stderr": err[:500]}
+    res: dict = {"ok": True, "device_path": dpath, "size": size}
+    if install:
+        rc2, _o, e2 = up.run_proc(job, up.install_args(serial, host_path))
+        res["installed"] = rc2 == 0
+        if rc2 != 0:
+            res.update(ok=False, stage="install", returncode=rc2, stderr=e2[:500])
+    elif make_visible and up.is_image(dpath):
+        up.run_proc(job, ["-s", serial] + up.media_scan_args(dpath))
+        res["scan_triggered"] = True
+        visible = False
+        for _ in range(8):
+            _rc, out3, _e = up.run_proc(job, ["-s", serial] + up.mediastore_query_args(dpath))
+            if "Row:" in out3:
+                visible = True
+                break
+            time.sleep(1)
+        res["visible_in_gallery"] = visible
+    return res
+
+
+@mcp.custom_route("/upload", methods=["POST"])
+async def http_upload(request: Request) -> JSONResponse:
+    """POST 文件字节 → 落主机暂存 → adb push（+可选 pm install / 媒体扫描）。
+
+    用法：curl -X POST --data-binary @file.png
+      'http://<host>:8768/upload?device_path=/sdcard/Pictures/x.png&make_visible=true'
+    query 参数：device_path | filename（二选一）、install、make_visible、device。
+    支持 raw body（--data-binary）与 multipart（-F file=@…）。
+    """
+    try:
+        qp = request.query_params
+        device_path = qp.get("device_path")
+        filename = qp.get("filename")
+        install = up.parse_bool(qp.get("install"), False)
+        make_visible = up.parse_bool(qp.get("make_visible"), True)
+        device = qp.get("device")
+
+        ctype = request.headers.get("content-type", "")
+        if ctype.startswith("multipart/form-data"):
+            form = await request.form()
+            f = form.get("file")
+            if f is None:
+                return JSONResponse({"ok": False, "error": "multipart 缺少 file 字段"}, status_code=400)
+            body = await f.read()
+            filename = filename or getattr(f, "filename", None)
+        else:
+            body = await request.body()
+
+        if not body:
+            return JSONResponse({"ok": False, "error": "空请求体"}, status_code=400)
+        if len(body) > up.URL_HARD_MAX:
+            return JSONResponse({"ok": False, "error": f"超过上限 {up.URL_HARD_MAX} 字节"}, status_code=413)
+
+        _fname, dpath = up.resolve_upload_target(device_path, filename)
+        serial = _resolve_device(device, None)
+        _state_registry.touch(serial)
+        up.ensure_dirs()
+        tmp = up.UPLOADS_DIR / f"http_{up.uuid.uuid4().hex}"
+        tmp.write_bytes(body)
+        try:
+            result = await run_in_threadpool(
+                _http_upload_worker, serial, str(tmp), dpath, len(body), install, make_visible)
+        finally:
+            tmp.unlink(missing_ok=True)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 500)
+    except up.UploadError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
+
+
+@mcp.tool
+def get_upload_endpoint(ctx: Context = None) -> dict:
+    """返回本机 HTTP 文件上传端点用法：直接 POST 文件字节，绕过 base64/分片。"""
+    return {
+        "ok": True,
+        "method": "POST",
+        "path": "/upload",
+        "port": 8768,
+        "params": "device_path 或 filename（二选一）、install(bool)、make_visible(bool)、device(serial/alias)",
+        "hint": "host 同 android-device MCP 的 URL。例："
+                "curl -X POST --data-binary @bg.png "
+                "'http://<android-host>:8768/upload?device_path=/sdcard/Pictures/bg.png&make_visible=true'",
+    }
 
 
 # ============================================================
