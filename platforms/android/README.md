@@ -115,7 +115,7 @@ Agent: install_app(path="/builds/app-debug.apk")       → installed
 Works over USB / Wireless / Hybrid ADB and is multi-device aware (pass `device=`).
 See the animated demo (a real iPad) in the [main README](../../README.md).
 
-## 工具集（v0.7.0-alpha 实际暴露，共 25 个）
+## 工具集（v0.7.0-alpha 实际暴露，共 30 个）
 
 所有工具均接受可选 `device` 参数（serial 或别名）。未传 `device` 且只连 1 台手机时自动路由。
 
@@ -129,8 +129,16 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 键盘 | `type_text` / `press_key` | press_key 别名：back/home/menu/recent/power/volume_up 等 |
 | 应用 | `list_packages` / `install_app` / `uninstall_app` / `launch_app` / `terminate_app` / `current_app` | apk 安装走 host->phone push |
 | Shell | `run_shell` | 在设备上跑 shell 命令（`getprop` / `dumpsys` / `am` 等） |
-| 文件 | `push_file` / `pull_file` | host ↔ device |
+| 文件（host↔device） | `push_file` / `pull_file` | 读写 **host 本地磁盘**路径 |
+| 文件上传（agent→device） | `upload_media` / `stage_upload` / `deliver_staged` / `job_status` / `get_upload_endpoint` | agent 自带字节传到手机：小图 base64 同步进相册 / 大文件分片异步 / 发现 HTTP 端点。**推荐** `POST /upload`（见下） |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
+
+> **传文件到手机的首选：HTTP `POST /upload`**（同 server 8768 端口）。agent 直接 POST 文件字节，host 落盘后 adb push（+可选 `pm install` / 媒体扫描），绕过 base64 上下文膨胀、分片与 MCP 25s 死线，任意大小：
+> ```
+> curl -X POST --data-binary @bg.png \
+>   'http://<android-host>:8768/upload?device_path=/sdcard/Pictures/bg.png&make_visible=true'
+> ```
+> query 参数：`device_path | filename`（二选一）、`install`、`make_visible`、`device`。`make_visible=true` 对图片触发 MediaStore 扫描使相册/选图器立即可见。
 
 > `type_text` 仅 ASCII（Android `input text` 限制），中文 / emoji 不行。
 

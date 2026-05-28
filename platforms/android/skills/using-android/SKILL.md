@@ -5,7 +5,7 @@ description: Use when invoking android-device MCP tools to drive a real Android 
 
 # Using android-device
 
-Drive one or more Android devices via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone(s) via **ADB** (USB or Wireless). 25 tools across 9 categories.
+Drive one or more Android devices via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone(s) via **ADB** (USB or Wireless). 30 tools across 10 categories (+ HTTP `POST /upload`).
 
 ## Mental model
 
@@ -77,12 +77,28 @@ release(holder_name="agent-A")         # explicit release
 
 ### File transfer between host and phone
 
+`push_file` / `pull_file` move files between the **host's local disk** and the device — only useful when the bytes already live on the host:
 ```
 push_file(host_path="C:\\\\reports\\\\test.txt", device_path="/sdcard/test.txt")
 pull_file(device_path="/sdcard/screenshots/foo.png", host_path="/tmp/foo.png")
 ```
+Both sides need absolute paths.
 
-Both sides need absolute paths. `push_file` size limit 300s timeout (large APKs use `install_app` instead, which is APK-aware).
+### Uploading agent-held files to the phone (你自己持有的字节 → 手机)
+
+The agent's own files/bytes do NOT live on the host, so `push_file` can't see them. Use one of:
+
+- **首选：HTTP `POST /upload`**（同 server，8768 端口）。直接 POST 文件字节，host 落盘后 adb push（+可选 install/媒体扫描）。绕过 base64 上下文膨胀、分片、MCP 25s 死线，**任意大小**。先 `get_upload_endpoint()` 拿用法，再：
+  ```
+  curl -X POST --data-binary @bg.png \
+    'http://<android-host>:8768/upload?device_path=/sdcard/Pictures/bg.png&make_visible=true'
+  → {"ok":true,"size":...,"scan_triggered":true,"visible_in_gallery":true}
+  ```
+  query：`device_path | filename`（二选一）、`install`（APK 装机）、`make_visible`（图片进相册）、`device`。
+- **`upload_media(content_base64=…)`**：极小内联数据（≤6MB，且会占 agent 上下文）。图片自动触发相册扫描；返回 `scan_triggered` + `visible_in_gallery`（异步扫描，best-effort 确认，false 不代表失败）。
+- **`stage_upload`(分片) + `deliver_staged`(后台 push/install) + `job_status`(轮询)**：MCP-only 环境下传大文件/APK（无法直接 HTTP 时）。
+
+> 进相册/选图器（如小红书换背景）：`make_visible=true` 会 `am broadcast MEDIA_SCANNER_SCAN_FILE`，Android10+ 实测 ~数秒异步索引；用 `/sdcard/Pictures/` 路径。`adb shell` 查 MediaStore 时 `_data` 用规范路径 `/storage/emulated/0/...`（非 `/sdcard/...`）。
 
 ## Recipes (battle-tested on real deploys)
 
@@ -214,7 +230,7 @@ MCP 握手时 `instructions=` 中已列出当前所有连接设备的摘要；�
 - Source code: `platforms/android/server/android_device_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
-- Tool surface: 25 tools across 9 categories (state 3 / session-default 2 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / ui-introspection 3)
+- Tool surface: 30 tools across 10 categories (state 3 / session-default 2 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / agent-upload 5 / ui-introspection 3) + HTTP `POST /upload` route
 
 ## Red flags
 

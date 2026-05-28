@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 新增
+
+- **Android：agent→设备文件上传**。解决"agent 自带的字节传不到手机"（服务端在设备主机上看不见 agent 磁盘，旧 `push_file` 只能读主机本地路径）。
+  - **HTTP `POST /upload`（首选）**：挂在现有 android-device server（8768）上的 Starlette 路由，agent 直接 POST 文件字节 → 主机流式落盘 → `adb push`（+可选 `pm install` / 媒体扫描）→ 返回 JSON。绕过 base64 上下文膨胀、分片、MCP ~25s 工具调用死线，**任意大小**。`curl -X POST --data-binary @f 'http://<host>:8768/upload?device_path=/sdcard/Pictures/x.png&make_visible=true'`。
+  - **MCP 工具**：`upload_media`（base64 小文件同步、图片自动进相册）、`stage_upload`+`deliver_staged`+`job_status`（分片暂存 + 后台 push/install + 轮询，MCP-only 环境用）、`get_upload_endpoint`（发现 HTTP 端点）。Android 工具数 25 → 30。
+  - **媒体可见性**：`make_visible=true` 对图片 `am broadcast MEDIA_SCANNER_SCAN_FILE`，Android10+ 实测 ~数秒异步索引后进相册/选图器（小红书换背景等）；可见性查询用规范 `_data` 路径（`/storage/emulated/0/...`）并以单条 shell 命令传递，规避 adb-shell 剥引号导致的假阴性。
+  - **安全/健壮**：路径穿越 + 引号/分号/`$` 注入防护、SSRF（http/https + 内网/元数据 IP 拒绝 + DNS 重绑定对端复验）、流式落盘防 OOM、后台子进程超时清理、`reap_orphans` 跨平台（Windows 无 SIGKILL 降级）+ 启动清场。真机（华为 VOG-AL00 / Android10）验证：4.4MB 图片传至手机并进相册。
+
 ## [0.8.2-alpha] - 2026-05-21
 
 ### 新增
