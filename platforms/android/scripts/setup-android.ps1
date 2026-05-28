@@ -270,7 +270,7 @@ $action = New-ScheduledTaskAction `
 # 时周期触发被忽略，不会起第二份。
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunUser
 $healTrigger  = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-    -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue)
+    -RepetitionInterval (New-TimeSpan -Minutes 5)  # 省略 Duration = 无限重复（MaxValue 超出 XML 合法范围）
 $trigger = @($logonTrigger, $healTrigger)
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `

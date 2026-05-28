@@ -263,7 +263,7 @@ try {
     $winTriggers = @(
         (New-ScheduledTaskTrigger -AtLogOn -User $RunUser),
         (New-ScheduledTaskTrigger -Once -At (Get-Date) `
-            -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue))
+            -RepetitionInterval (New-TimeSpan -Minutes 5))  # 省略 Duration = 无限重复（MaxValue 超出 XML 合法范围）
     )
     Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
         -Trigger $winTriggers `
