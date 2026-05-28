@@ -367,6 +367,9 @@ def run_proc(job_id: str, adb_args: list[str], timeout: int | None = None) -> tu
                 out.decode("utf-8", "replace"),
                 err.decode("utf-8", "replace"))
     finally:
+        if proc.poll() is None:  # 超时等异常路径：杀掉子进程并排空 pipe，防孤儿/死锁
+            proc.kill()
+            proc.communicate()
         _pid_file(job_id).unlink(missing_ok=True)
 
 

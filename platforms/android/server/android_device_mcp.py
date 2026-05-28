@@ -1057,6 +1057,8 @@ def upload_media(
                     return {"ok": False, "error": str(e),
                             "hint": "大文件用 deliver_staged(url=...) 异步路径"}
             size = tmp.stat().st_size
+            # push_args 已含 ["-s", serial]，故 _adb_run 必须传 serial=None；
+            # 切勿改成 serial=serial，否则多设备下会变成 `adb -s X -s X push` 报错。
             r = _adb_run(up.push_args(serial, str(tmp), dpath), timeout=25, serial=None)
             if r["returncode"] != 0:
                 return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
@@ -1216,6 +1218,7 @@ async def http_upload(request: Request) -> JSONResponse:
     query 参数：device_path | filename（二选一）、install、make_visible、device。
     支持 raw body（--data-binary）与 multipart（-F file=@…）。
     """
+    tmp = None
     try:
         qp = request.query_params
         device_path = qp.get("device_path")
@@ -1224,38 +1227,55 @@ async def http_upload(request: Request) -> JSONResponse:
         make_visible = up.parse_bool(qp.get("make_visible"), True)
         device = qp.get("device")
 
-        ctype = request.headers.get("content-type", "")
-        if ctype.startswith("multipart/form-data"):
-            form = await request.form()
-            f = form.get("file")
-            if f is None:
-                return JSONResponse({"ok": False, "error": "multipart 缺少 file 字段"}, status_code=400)
-            body = await f.read()
-            filename = filename or getattr(f, "filename", None)
-        else:
-            body = await request.body()
-
-        if not body:
-            return JSONResponse({"ok": False, "error": "空请求体"}, status_code=400)
-        if len(body) > up.URL_HARD_MAX:
+        # Content-Length 快速拒绝（边流式落盘边复核，防超大 body）
+        clen = request.headers.get("content-length")
+        if clen and clen.isdigit() and int(clen) > up.URL_HARD_MAX:
             return JSONResponse({"ok": False, "error": f"超过上限 {up.URL_HARD_MAX} 字节"}, status_code=413)
 
-        _fname, dpath = up.resolve_upload_target(device_path, filename)
         serial = _resolve_device(device, None)
         _state_registry.touch(serial)
         up.ensure_dirs()
         tmp = up.UPLOADS_DIR / f"http_{up.uuid.uuid4().hex}"
-        tmp.write_bytes(body)
-        try:
-            result = await run_in_threadpool(
-                _http_upload_worker, serial, str(tmp), dpath, len(body), install, make_visible)
-        finally:
-            tmp.unlink(missing_ok=True)
+
+        # 流式落盘，不把整个 body 驻留内存（并发大文件防 OOM）；边写边计数复核上限。
+        size = 0
+        ctype = request.headers.get("content-type", "")
+        with tmp.open("wb") as fh:
+            if ctype.startswith("multipart/form-data"):
+                form = await request.form()
+                f = form.get("file")
+                if f is None or not hasattr(f, "read"):
+                    return JSONResponse({"ok": False, "error": "multipart 缺少 file 字段"}, status_code=400)
+                filename = filename or getattr(f, "filename", None)
+                while True:
+                    chunk = await f.read(64 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > up.URL_HARD_MAX:
+                        return JSONResponse({"ok": False, "error": f"超过上限 {up.URL_HARD_MAX} 字节"}, status_code=413)
+                    fh.write(chunk)
+            else:
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > up.URL_HARD_MAX:
+                        return JSONResponse({"ok": False, "error": f"超过上限 {up.URL_HARD_MAX} 字节"}, status_code=413)
+                    fh.write(chunk)
+
+        if size == 0:
+            return JSONResponse({"ok": False, "error": "空请求体"}, status_code=400)
+
+        _fname, dpath = up.resolve_upload_target(device_path, filename)
+        result = await run_in_threadpool(
+            _http_upload_worker, serial, str(tmp), dpath, size, install, make_visible)
         return JSONResponse(result, status_code=200 if result.get("ok") else 500)
     except up.UploadError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
 
 
 @mcp.tool
