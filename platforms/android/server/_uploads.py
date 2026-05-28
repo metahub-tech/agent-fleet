@@ -63,9 +63,16 @@ def decode_b64(s: str) -> bytes:
         raise UploadError(f"base64 解码失败: {e}") from e
 
 
+# shell/SQL 注入面字符：禁止出现在 filename / device_path 中
+# （device_path 会拼进 `content query --where "_data='...'"`，单引号会破坏 SQL 字面量）
+_FORBIDDEN_PATH_CHARS = set("'\"`;$\n\r")
+
+
 def sanitize_filename(name: str) -> str:
     if not name or "/" in name or "\\" in name or ".." in name:
         raise UploadError(f"非法 filename: {name!r}")
+    if set(name) & _FORBIDDEN_PATH_CHARS:
+        raise UploadError(f"filename 含非法字符（引号/分号/$ 等）: {name!r}")
     return name
 
 
@@ -74,7 +81,17 @@ def validate_device_path(path: str) -> str:
         raise UploadError(
             f"device_path 必须在 {ALLOWED_DEVICE_PREFIXES} 内且不含 '..': {path!r}"
         )
+    if set(path) & (_FORBIDDEN_PATH_CHARS | {"\\"}):
+        raise UploadError(f"device_path 含非法字符（引号/分号/$/反斜线等）: {path!r}")
     return path
+
+
+def _ip_is_blocked(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved
 
 
 def _is_blocked_ip(host: str) -> bool:
@@ -82,11 +99,7 @@ def _is_blocked_ip(host: str) -> bool:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror:
         return False  # 解析失败交给下载阶段报错
-    for *_, sockaddr in infos:
-        ip = ipaddress.ip_address(sockaddr[0])
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
-            return True
-    return False
+    return any(_ip_is_blocked(sockaddr[0]) for *_, sockaddr in infos)
 
 
 def validate_url(url: str) -> None:
@@ -207,6 +220,14 @@ def download_url(url: str, dest: Path, max_bytes: int) -> int:
     written = 0
     req = urllib.request.Request(url, headers={"User-Agent": "agent-fleet-android"})
     with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 (scheme 已校验)
+        # DNS-rebinding 防御：pre-check 与 urlopen 之间 DNS 可能被翻转，复验真实对端 IP。
+        # 在读取/返回任何响应体之前中止，避免把内网/元数据服务的数据带回。
+        try:
+            peer_ip = resp.fp.raw._sock.getpeername()[0]
+        except Exception:  # noqa: BLE001 - 拿不到对端就退回到 pre-check
+            peer_ip = None
+        if peer_ip and _ip_is_blocked(peer_ip):
+            raise UploadError(f"连接对端为内网/元数据地址: {peer_ip}")
         clen = resp.headers.get("Content-Length")
         if clen and int(clen) > cap:
             raise UploadError(f"文件超过上限 {cap} 字节（Content-Length={clen}）")

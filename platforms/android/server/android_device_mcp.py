@@ -1025,39 +1025,43 @@ def upload_media(
         up.require_xor(content_base64, url, ("content_base64", "url"))
         serial = _resolve_device(device, _get_session_default(ctx))
         _state_registry.touch(serial)
-        up.ensure_dirs()
-        tmp = up.UPLOADS_DIR / f"sync_{up.uuid.uuid4().hex}"
+        # 先定文件名 + 校验目标路径（落盘之前，避免非法入参时泄漏 tmp）
         if content_base64 is not None:
-            data = up.decode_b64(content_base64)
-            if len(data) > up.SYNC_B64_MAX:
-                return {"ok": False, "error": "超过同步上限（base64 解码后 > 6MB）",
-                        "hint": "用 stage_upload + deliver_staged 异步路径"}
-            tmp.write_bytes(data)
             fname = up.sanitize_filename(filename or "upload.bin")
         else:
+            up.validate_url(url)
             fname = up.sanitize_filename(
                 filename or Path(urllib.parse.urlparse(url).path).name or "upload.bin")
-            try:
-                up.download_url(url, tmp, max_bytes=up.SYNC_URL_MAX_USB)
-            except up.UploadError as e:
-                tmp.unlink(missing_ok=True)
-                return {"ok": False, "error": str(e),
-                        "hint": "大文件用 deliver_staged(url=...) 异步路径"}
-        size = tmp.stat().st_size
         dpath = up.validate_device_path(device_path or f"/sdcard/Pictures/{fname}")
-        r = _adb_run(up.push_args(serial, str(tmp), dpath), timeout=25, serial=None)
-        if r["returncode"] != 0:
+        up.ensure_dirs()
+        tmp = up.UPLOADS_DIR / f"sync_{up.uuid.uuid4().hex}"
+        try:
+            if content_base64 is not None:
+                data = up.decode_b64(content_base64)
+                if len(data) > up.SYNC_B64_MAX:
+                    return {"ok": False, "error": "超过同步上限（base64 解码后 > 6MB）",
+                            "hint": "用 stage_upload + deliver_staged 异步路径"}
+                tmp.write_bytes(data)
+            else:
+                try:
+                    up.download_url(url, tmp, max_bytes=up.SYNC_URL_MAX_USB)
+                except up.UploadError as e:
+                    return {"ok": False, "error": str(e),
+                            "hint": "大文件用 deliver_staged(url=...) 异步路径"}
+            size = tmp.stat().st_size
+            r = _adb_run(up.push_args(serial, str(tmp), dpath), timeout=25, serial=None)
+            if r["returncode"] != 0:
+                return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
+            visible = False
+            if make_visible and up.is_image(fname):
+                _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
+                q = _adb_run(["shell", "content", "query", "--uri",
+                              "content://media/external/images/media",
+                              "--where", f"_data='{dpath}'"], timeout=10, serial=serial)
+                visible = "Row:" in q.get("stdout", "")
+            return {"ok": True, "device_path": dpath, "size": size, "visible_in_gallery": visible}
+        finally:
             tmp.unlink(missing_ok=True)
-            return {"ok": False, "stdout": r["stdout"], "stderr": r["stderr"], **_diag(r)}
-        visible = False
-        if make_visible and up.is_image(fname):
-            _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
-            q = _adb_run(["shell", "content", "query", "--uri",
-                          "content://media/external/images/media",
-                          "--where", f"_data='{dpath}'"], timeout=10, serial=serial)
-            visible = "Row:" in q.get("stdout", "")
-        tmp.unlink(missing_ok=True)
-        return {"ok": True, "device_path": dpath, "size": size, "visible_in_gallery": visible}
     except up.UploadError as e:
         return {"ok": False, "error": str(e)}
 
@@ -1112,25 +1116,29 @@ def deliver_staged(
 
         def work():
             host = up.stage_path(stage_id) if stage_id else (up.UPLOADS_DIR / f"dl_{job_id}")
-            if url is not None:
-                up.download_url(url, host, max_bytes=up.URL_HARD_MAX)
-            rc, _out, err = up.run_proc(job_id, up.push_args(serial, str(host), dpath))
-            if rc != 0:
-                raise RuntimeError(f"adb push failed rc={rc}: {err}")
-            res = {"device_path": dpath, "returncode": rc, "bytes_total": host.stat().st_size}
-            if install:
-                rc2, _o, e2 = up.run_proc(job_id, up.install_args(serial, str(host)))
-                if rc2 != 0:
-                    raise RuntimeError(f"pm install failed rc={rc2}: {e2}")
-                res["installed"] = True
-            elif make_visible and up.is_image(fname):
-                up.run_proc(job_id, ["-s", serial] + up.media_scan_args(dpath))
-                res["scanned"] = True
-            if stage_id:
-                up._clear_stage(stage_id)
-            else:
-                host.unlink(missing_ok=True)
-            return res
+            try:
+                if url is not None:
+                    up.download_url(url, host, max_bytes=up.URL_HARD_MAX)
+                rc, _out, err = up.run_proc(job_id, up.push_args(serial, str(host), dpath))
+                if rc != 0:
+                    raise RuntimeError(f"adb push failed rc={rc}: {err}")
+                res = {"device_path": dpath, "returncode": rc, "bytes_total": host.stat().st_size}
+                if install:
+                    rc2, _o, e2 = up.run_proc(job_id, up.install_args(serial, str(host)))
+                    if rc2 != 0:
+                        raise RuntimeError(f"pm install failed rc={rc2}: {e2}")
+                    res["installed"] = True
+                elif make_visible and up.is_image(fname):
+                    up.run_proc(job_id, ["-s", serial] + up.media_scan_args(dpath))
+                    res["scanned"] = True
+                return res
+            finally:
+                # 无论成功/失败/异常都清理主机暂存，避免高频失败时磁盘雪球。
+                # 代价：失败后重试需重新 stage（agent 仍持有字节，可接受）。
+                if stage_id:
+                    up._clear_stage(stage_id)
+                else:
+                    host.unlink(missing_ok=True)
 
         _job_registry.submit(kind="deliver", serial=serial, work=work, job_id=job_id)
         return {"ok": True, "job_id": job_id, "state": "running"}

@@ -73,6 +73,30 @@ def test_is_image():
     assert up.is_image("a.apk") is False
 
 
+def test_filename_rejects_injection_chars():
+    for bad in ["it's.jpg", 'a";b', "x;rm.png", "a$b", "a`b`", "a\nb"]:
+        with pytest.raises(up.UploadError):
+            up.sanitize_filename(bad)
+
+
+def test_device_path_rejects_injection_chars():
+    # 单引号会破坏 content query --where 的 SQL 字面量
+    with pytest.raises(up.UploadError):
+        up.validate_device_path("/sdcard/Pictures/it's.jpg")
+    with pytest.raises(up.UploadError):
+        up.validate_device_path("/sdcard/Pictures/a;b.jpg")
+    with pytest.raises(up.UploadError):
+        up.validate_device_path("/sdcard/Pictures/a\\b.jpg")
+
+
+def test_ip_is_blocked():
+    assert up._ip_is_blocked("127.0.0.1") is True
+    assert up._ip_is_blocked("10.1.2.3") is True
+    assert up._ip_is_blocked("169.254.169.254") is True
+    assert up._ip_is_blocked("8.8.8.8") is False
+    assert up._ip_is_blocked("not-an-ip") is False
+
+
 # ----- Task 3: 分片暂存 + 空间守卫 -----
 
 def _patch_dirs(tmp_path, monkeypatch):
@@ -140,7 +164,8 @@ def _serve(directory):
 def test_download_url_ok(tmp_path, monkeypatch):
     (tmp_path / "a.bin").write_bytes(b"X" * 100)
     srv, port = _serve(tmp_path)
-    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)  # 放行 127.0.0.1 仅为测试
+    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)   # 放行 127.0.0.1 仅为测试
+    monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)  # 同时放行 peer-recheck
     dest = tmp_path / "out.bin"
     try:
         n = up.download_url(f"http://127.0.0.1:{port}/a.bin", dest, max_bytes=1000)
@@ -153,6 +178,7 @@ def test_download_url_over_limit(tmp_path, monkeypatch):
     (tmp_path / "big.bin").write_bytes(b"X" * 5000)
     srv, port = _serve(tmp_path)
     monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)
+    monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)
     try:
         with pytest.raises(up.UploadError):
             up.download_url(f"http://127.0.0.1:{port}/big.bin", tmp_path / "o", max_bytes=1000)
