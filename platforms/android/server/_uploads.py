@@ -45,3 +45,59 @@ class UploadError(ValueError):
 
 def ensure_dirs() -> None:
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================
+#                        VALIDATION
+# ============================================================
+
+def require_xor(a, b, names: tuple[str, str]) -> None:
+    if (a is None) == (b is None):
+        raise UploadError(f"必须且只能提供 {names[0]} 与 {names[1]} 之一")
+
+
+def decode_b64(s: str) -> bytes:
+    try:
+        return base64.b64decode(s, validate=True)
+    except Exception as e:  # noqa: BLE001
+        raise UploadError(f"base64 解码失败: {e}") from e
+
+
+def sanitize_filename(name: str) -> str:
+    if not name or "/" in name or "\\" in name or ".." in name:
+        raise UploadError(f"非法 filename: {name!r}")
+    return name
+
+
+def validate_device_path(path: str) -> str:
+    if ".." in path or not path.startswith(ALLOWED_DEVICE_PREFIXES):
+        raise UploadError(
+            f"device_path 必须在 {ALLOWED_DEVICE_PREFIXES} 内且不含 '..': {path!r}"
+        )
+    return path
+
+
+def _is_blocked_ip(host: str) -> bool:
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False  # 解析失败交给下载阶段报错
+    for *_, sockaddr in infos:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
+            return True
+    return False
+
+
+def validate_url(url: str) -> None:
+    p = urllib.parse.urlparse(url)
+    if p.scheme not in ("http", "https"):
+        raise UploadError(f"仅支持 http/https: {url!r}")
+    if not p.hostname:
+        raise UploadError(f"url 缺少 host: {url!r}")
+    if _is_blocked_ip(p.hostname):
+        raise UploadError(f"拒绝内网/元数据地址: {p.hostname}")
+
+
+def is_image(name: str) -> bool:
+    return Path(name).suffix.lower() in IMAGE_EXTS
