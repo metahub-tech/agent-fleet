@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 from pathlib import Path
 from typing import Annotated, Any, Optional
@@ -1055,10 +1056,14 @@ def upload_media(
             visible = False
             if make_visible and up.is_image(fname):
                 _adb_run(up.media_scan_args(dpath), timeout=10, serial=serial)
-                q = _adb_run(["shell", "content", "query", "--uri",
-                              "content://media/external/images/media",
-                              "--where", f"_data='{dpath}'"], timeout=10, serial=serial)
-                visible = "Row:" in q.get("stdout", "")
+                # 扫描是异步的（华为 EMUI10 实测 ~2s）；用规范 _data 路径轮询确认。
+                # 注意：MediaStore 存 /storage/emulated/0/...，不能用 /sdcard/... 否则假阴性。
+                for _ in range(4):
+                    q = _adb_run(up.mediastore_query_args(dpath), timeout=10, serial=serial)
+                    if "Row:" in q.get("stdout", ""):
+                        visible = True
+                        break
+                    time.sleep(1)
             return {"ok": True, "device_path": dpath, "size": size, "visible_in_gallery": visible}
         finally:
             tmp.unlink(missing_ok=True)

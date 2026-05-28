@@ -148,6 +148,20 @@ def test_command_builders():
         ["-s", "S", "install", "/host/app.apk"]
 
 
+def test_canonical_data_path():
+    # MediaStore 存 /storage/emulated/0/...，查询必须用规范形式而非 /sdcard/...
+    assert up.canonical_data_path("/sdcard/Pictures/x.jpg") == "/storage/emulated/0/Pictures/x.jpg"
+    assert up.canonical_data_path("/storage/emulated/0/Pictures/x.jpg") == "/storage/emulated/0/Pictures/x.jpg"
+
+
+def test_mediastore_query_args_uses_canonical_path():
+    args = up.mediastore_query_args("/sdcard/Pictures/x.jpg")
+    assert "_data='/storage/emulated/0/Pictures/x.jpg'" in args
+    assert "content://media/external/images/media" in args
+    # 绝不能用 /sdcard/ 形式（那会假阴性）
+    assert all("/sdcard/" not in a for a in args)
+
+
 # ----- Task 5: url 下载 -----
 
 import functools

@@ -209,6 +209,21 @@ def media_insert_args(device_path: str) -> list[str]:
             "--bind", "mime_type:s:image/jpeg"]
 
 
+def canonical_data_path(device_path: str) -> str:
+    """MediaStore 的 _data 列存的是规范路径 /storage/emulated/0/…，而非 /sdcard/… 软链。
+    可见性查询必须用规范形式，否则 _data 等值匹配永远落空（假阴性）。"""
+    if device_path.startswith("/sdcard/"):
+        return "/storage/emulated/0/" + device_path[len("/sdcard/"):]
+    return device_path
+
+
+def mediastore_query_args(device_path: str) -> list[str]:
+    """查询某文件是否已被 MediaStore 图片库索引（用规范 _data 路径）。"""
+    return ["shell", "content", "query",
+            "--uri", "content://media/external/images/media",
+            "--where", f"_data='{canonical_data_path(device_path)}'"]
+
+
 # ============================================================
 #                     URL DOWNLOAD (主机侧)
 # ============================================================
