@@ -279,3 +279,44 @@ class JobRegistry:
                      if v.get("finished_at") and now - v["finished_at"] > JOB_TTL_SEC]
             for jid in stale:
                 del self._jobs[jid]
+
+
+# ============================================================
+#          BACKGROUND PROCESS RUNNER + PID + 孤儿清场
+# ============================================================
+
+def _pid_file(job_id: str) -> Path:
+    return JOBS_DIR / f"{job_id}.pid"
+
+
+def run_proc(job_id: str, adb_args: list[str], timeout: int | None = None) -> tuple[int, str, str]:
+    """在守护线程里前台阻塞跑一条 adb 命令（不经 25s 钳制）。写/删 pid。"""
+    ensure_dirs()
+    cmd = adb_args if adb_args[:1] == [ADB_BIN] else [ADB_BIN] + adb_args
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _pid_file(job_id).write_text(str(proc.pid))
+    try:
+        out, err = proc.communicate(timeout=timeout)
+        return (proc.returncode,
+                out.decode("utf-8", "replace"),
+                err.decode("utf-8", "replace"))
+    finally:
+        _pid_file(job_id).unlink(missing_ok=True)
+
+
+def reap_orphans() -> None:
+    """server 启动调用：杀掉上次残留的后台子进程并清场。"""
+    if not JOBS_DIR.exists():
+        return
+    for pf in JOBS_DIR.glob("*.pid"):
+        try:
+            pid = int(pf.read_text().strip())
+            os.kill(pid, signal.SIGKILL)
+        except (ValueError, ProcessLookupError, PermissionError):
+            pass
+        finally:
+            pf.unlink(missing_ok=True)
+    for pattern in ("*.part", "*.done", "*.name", "dl_*", "sync_*"):
+        for p in UPLOADS_DIR.glob(pattern):
+            if p.is_file():
+                p.unlink(missing_ok=True)

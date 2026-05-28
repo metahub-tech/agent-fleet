@@ -205,3 +205,25 @@ def test_job_submit_with_preset_id():
     assert jid == "fixed123"
     assert done.wait(2)
     assert reg.get("fixed123")["state"] == "succeeded"
+
+
+# ----- Task 7: 后台进程 runner + PID + 清场 -----
+
+def test_run_proc_writes_and_removes_pid(tmp_path, monkeypatch):
+    _patch_dirs(tmp_path, monkeypatch)
+    monkeypatch.setattr(up, "ADB_BIN", "/bin/true")
+    rc, _out, _err = up.run_proc("job1", ["whatever"])  # /bin/true 忽略参数，立即退出 0
+    assert rc == 0
+    assert not (up.JOBS_DIR / "job1.pid").exists()
+
+
+def test_reap_orphans_kills_live_pid(tmp_path, monkeypatch):
+    _patch_dirs(tmp_path, monkeypatch)
+    import subprocess
+    p = subprocess.Popen(["sleep", "30"])
+    (up.JOBS_DIR / "stale.pid").write_text(str(p.pid))
+    (up.UPLOADS_DIR / "leftover.part").write_text("x")
+    up.reap_orphans()
+    p.wait(timeout=5)                       # 被 reap 杀掉
+    assert not (up.JOBS_DIR / "stale.pid").exists()
+    assert not (up.UPLOADS_DIR / "leftover.part").exists()
