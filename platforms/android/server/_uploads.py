@@ -329,11 +329,13 @@ def reap_orphans() -> None:
     """server 启动调用：杀掉上次残留的后台子进程并清场。"""
     if not JOBS_DIR.exists():
         return
+    # Windows 没有 SIGKILL；os.kill 收到任意非 CTRL_* 信号都会走 TerminateProcess。
+    kill_sig = getattr(signal, "SIGKILL", signal.SIGTERM)
     for pf in JOBS_DIR.glob("*.pid"):
         try:
             pid = int(pf.read_text().strip())
-            os.kill(pid, signal.SIGKILL)
-        except (ValueError, ProcessLookupError, PermissionError):
+            os.kill(pid, kill_sig)
+        except (ValueError, OSError):  # ProcessLookupError/PermissionError ⊂ OSError
             pass
         finally:
             pf.unlink(missing_ok=True)
