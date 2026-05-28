@@ -218,10 +218,16 @@ def canonical_data_path(device_path: str) -> str:
 
 
 def mediastore_query_args(device_path: str) -> list[str]:
-    """查询某文件是否已被 MediaStore 图片库索引（用规范 _data 路径）。"""
-    return ["shell", "content", "query",
-            "--uri", "content://media/external/images/media",
-            "--where", f"_data='{canonical_data_path(device_path)}'"]
+    """查询某文件是否已被 MediaStore 图片库索引（用规范 _data 路径）。
+
+    整条命令作为单个 adb shell 参数传：分成多个 argv 时，`--where "_data='...'"`
+    的单引号会被设备端 shell 剥离 → SQL 变成未加引号的 _data=/storage/... → 永远失配。
+    把命令整体交给设备 shell 解析内嵌引号才可靠（路径已过 validate_device_path，
+    无引号/分号/$ 等注入字符，可安全内嵌）。"""
+    canon = canonical_data_path(device_path)
+    return ["shell",
+            f"content query --uri content://media/external/images/media "
+            f"--where \"_data='{canon}'\""]
 
 
 # ============================================================

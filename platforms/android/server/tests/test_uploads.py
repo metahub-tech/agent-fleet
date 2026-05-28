@@ -189,10 +189,13 @@ def test_canonical_data_path():
 
 def test_mediastore_query_args_uses_canonical_path():
     args = up.mediastore_query_args("/sdcard/Pictures/x.jpg")
-    assert "_data='/storage/emulated/0/Pictures/x.jpg'" in args
-    assert "content://media/external/images/media" in args
+    # 整条命令是单个 adb shell 字符串参数（规避设备端 shell 剥离单引号的失配）
+    assert args[0] == "shell" and len(args) == 2
+    cmd = args[1]
+    assert "_data='/storage/emulated/0/Pictures/x.jpg'" in cmd
+    assert "content://media/external/images/media" in cmd
     # 绝不能用 /sdcard/ 形式（那会假阴性）
-    assert all("/sdcard/" not in a for a in args)
+    assert "/sdcard/" not in cmd
 
 
 # ----- Task 5: url 下载 -----
