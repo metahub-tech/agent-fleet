@@ -50,6 +50,12 @@ def decode_b64(s: str) -> bytes:
         raise UploadError(f"base64 解码失败: {e}") from e
 
 
+def parse_bool(s, default: bool = False) -> bool:
+    if s is None:
+        return default
+    return str(s).strip().lower() in ("1", "true", "yes", "on")
+
+
 def sanitize_filename(name: str) -> str:
     if not name or "/" in name or "\\" in name or ".." in name:
         raise UploadError(f"非法 filename: {name!r}")

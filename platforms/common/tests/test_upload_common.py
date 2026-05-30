@@ -103,3 +103,13 @@ def test_download_url_over_limit(tmp_path, monkeypatch):
             up.download_url(f"http://127.0.0.1:{port}/big.bin", tmp_path / "o", max_bytes=1000)
     finally:
         s.shutdown()
+
+
+# ----- Task 4: parse_bool -----
+
+def test_parse_bool():
+    assert up.parse_bool(None, True) is True and up.parse_bool(None, False) is False
+    for t in ("true", "1", "yes", "on", "TRUE", "YES"):
+        assert up.parse_bool(t) is True
+    for f in ("false", "0", "no", "off", "FALSE"):
+        assert up.parse_bool(f) is False
