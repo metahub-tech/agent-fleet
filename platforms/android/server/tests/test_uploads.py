@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import _uploads as up
+import _upload_common as upc  # 共享 helper（download_url 等在此实现，monkeypatch 需打这里）
 
 
 # ----- Task 1: 骨架 + 常量 + 目录 -----
@@ -216,6 +217,8 @@ def test_download_url_ok(tmp_path, monkeypatch):
     srv, port = _serve(tmp_path)
     monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)   # 放行 127.0.0.1 仅为测试
     monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)  # 同时放行 peer-recheck
+    monkeypatch.setattr(upc, "_is_blocked_ip", lambda h: False)  # download_url 跑在 _upload_common，须同步 patch
+    monkeypatch.setattr(upc, "_ip_is_blocked", lambda ip: False)
     dest = tmp_path / "out.bin"
     try:
         n = up.download_url(f"http://127.0.0.1:{port}/a.bin", dest, max_bytes=1000)
@@ -229,6 +232,8 @@ def test_download_url_over_limit(tmp_path, monkeypatch):
     srv, port = _serve(tmp_path)
     monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)
     monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)
+    monkeypatch.setattr(upc, "_is_blocked_ip", lambda h: False)
+    monkeypatch.setattr(upc, "_ip_is_blocked", lambda ip: False)
     try:
         with pytest.raises(up.UploadError):
             up.download_url(f"http://127.0.0.1:{port}/big.bin", tmp_path / "o", max_bytes=1000)

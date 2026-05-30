@@ -76,6 +76,29 @@ pull_file_from_app(bundle_id="com.example.App", device_relpath="output/report.pd
 
 Both `host_path` values are absolute paths on the **macOS host**, not on your agent machine.
 
+### Uploading agent-held files to iOS (你自己持有的字节 → iOS)
+
+`push_file_to_app` 只能读 mac 主机磁盘 —— agent 自己的字节(下载/生成/MCP 收到)看不见。三条路径,**首选 HTTP `POST /upload`**:
+
+- **HTTP `POST /upload`(推荐,任意大小)** —— 同 server,8769 端口。target=photos 走 WDA 扩展把图片/视频加进 Photos 相册;target=app 走 pymobiledevice3 afc 推 app 沙箱。先 `get_upload_endpoint()` 拿用法,再:
+  ```
+  # 推图片/视频进相册(换背景 / 上传素材最常用)
+  curl -X POST --data-binary @bg.png \
+    'http://<ios-host>:8769/upload?target=photos&filename=bg.png&device=<udid|alias>'
+  → {"ok":true, "asset_id":"<PHAsset.localId>", "target":"photos", ...}
+  
+  # 推文件进 app 沙箱
+  curl -X POST --data-binary @doc.pdf \
+    'http://<ios-host>:8769/upload?target=app&bundle_id=com.example&relpath=Documents/doc.pdf'
+  ```
+  query 参数:target(photos|app,默 photos)、filename(photos 必填)、bundle_id+relpath(app 必填)、documents_only、device。
+- **`upload_to_photos(content_base64=…, filename=…)`** —— 极小内联图片/视频(≤6MB 解码后)。同步触发 WDA Photos 写库,返回 asset_id。
+- **`upload_to_app(content_base64=…, bundle_id=…, relpath=…)`** —— 同上但目标 app 沙盒。
+
+> **WDA 扩展 + 首次相册授权**:`target=photos` 由 agent-fleet 自家加在 WDA 里的 `/wda/photos/import` 路由实现(`platforms/ios/wda-ext/`,`build-wda.sh` 自动注入)。首次写入会弹"**WebDriverAgent 要添加到您的相册**" —— 在 iPad 上 **设置 → 隐私 → 照片 → WebDriverAgent → 添加照片** 中允许;授权后所有后续上传无 prompt。Add-Only 权限,iOS 不开放读相册。
+>
+> 真机已验:iPad iOS 26.5,4.4MB qinπ.png 一条 curl ~15s 进相册。
+
 ### UI hierarchy introspection
 
 ```

@@ -83,6 +83,16 @@ echo "Bundle ID: $BUNDLE_ID"
 echo "Device:    $UDID"
 echo "Building + launching WDA (stays attached; Ctrl-C to stop)..."
 
+# agent-fleet WDA 扩展（FBPhotosCommands /wda/photos/import 等）—— 幂等注入到 $WDA_DIR
+EXT_DIR="$(cd "$(dirname "$0")"/../wda-ext && pwd)"
+if [ -d "$EXT_DIR" ]; then
+  echo "[build-wda] applying agent-fleet wda-ext from $EXT_DIR"
+  if ! "$EXT_DIR/install.sh" "$WDA_DIR"; then
+    echo "[build-wda] FATAL: wda-ext install failed; abort build" >&2
+    exit 1
+  fi
+fi
+
 exec xcodebuild \
     -project "$WDA_DIR/WebDriverAgent.xcodeproj" \
     -scheme WebDriverAgentRunner \

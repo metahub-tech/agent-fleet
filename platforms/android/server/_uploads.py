@@ -4,75 +4,79 @@
 计划：docs/internal/plans/2026-05-28-android-agent-file-upload.md
 
 不在导入期触碰 adb/网络/磁盘；副作用经参数注入或显式调用。
+
+通用 helper（require_xor / decode_b64 / parse_bool / is_image / validate_url /
+download_url / _ip_is_blocked / _is_blocked_ip / sanitize_filename 通用基底 /
+UPLOADS_DIR / URL_HARD_MAX / IMAGE_EXTS / UploadError）抽到
+`platforms/common/_upload_common.py`，Android 在此基础上加专属（SQL 注入字符集、
+设备路径校验、adb 命令构造、JobRegistry、暂存分片、后台 runner、孤儿清场）。
 """
 from __future__ import annotations
 
-import base64
-import ipaddress
 import os
 import shutil
 import signal
-import socket
 import subprocess
 import threading
 import time
-import urllib.parse
-import urllib.request
 import uuid
 from pathlib import Path
 
-UPLOADS_DIR = Path.home() / ".agent-fleet" / "uploads"
+# 复用跨平台共享 helper（platforms/common/_upload_common.py）。
+# android_device_mcp.py 在启动时把 platforms/common/ 放进 sys.path；
+# 测试侧由 tests/conftest.py 同款注入。
+from _upload_common import (
+    UploadError,
+    URL_HARD_MAX,
+    UPLOADS_DIR,
+    IMAGE_EXTS,
+    _FORBIDDEN_PATH_CHARS_BASE,
+    ensure_dirs as _common_ensure_dirs,
+    require_xor,
+    decode_b64,
+    parse_bool,
+    sanitize_filename as _common_sanitize_filename,
+    is_image,
+    _ip_is_blocked,
+    _is_blocked_ip,
+    validate_url,
+    download_url,
+)
+
 JOBS_DIR = UPLOADS_DIR / "jobs"
 
 SYNC_B64_MAX = 6 * 1024 * 1024           # upload_media: base64 解码后字节上限
 SYNC_URL_MAX_USB = 20 * 1024 * 1024      # upload_media: USB 同步 url 上限
 SYNC_URL_MAX_WIRELESS = 8 * 1024 * 1024  # upload_media: 无线同步 url 上限（保守默认）
-URL_HARD_MAX = 200 * 1024 * 1024         # 任何 url 下载硬上限
 MIN_FREE_BYTES = 500 * 1024 * 1024       # 暂存目录可用空间低于此值拒绝新会话/job
 STAGE_TTL_SEC = 1800                     # 分片会话 30min 未收尾即可回收
 JOB_TTL_SEC = 3600                       # 完成态 job 1h 后回收
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic"}
 ALLOWED_DEVICE_PREFIXES = ("/sdcard/", "/storage/emulated/0/")
 
 # 由 android_device_mcp 在导入后注入真实 adb 路径
 ADB_BIN = "adb"
 
 
-class UploadError(ValueError):
-    """入参/校验错误，工具层转成 {ok: false, error}。"""
-
-
 def ensure_dirs() -> None:
+    _common_ensure_dirs()
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
-#                        VALIDATION
+#                 ANDROID-SPECIFIC VALIDATION
 # ============================================================
 
-def require_xor(a, b, names: tuple[str, str]) -> None:
-    if (a is None) == (b is None):
-        raise UploadError(f"必须且只能提供 {names[0]} 与 {names[1]} 之一")
-
-
-def decode_b64(s: str) -> bytes:
-    try:
-        return base64.b64decode(s, validate=True)
-    except Exception as e:  # noqa: BLE001
-        raise UploadError(f"base64 解码失败: {e}") from e
-
-
-# shell/SQL 注入面字符：禁止出现在 filename / device_path 中
-# （device_path 会拼进 `content query --where "_data='...'"`，单引号会破坏 SQL 字面量）
-_FORBIDDEN_PATH_CHARS = set("'\"`;$\n\r")
+# shell/SQL 注入面字符（Android 在通用 base 基础上 + 单引号）：
+# device_path 会拼进 `content query --where "_data='...'"`，单引号会破坏 SQL 字面量。
+_FORBIDDEN_PATH_CHARS = _FORBIDDEN_PATH_CHARS_BASE | set("'")
 
 
 def sanitize_filename(name: str) -> str:
-    if not name or "/" in name or "\\" in name or ".." in name:
-        raise UploadError(f"非法 filename: {name!r}")
-    if set(name) & _FORBIDDEN_PATH_CHARS:
-        raise UploadError(f"filename 含非法字符（引号/分号/$ 等）: {name!r}")
+    """Android filename：先走通用校验，再拒单引号（SQL 注入）。"""
+    _common_sanitize_filename(name)
+    if "'" in name:
+        raise UploadError(f"filename 含 SQL 单引号: {name!r}")
     return name
 
 
@@ -84,36 +88,6 @@ def validate_device_path(path: str) -> str:
     if set(path) & (_FORBIDDEN_PATH_CHARS | {"\\"}):
         raise UploadError(f"device_path 含非法字符（引号/分号/$/反斜线等）: {path!r}")
     return path
-
-
-def _ip_is_blocked(ip_str: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(ip_str)
-    except ValueError:
-        return False
-    return ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved
-
-
-def _is_blocked_ip(host: str) -> bool:
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
-        return False  # 解析失败交给下载阶段报错
-    return any(_ip_is_blocked(sockaddr[0]) for *_, sockaddr in infos)
-
-
-def validate_url(url: str) -> None:
-    p = urllib.parse.urlparse(url)
-    if p.scheme not in ("http", "https"):
-        raise UploadError(f"仅支持 http/https: {url!r}")
-    if not p.hostname:
-        raise UploadError(f"url 缺少 host: {url!r}")
-    if _is_blocked_ip(p.hostname):
-        raise UploadError(f"拒绝内网/元数据地址: {p.hostname}")
-
-
-def is_image(name: str) -> bool:
-    return Path(name).suffix.lower() in IMAGE_EXTS
 
 
 # ============================================================
@@ -234,12 +208,6 @@ def mediastore_query_args(device_path: str) -> list[str]:
 #                  HTTP /upload 端点支撑（纯逻辑）
 # ============================================================
 
-def parse_bool(s, default: bool = False) -> bool:
-    if s is None:
-        return default
-    return str(s).strip().lower() in ("1", "true", "yes", "on")
-
-
 def resolve_upload_target(device_path: str | None, filename: str | None) -> tuple[str, str]:
     """由 device_path / filename 推出 (fname, 校验后的 device_path)。
     只给 filename 时按是否图片落 Pictures / Download；两者都缺 → 报错。"""
@@ -252,42 +220,6 @@ def resolve_upload_target(device_path: str | None, filename: str | None) -> tupl
         raise UploadError("必须提供 device_path 或 filename 之一")
     default_dir = "/sdcard/Pictures" if is_image(fname) else "/sdcard/Download"
     return fname, validate_device_path(f"{default_dir}/{fname}")
-
-
-# ============================================================
-#                     URL DOWNLOAD (主机侧)
-# ============================================================
-
-def download_url(url: str, dest: Path, max_bytes: int) -> int:
-    """下载 url 到 dest，SSRF 校验 + 大小上限。返回写入字节数。"""
-    validate_url(url)
-    cap = min(max_bytes, URL_HARD_MAX)
-    written = 0
-    req = urllib.request.Request(url, headers={"User-Agent": "agent-fleet-android"})
-    with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 (scheme 已校验)
-        # DNS-rebinding 防御：pre-check 与 urlopen 之间 DNS 可能被翻转，复验真实对端 IP。
-        # 在读取/返回任何响应体之前中止，避免把内网/元数据服务的数据带回。
-        try:
-            peer_ip = resp.fp.raw._sock.getpeername()[0]
-        except Exception:  # noqa: BLE001 - 拿不到对端就退回到 pre-check
-            peer_ip = None
-        if peer_ip and _ip_is_blocked(peer_ip):
-            raise UploadError(f"连接对端为内网/元数据地址: {peer_ip}")
-        clen = resp.headers.get("Content-Length")
-        if clen and int(clen) > cap:
-            raise UploadError(f"文件超过上限 {cap} 字节（Content-Length={clen}）")
-        with dest.open("wb") as fh:
-            while True:
-                buf = resp.read(64 * 1024)
-                if not buf:
-                    break
-                written += len(buf)
-                if written > cap:
-                    fh.close()
-                    dest.unlink(missing_ok=True)
-                    raise UploadError(f"下载超过上限 {cap} 字节")
-                fh.write(buf)
-    return written
 
 
 # ============================================================
