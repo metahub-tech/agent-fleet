@@ -282,6 +282,24 @@ def _build_instructions() -> str:
 
 mcp = FastMCP("ios-device", instructions=_build_instructions())
 
+# 文件上传支撑（设计：docs/internal/design/2026-05-30-ios-agent-file-upload-design.md）
+import time  # noqa: E402
+from starlette.concurrency import run_in_threadpool  # noqa: E402
+from starlette.requests import Request  # noqa: E402
+from starlette.responses import JSONResponse  # noqa: E402
+
+import _uploads_ios as up_ios  # noqa: E402
+from _upload_common import (  # noqa: E402
+    UploadError as _UploadError,
+    URL_HARD_MAX as _URL_HARD_MAX,
+    UPLOADS_DIR as _UPLOADS_DIR,
+    ensure_dirs as _common_ensure_dirs,
+    require_xor as _require_xor,
+    decode_b64 as _decode_b64,
+    download_url as _download_url,
+    parse_bool as _parse_bool,
+)
+
 
 # ============================================================
 #                  DEVICE / SESSION / HOLDER TOOLS
@@ -815,6 +833,200 @@ def pull_file_from_app(
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "hint": _AFC_HINT, "device": udid}
     return {"ok": True, "device_relpath": device_relpath, "host": str(h),
             "bundle_id": bundle_id, "documents_only": documents_only, "device": udid}
+
+
+# ============================================================
+#       AGENT → iOS UPLOAD（HTTP /upload + 3 MCP 工具）
+#       设计：docs/internal/design/2026-05-30-ios-agent-file-upload-design.md
+# ============================================================
+
+def _http_upload_worker(target: str, body: bytes, params: dict, udid: str) -> dict:
+    """同步执行（在 threadpool）。target=photos → WDA；target=app → afc。"""
+    if target == "photos":
+        return up_ios.wda_photos_import(body, filename=params.get("filename", "upload.bin"),
+                                         ttype=params["type"])
+    elif target == "app":
+        # afc 需要 host_path 实文件 → 先落 mac 暂存再 push
+        import uuid as _uuid
+        _common_ensure_dirs()
+        tmp = _UPLOADS_DIR / f"ios_http_{_uuid.uuid4().hex}"
+        try:
+            tmp.write_bytes(body)
+            return up_ios.afc_push_to_app(
+                udid=udid, bundle_id=params["bundle_id"],
+                documents_only=params.get("documents_only", True),
+                host_path=str(tmp), device_relpath=params["relpath"],
+                afc_op=_afc_op,
+            )
+        finally:
+            tmp.unlink(missing_ok=True)
+    return {"ok": False, "error": f"unknown target: {target}"}
+
+
+@mcp.custom_route("/upload", methods=["POST"])
+async def http_upload(request: Request) -> JSONResponse:
+    """POST 文件字节 → target=photos 走 WDA / target=app 走 afc。
+
+    Query: target(photos|app, 默 photos)、filename、bundle_id、relpath、
+           documents_only、device。
+    Body: raw（--data-binary）或 multipart（file 字段）。
+    """
+    try:
+        qp = request.query_params
+        target = qp.get("target", "photos")
+        filename = qp.get("filename")
+        bundle_id = qp.get("bundle_id")
+        relpath = qp.get("relpath")
+        documents_only = _parse_bool(qp.get("documents_only"), True)
+        device = qp.get("device")
+
+        clen = request.headers.get("content-length")
+        if clen and clen.isdigit() and int(clen) > _URL_HARD_MAX:
+            return JSONResponse({"ok": False, "error": f"超过上限 {_URL_HARD_MAX} 字节"}, status_code=413)
+
+        # 流式读 body（小内存）；支持 multipart 与 raw 两种
+        ctype = request.headers.get("content-type", "")
+        buf = bytearray()
+        size = 0
+        if ctype.startswith("multipart/form-data"):
+            form = await request.form()
+            f = form.get("file")
+            if f is None or not hasattr(f, "read"):
+                return JSONResponse({"ok": False, "error": "multipart 缺 file 字段"}, status_code=400)
+            filename = filename or getattr(f, "filename", None)
+            while True:
+                chunk = await f.read(64 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > _URL_HARD_MAX:
+                    return JSONResponse({"ok": False, "error": f"超过上限 {_URL_HARD_MAX} 字节"}, status_code=413)
+                buf.extend(chunk)
+        else:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > _URL_HARD_MAX:
+                    return JSONResponse({"ok": False, "error": f"超过上限 {_URL_HARD_MAX} 字节"}, status_code=413)
+                buf.extend(chunk)
+
+        if size == 0:
+            return JSONResponse({"ok": False, "error": "空请求体"}, status_code=400)
+
+        fname, params = up_ios.resolve_target(target, filename, bundle_id, relpath)
+        params["filename"] = fname  # photos worker 透传文件名作 X-Filename
+        if target == "app":
+            params["documents_only"] = documents_only
+        udid = _resolve_device(device, None)
+        _state_registry.touch(udid)
+
+        result = await run_in_threadpool(
+            _http_upload_worker, target, bytes(buf), params, udid)
+        result.setdefault("target", target)
+        result.setdefault("device", udid)
+        result.setdefault("size", size)
+        return JSONResponse(result, status_code=200 if result.get("ok") else 500)
+    except _UploadError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
+
+
+@mcp.tool
+def upload_to_photos(
+    content_base64: Annotated[Optional[str], Field(description="文件字节 base64；与 url 二选一")] = None,
+    url: Annotated[Optional[str], Field(description="http/https 链接；与 content_base64 二选一")] = None,
+    filename: Annotated[Optional[str], Field(description="原文件名（必填，决定 image/video）")] = None,
+    device: Annotated[Optional[str], Field(description="udid 或 alias")] = None,
+    ctx: Context = None,
+) -> dict:
+    """同步上传图片/视频到 iOS Photos 相册（小文件 base64；大文件用 HTTP POST /upload）。
+
+    返回 {ok, target:'photos', device, asset_id?, error?, size}。首次写入会触发
+    设备相册授权弹窗，按提示在 设置→隐私→照片→WebDriverAgent→添加照片 中允许。
+    """
+    import uuid as _uuid
+    try:
+        _require_xor(content_base64, url, ("content_base64", "url"))
+        if not filename:
+            raise _UploadError("upload_to_photos 必须提供 filename")
+        fname, params = up_ios.resolve_target("photos", filename, None, None)
+        udid = _resolve_device(device, _get_session_default(ctx))
+        _state_registry.touch(udid)
+        if content_base64 is not None:
+            body = _decode_b64(content_base64)
+            if len(body) > 6 * 1024 * 1024:
+                return {"ok": False, "error": "超过同步上限 6MB（base64 解码后）",
+                        "hint": "用 HTTP POST /upload 端点上传任意大小"}
+        else:
+            _common_ensure_dirs()
+            tmp = _UPLOADS_DIR / f"ios_sync_{_uuid.uuid4().hex}"
+            try:
+                _download_url(url, tmp, max_bytes=20 * 1024 * 1024)
+                body = tmp.read_bytes()
+            finally:
+                tmp.unlink(missing_ok=True)
+        res = up_ios.wda_photos_import(body, filename=fname, ttype=params["type"])
+        res.setdefault("target", "photos")
+        res.setdefault("device", udid)
+        res.setdefault("size", len(body))
+        return res
+    except _UploadError as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def upload_to_app(
+    bundle_id: Annotated[str, Field(description="目标 app bundle id")],
+    relpath: Annotated[str, Field(description="app 沙盒内相对路径（默 Documents 下；documents_only=True）")],
+    content_base64: Annotated[Optional[str], Field(description="文件字节 base64；与 url 二选一")] = None,
+    url: Annotated[Optional[str], Field(description="http/https 链接；与 content_base64 二选一")] = None,
+    documents_only: Annotated[bool, Field(description="True=Documents-only；False=full container（dev-signed apps）")] = True,
+    device: Annotated[Optional[str], Field(description="udid 或 alias")] = None,
+    ctx: Context = None,
+) -> dict:
+    """推 agent 字节到指定 app 沙盒（等价 push_file_to_app，但字节来自 agent）。"""
+    import uuid as _uuid
+    try:
+        _require_xor(content_base64, url, ("content_base64", "url"))
+        fname, params = up_ios.resolve_target("app", None, bundle_id, relpath)
+        udid = _resolve_device(device, _get_session_default(ctx))
+        _state_registry.touch(udid)
+        _common_ensure_dirs()
+        tmp = _UPLOADS_DIR / f"ios_app_{_uuid.uuid4().hex}"
+        try:
+            if content_base64 is not None:
+                tmp.write_bytes(_decode_b64(content_base64))
+            else:
+                _download_url(url, tmp, max_bytes=20 * 1024 * 1024)
+            res = up_ios.afc_push_to_app(
+                udid=udid, bundle_id=bundle_id, documents_only=documents_only,
+                host_path=str(tmp), device_relpath=relpath, afc_op=_afc_op,
+            )
+            res.setdefault("target", "app")
+            res.setdefault("device", udid)
+            res.setdefault("size", tmp.stat().st_size)
+            return res
+        finally:
+            tmp.unlink(missing_ok=True)
+    except _UploadError as e:
+        return {"ok": False, "error": str(e)}
+
+
+@mcp.tool
+def get_upload_endpoint(ctx: Context = None) -> dict:
+    """返回 /upload HTTP 端点用法（直接 POST 文件字节，绕过 base64/分片）。"""
+    return {
+        "ok": True,
+        "method": "POST",
+        "path": "/upload",
+        "port": 8769,
+        "params": ("target=photos|app（默 photos）、filename（photos 必填）、"
+                   "bundle_id+relpath（app 必填）、documents_only、device"),
+        "hint": ("host 同 ios-device MCP 的 URL。例:\n"
+                 "  curl -X POST --data-binary @bg.png "
+                 "'http://<ios-host>:8769/upload?target=photos&filename=bg.png&device=<udid|alias>'\n"
+                 "首次相册写入需在设备 设置→隐私→照片→WebDriverAgent→添加照片 中允许。"),
+    }
 
 
 # ============================================================
