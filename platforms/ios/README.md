@@ -62,7 +62,7 @@ Agent: launch_app(target="com.apple.Preferences")      → launched
 This is exactly the flow in the animated demo GIF in the [main README](../../README.md)
 — a real iPad driven over MCP, no human hands.
 
-## 工具集（v0.8.2-alpha 实际暴露，共 26 个）
+## 工具集（v0.8.2-alpha 实际暴露，共 29 个）
 
 所有工具均接受可选 `device` 参数（UDID 或别名）。未传 `device` 且只连 1 台设备时自动路由。
 
@@ -75,11 +75,25 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 | 触控 | `tap` / `swipe` / `long_press` | WDA point 坐标 |
 | 键盘/按键 | `type_text` / `press_key` | type_text 走 UIKit（支持 Unicode）；press_key 仅 home/volume_up/volume_down/lock |
 | 应用 | `list_apps` / `install_app` / `uninstall_app` / `launch_app` / `terminate_app` / `activate_app` / `current_app` | install = pymobiledevice3；launch/terminate/activate/current = WDA |
-| 文件 | `push_file_to_app` / `pull_file_from_app` | 仅限 UIFileSharingEnabled 应用的 Documents 沙箱 |
+| 文件（host↔app 沙箱）| `push_file_to_app` / `pull_file_from_app` | 读写 **mac host 本地磁盘**到 UIFileSharingEnabled 应用 Documents |
+| 文件上传（agent→设备）| `upload_to_photos` / `upload_to_app` / `get_upload_endpoint` | agent 自带字节传到 iOS：图片/视频进 Photos 相册(WDA 扩展)、或 app 沙箱(afc)。**推荐** `POST /upload` |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | WDA /source + /elements；推荐 class chain 定位器 |
 | 设备信息 | `device_info` | OS 版本、build、电量、型号（pymobiledevice3 lockdown + diagnostics）|
 
 > 与 android-device 的主要差异：**无 `run_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
+
+> **传文件到 iOS 的首选：HTTP `POST /upload`**（同 server 8769 端口）。agent 直接 POST 文件字节，mac 透传给 WDA(`/wda/photos/import`,PHPhotoLibrary 加入相册)或经 pymobiledevice3 afc 推 app 沙箱:
+> ```
+> # 推图片/视频进 iOS 相册（推荐换背景 / 上传素材用）
+> curl -X POST --data-binary @bg.png \
+>   'http://<ios-host>:8769/upload?target=photos&filename=bg.png&device=<udid|alias>'
+>
+> # 推文件进 app 沙箱（等价 push_file_to_app，但字节来自 agent 而非 mac 磁盘）
+> curl -X POST --data-binary @doc.pdf \
+>   'http://<ios-host>:8769/upload?target=app&bundle_id=com.example&relpath=Documents/doc.pdf'
+> ```
+> 首次相册写入需在 iPad 上 **设置 → 隐私 → 照片 → WebDriverAgent → 添加照片** 中允许。
+> 真机已验：iPad iOS 26.5,4.4MB qinπ.png 一条 curl ~15s 进相册。
 
 ### Platform-specific extensions · 平台特定扩展
 
@@ -87,6 +101,7 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 
 - `activate_app` / `device_info` / `list_apps` — iOS-only（WDA `/wda/apps` + pymobiledevice3 lockdown/diagnostics）
 - `push_file_to_app` / `pull_file_from_app` — iOS-only（pymobiledevice3 AFC，沙箱受限）
+- `upload_to_photos` / `upload_to_app` / `get_upload_endpoint` 与 HTTP `POST /upload` — iOS-only（target=photos 走 WDA 扩展+PHPhotoLibrary,target=app 走 pymobiledevice3 afc;Android 同款 HTTP 端点参 platforms/android/README.md）
 - `long_press` — mobile-only（Android / iOS 共有，桌面平台未对齐）
 - `install_app` / `uninstall_app` — mobile-only（pymobiledevice3）
 

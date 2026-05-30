@@ -1,8 +1,16 @@
 # iOS Agent 文件上传 — agent 字节 → mac host 暂存 → iOS 设备(Photos / app 沙盒)
 
 **Date:** 2026-05-30
-**Status:** approved (design), pending spec review
+**Status:** approved (design), implemented + iPad iOS 26.5 真机已验
 **Platform:** ios-device (跟随 Android `feat/android-file-upload` 同款架构)
+
+> **实施期 spec 微调(真机部署期发现,见 PR 与 commit log 详情)**:
+> 1. **WDA 路由注册改为运行时协议自发现**:Appium WDA 13.x 用 `FBClassesThatConformsToProtocol(<FBCommandHandler>)` 自动收类,**无需** 手改 `FBCommandRouter.m`。`FBPhotosCommands.{h,m}` 放 `WebDriverAgentLib/Commands/`(非老版 `Routes/`),实现 `<FBCommandHandler>` 协议即被自动挂载。`install.sh` 跳过 router 注入步骤。
+> 2. **`project.pbxproj` 需注册新文件**:WDA 项目没用 file-system synchronized groups,新源文件必须加进 pbxproj 的 PBXBuildFile/PBXFileReference 等表。用 `pbxproj` python 库做 `add_file/remove_file_by_path`(install.sh 缺包自动 `pip install --user pbxproj`)。
+> 3. **WDA HTTP body 用 JSON+base64,不是 raw body**:WDA 的 `FBRouteRequest` 只暴露 `arguments`(JSON 解析后的 body)字典,没有 raw body / headers API。mac→WDA payload 改为 `{"file_b64":"...","filename":"...","type":"image|video"}`。base64 ~33% 膨胀对本地 127.0.0.1 通信完全可接受。
+> 4. **mac→WDA 走 per-device forward port,不是固定 8100**:WDA HTTP `:8100` 在设备上,mac 端经 `_ensure_forwarder_and_client(udid)` 拿到的 WdaClient.base_url(`http://127.0.0.1:18100+N`,pymobiledevice3 usbmux forward 起的)。`wda_photos_import` 接 `base_url=` 参数,由 `/upload` handler 注入。
+> 5. **WDA 响应是 WebDriver 协议 envelope**:`{"value": {真实响应}, "sessionId": null}`。Python 客户端 unwrap `value` 后再判 ok/error。
+> 6. **超时 + 静默失败硬化**(code-review 后):tmp 删放进 completionHandler 内(超时分支不删,防与晚到的 change block 抢读);captures `BOOL ok` 显式判断 `!ok` 即使 err 为 nil 也报失败;`assetId == nil` 也报失败。
 
 ## Problem
 

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **iOS：agent→设备文件上传**(对齐 Android 同款形态,后端换 iOS 栈)。解决"agent 自带的字节传不到 iOS 设备"(旧 `push_file_to_app` 只读 mac host 磁盘,且 Photos 库写入 iOS 16+ 无 shell/afc 通道)。
+  - **HTTP `POST /upload`(首选)**:挂在 ios-device server(8769)上的 Starlette 路由,agent 直接 POST 文件字节 → mac 透传给 WDA `/wda/photos/import`(target=photos)或 pymobiledevice3 afc 推 app 沙箱(target=app)→ 返回 JSON。**任意大小**,真机已验 iPad iOS 26.5 4.4MB qinπ.png ~15s 进相册。
+  - **WDA 扩展**(`platforms/ios/wda-ext/FBPhotosCommands.{h,m}`):新加 ObjC route `POST /wda/photos/import`,内部 `dispatch_semaphore` 等 `PHPhotoLibrary.performChanges` completion(30s 超时,tmp 由 completionHandler 收尾防超时竞态),`PHAssetCreationRequest creationRequestForAssetFromImage/Video` 加进相册。WDA 13.x 用运行时协议自发现(`<FBCommandHandler>`),无需手改 router;`build-wda.sh` 在 xcodebuild 前自动调 `wda-ext/install.sh`(幂等 cp + pbxproj 注入 + PlistBuddy `NSPhotoLibraryAddUsageDescription`)。Add-Only 权限,首次需设备授权一次。
+  - **MCP 工具**:`upload_to_photos` / `upload_to_app` / `get_upload_endpoint`(同 Android 模式;iOS 工具数 26 → 29)。
+  - **跨平台抽取**:Android 与 iOS 共用的纯逻辑(`UploadError`/`require_xor`/`decode_b64`/`parse_bool`/`sanitize_filename`/`is_image`/`is_video`/SSRF+流式 `download_url` 等)移到 `platforms/common/_upload_common.py`,Android `_uploads.py` 切引用保留专属(`_FORBIDDEN_PATH_CHARS` 叠加单引号防 SQL、`validate_device_path`、adb 命令构造、JobRegistry 等)。Android 63 测试 + iOS 12 测试 + common 11 测试全绿。
+
 - **Android：agent→设备文件上传**。解决"agent 自带的字节传不到手机"（服务端在设备主机上看不见 agent 磁盘，旧 `push_file` 只能读主机本地路径）。
   - **HTTP `POST /upload`（首选）**：挂在现有 android-device server（8768）上的 Starlette 路由，agent 直接 POST 文件字节 → 主机流式落盘 → `adb push`（+可选 `pm install` / 媒体扫描）→ 返回 JSON。绕过 base64 上下文膨胀、分片、MCP ~25s 工具调用死线，**任意大小**。`curl -X POST --data-binary @f 'http://<host>:8768/upload?device_path=/sdcard/Pictures/x.png&make_visible=true'`。
   - **MCP 工具**：`upload_media`（base64 小文件同步、图片自动进相册）、`stage_upload`+`deliver_staged`+`job_status`（分片暂存 + 后台 push/install + 轮询，MCP-only 环境用）、`get_upload_endpoint`（发现 HTTP 端点）。Android 工具数 25 → 30。
