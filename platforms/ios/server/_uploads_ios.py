@@ -111,3 +111,28 @@ def wda_photos_import(body: bytes, filename: str, ttype: str,
             "hint": "WDA daemon 未跑或端口未通：检查 launchctl list | grep wda、go-ios tunnel；"
                     "首次相册写入需在设备 设置→隐私→照片→WebDriverAgent→添加照片 中允许。",
         }
+
+
+# ============================================================
+#                    AFC PUSH（target=app）
+# ============================================================
+
+def afc_push_to_app(udid: str, bundle_id: str, documents_only: bool,
+                    host_path: str, device_relpath: str, *, afc_op) -> dict:
+    """注入式 wrapper：生产里 afc_op = ios_device_mcp._afc_op；tests 里 stub。
+
+    afc_op(udid, bundle_id, documents_only, coroutine_factory) —— ios_device_mcp 已有该签名，
+    coroutine_factory 接受 house_arrest 客户端 ha 并返回 await-able。
+    """
+    try:
+        async def op(ha):
+            await ha.push(host_path, device_relpath)
+        afc_op(udid, bundle_id, documents_only, op)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "hint": "目标 app 需 UIFileSharingEnabled（documents_only=True）或 dev-signed 容器访问；"
+                    "若是 WDA runner，注意它没 UIFileSharingEnabled，photos 路径应用 wda_photos_import。",
+        }
+    return {"ok": True}

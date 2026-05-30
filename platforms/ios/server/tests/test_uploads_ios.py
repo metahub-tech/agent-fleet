@@ -105,3 +105,38 @@ def test_wda_photos_import_connection_error(monkeypatch):
     monkeypatch.setattr(up_ios, "_new_wda_client", lambda port=8100, timeout=35: client)
     res = up_ios.wda_photos_import(b"X", "f.jpg", "image")
     assert res["ok"] is False and "hint" in res  # 端点不可达 → 给 hint
+
+
+# ----- Task 8: afc_push_to_app（注入式 wrapper） -----
+
+def test_afc_push_to_app_success():
+    called = {}
+
+    def fake_afc_op(udid, bundle_id, documents_only, op):
+        # op 是 coroutine factory，但在 fake 里我们不真跑 await（只记录调用参数）
+        called["udid"] = udid
+        called["bundle"] = bundle_id
+        called["doc_only"] = documents_only
+        called["op_callable"] = callable(op)
+
+    rc = up_ios.afc_push_to_app(
+        udid="UDID1", bundle_id="com.x", documents_only=True,
+        host_path="/tmp/file.bin", device_relpath="Documents/x.bin",
+        afc_op=fake_afc_op,
+    )
+    assert rc == {"ok": True}
+    assert called == {"udid": "UDID1", "bundle": "com.x", "doc_only": True, "op_callable": True}
+
+
+def test_afc_push_to_app_failure_transparent_hint():
+    def fake_afc_op(*args, **kw):
+        raise RuntimeError("HouseArrest denied")
+
+    rc = up_ios.afc_push_to_app(
+        udid="U", bundle_id="b", documents_only=True,
+        host_path="/tmp/x", device_relpath="x.bin",
+        afc_op=fake_afc_op,
+    )
+    assert rc["ok"] is False
+    assert "HouseArrest" in rc["error"]
+    assert "hint" in rc
