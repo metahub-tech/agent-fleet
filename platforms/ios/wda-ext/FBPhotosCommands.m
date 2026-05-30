@@ -47,8 +47,11 @@
   }
 
   // 2) PHPhotoLibrary.performChanges 是异步，必须 semaphore 等 completion 再响应 HTTP。
+  //    tmp 文件由 completionHandler 删（保证 change block 读完后才删；超时后 block 仍
+  //    可能晚到运行，过早删会让其读不存在路径产生未定义行为）。
   __block NSString *assetId = nil;
   __block NSError  *blockErr = nil;
+  __block BOOL     blockOk  = NO;
   dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 
   [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
@@ -58,23 +61,33 @@
       : [PHAssetCreationRequest creationRequestForAssetFromImageAtFileURL:url];
     assetId = req.placeholderForCreatedAsset.localIdentifier;
   } completionHandler:^(BOOL ok, NSError * _Nullable err) {
+    blockOk  = ok;
     blockErr = err;
+    [[NSFileManager defaultManager] removeItemAtPath:tmp error:nil];
     dispatch_semaphore_signal(sem);
   }];
 
   long waitRc = dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 30LL * NSEC_PER_SEC));
-  [[NSFileManager defaultManager] removeItemAtPath:tmp error:nil];
 
   if (waitRc != 0) {
-    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"PHPhotoLibrary timeout (30s)"
+    // 超时：completionHandler 还没跑（可能后到，由它负责清 tmp）；不在这里删 tmp
+    // 避免和后台 change block 抢读。
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:
+              @"PHPhotoLibrary timeout (30s); tmp 由 async completionHandler 收尾"
                                                                        traceback:nil]);
   }
-  if (blockErr) {
-    NSString *msg = [NSString stringWithFormat:@"%@ (code=%ld)",
-                       blockErr.localizedDescription, (long)blockErr.code];
+  if (!blockOk) {
+    NSString *msg = blockErr
+      ? [NSString stringWithFormat:@"%@ (code=%ld)", blockErr.localizedDescription, (long)blockErr.code]
+      : @"PHPhotoLibrary reported failure with no error (permission/storage?)";
     return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:msg traceback:nil]);
   }
-  return FBResponseWithObject(@{@"ok": @YES, @"asset_id": assetId ?: NSNull.null});
+  if (!assetId) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:
+              @"PHPhotoLibrary succeeded but placeholderForCreatedAsset.localIdentifier is nil"
+                                                                       traceback:nil]);
+  }
+  return FBResponseWithObject(@{@"ok": @YES, @"asset_id": assetId});
 }
 
 @end
