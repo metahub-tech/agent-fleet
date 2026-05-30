@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
+
 from _upload_common import (
     UploadError,
     is_image,
@@ -61,3 +63,51 @@ def resolve_target(target: str, filename: str | None, bundle_id: str | None,
         return fname, {"bundle_id": bundle_id, "relpath": rp}
 
     raise UploadError(f"未知 target: {target!r}（应为 photos|app）")
+
+
+# ============================================================
+#                    WDA HTTP CLIENT
+# ============================================================
+
+def _new_wda_client(port: int = WDA_DEFAULT_PORT,
+                    timeout: int = PHOTOS_TIMEOUT_SECS) -> httpx.Client:
+    """tests 可 monkeypatch 这个函数注入 MockTransport client。"""
+    return httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=timeout)
+
+
+def wda_photos_import(body: bytes, filename: str, ttype: str,
+                      port: int = WDA_DEFAULT_PORT) -> dict:
+    """POST raw body 到 WDA /wda/photos/import；返回 {ok, asset_id?, error?, hint?}。
+
+    Headers: Content-Type=application/octet-stream, X-Filename, X-Type。
+    WDA 端 handler 在 NSTemp 写 body → PHPhotoLibrary.performChanges（dispatch_semaphore
+    等 completion，30s 超时）→ 删 NSTemp → 返回 JSON。
+    """
+    try:
+        with _new_wda_client(port=port) as client:
+            r = client.post(
+                "/wda/photos/import",
+                content=body,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Filename": filename,
+                    "X-Type": ttype,
+                },
+            )
+        try:
+            data = r.json()
+        except Exception:  # noqa: BLE001
+            return {"ok": False, "error": f"WDA non-JSON response ({r.status_code}): {r.text[:200]}"}
+        # WDA 失败时通常 5xx + ok=false；2xx + ok=true。透传 WDA 的 error。
+        if r.status_code >= 400 and "ok" not in data:
+            return {"ok": False, "error": f"WDA HTTP {r.status_code}: {data}"}
+        return data
+    except httpx.TimeoutException as e:
+        return {"ok": False, "error": f"WDA HTTP timeout: {e}"}
+    except httpx.HTTPError as e:
+        return {
+            "ok": False,
+            "error": f"WDA HTTP error: {type(e).__name__}: {e}",
+            "hint": "WDA daemon 未跑或端口未通：检查 launchctl list | grep wda、go-ios tunnel；"
+                    "首次相册写入需在设备 设置→隐私→照片→WebDriverAgent→添加照片 中允许。",
+        }

@@ -54,3 +54,54 @@ def test_resolve_target_rejects_bad_combo():
 def test_resolve_target_photos_rejects_non_media_extension():
     with pytest.raises(UploadError):
         up_ios.resolve_target("photos", "doc.pdf", None, None)
+
+
+# ----- Task 7: WDA HTTP 客户端 -----
+
+import httpx
+
+
+def test_wda_photos_import_ok(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/wda/photos/import"
+        assert request.headers["X-Filename"] == "bg.jpg"
+        assert request.headers["X-Type"] == "image"
+        assert request.headers["Content-Type"] == "application/octet-stream"
+        assert request.read() == b"BYTES"
+        return httpx.Response(200, json={"ok": True, "asset_id": "AID-123"})
+    client = httpx.Client(transport=httpx.MockTransport(handler),
+                          base_url="http://127.0.0.1:8100")
+    monkeypatch.setattr(up_ios, "_new_wda_client", lambda port=8100, timeout=35: client)
+    res = up_ios.wda_photos_import(b"BYTES", filename="bg.jpg", ttype="image")
+    assert res == {"ok": True, "asset_id": "AID-123"}
+
+
+def test_wda_photos_import_server_error(monkeypatch):
+    def handler(request):
+        return httpx.Response(500, json={"ok": False, "error": "permission denied"})
+    client = httpx.Client(transport=httpx.MockTransport(handler),
+                          base_url="http://127.0.0.1:8100")
+    monkeypatch.setattr(up_ios, "_new_wda_client", lambda port=8100, timeout=35: client)
+    res = up_ios.wda_photos_import(b"X", "v.mp4", "video")
+    assert res["ok"] is False and "denied" in res.get("error", "").lower()
+
+
+def test_wda_photos_import_timeout(monkeypatch):
+    def handler(request):
+        raise httpx.ReadTimeout("slow")
+    client = httpx.Client(transport=httpx.MockTransport(handler),
+                          base_url="http://127.0.0.1:8100")
+    monkeypatch.setattr(up_ios, "_new_wda_client", lambda port=8100, timeout=35: client)
+    res = up_ios.wda_photos_import(b"X", "f.jpg", "image")
+    assert res["ok"] is False and "timeout" in res["error"].lower()
+
+
+def test_wda_photos_import_connection_error(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+    client = httpx.Client(transport=httpx.MockTransport(handler),
+                          base_url="http://127.0.0.1:8100")
+    monkeypatch.setattr(up_ios, "_new_wda_client", lambda port=8100, timeout=35: client)
+    res = up_ios.wda_photos_import(b"X", "f.jpg", "image")
+    assert res["ok"] is False and "hint" in res  # 端点不可达 → 给 hint
