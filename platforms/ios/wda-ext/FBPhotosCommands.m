@@ -3,9 +3,12 @@
 // 并在 FBCommandRouter.m 的 commandHandlerClasses 数组里追加 [FBPhotosCommands class]。
 
 #import "FBPhotosCommands.h"
+
 #import "FBRoute.h"
 #import "FBRouteRequest.h"
 #import "FBResponsePayload.h"
+#import "FBCommandStatus.h"
+
 @import Photos;
 
 @implementation FBPhotosCommands
@@ -18,14 +21,19 @@
 }
 
 + (id<FBResponsePayload>)handleImport:(FBRouteRequest *)request {
-  // raw body 经 request.body（NSData）；元数据走 headers，避免 multipart 解析。
-  NSData *fileData = request.body;
-  NSDictionary *headers = request.headers ?: @{};
-  NSString *filename = headers[@"X-Filename"] ?: @"upload.bin";
-  NSString *ttype    = headers[@"X-Type"]     ?: @"image";
+  // WDA 13.x: FBRouteRequest 只暴露 arguments(JSON 解析后的 body)，无 raw body / headers API。
+  // 用 JSON+base64：body = {"file_b64": "...", "filename": "...", "type": "image|video"}
+  NSString *fileB64  = request.arguments[@"file_b64"];
+  NSString *filename = request.arguments[@"filename"] ?: @"upload.bin";
+  NSString *ttype    = request.arguments[@"type"]     ?: @"image";
 
+  if (!fileB64 || fileB64.length == 0) {
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"missing file_b64" traceback:nil]);
+  }
+  NSData *fileData = [[NSData alloc] initWithBase64EncodedString:fileB64
+                                                         options:NSDataBase64DecodingIgnoreUnknownCharacters];
   if (!fileData || fileData.length == 0) {
-    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"empty body" traceback:nil]);
+    return FBResponseWithStatus([FBCommandStatus invalidArgumentErrorWithMessage:@"base64 decode failed or empty" traceback:nil]);
   }
 
   // 1) 写 NSTemp

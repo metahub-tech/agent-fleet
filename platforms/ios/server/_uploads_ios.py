@@ -77,23 +77,24 @@ def _new_wda_client(port: int = WDA_DEFAULT_PORT,
 
 def wda_photos_import(body: bytes, filename: str, ttype: str,
                       port: int = WDA_DEFAULT_PORT) -> dict:
-    """POST raw body 到 WDA /wda/photos/import；返回 {ok, asset_id?, error?, hint?}。
+    """POST JSON {file_b64,filename,type} 到 WDA /wda/photos/import；返回 {ok, asset_id?, error?, hint?}。
 
-    Headers: Content-Type=application/octet-stream, X-Filename, X-Type。
-    WDA 端 handler 在 NSTemp 写 body → PHPhotoLibrary.performChanges（dispatch_semaphore
-    等 completion，30s 超时）→ 删 NSTemp → 返回 JSON。
+    WDA 13.x 的 FBRouteRequest 只暴露 arguments（JSON 解析后的 body），没有
+    raw body / headers API —— 因此 mac→WDA 走 JSON+base64（不是 raw body）。
+    base64 ~33% 膨胀对于 4.4MB 图片→5.9MB 完全可接受；mac→WDA 全在 127.0.0.1。
+
+    WDA 端 handler：base64 decode → 写 NSTemp → PHPhotoLibrary.performChanges
+    （dispatch_semaphore 等 completion，30s 超时）→ 删 NSTemp → 返回 JSON。
     """
+    import base64
+    payload = {
+        "file_b64": base64.b64encode(body).decode("ascii"),
+        "filename": filename,
+        "type": ttype,
+    }
     try:
         with _new_wda_client(port=port) as client:
-            r = client.post(
-                "/wda/photos/import",
-                content=body,
-                headers={
-                    "Content-Type": "application/octet-stream",
-                    "X-Filename": filename,
-                    "X-Type": ttype,
-                },
-            )
+            r = client.post("/wda/photos/import", json=payload)
         try:
             data = r.json()
         except Exception:  # noqa: BLE001

@@ -62,13 +62,14 @@ import httpx
 
 
 def test_wda_photos_import_ok(monkeypatch):
+    import base64 as _b64, json as _json
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert request.url.path == "/wda/photos/import"
-        assert request.headers["X-Filename"] == "bg.jpg"
-        assert request.headers["X-Type"] == "image"
-        assert request.headers["Content-Type"] == "application/octet-stream"
-        assert request.read() == b"BYTES"
+        body = _json.loads(request.read())
+        assert body["filename"] == "bg.jpg"
+        assert body["type"] == "image"
+        assert _b64.b64decode(body["file_b64"]) == b"BYTES"
         return httpx.Response(200, json={"ok": True, "asset_id": "AID-123"})
     client = httpx.Client(transport=httpx.MockTransport(handler),
                           base_url="http://127.0.0.1:8100")
