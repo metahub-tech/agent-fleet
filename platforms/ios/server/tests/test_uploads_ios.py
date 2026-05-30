@@ -70,7 +70,9 @@ def test_wda_photos_import_ok(monkeypatch):
         assert body["filename"] == "bg.jpg"
         assert body["type"] == "image"
         assert _b64.b64decode(body["file_b64"]) == b"BYTES"
-        return httpx.Response(200, json={"ok": True, "asset_id": "AID-123"})
+        # WDA 实际返回 WebDriver envelope: {"value": {...真实响应...}, "sessionId": null}
+        return httpx.Response(200, json={"value": {"ok": True, "asset_id": "AID-123"},
+                                          "sessionId": None})
     client = httpx.Client(transport=httpx.MockTransport(handler),
                           base_url="http://127.0.0.1:8100")
     monkeypatch.setattr(up_ios, "_new_wda_client", lambda base_url=None, timeout=35: client)
@@ -80,7 +82,10 @@ def test_wda_photos_import_ok(monkeypatch):
 
 def test_wda_photos_import_server_error(monkeypatch):
     def handler(request):
-        return httpx.Response(500, json={"ok": False, "error": "permission denied"})
+        # WDA 错误也是 envelope：value 里有 message/error
+        return httpx.Response(500, json={"value": {"error": "invalid argument",
+                                                    "message": "permission denied"},
+                                          "sessionId": None})
     client = httpx.Client(transport=httpx.MockTransport(handler),
                           base_url="http://127.0.0.1:8100")
     monkeypatch.setattr(up_ios, "_new_wda_client", lambda base_url=None, timeout=35: client)

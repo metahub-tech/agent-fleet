@@ -106,10 +106,19 @@ def wda_photos_import(body: bytes, filename: str, ttype: str,
             data = r.json()
         except Exception:  # noqa: BLE001
             return {"ok": False, "error": f"WDA non-JSON response ({r.status_code}): {r.text[:200]}"}
-        # WDA 失败时通常 5xx + ok=false；2xx + ok=true。透传 WDA 的 error。
-        if r.status_code >= 400 and "ok" not in data:
-            return {"ok": False, "error": f"WDA HTTP {r.status_code}: {data}"}
-        return data
+        # WDA 用 WebDriver 协议 envelope：{"value": {...真实响应...}, "sessionId": ..., "status": int}
+        # 成功：inner = {"ok": True, "asset_id": "..."}
+        # 错误（FBResponseWithStatus）：inner = {"error": "...", "message": "...", ...}
+        inner = data.get("value", data) if isinstance(data, dict) else data
+        if not isinstance(inner, dict):
+            return {"ok": False, "error": f"WDA non-dict value: {inner}"}
+        if "ok" in inner:
+            return inner
+        if "error" in inner or "message" in inner:
+            return {"ok": False,
+                    "error": str(inner.get("message") or inner.get("error")),
+                    "wda_status": inner.get("error")}
+        return {"ok": False, "error": f"WDA unexpected response shape: {inner}"}
     except httpx.TimeoutException as e:
         return {"ok": False, "error": f"WDA HTTP timeout: {e}"}
     except httpx.HTTPError as e:
