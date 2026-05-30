@@ -32,3 +32,35 @@ class UploadError(ValueError):
 
 def ensure_dirs() -> None:
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================
+#                       VALIDATION
+# ============================================================
+
+def require_xor(a, b, names: tuple[str, str]) -> None:
+    if (a is None) == (b is None):
+        raise UploadError(f"必须且只能提供 {names[0]} 与 {names[1]} 之一")
+
+
+def decode_b64(s: str) -> bytes:
+    try:
+        return base64.b64decode(s, validate=True)
+    except Exception as e:  # noqa: BLE001
+        raise UploadError(f"base64 解码失败: {e}") from e
+
+
+def sanitize_filename(name: str) -> str:
+    if not name or "/" in name or "\\" in name or ".." in name:
+        raise UploadError(f"非法 filename: {name!r}")
+    if set(name) & _FORBIDDEN_PATH_CHARS_BASE:
+        raise UploadError(f"filename 含非法字符: {name!r}")
+    return name
+
+
+def is_image(name: str) -> bool:
+    return Path(name).suffix.lower() in IMAGE_EXTS
+
+
+def is_video(name: str) -> bool:
+    return Path(name).suffix.lower() in VIDEO_EXTS
