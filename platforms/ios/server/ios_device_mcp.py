@@ -843,8 +843,11 @@ def pull_file_from_app(
 def _http_upload_worker(target: str, body: bytes, params: dict, udid: str) -> dict:
     """同步执行（在 threadpool）。target=photos → WDA；target=app → afc。"""
     if target == "photos":
+        # 每设备一个 pymobiledevice3 usbmux forward 把 mac:<local_port> → 设备:8100
+        client = _ensure_forwarder_and_client(udid)
         return up_ios.wda_photos_import(body, filename=params.get("filename", "upload.bin"),
-                                         ttype=params["type"])
+                                         ttype=params["type"],
+                                         base_url=client.base_url)
     elif target == "app":
         # afc 需要 host_path 实文件 → 先落 mac 暂存再 push
         import uuid as _uuid
@@ -965,7 +968,9 @@ def upload_to_photos(
                 body = tmp.read_bytes()
             finally:
                 tmp.unlink(missing_ok=True)
-        res = up_ios.wda_photos_import(body, filename=fname, ttype=params["type"])
+        client = _ensure_forwarder_and_client(udid)
+        res = up_ios.wda_photos_import(body, filename=fname, ttype=params["type"],
+                                        base_url=client.base_url)
         res.setdefault("target", "photos")
         res.setdefault("device", udid)
         res.setdefault("size", len(body))

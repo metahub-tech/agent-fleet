@@ -69,13 +69,18 @@ def resolve_target(target: str, filename: str | None, bundle_id: str | None,
 #                    WDA HTTP CLIENT
 # ============================================================
 
-def _new_wda_client(port: int = WDA_DEFAULT_PORT,
+def _new_wda_client(base_url: str = f"http://127.0.0.1:{WDA_DEFAULT_PORT}",
                     timeout: int = PHOTOS_TIMEOUT_SECS) -> httpx.Client:
-    """tests 可 monkeypatch 这个函数注入 MockTransport client。"""
-    return httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=timeout)
+    """tests 可 monkeypatch 这个函数注入 MockTransport client。
+
+    生产里 base_url 由 ios_device_mcp 的 _ensure_forwarder_and_client(udid) 给出
+    （形如 http://127.0.0.1:18100+N，每台 iOS 设备一个 pymobiledevice3 usbmux forward）。
+    """
+    return httpx.Client(base_url=base_url, timeout=timeout)
 
 
 def wda_photos_import(body: bytes, filename: str, ttype: str,
+                      base_url: str | None = None,
                       port: int = WDA_DEFAULT_PORT) -> dict:
     """POST JSON {file_b64,filename,type} 到 WDA /wda/photos/import；返回 {ok, asset_id?, error?, hint?}。
 
@@ -92,8 +97,10 @@ def wda_photos_import(body: bytes, filename: str, ttype: str,
         "filename": filename,
         "type": ttype,
     }
+    if base_url is None:
+        base_url = f"http://127.0.0.1:{port}"
     try:
-        with _new_wda_client(port=port) as client:
+        with _new_wda_client(base_url=base_url) as client:
             r = client.post("/wda/photos/import", json=payload)
         try:
             data = r.json()
