@@ -20,7 +20,7 @@ iOS 没有 Android 上"agent→设备文件上传"特性(2026-05-28, PR #53)的�
 
 2. **写入相册更难**:iOS 16+ 的 Photos library 需要 `PHPhotoLibrary` API,纯 pymobiledevice3 / shell 写不进去。旧的 `afc → /var/mobile/Media/DCIM` trick 在 iPad iOS 26 必废,只对 iPhone7(iOS 15)凑效 —— 不通用。
 
-3. agent 的实际诉求(基于 Android 已验证的换背景/上传素材流程)是把**任意图片/视频送到 iOS 设备的 Photos 相册**,且要支持现代 iOS(主测 iPad iOS 26.2.1,兼顾 iPhone7 iOS 15.8)。
+3. agent 的实际诉求(基于 Android 已验证的换背景/上传素材流程)是把**任意图片/视频送到 iOS 设备的 Photos 相册**,且要支持现代 iOS(主测 iPad iOS 26.5,兼顾 iPhone7 iOS 15.8)。
 
 ## Goal
 
@@ -33,14 +33,14 @@ iOS 没有 Android 上"agent→设备文件上传"特性(2026-05-28, PR #53)的�
 ### 数据流
 
 ```
-                       ┌─ target=photos: 透传 multipart 给 WDA → WDA NSTemp → PHPhotoLibrary
+                       ┌─ target=photos: mac 包成 JSON{file_b64,filename,type} → WDA → NSTemp → PHPhotoLibrary
 agent 字节 ──HTTP POST─┤
                        └─ target=app:    流式落 mac 暂存 → pymobiledevice3 afc push → bundle_id 沙盒
 ```
 
 ### 两条目标路径(target 参数)
-- **`target=photos`(默认)**:**WDA 直收字节**(关键架构修订)。mac host `/upload` 把请求 body 透传成 `POST http://127.0.0.1:<wda_port>/wda/photos/import` 的 multipart(字段 `file` + `type=image|video` + `filename`)。WDA route handler 内:
-  1. 把 multipart `file` 字段写到 `NSTemporaryDirectory()/<uuid>-<filename>`;
+- **`target=photos`(默认)**:**WDA 直收字节**。mac host `/upload` 把字节包成 JSON `{"file_b64":"...", "filename":"...", "type":"image|video"}` 后 `POST http://127.0.0.1:<wda_local_port>/wda/photos/import`(`wda_local_port` 由 `_ensure_forwarder_and_client(udid)` 返回的 WdaClient.base_url 提供,18100+N,pymobiledevice3 usbmux forward 起的)。**为什么 JSON+base64 不是 raw body**:WDA 13.x 的 `FBRouteRequest` 只暴露 `arguments`(JSON 解析后的 body)字典,无 raw body/headers API;走 JSON 是兼容现状的最小代价。base64 ~33% 膨胀对本地 127.0.0.1 通信完全可接受。WDA route handler 内:
+  1. 从 `request.arguments[@"file_b64"]` 取串 base64 解码 → 写到 `NSTemporaryDirectory()/<uuid>-<filename>`;
   2. 调 `PHPhotoLibrary.shared().performChanges:` 创建 `PHAssetCreationRequest.creationRequestForAssetFromImageAtFileURL:` / `forVideoAtFileURL:`;
   3. 用 `dispatch_semaphore_t` 等 `completionHandler`(超时 30s);
   4. 删临时文件,返回 `{ok:true, asset_id:"<localIdentifier>"}` / `{ok:false, error:"..."}`。
@@ -88,19 +88,20 @@ MCP 工具。返回 `/upload` 用法 + curl 例子(host 同 ios-device MCP URL,p
 
 ## WDA Extension(新增,关键部件)
 
-### 路由(multipart 接收字节,无 path 参数)
-新加 ObjC 文件 `WebDriverAgentLib/Routes/FBPhotosCommands.h/.m`,注册:
+### 路由(JSON+base64 body)
+新加 ObjC 文件 `WebDriverAgentLib/Commands/FBPhotosCommands.h/.m`(WDA 13.x 用 `Commands/`,非老版 `Routes/`),实现 `<FBCommandHandler>` 协议即被 `FBClassesThatConformsToProtocol` 在运行时自动发现并挂载 —— **无需手改 router 文件**。注册:
 ```
 POST /wda/photos/import
-Content-Type: multipart/form-data
-fields:
-  file:     文件字节(必填)
-  type:     "image" | "video"(可选,缺省按 filename 后缀推)
-  filename: 原文件名(可选,用于 NSTemp 文件命名 + 调试)
+Content-Type: application/json
+body: {
+  "file_b64": "<base64>",   // 必填
+  "filename": "bg.jpg",      // 可选,用于 NSTemp 文件命名 + 调试
+  "type":     "image"        // image | video,可选,缺省按 filename 后缀推
+}
 ```
 Handler 关键逻辑(伪码):
 ```objc
-// 1. 解析 multipart 拿到 fileData / filename / type
+// 1. 从 request.arguments 拿 file_b64/filename/type, base64 解码出 NSData
 NSData *fileData = ...; NSString *type = ...;
 NSString *tmpPath = [NSTemporaryDirectory() stringByAppendingPathComponent:
                        [NSString stringWithFormat:@"%@-%@", [NSUUID UUID].UUIDString, filename]];
@@ -132,7 +133,7 @@ return /* {"ok":true, "asset_id": assetId} */;
 ```
 
 ### 路由必须显式注册(WDA Routes 是静态聚合)
-Appium fork WDA 用 `FBCommandRouter` + 各 Routes 类的 `+ (NSArray<FBRoute *> *)routes` 数组,**必须**在 `FBCommandRouter.m`(或对应聚合点)`#import "FBPhotosCommands.h"` 并把 `[FBPhotosCommands routes]` 加进 routes 数组,否则文件被编译进 binary 但路由永不挂载,`POST /wda/photos/import` 返 404。`build-wda.sh` 用幂等 sed/PlistBuddy 风格的脚本注入这两处(import 行 + 数组追加),失败提示具体未匹配的锚点。
+Appium WDA 13.x 在 `FBWebServer.m` 用 `FBClassesThatConformsToProtocol(@protocol(FBCommandHandler))` 在运行时反射所有实现该协议的类并 `registerRouteHandlers:`。**只要 FBPhotosCommands 实现 `<FBCommandHandler>` + 提供 `+routes`,被编译进 binary 即被自动挂载**,无需修改任何 router 源文件。但 WDA 项目用静态 pbxproj 文件清单(非 file-system synchronized groups),新加的 .h/.m 必须通过 `pbxproj` python 库 `add_file(target_name="WebDriverAgentLib")` 注册到 PBXBuildFile/PBXFileReference 等表才会被编译。`install.sh` 缺包时自动 `pip install --user pbxproj`。
 
 ### Info.plist 注入(PlistBuddy,不要文本 patch)
 WDA runner `Info.plist` 加 `NSPhotoLibraryAddUsageDescription`。用 `PlistBuddy` 幂等 upsert(`Add … || Set …`),不要文本 diff(易因换行/BOM/格式差异碎)。**Add-Only**,不加 `NSPhotoLibraryUsageDescription`(读权限)—— 权限最小化。
@@ -143,10 +144,10 @@ WDA runner `Info.plist` 加 `NSPhotoLibraryAddUsageDescription`。用 `PlistBudd
 ```
 
 ### Build cache 失效
-`cp` 文件 mtime 被覆盖为当前,xcodebuild 增量 build **会**重编新文件;但若 `FBCommandRouter.m` 已 touch 过且 DerivedData 哈希未变,有可能跳编。`build-wda.sh` 在注入完后 `touch -m` 所有被修改的源文件(强制让 mtime 比 DerivedData 缓存条目新),并在 README 里建议首次扩展后跑一次 `xcodebuild clean`。
+`cp` 文件 mtime 被覆盖为当前,xcodebuild 增量 build **会**重编新文件;但若被修改的源文件已 touch 过且 DerivedData 哈希未变,有可能跳编。`install.sh` 在注入完后 `touch -m` 所有修改过的源文件(`.h/.m`、`project.pbxproj`、`Info.plist`),强制让 mtime 比 DerivedData 缓存条目新。首次扩展后建议手动跑一次 `xcodebuild clean`。
 
 ### 部署(沿用现有 daemon 模式)
-- `platforms/ios/wda-ext/FBPhotosCommands.{h,m}` 维护在本仓库;`build-wda.sh` 在 `xcodebuild` 前自动 cp 到 `$WDA_DIR/WebDriverAgent/WebDriverAgentLib/Routes/` + 注册 patch + plist upsert。卸载:仓库提供 `wda-ext-revert.sh`(从 `FBCommandRouter.m` 去掉 import/route 行 + 删 cp 的文件)。
+- `platforms/ios/wda-ext/FBPhotosCommands.{h,m}` 维护在本仓库;`build-wda.sh` 在 `xcodebuild` 前自动 cp 到 `$WDA_DIR/WebDriverAgentLib/Commands/` + pbxproj 注册 + plist upsert。卸载:`wda-ext/uninstall.sh`(pbxproj remove + 删 cp 的文件 + 删 plist key)。
 - `refresh-wda-cert.sh` / `install-wda-daemon.sh` 流程不变。
 - **首次相册授权**:WDA 第一次调 PHPhotoLibrary,iOS 弹"WDA 要添加到您的相册"。用户**需在设备上点一次允许**。授权后所有后续上传无 prompt。`/upload` 在首次返 `{ok:false, error:"...denied...", hint:"在 iPad 设置 → 隐私 → 照片 → WebDriverAgent → 添加照片,允许后重试"}`。可选:WDA 启动时主动 `[PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelAddOnly handler:]` 让弹窗在第一次 upload 之前出现(体验更好,但实施时再定)。
 
@@ -158,11 +159,11 @@ WDA 默认 `:8100`,由 go-ios tunnel forward 到 mac host(`http://127.0.0.1:<wda
 1. **agent 给 iPad 换背景图(4.4MB qinπ.png)**:
    - `curl -X POST -F file=@qinπ.png -F type=image -F filename=qinπ.png \
        'http://qjl-mac-mini:8769/upload?target=photos&device=apple-ipad15-7'`
-   - mac host `/upload` 把 multipart 透传给 WDA `http://127.0.0.1:8100/wda/photos/import` → WDA 写 NSTemp → PHPhotoLibrary 创建 asset(sem 等 completion)→ 删 NSTemp → 返回 `{ok:true, asset_id:"..."}`。
+   - mac host `/upload` 把字节包成 JSON `{file_b64, filename, type}` 发给 WDA `http://127.0.0.1:<per-device-port>/wda/photos/import` → WDA decode 写 NSTemp → PHPhotoLibrary 创建 asset(sem 等 completion;tmp 由 completionHandler 收尾防超时竞态)→ 返回 `{ok:true, asset_id:"..."}`(经 WebDriver envelope `{"value":...,"sessionId":...}` 包装,Python 客户端 unwrap)。
    - iPad 相册 / 小红书选图器立刻看到。无 mac 暂存落盘(target=photos 全程流式)。
 
 2. **MCP 小图同步**:
-   - `upload_to_photos(content_base64="...", filename="bg.jpg")` → 内部 base64 解码后转 multipart 发给 WDA(同 #1 流程),返回 asset_id。
+   - `upload_to_photos(content_base64="...", filename="bg.jpg")` → 内部 base64 解码后(再 base64 包进 JSON)发给 WDA(同 #1 流程),返回 asset_id。
 
 3. **推 PDF 到某文件 app**:
    - `curl ...?target=app&bundle_id=com.example.docs&relpath=Documents/x.pdf` → afc 推进沙盒 → 返回。
@@ -172,7 +173,7 @@ WDA 默认 `:8100`,由 go-ios tunnel forward 到 mac host(`http://127.0.0.1:<wda
 - **入参互斥/必填校验**:`content_base64` 与 `url` 二选一(MCP 工具);target=app 必须 `bundle_id+relpath`。失败 400 + 明确 error。
 - **路径校验**:`filename` / `relpath` 走共享 `sanitize_filename` / `validate_relpath`(拒 `..`、绝对路径、引号 / `;` / `$` / 反斜线等注入面)。WDA 端 path 字段额外校验在 WDA 沙盒前缀内。
 - **SSRF**:url 走共享 `download_url`(http/https only + 内网/loopback/link-local/reserved/metadata IP 拒 + DNS 重绑定对端复验)。
-- **大小**:`URL_HARD_MAX=200MB`(共享);流式落盘 + 边写边复核;multipart 用 UploadFile 分块读 64KB。
+- **大小**:`URL_HARD_MAX=200MB`(共享);mac `/upload` 流式读 body + 边写边复核;multipart 用 UploadFile 分块读 64KB。mac→WDA 的 JSON+base64 body 体积约为原文件 ×1.33,本地 127.0.0.1 通信不构成瓶颈。
 - **WDA 不可达**:`/upload?target=photos` 先 ping `http://127.0.0.1:<port>/status`,超时/4xx → 500 + hint("WDA daemon 未跑;`launchctl list | grep wda` 检查")。
 - **PHPhotoLibrary 失败**:WDA 返回的 error 直接透传给 caller;首次授权拒/缺权限有专门 hint 引导设备端"设置 → 隐私 → 照片 → WDA → 添加照片"。
 - **AFC 失败**:`HouseArrestException`(app 不可 file-share)→ hint 提示 `documents_only` 或 dev-signed 限制。
@@ -186,7 +187,7 @@ WDA 默认 `:8100`,由 go-ios tunnel forward 到 mac host(`http://127.0.0.1:<wda
 - `platforms/ios/server/_uploads_ios.py` —— iOS 专属:wda_bundle 解析、afc_push_to_wda_sandbox、call_wda_photos_import、afc_push_to_app、`_http_upload_worker`(threadpool 同步执行)。
 - `platforms/ios/server/tests/test_uploads_ios.py` —— 单测(纯逻辑,mock pymobiledevice3 + requests)。
 - `platforms/ios/wda-ext/FBPhotosCommands.{h,m}` —— **不 fork WDA**(WDA 在每台 mac 主机的 `$WDA_DIR`,默认 `~/WebDriverAgent`,非本仓库子项目),本仓库维护这两个扩展文件。
-- `platforms/ios/wda-ext/install.sh` —— 在 `build-wda.sh` 内被调用,幂等做四件事:① cp `.h/.m` 到 `$WDA_DIR/WebDriverAgent/WebDriverAgentLib/Routes/`;② 在 `FBCommandRouter.m`(或对应聚合点)注入 `#import "FBPhotosCommands.h"` + routes 数组项(用 sed 锚点 + 已存在则跳过);③ `PlistBuddy` upsert `NSPhotoLibraryAddUsageDescription` 进 WDA runner `Info.plist`;④ `touch -m` 所有修改过的源文件强制 build cache 失效。
+- `platforms/ios/wda-ext/install.sh` —— 在 `build-wda.sh` 内被调用,幂等做四件事:① cp `.h/.m` 到 `$WDA_DIR/WebDriverAgentLib/Commands/`(WDA 13.x 路径);② 通过 `pbxproj` python 库 `add_file(target_name="WebDriverAgentLib")` 注册新文件(已存在则跳过;首次运行缺包自动 `pip install --user pbxproj`);③ `PlistBuddy` upsert `NSPhotoLibraryAddUsageDescription` 进 WDA runner `Info.plist`(Add-Only 权限);④ `touch -m` 所有修改过的源文件强制 build cache 失效。**无需** 改 `FBCommandRouter.m` —— WDA 13.x 用 `<FBCommandHandler>` 协议运行时自发现。
 - `platforms/ios/wda-ext/uninstall.sh` —— 反向还原(删 cp 的文件、去 import/routes 行、删 plist key)。
 
 ### 改
@@ -202,7 +203,7 @@ WDA 默认 `:8100`,由 go-ios tunnel forward 到 mac host(`http://127.0.0.1:<wda
   - 共享 helper(已有 Android 单测覆盖,迁移到共享模块后保持绿)。
   - iOS 专属:wda_bundle 探测/读取/缺失报错;target/参数互斥校验;`/upload` handler 的流式落盘(mock pymobiledevice3 + requests);PHPhotoLibrary 调用错误透传。
 - **WDA Swift 扩展**:不在 Python CI;靠真机集成验证 + Code 自审。
-- **真机(iPad iOS 26.2.1 在 qjl-mac-mini)** —— 必跑:
+- **真机(iPad iOS 26.5 在 qjl-mac-mini)** —— 必跑:
   1. 小图 base64 via `upload_to_photos` → 返回 visible/asset_id;设备相册 app 打开看到。
   2. curl `/upload?target=photos` 推中图(~500KB)→ 同上。
   3. curl 推 4.4MB qinπ.png → asset_id 返回,相册可见(对比 Android 同图)。
