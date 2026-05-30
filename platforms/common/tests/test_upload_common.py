@@ -50,3 +50,56 @@ def test_sanitize_filename_minimal():
 def test_is_image_and_video():
     assert up.is_image("a.JPG") and up.is_image("a.heic") and not up.is_image("a.mp4")
     assert up.is_video("v.MOV") and up.is_video("v.mp4") and not up.is_video("a.jpg")
+
+
+# ----- Task 3: url/SSRF + 流式 download_url -----
+
+import functools
+import http.server
+import threading as _t
+
+
+def _serve(d):
+    h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(d))
+    s = http.server.HTTPServer(("127.0.0.1", 0), h)
+    _t.Thread(target=s.serve_forever, daemon=True).start()
+    return s, s.server_address[1]
+
+
+def test_ip_blocked():
+    assert up._ip_is_blocked("127.0.0.1") and up._ip_is_blocked("10.1.2.3")
+    assert up._ip_is_blocked("169.254.169.254")
+    assert not up._ip_is_blocked("8.8.8.8")
+    assert not up._ip_is_blocked("not-an-ip")
+
+
+def test_validate_url():
+    up.validate_url("https://example.com/x")
+    with pytest.raises(up.UploadError):
+        up.validate_url("ftp://example.com")
+    with pytest.raises(up.UploadError):
+        up.validate_url("http://127.0.0.1/x")
+
+
+def test_download_url_ok(tmp_path, monkeypatch):
+    (tmp_path / "a.bin").write_bytes(b"X" * 80)
+    s, port = _serve(tmp_path)
+    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)
+    monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)
+    try:
+        n = up.download_url(f"http://127.0.0.1:{port}/a.bin", tmp_path / "o", max_bytes=1000)
+        assert n == 80 and (tmp_path / "o").read_bytes() == b"X" * 80
+    finally:
+        s.shutdown()
+
+
+def test_download_url_over_limit(tmp_path, monkeypatch):
+    (tmp_path / "big.bin").write_bytes(b"X" * 5000)
+    s, port = _serve(tmp_path)
+    monkeypatch.setattr(up, "_is_blocked_ip", lambda h: False)
+    monkeypatch.setattr(up, "_ip_is_blocked", lambda ip: False)
+    try:
+        with pytest.raises(up.UploadError):
+            up.download_url(f"http://127.0.0.1:{port}/big.bin", tmp_path / "o", max_bytes=1000)
+    finally:
+        s.shutdown()

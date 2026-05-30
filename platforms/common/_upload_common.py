@@ -64,3 +64,64 @@ def is_image(name: str) -> bool:
 
 def is_video(name: str) -> bool:
     return Path(name).suffix.lower() in VIDEO_EXTS
+
+
+# ============================================================
+#                    URL / SSRF / DOWNLOAD
+# ============================================================
+
+def _ip_is_blocked(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved
+
+
+def _is_blocked_ip(host: str) -> bool:
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False
+    return any(_ip_is_blocked(sa[0]) for *_, sa in infos)
+
+
+def validate_url(url: str) -> None:
+    p = urllib.parse.urlparse(url)
+    if p.scheme not in ("http", "https"):
+        raise UploadError(f"仅支持 http/https: {url!r}")
+    if not p.hostname:
+        raise UploadError(f"url 缺少 host: {url!r}")
+    if _is_blocked_ip(p.hostname):
+        raise UploadError(f"拒绝内网/元数据地址: {p.hostname}")
+
+
+def download_url(url: str, dest: Path, max_bytes: int) -> int:
+    """下载 url 到 dest，SSRF 校验 + 大小上限 + DNS 重绑定对端复验。返回字节数。"""
+    validate_url(url)
+    cap = min(max_bytes, URL_HARD_MAX)
+    written = 0
+    req = urllib.request.Request(url, headers={"User-Agent": "agent-fleet"})
+    with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 (scheme 已校验)
+        # DNS-rebinding 防御：pre-check 与 urlopen 之间 DNS 可能被翻转，复验真实对端 IP。
+        try:
+            peer_ip = resp.fp.raw._sock.getpeername()[0]
+        except Exception:  # noqa: BLE001
+            peer_ip = None
+        if peer_ip and _ip_is_blocked(peer_ip):
+            raise UploadError(f"连接对端为内网/元数据地址: {peer_ip}")
+        clen = resp.headers.get("Content-Length")
+        if clen and int(clen) > cap:
+            raise UploadError(f"文件超过上限 {cap} 字节（Content-Length={clen}）")
+        with dest.open("wb") as fh:
+            while True:
+                buf = resp.read(64 * 1024)
+                if not buf:
+                    break
+                written += len(buf)
+                if written > cap:
+                    fh.close()
+                    dest.unlink(missing_ok=True)
+                    raise UploadError(f"下载超过上限 {cap} 字节")
+                fh.write(buf)
+    return written
