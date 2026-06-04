@@ -313,25 +313,27 @@ git commit -m "feat(vision): rank_candidates (匹配/排序/偏移/截断)"
 
 - [ ] **Step 1: 失败测试**
 ```python
-def test_match_template_same_scale_hit():
+def _textured_img():  # TM_CCOEFF_NORMED 对均匀块退化(NaN), 模板必须有纹理; 块中心=(120,75)
     img = np.zeros((200, 300, 3), np.uint8)
-    cv2.rectangle(img, (100, 60), (140, 90), (0, 255, 0), -1)  # 绿块
-    tmpl = img[60:90, 100:140].copy()
+    cv2.rectangle(img, (100, 60), (140, 90), (40, 40, 40), -1)
+    cv2.putText(img, "OK", (104, 84), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2)
+    return img
+
+def test_match_template_same_scale_hit():
+    img = _textured_img(); tmpl = img[60:90, 100:140].copy()
     r = _locate.match_template(img, tmpl, threshold=0.85, offset=(0, 0))
     assert r["found"] is True
     assert abs(r["center"][0] - 120) <= 2 and abs(r["center"][1] - 75) <= 2
     assert r["score"] > 0.95
 
 def test_match_template_offset():
-    img = np.zeros((200, 300, 3), np.uint8)
-    cv2.rectangle(img, (100, 60), (140, 90), (0, 255, 0), -1)
-    tmpl = img[60:90, 100:140].copy()
+    img = _textured_img(); tmpl = img[60:90, 100:140].copy()
     r = _locate.match_template(img, tmpl, threshold=0.85, offset=(10, 5))
     assert abs(r["center"][0] - 130) <= 2 and abs(r["center"][1] - 80) <= 2
 
 def test_match_template_below_threshold():
     img = np.zeros((200, 300, 3), np.uint8)
-    tmpl = np.full((30, 40, 3), 255, np.uint8)  # 全白, 图里没有
+    tmpl = _textured_img()[60:90, 100:140].copy()  # 有纹理模板, 不在全黑图里
     r = _locate.match_template(img, tmpl, threshold=0.85, offset=(0, 0))
     assert r["found"] is False and "best_score" in r
 ```
