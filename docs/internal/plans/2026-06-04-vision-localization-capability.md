@@ -27,11 +27,20 @@
 | `platforms/common/capabilities/vision/_locate.py` | **纯逻辑**:decode/crop/sub-line/rank/template(不 import rapidocr,可 fake 测) |
 | `platforms/common/capabilities/vision/_ocr.py` | RapidOCR 引擎单例 + `threading.Lock` + `run_ocr` 归一化 |
 | `platforms/common/capabilities/vision/_vision.py` | `VisionCapability(capture_fn, tap_fn)` + register 3 工具 |
-| `platforms/common/capabilities/vision/tests/test_locate.py` | 纯逻辑单测(无 rapidocr) |
-| `platforms/common/capabilities/vision/tests/test_ocr.py` | OCR 管线 + 并发 |
-| `platforms/common/capabilities/vision/tests/test_vision.py` | 工具集成(注入 fake capture/tap) |
+| `platforms/common/tests/test_vision_locate.py` | 纯逻辑单测(无 rapidocr) |
+| `platforms/common/tests/test_vision_ocr.py` | OCR 管线 + 并发 |
+| `platforms/common/tests/test_vision.py` | 工具集成(注入 fake capture/tap) |
 
 **修改**:`capabilities/__init__.py`(export)、`mac_device_mcp.py`/`win_device_mcp.py`(抽 helper + 注入 + docstring)、`macos|windows/platform.toml`、`*/server/requirements.txt`+pyproject、`docs/architecture.md`。
+
+## 🔑 测试约定（权威——覆盖下方各 Task 里的测试文件路径 / 导入 / 运行命令）
+
+核实自现有 `platforms/common/tests/`(conftest.py 已 `sys.path.insert(0, platforms/common)`):
+- **测试文件统一放 `platforms/common/tests/`**(不是 `capabilities/vision/tests/`):`test_vision_locate.py`(Task 2–5)、`test_vision_ocr.py`(Task 6)、`test_vision.py`(Task 7–10)。**不建 `capabilities/vision/tests/` 目录与其 `__init__.py`。**
+- **导入(测试文件里)**:`from capabilities.vision import _locate, _ocr` / `from capabilities.vision._vision import VisionCapability, _probe_deps`。**不要**用 `from platforms.common.capabilities...`(repo-root 不在 path,且触发 browser 的 `from _browser_lease import` bare-import 失败)。
+- **运行命令一律**:`cd platforms/common/tests && /tmp/vision-dev/bin/python -m pytest <test_vision_*.py> -v`。
+- **源码**仍在 `platforms/common/capabilities/vision/`,内部相对导入(`from .._base import ...`、`from . import _locate`),同 human_browser。
+- **下方各 Task 的 `Test:` 路径、`from platforms.common...` 导入行、pytest 命令路径,全部以本约定为准。**
 
 ## 测试环境准备(实现前一次性)
 
@@ -50,16 +59,15 @@ python3 -m venv /tmp/vision-dev && /tmp/vision-dev/bin/pip install -U pip \
 
 **Files:**
 - Create: `platforms/common/capabilities/vision/__init__.py`
-- Create: `platforms/common/capabilities/vision/tests/__init__.py`
 - Modify: `platforms/macos/server/requirements.txt`、`platforms/windows/server/requirements.txt`
 
-- [ ] **Step 1: 建目录与空包**
+- [ ] **Step 1: 建包(空 `__init__.py`,先不 export,Task 11 再补)**
 
 `platforms/common/capabilities/vision/__init__.py`:
 ```python
 """vision capability — 无障碍树失效时的像素级元素定位(设计 2026-06-04)."""
 ```
-`platforms/common/capabilities/vision/tests/__init__.py`: 空文件。
+（**不建** `capabilities/vision/tests/`——测试统一在 `platforms/common/tests/`,见上方测试约定。）
 
 - [ ] **Step 2: 加依赖**
 
@@ -85,9 +93,9 @@ git commit -m "feat(vision): package skeleton + deps"
 
 - [ ] **Step 1: 失败测试**
 ```python
-# tests/test_locate.py
+# platforms/common/tests/test_vision_locate.py
 import numpy as np, cv2
-from platforms.common.capabilities.vision import _locate
+from capabilities.vision import _locate
 
 def test_decode_png_roundtrip():
     img = np.zeros((10, 20, 3), np.uint8); img[:, :, 2] = 255  # red
@@ -369,9 +377,9 @@ git commit -m "feat(vision): match_template"
 
 - [ ] **Step 1: 失败测试**
 ```python
-# tests/test_ocr.py
+# platforms/common/tests/test_vision_ocr.py
 import numpy as np, cv2
-from platforms.common.capabilities.vision import _ocr
+from capabilities.vision import _ocr
 
 def _login_img():
     img = np.full((80, 300, 3), 255, np.uint8)
@@ -452,8 +460,8 @@ git commit -m "feat(vision): OCR engine singleton + lock + run_ocr"
 
 - [ ] **Step 1: 失败测试**
 ```python
-# tests/test_vision.py
-from platforms.common.capabilities.vision._vision import VisionCapability, _probe_deps
+# platforms/common/tests/test_vision.py
+from capabilities.vision._vision import VisionCapability, _probe_deps
 
 def _noop_capture():
     return b""
@@ -474,7 +482,7 @@ def test_availability_deps_present():
     assert ok is True and reason == ""
 
 def test_availability_deps_missing(monkeypatch):
-    monkeypatch.setattr("platforms.common.capabilities.vision._vision._probe_deps",
+    monkeypatch.setattr("capabilities.vision._vision._probe_deps",
                         lambda: (False, "rapidocr/opencv 未装"))
     cap = VisionCapability(capture_fn=_noop_capture, tap_fn=_noop_tap)
     ok, reason = cap.availability()
@@ -795,7 +803,7 @@ git commit -m "feat(vision): vision_locate_image tool"
 - Modify: `platforms/common/capabilities/__init__.py`
 
 - [ ] **Step 1: 失败测试(临时断言导入路径)**
-Run: `/tmp/vision-dev/bin/python -c "from platforms.common.capabilities import VisionCapability; print('ok')"`
+Run: `cd platforms/common && /tmp/vision-dev/bin/python -c "from capabilities import VisionCapability; print('ok')"`
 Expected: FAIL（`ImportError: cannot import name 'VisionCapability'`）
 
 - [ ] **Step 2: vision 包 export**
@@ -815,7 +823,7 @@ from .vision import VisionCapability
 并在 `__all__` 列表里加 `"VisionCapability",`。
 
 - [ ] **Step 4: 跑,确认通过**
-Run: `/tmp/vision-dev/bin/python -c "from platforms.common.capabilities import VisionCapability; print('ok')"`
+Run: `cd platforms/common && /tmp/vision-dev/bin/python -c "from capabilities import VisionCapability; print('ok')"`
 Expected: `ok`
 
 - [ ] **Step 5: Commit**
