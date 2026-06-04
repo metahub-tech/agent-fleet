@@ -11,12 +11,15 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 
 - `acquire(device: Annotated[Optional[str], Field(description="serial or alias; omit if only 1 phone or you've set a default")], holder_name: Annotated[str, Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')")]) -> dict`
 - `current_app(device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
+- `deliver_staged(stage_id: Annotated[str | None, Field(description='已完成的分片暂存 id；与 url 二选一')], url: Annotated[str | None, Field(description='http/https 链接（主机后台下载）；与 stage_id 二选一')], device_path: Annotated[str | None, Field(description='设备目标路径；缺省 /sdcard/Download/<filename>')], install: Annotated[bool, Field(description='true=push 后 pm install（APK）')], make_visible: Annotated[bool, Field(description='图片则 push 后扫描进相册')], device: Annotated[str | None, Field(description='serial/alias；单机可省')]) -> dict`
 - `dump_ui(max_depth: Annotated[int, Field(ge=1, le=20, description='Max tree depth to walk')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `find_elements(text: Annotated[Optional[str], Field(description='Substring-match Element.text')], resource_id: Annotated[Optional[str], Field(description='Substring-match resource_id')], content_desc: Annotated[Optional[str], Field(description='Substring-match content_desc (a11y label)')], class_name: Annotated[Optional[str], Field(description="Substring-match class (e.g. 'android.widget.Button')")], clickable_only: Annotated[bool, Field(description='Only return clickable=true elements')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `get_default_device() -> dict`
 - `get_screen_size(device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `get_status(device: Annotated[Optional[str], Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
+- `get_upload_endpoint() -> dict`
 - `install_app(path: Annotated[str, Field(description='Absolute path to .apk on the HOST machine')], replace: Annotated[bool, Field(description='-r flag: replace existing')], grant_runtime: Annotated[bool, Field(description='-g flag: grant all runtime permissions')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
+- `job_status(job_id: Annotated[str, Field(description='deliver_staged 返回的 job_id')]) -> dict`
 - `launch_app(target: Annotated[str, Field(description="Package id, e.g. 'com.android.settings'")], activity: Annotated[Optional[str], Field(description="Activity name (e.g. '.MainActivity'). None = use launcher intent.")], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `list_devices() -> dict`
 - `list_packages(filter_substring: Annotated[Optional[str], Field(description='Filter package names containing this substring; None = all')], only_user: Annotated[bool, Field(description='Only third-party (non-system) packages')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
@@ -27,6 +30,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `release(device: Annotated[Optional[str], Field(description="serial or alias; omit if only 1 phone or you've set a default")], holder_name: Annotated[str, Field(description='Must match the name used in acquire')]) -> dict`
 - `run_shell(script: Annotated[str, Field(description='Shell command to run ON the device')], timeout: Annotated[int, Field(ge=1, le=25, description='Seconds; hard-capped to 25 — fastmcp transport dies past ~30s (jlowin/fastmcp#823)')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `set_default_device(device: Annotated[str, Field(description='serial or alias to use as the default for this session')]) -> dict`
+- `stage_upload(content_base64: Annotated[str, Field(description='本片字节的 base64')], stage_id: Annotated[str | None, Field(description='缺省=新建会话；给定=向该会话追加')], last: Annotated[bool, Field(description='true=收尾，标记暂存文件完成')], filename: Annotated[str | None, Field(description='新建会话时的文件名')], device: Annotated[str | None, Field(description='serial/alias；单机可省')]) -> dict`
 - `swipe(x1: Annotated[int, Field(ge=0, description='Start X')], y1: Annotated[int, Field(ge=0, description='Start Y')], x2: Annotated[int, Field(ge=0, description='End X')], y2: Annotated[int, Field(ge=0, description='End Y')], duration_ms: Annotated[int, Field(ge=50, le=10000, description='Swipe duration in ms')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `take_screenshot(device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> Image`
 - `tap(x: Annotated[int, Field(ge=0, description='X coordinate in screen pixels')], y: Annotated[int, Field(ge=0, description='Y coordinate in screen pixels')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
@@ -34,6 +38,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `terminate_app(target: Annotated[str, Field(description='Package id to force-stop')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `type_text(text: Annotated[str, Field(description='Text to type. Whitespace and special chars handled.')], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
 - `uninstall_app(target: Annotated[str, Field(description="Package id, e.g. 'com.example.app'")], device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")]) -> dict`
+- `upload_media(content_base64: Annotated[str | None, Field(description='文件字节的 base64；与 url 二选一')], url: Annotated[str | None, Field(description='http/https 链接；与 content_base64 二选一')], device_path: Annotated[str | None, Field(description='设备目标路径；缺省 /sdcard/Pictures/<filename>')], filename: Annotated[str | None, Field(description='文件名；缺省从 url 尾段或自动生成')], make_visible: Annotated[bool, Field(description='图片 push 后触发 MediaStore 扫描使相册可见')], device: Annotated[str | None, Field(description='serial/alias；单机可省')]) -> dict`
 
 ## ios
 
@@ -48,6 +53,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `get_default_device() -> dict`
 - `get_screen_size(device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
 - `get_status(device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
+- `get_upload_endpoint() -> dict`
 - `install_app(path: Annotated[str, Field(description='Absolute path to .ipa on the HOST (macmini)')], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
 - `launch_app(target: Annotated[str, Field(description="Bundle ID to launch, e.g. 'com.apple.MobileSafari'")], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
 - `list_apps(filter_substring: Annotated[Optional[str], Field(description='Filter bundle IDs containing this substring; None = all')], only_user: Annotated[bool, Field(description='Only user-installed apps (skip system)')], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
@@ -65,6 +71,8 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `terminate_app(target: Annotated[str, Field(description='Bundle ID to terminate')], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
 - `type_text(text: Annotated[str, Field(description='Text to type via the on-screen keyboard')], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
 - `uninstall_app(target: Annotated[str, Field(description="Bundle ID to uninstall, e.g. 'com.example.MyApp'")], device: Annotated[str | None, Field(description='udid or alias')]) -> dict`
+- `upload_to_app(bundle_id: Annotated[str, Field(description='目标 app bundle id')], relpath: Annotated[str, Field(description='app 沙盒内相对路径（默 Documents 下；documents_only=True）')], content_base64: Annotated[Optional[str], Field(description='文件字节 base64；与 url 二选一')], url: Annotated[Optional[str], Field(description='http/https 链接；与 content_base64 二选一')], documents_only: Annotated[bool, Field(description='True=Documents-only；False=full container（dev-signed apps）')], device: Annotated[Optional[str], Field(description='udid 或 alias')]) -> dict`
+- `upload_to_photos(content_base64: Annotated[Optional[str], Field(description='文件字节 base64；与 url 二选一')], url: Annotated[Optional[str], Field(description='http/https 链接；与 content_base64 二选一')], filename: Annotated[Optional[str], Field(description='原文件名（必填，决定 image/video）')], device: Annotated[Optional[str], Field(description='udid 或 alias')]) -> dict`
 
 ## macos
 

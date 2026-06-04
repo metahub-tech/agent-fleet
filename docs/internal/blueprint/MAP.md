@@ -33,6 +33,7 @@ macOS Platform Bridge
 - `platforms/macos/README.md`
 - `platforms/macos/server/mac_device_mcp.py` _(MCP server 主入口)_
 - `platforms/macos/skills/using-mac/` _(skill 文档)_
+- `platforms/macos/skills/using-vision/` _(skill 文档)_
 
 ### windows
 
@@ -42,6 +43,7 @@ Windows Platform Bridge
 - `platforms/windows/platform.toml`
 - `platforms/windows/README.md`
 - `platforms/windows/server/win_device_mcp.py` _(MCP server 主入口)_
+- `platforms/windows/skills/using-vision/` _(skill 文档)_
 - `platforms/windows/skills/using-win/` _(skill 文档)_
 
 ## cli/

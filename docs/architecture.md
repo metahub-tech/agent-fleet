@@ -117,8 +117,8 @@ iOS 完全沙箱无 shell 工具；移动端 shell 命令请用 mac-device 的 `
 
 | 平台 | 额外工具（实际代码） |
 |---|---|
-| Windows | `list_windows`, `inspect_window`, `focus_window`（pywinauto 窗口操作）+ `human_browser_open` + `browser_*`（共 27 个 playwright-mcp 嫁接，能力框架动态注入，不在 INTERFACE.md 静态清单） + 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
-| macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
+| Windows | `list_windows`, `inspect_window`, `focus_window`（pywinauto 窗口操作）+ `human_browser_open` + `browser_*`（共 27 个 playwright-mcp 嫁接，能力框架动态注入，不在 INTERFACE.md 静态清单）+ `vision_locate`/`vision_tap`/`vision_locate_image`（vision 能力：无障碍树失效时本地 OCR/模板匹配像素定位）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
+| macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ `vision_locate`/`vision_tap`/`vision_locate_image`（同 Windows，vision 能力）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
 | Android | `list_packages`, `push_file`, `pull_file`（PackageManager 与 adb push/pull）+ `upload_media`/`stage_upload`/`deliver_staged`/`job_status`/`get_upload_endpoint` 与 HTTP `POST /upload`（agent 自带字节传手机：落主机暂存→adb push→可选 install/媒体扫描）|
 | iOS | `activate_app`, `device_info`, `list_apps`, `push_file_to_app`, `pull_file_from_app`（pymobiledevice3 + WDA 专属）+ `upload_to_photos`/`upload_to_app`/`get_upload_endpoint` 与 HTTP `POST /upload`（agent 自带字节传 iOS：target=photos 经自家 WDA 扩展 `/wda/photos/import` → PHPhotoLibrary 入相册；target=app 经 pymobiledevice3 afc 推 app 沙箱）|
 

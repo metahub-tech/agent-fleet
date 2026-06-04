@@ -12,6 +12,7 @@ from ._base import (
 )
 from ._core import CoreCapability
 from .browser import AgentBrowserCapability, HumanBrowserCapability
+from .vision import VisionCapability
 
 __all__ = [
     "CORE_ID",
@@ -23,6 +24,7 @@ __all__ = [
     "CoreCapability",
     "AgentBrowserCapability",
     "HumanBrowserCapability",
+    "VisionCapability",
     "current_host_os",
     "register_list_capabilities",
     "resolve_enabled_capabilities",

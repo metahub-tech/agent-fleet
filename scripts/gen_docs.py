@@ -80,6 +80,8 @@ def capability_tool_count(cap_id: str) -> int:
         return _count_list_literal(f, "PLAYWRIGHT_TOOLS") + _count_list_literal(f, "_MGMT_TOOLS")
     if cap_id == "human_browser":
         return len(extract_mcp_tools(CAP_DIR / "browser" / "_human_browser.py"))
+    if cap_id == "vision":
+        return len(extract_mcp_tools(CAP_DIR / "vision" / "_vision.py"))
     return 0
 
 

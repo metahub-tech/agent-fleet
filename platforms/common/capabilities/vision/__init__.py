@@ -1,0 +1,4 @@
+"""vision capability — 无障碍树失效时的像素级元素定位(设计 2026-06-04)."""
+from ._vision import VisionCapability
+
+__all__ = ["VisionCapability"]

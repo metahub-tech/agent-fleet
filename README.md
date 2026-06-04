@@ -42,13 +42,13 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 71 tools — 43 core+discovery, +27 agent_browser, +1 human_browser (browser caps need Chrome/node); streamable-http) |
-| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 70 tools — 42 core+discovery, +27 agent_browser, +1 human_browser (browser caps need Chrome/node); GUI-permission flow) |
-| Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **26 tools**, multi-device + USB + Wireless + Hybrid ADB) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, 74 tools — 43 core+discovery, +27 agent_browser, +1 human_browser, +3 vision (browser caps need Chrome/node); streamable-http) |
+| macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, 73 tools — 42 core+discovery, +27 agent_browser, +1 human_browser, +3 vision (browser caps need Chrome/node); GUI-permission flow) |
+| Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **31 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
 | role rename → `<os>-device` + macOS permission primer | `0.6.0-alpha` | ✅ Released |
 | v0.6.x patches (UI introspection, smoke tests, bugfixes, installer hardening…) | `0.6.1–0.6.15` | ✅ Released — see [CHANGELOG.md](CHANGELOG.md) |
-| iOS / iPadOS bridge | `0.8.0-alpha` | ✅ Released (ios-device, 27 tools, WebDriverAgent + pymobiledevice3, iPad verified) |
+| iOS / iPadOS bridge | `0.8.0-alpha` | ✅ Released (ios-device, 30 tools, WebDriverAgent + pymobiledevice3, iPad verified) |
 | iOS WDA daemon (boot-survival + keep-alive) | `0.8.2-alpha` | ✅ Released (go-ios runwda + tunneld launchd; free/paid signing modes) |
 | Cross-device coordination | `0.10.0` | 🔭 Future |
 | Public stable release | `1.0.0` | 🔭 Future (after community feedback on the alpha) |
