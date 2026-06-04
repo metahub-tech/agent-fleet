@@ -42,13 +42,13 @@ Traga **dispositivos reais** — PCs Windows, Macs, celulares Android, iPhones �
 
 | Componente | Versão | Status |
 |---|---|---|
-| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 40 ferramentas, streamable-http) |
-| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 41 ferramentas, fluxo de permissões GUI) |
-| Ponte Android | `0.7.0-alpha` | ✅ Lançado (android-device, **25 ferramentas**, multidispositivo + USB + sem fio + ADB híbrido) |
+| Ponte Windows 10/11 | `0.2.0` | ✅ Lançado (win-device, 74 ferramentas, streamable-http) |
+| Ponte macOS 12+ | `0.3.0` | ✅ Lançado (mac-device, launchd, 73 ferramentas, fluxo de permissões GUI) |
+| Ponte Android | `0.7.0-alpha` | ✅ Lançado (android-device, **31 ferramentas**, multidispositivo + USB + sem fio + ADB híbrido) |
 | Assistente CLI do agent-fleet | `0.5.0-alpha` | ✅ Lançado (`uvx agent-fleet setup` instalação em um passo; configs para 6 frameworks) |
 | Renomeação de papel → `<os>-device` + guia de permissões macOS | `0.6.0-alpha` | ✅ Lançado |
 | Patches v0.6.x (introspecção de UI, smoke tests, correções, fortalecimento do instalador…) | `0.6.1–0.6.15` | ✅ Lançado — ver [CHANGELOG.md](CHANGELOG.md) |
-| Ponte iOS / iPadOS | `0.8.0-alpha` | ✅ Lançado (ios-device, 26 ferramentas, WebDriverAgent + pymobiledevice3, iPad verificado) |
+| Ponte iOS / iPadOS | `0.8.0-alpha` | ✅ Lançado (ios-device, 30 ferramentas, WebDriverAgent + pymobiledevice3, iPad verificado) |
 | Daemon WDA do iOS (autostart no boot + keep-alive) | `0.8.2-alpha` | ✅ Lançado (go-ios runwda + tunneld launchd; modos de assinatura gratuito/pago) |
 | Coordenação entre dispositivos | `0.10.0` | 🔭 Futuro |
 | Versão estável pública | `1.0.0` | 🔭 Futuro (após feedback da comunidade sobre a alpha) |

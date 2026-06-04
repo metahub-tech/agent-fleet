@@ -42,13 +42,13 @@ Es infraestructura para **pruebas de software impulsadas por agentes y verificac
 
 | Componente | Versión | Estado |
 |---|---|---|
-| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 40 herramientas, streamable-http) |
-| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 41 herramientas, flujo de permisos GUI) |
-| Puente Android | `0.7.0-alpha` | ✅ Publicado (android-device, **25 herramientas**, multidispositivo + USB + inalámbrico + ADB híbrido) |
+| Puente Windows 10/11 | `0.2.0` | ✅ Publicado (win-device, 74 herramientas, streamable-http) |
+| Puente macOS 12+ | `0.3.0` | ✅ Publicado (mac-device, launchd, 73 herramientas, flujo de permisos GUI) |
+| Puente Android | `0.7.0-alpha` | ✅ Publicado (android-device, **31 herramientas**, multidispositivo + USB + inalámbrico + ADB híbrido) |
 | Asistente CLI de agent-fleet | `0.5.0-alpha` | ✅ Publicado (`uvx agent-fleet setup` instalación en un paso; configs para 6 frameworks) |
 | Renombrado de rol → `<os>-device` + guía de permisos macOS | `0.6.0-alpha` | ✅ Publicado |
 | Parches v0.6.x (introspección de UI, smoke tests, correcciones, refuerzo del instalador…) | `0.6.1–0.6.15` | ✅ Publicado — ver [CHANGELOG.md](CHANGELOG.md) |
-| Puente iOS / iPadOS | `0.8.0-alpha` | ✅ Publicado (ios-device, 26 herramientas, WebDriverAgent + pymobiledevice3, iPad verificado) |
+| Puente iOS / iPadOS | `0.8.0-alpha` | ✅ Publicado (ios-device, 30 herramientas, WebDriverAgent + pymobiledevice3, iPad verificado) |
 | Demonio WDA de iOS (autoarranque + keep-alive) | `0.8.2-alpha` | ✅ Publicado (go-ios runwda + tunneld launchd; modos de firma gratuito/de pago) |
 | Coordinación entre dispositivos | `0.10.0` | 🔭 Futuro |
 | Versión estable pública | `1.0.0` | 🔭 Futuro (tras la retroalimentación de la comunidad sobre la alpha) |

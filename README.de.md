@@ -42,13 +42,13 @@ Das ist Infrastruktur für **agentengetriebenes Software-Testing und plattformü
 
 | Komponente | Version | Status |
 |---|---|---|
-| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 40 Tools, streamable-http) |
-| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 41 Tools, GUI-Berechtigungsflow) |
-| Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **25 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
+| Windows-10/11-Brücke | `0.2.0` | ✅ Veröffentlicht (win-device, 74 Tools, streamable-http) |
+| macOS-12+-Brücke | `0.3.0` | ✅ Veröffentlicht (mac-device, launchd, 73 Tools, GUI-Berechtigungsflow) |
+| Android-Brücke | `0.7.0-alpha` | ✅ Veröffentlicht (android-device, **31 Tools**, Multi-Device + USB + drahtlos + Hybrid-ADB) |
 | agent-fleet-CLI-Assistent | `0.5.0-alpha` | ✅ Veröffentlicht (`uvx agent-fleet setup` One-Shot-Installation; Configs für 6 Frameworks) |
 | Rollen-Umbenennung → `<os>-device` + macOS-Berechtigungs-Guide | `0.6.0-alpha` | ✅ Veröffentlicht |
 | v0.6.x-Patches (UI-Introspektion, Smoke-Tests, Bugfixes, Installer-Härtung…) | `0.6.1–0.6.15` | ✅ Veröffentlicht — siehe [CHANGELOG.md](CHANGELOG.md) |
-| iOS-/iPadOS-Brücke | `0.8.0-alpha` | ✅ Veröffentlicht (ios-device, 26 Tools, WebDriverAgent + pymobiledevice3, iPad verifiziert) |
+| iOS-/iPadOS-Brücke | `0.8.0-alpha` | ✅ Veröffentlicht (ios-device, 30 Tools, WebDriverAgent + pymobiledevice3, iPad verifiziert) |
 | iOS-WDA-Daemon (Boot-Autostart + Keep-Alive) | `0.8.2-alpha` | ✅ Veröffentlicht (go-ios runwda + tunneld launchd; kostenlose/kostenpflichtige Signiermodi) |
 | Geräteübergreifende Koordination | `0.10.0` | 🔭 Zukünftig |
 | Öffentliches Stable-Release | `1.0.0` | 🔭 Zukünftig (nach Community-Feedback zur Alpha) |
