@@ -13,7 +13,7 @@ module = "win_device_mcp"
 # browser (agent_browser/human_browser) needs Google Chrome; agent_browser also needs node/npx.
 # Overridable per-host via <repo_root>/.fleet/config.toml [capabilities].enabled.
 [capabilities]
-enabled = ["core", "agent_browser", "human_browser"]
+enabled = ["core", "agent_browser", "human_browser", "vision"]
 
 [install]
 setup_script = "scripts/setup-windows.ps1"

@@ -57,6 +57,7 @@ from capabilities import (
     CapabilityRegistry,
     CoreCapability,
     HumanBrowserCapability,
+    VisionCapability,
     current_host_os,
     resolve_enabled_capabilities,
 )
@@ -1024,8 +1025,9 @@ def find_elements(
     LIVE elements by accessibility attributes (resilient to layout changes) and
     returns ranked candidates with center coords. Prefer this + tap_element over
     screenshot+tap for native UI. NOTE: a browser's web page content is not
-    exposed via AX — for web, fall back to take_screenshot + tap. Some apps
-    (Electron a11y-off, Java Swing, Flutter) expose no usable AX tree.
+    exposed via AX — for web / no-AX-tree apps (Electron a11y-off, Java Swing,
+    Flutter), fall back to vision_locate / vision_tap (像素级定位, if the vision
+    capability is enabled) rather than guessing coords off a screenshot.
     """
     return _mac_find_elements(query, app, include_disabled, max_results, max_depth)
 
@@ -1092,10 +1094,32 @@ except Exception as e:  # never let capability config crash server startup
           f"{type(e).__name__}: {e}", file=sys.stderr)
     _enabled_caps = ["core"]
 
+# OS 原语 helpers 注入 vision(capability 不 import server, 破循环依赖)。
+def _capture_logical_png() -> bytes:
+    """全屏抓图 → logical 像素 PNG bytes(同 take_screenshot, 供 vision 注入)。"""
+    img = ImageGrab.grab()
+    if _frame_is_black(img) or _screensaver_running():
+        _wake_display()
+        time.sleep(1.5)
+        img = ImageGrab.grab()
+    target = pyautogui.size()
+    if img.size != target:
+        from PIL import Image as PILImage
+        img = img.resize(target, PILImage.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _os_tap(x: int, y: int) -> None:
+    pyautogui.click(x=x, y=y)
+
+
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability())
+_cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
 _cap_registry.setup(mcp, _enabled_caps)
 
 
