@@ -42,13 +42,13 @@
 
 | 组件 | 版本 | 状态 |
 |---|---|---|
-| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，40 工具，streamable-http）|
-| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，41 工具，GUI 权限流程）|
-| Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**25 工具**，多设备 + USB + 无线 + 混合 ADB）|
+| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，74 工具，streamable-http）|
+| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，73 工具，GUI 权限流程）|
+| Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**31 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|
 | 角色改名 → `<os>-device` + macOS 权限引导 | `0.6.0-alpha` | ✅ 已发布 |
 | v0.6.x 补丁（UI 自省、smoke 测试、bugfix、安装器加固…）| `0.6.1–0.6.15` | ✅ 已发布 —— 见 [CHANGELOG.md](CHANGELOG.md) |
-| iOS / iPadOS 桥 | `0.8.0-alpha` | ✅ 已发布（ios-device，26 工具，WebDriverAgent + pymobiledevice3，iPad 已验证）|
+| iOS / iPadOS 桥 | `0.8.0-alpha` | ✅ 已发布（ios-device，30 工具，WebDriverAgent + pymobiledevice3，iPad 已验证）|
 | iOS WDA daemon（开机自启 + 保活） | `0.8.2-alpha` | ✅ 已发布（go-ios runwda + tunneld launchd；免费/付费签名双模式）|
 | 跨设备协同 | `0.10.0` | 🔭 未来 |
 | 公开稳定版 | `1.0.0` | 🔭 未来（待 alpha 社区反馈后）|

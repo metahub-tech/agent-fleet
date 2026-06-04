@@ -42,13 +42,13 @@
 
 | 구성요소 | 버전 | 상태 |
 |---|---|---|
-| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 40개 도구, streamable-http) |
-| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 41개 도구, GUI 권한 플로우) |
-| Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **25개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
+| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 74개 도구, streamable-http) |
+| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 73개 도구, GUI 권한 플로우) |
+| Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **31개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
 | 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
 | v0.6.x 패치 (UI 인트로스펙션, smoke 테스트, 버그픽스, 인스톨러 강화…) | `0.6.1–0.6.15` | ✅ 릴리스됨 — [CHANGELOG.md](CHANGELOG.md) 참조 |
-| iOS / iPadOS 브리지 | `0.8.0-alpha` | ✅ 릴리스됨 (ios-device, 26개 도구, WebDriverAgent + pymobiledevice3, iPad 검증됨) |
+| iOS / iPadOS 브리지 | `0.8.0-alpha` | ✅ 릴리스됨 (ios-device, 30개 도구, WebDriverAgent + pymobiledevice3, iPad 검증됨) |
 | iOS WDA 데몬 (부팅 자동 시작 + 킵얼라이브) | `0.8.2-alpha` | ✅ 릴리스됨 (go-ios runwda + tunneld launchd; 무료/유료 서명 모드) |
 | 디바이스 간 협업 | `0.10.0` | 🔭 향후 |
 | 공개 안정 릴리스 | `1.0.0` | 🔭 향후 (alpha 커뮤니티 피드백 이후) |

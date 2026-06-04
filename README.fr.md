@@ -42,13 +42,13 @@ C'est une infrastructure pour les **tests logiciels pilotés par agent et la vé
 
 | Composant | Version | État |
 |---|---|---|
-| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 40 outils, streamable-http) |
-| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 41 outils, flux de permissions GUI) |
-| Pont Android | `0.7.0-alpha` | ✅ Publié (android-device, **25 outils**, multi-appareils + USB + sans fil + ADB hybride) |
+| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 74 outils, streamable-http) |
+| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 73 outils, flux de permissions GUI) |
+| Pont Android | `0.7.0-alpha` | ✅ Publié (android-device, **31 outils**, multi-appareils + USB + sans fil + ADB hybride) |
 | Assistant CLI agent-fleet | `0.5.0-alpha` | ✅ Publié (`uvx agent-fleet setup` installation en une fois ; configs pour 6 frameworks) |
 | Renommage de rôle → `<os>-device` + guide de permissions macOS | `0.6.0-alpha` | ✅ Publié |
 | Correctifs v0.6.x (introspection UI, smoke tests, corrections, durcissement de l'installeur…) | `0.6.1–0.6.15` | ✅ Publié — voir [CHANGELOG.md](CHANGELOG.md) |
-| Pont iOS / iPadOS | `0.8.0-alpha` | ✅ Publié (ios-device, 26 outils, WebDriverAgent + pymobiledevice3, iPad vérifié) |
+| Pont iOS / iPadOS | `0.8.0-alpha` | ✅ Publié (ios-device, 30 outils, WebDriverAgent + pymobiledevice3, iPad vérifié) |
 | Démon WDA iOS (survie au démarrage + keep-alive) | `0.8.2-alpha` | ✅ Publié (go-ios runwda + tunneld launchd ; modes de signature gratuit/payant) |
 | Coordination entre appareils | `0.10.0` | 🔭 À venir |
 | Version stable publique | `1.0.0` | 🔭 À venir (après les retours de la communauté sur l'alpha) |
