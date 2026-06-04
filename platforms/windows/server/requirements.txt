@@ -5,3 +5,5 @@ psutil>=5.9
 pillow>=10.0
 pyperclip>=1.8
 pywin32>=303; sys_platform == "win32"
+rapidocr-onnxruntime
+opencv-python-headless
