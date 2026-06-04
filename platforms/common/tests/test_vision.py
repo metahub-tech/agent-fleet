@@ -140,3 +140,50 @@ def test_vision_locate_image_requires_template():
     cap.register(m)
     r = m.tools["vision_locate_image"](None, None, None, 0.85)
     assert r["ok"] is False and "required" in r["error"]
+
+
+# ----- code-review fixes -----
+
+def test_vision_locate_has_ocr_ms():
+    cap = VisionCapability(capture_fn=_png_bytes_login, tap_fn=lambda x, y: None)
+    m = _FakeMCP()
+    cap.register(m)
+    r = m.tools["vision_locate"]("LOGIN")
+    assert r["ok"] and "ocr_ms" in r and isinstance(r["ocr_ms"], int)
+
+
+def test_vision_tap_multiple_exact_is_ambiguous(monkeypatch):
+    # A1: 多个 exact 命中(两个相同文字按钮)应判歧义、不点, 而非静默点第一个
+    from capabilities.vision import _ocr
+
+    def fake_ocr(_img):
+        return [
+            {"text": "确认", "box": [100, 20, 40, 16], "conf": 0.99},
+            {"text": "确认", "box": [100, 200, 40, 16], "conf": 0.99},
+        ]
+    monkeypatch.setattr(_ocr, "run_ocr", fake_ocr)
+    taps = []
+    cap = VisionCapability(capture_fn=_png_bytes_login, tap_fn=lambda x, y: taps.append((x, y)))
+    m = _FakeMCP()
+    cap.register(m)
+    r = m.tools["vision_tap"]("确认")
+    assert r["ok"] is False and r["error"] == "ambiguous" and not taps
+    assert len(r["candidates"]) == 2
+
+
+def test_vision_tap_single_exact_among_others_taps(monkeypatch):
+    # 恰好 1 个 exact(混在若干 contains 里)→ 自动点该 exact
+    from capabilities.vision import _ocr
+
+    def fake_ocr(_img):
+        return [
+            {"text": "提交订单", "box": [100, 20, 80, 16], "conf": 0.95},   # contains
+            {"text": "提交", "box": [300, 200, 40, 16], "conf": 0.99},       # exact
+        ]
+    monkeypatch.setattr(_ocr, "run_ocr", fake_ocr)
+    taps = []
+    cap = VisionCapability(capture_fn=_png_bytes_login, tap_fn=lambda x, y: taps.append((x, y)))
+    m = _FakeMCP()
+    cap.register(m)
+    r = m.tools["vision_tap"]("提交")
+    assert r["ok"] and r["tapped"]["text"] == "提交" and len(taps) == 1

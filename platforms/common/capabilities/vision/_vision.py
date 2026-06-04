@@ -1,5 +1,6 @@
 from __future__ import annotations
 import base64
+import time
 from typing import Callable, Optional
 
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
@@ -41,11 +42,13 @@ class VisionCapability(CapabilityModule):
         from . import _locate, _ocr
 
         def _locate_impl(query, region, max_results):
+            t0 = time.perf_counter()
             img = _locate.decode_png(self._capture_fn())
             cropped, offset = _locate.crop_region(img, region)
             items = _ocr.run_ocr(cropped)
             cands = _locate.rank_candidates(items, query, offset=offset, max_results=max_results)
-            return items, cands
+            ocr_ms = int((time.perf_counter() - t0) * 1000)
+            return items, cands, ocr_ms
 
         @mcp.tool
         def vision_locate(query: str, region: Optional[tuple] = None,
@@ -53,15 +56,16 @@ class VisionCapability(CapabilityModule):
             """按可见文字在屏上定位元素(无障碍树失效时用,如网页/canvas/Electron)。返回排序候选
             (含与 tap 同坐标空间的 center)。region=(left,top,right,bottom) 限定区域、None=全屏。"""
             try:
-                items, cands = _locate_impl(query, region, max_results)
+                items, cands, ocr_ms = _locate_impl(query, region, max_results)
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if not cands:
                 sample = " ".join(it["text"] for it in items[:12])
                 return {"ok": True, "query": query, "count": 0, "candidates": [],
-                        "ocr_sample": sample,
+                        "ocr_sample": sample, "ocr_ms": ocr_ms,
                         "hint": "换个可见文字 / 缩小 region / 该处可能低对比,改用 take_screenshot 让自己的视觉读"}
-            return {"ok": True, "query": query, "count": len(cands), "candidates": cands}
+            return {"ok": True, "query": query, "count": len(cands),
+                    "candidates": cands, "ocr_ms": ocr_ms}
 
         @mcp.tool
         def vision_tap(query: str, region: Optional[tuple] = None,
@@ -69,7 +73,7 @@ class VisionCapability(CapabilityModule):
             """按可见文字定位并点击(无障碍树失效时用)。nth: 0-based,0=最优候选;省略=自动
             (唯一/exact 即点,多个歧义则不点、返回候选)。"""
             try:
-                _items, cands = _locate_impl(query, region, 20)
+                _items, cands, _ocr_ms = _locate_impl(query, region, 20)
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if not cands:
@@ -77,10 +81,15 @@ class VisionCapability(CapabilityModule):
                 return {"ok": False, "error": "not found", "ocr_sample": sample,
                         "hint": "换更具体可见文字 / 缩小 region"}
             if nth is None:
-                if len(cands) > 1 and cands[0]["match_field"] != "exact":
+                # 自动消歧: 恰好 1 个 exact → 点它; 否则唯一候选 → 点它; 其余(含多个 exact)→ 歧义不点
+                exact = [c for c in cands if c["match_field"] == "exact"]
+                if len(exact) == 1:
+                    pick = exact[0]
+                elif len(cands) == 1:
+                    pick = cands[0]
+                else:
                     return {"ok": False, "error": "ambiguous", "candidates": cands,
                             "hint": "传 nth(0-based) 或更具体的 query"}
-                pick = cands[0]
             else:
                 if nth < 0 or nth >= len(cands):
                     return {"ok": False, "error": f"nth out of range (0..{len(cands)-1})",

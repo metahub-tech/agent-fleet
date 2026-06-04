@@ -67,10 +67,10 @@ def sub_line_center(box, full_text: str, query: str):
     cy = y + h // 2
     lt, lq = full_text.lower(), query.lower()
     i = lt.find(lq)
-    n = len(full_text)
+    n = len(lt)                               # 全在小写坐标系下算比例
     if i < 0 or n == 0:
         return [x + w // 2, cy]
-    frac = (i + len(query) / 2.0) / n        # query 跨度中点的字符比例
+    frac = (i + len(lq) / 2.0) / n            # query 跨度中点的字符比例
     return [int(x + w * frac), cy]
 
 
