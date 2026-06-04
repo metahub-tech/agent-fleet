@@ -45,3 +45,34 @@ def test_sub_line_center_not_found_fallback():
     box = [100, 20, 200, 16]
     cx, cy = _locate.sub_line_center(box, "abc", "zzz")  # 不在文本里 → 整行中心
     assert cx == 200 and cy == 28
+
+
+def _items():
+    # 归一 OCR 项 {text, box:[x,y,w,h], conf}
+    return [
+        {"text": "登录", "box": [1180, 20, 40, 16], "conf": 0.99},      # exact
+        {"text": "登录注册", "box": [1180, 50, 80, 16], "conf": 0.95},  # contains
+        {"text": "用户登录页", "box": [300, 200, 100, 16], "conf": 0.9}, # contains
+    ]
+
+
+def test_rank_exact_first_and_center():
+    c = _locate.rank_candidates(_items(), "登录", offset=(0, 0), max_results=20)
+    assert c[0]["text"] == "登录" and c[0]["match_field"] == "exact"
+    assert c[0]["score"] == 1.0
+    assert c[0]["center"] == [1200, 28]   # 1180+40/2, 20+16/2
+
+
+def test_rank_offset_added():
+    c = _locate.rank_candidates(_items()[:1], "登录", offset=(50, 10), max_results=20)
+    assert c[0]["center"] == [1250, 38]
+
+
+def test_rank_no_match_empty():
+    assert _locate.rank_candidates(_items(), "zzz", offset=(0, 0), max_results=20) == []
+
+
+def test_rank_max_results_truncates():
+    items = [{"text": f"go{i}", "box": [i, 0, 10, 10], "conf": 0.9} for i in range(30)]
+    c = _locate.rank_candidates(items, "go", offset=(0, 0), max_results=5)
+    assert len(c) == 5

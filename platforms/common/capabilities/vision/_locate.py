@@ -23,6 +23,43 @@ def crop_region(img: np.ndarray, region):
     return img[t:b, l:r], (l, t)
 
 
+_MATCH_SCORE = {"exact": 1.0, "prefix": 0.8, "contains": 0.6}
+
+
+def _match_field(text: str, query: str) -> str | None:
+    lt, lq = text.lower(), query.lower()
+    if lt == lq:
+        return "exact"
+    if lt.startswith(lq):
+        return "prefix"
+    if lq in lt:
+        return "contains"
+    return None
+
+
+def rank_candidates(ocr_items, query: str, offset=(0, 0), max_results: int = 20):
+    """筛 query 子串命中项 → 子行定位中心(+offset) → 按 (exact>prefix>contains, 阅读序) 排序 → 截断."""
+    ox, oy = offset
+    out = []
+    for it in ocr_items:
+        mf = _match_field(it["text"], query)
+        if mf is None:
+            continue
+        cx, cy = sub_line_center(it["box"], it["text"], query)
+        x, y, w, h = it["box"]
+        out.append({
+            "text": it["text"],
+            "center": [cx + ox, cy + oy],
+            "box": [x + ox, y + oy, w, h],
+            "score": _MATCH_SCORE[mf],
+            "match_field": mf,
+            "on_screen": True,  # 只 OCR 可见截图, 命中即在屏
+        })
+    rank = {"exact": 0, "prefix": 1, "contains": 2}
+    out.sort(key=lambda c: (rank[c["match_field"]], c["center"][1] // 8, c["center"][0]))
+    return out[:max_results]
+
+
 def sub_line_center(box, full_text: str, query: str):
     """OCR 把整行合并 → 按 query 在 full_text 里的字符比例切子框, 返回子框中心 [x,y].
     找不到 query → 整行中心 (降级)."""
