@@ -76,3 +76,35 @@ def test_rank_max_results_truncates():
     items = [{"text": f"go{i}", "box": [i, 0, 10, 10], "conf": 0.9} for i in range(30)]
     c = _locate.rank_candidates(items, "go", offset=(0, 0), max_results=5)
     assert len(c) == 5
+
+
+def _textured_img():
+    # 有纹理的图标块(TM_CCOEFF_NORMED 对均匀块退化, 故加文字纹理); 块中心=(120,75)
+    img = np.zeros((200, 300, 3), np.uint8)
+    cv2.rectangle(img, (100, 60), (140, 90), (40, 40, 40), -1)
+    cv2.putText(img, "OK", (104, 84), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 0), 2)
+    return img
+
+
+def test_match_template_same_scale_hit():
+    img = _textured_img()
+    tmpl = img[60:90, 100:140].copy()
+    r = _locate.match_template(img, tmpl, threshold=0.85, offset=(0, 0))
+    assert r["found"] is True
+    assert abs(r["center"][0] - 120) <= 2 and abs(r["center"][1] - 75) <= 2
+    assert r["score"] > 0.95
+
+
+def test_match_template_offset():
+    img = _textured_img()
+    tmpl = img[60:90, 100:140].copy()
+    r = _locate.match_template(img, tmpl, threshold=0.85, offset=(10, 5))
+    assert abs(r["center"][0] - 130) <= 2 and abs(r["center"][1] - 80) <= 2
+
+
+def test_match_template_below_threshold():
+    # 有纹理模板(有方差→matchTemplate 良定义), 但目标图里没有 → 低分
+    img = np.zeros((200, 300, 3), np.uint8)
+    tmpl = _textured_img()[60:90, 100:140].copy()  # "OK" 图标, 不在全黑图里
+    r = _locate.match_template(img, tmpl, threshold=0.85, offset=(0, 0))
+    assert r["found"] is False and "best_score" in r

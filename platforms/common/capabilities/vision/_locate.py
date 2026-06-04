@@ -72,3 +72,18 @@ def sub_line_center(box, full_text: str, query: str):
         return [x + w // 2, cy]
     frac = (i + len(query) / 2.0) / n        # query 跨度中点的字符比例
     return [int(x + w * frac), cy]
+
+
+def match_template(img: np.ndarray, template: np.ndarray, threshold: float, offset=(0, 0)):
+    """OpenCV 单尺度模板匹配. 命中→{found:True,center,score}; 否则{found:False,best_score}."""
+    ox, oy = offset
+    res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+    _, maxv, _, maxloc = cv2.minMaxLoc(res)
+    if maxv < threshold:
+        return {"found": False, "best_score": round(float(maxv), 3)}
+    th, tw = template.shape[:2]
+    return {
+        "found": True,
+        "center": [int(maxloc[0] + tw / 2 + ox), int(maxloc[1] + th / 2 + oy)],
+        "score": round(float(maxv), 3),
+    }
