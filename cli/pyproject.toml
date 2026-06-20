@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-fleet"
-version = "0.8.3a1"
+version = "0.8.4a1"
 description = "One-command CLI to install agent-fleet MCP servers and generate agent-client config."
 readme = "README.md"
 requires-python = ">=3.10"

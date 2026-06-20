@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.3--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.3-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > 실제 Windows / macOS / Android / iOS 하드웨어를 MCP로 LLM 에이전트에 연결해 사람처럼 조작하게 합니다. 설치는 명령어 한 줄:
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 무엇인가요
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-또는 이미 uv가 있다면 (v0.8.3-alpha 단계에서는 PyPI가 아니라 git에서 가져옵니다):
+또는 이미 uv가 있다면 (v0.8.4-alpha 단계에서는 PyPI가 아니라 git에서 가져옵니다):
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 사용자는 먼저 `brew install coreutils`가 필요합니다 (uv 래퍼가 `realpath`를 쓰는데 macOS 12에는 기본 포함되지 않음; [#2](https://github.com/metahub-tech/agent-fleet/issues/2) 참조).
