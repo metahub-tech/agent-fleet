@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4-alpha] - 2026-06-20
+
 ### 新增
+
+- **pc-device：vision 像素级元素定位能力模块**（win/mac，可选启用）。补 core `find_elements`/`tap_element` 的盲区——当 OS 无障碍树为空/不可用（网页、canvas、Electron 关 a11y、Flutter、游戏）时，元素只能"截图猜坐标"，vision 用像素把它定准。
+  - **栈**：RapidOCR（PP-OCRv4 ONNX）+ OpenCV 模板匹配，纯 CPU、离线，无需 GPU/联网/外部模型服务；按需在 `platform.toml` 的 `[capabilities].enabled` 加 `vision` 开启。
+  - **MCP 工具**（pc-device 各 +3）：`vision_locate(query, region?, max_results?)` 按文字定位、返回排序候选 `{text,center,box,score}`；`vision_tap(query, region?, nth?)` 定位后调 core tap 点击；`vision_locate_image(template, region?, threshold?)` 模板匹配定位无字图标。win 71 → 74、mac 70 → 73。
+  - **职责切分（反直觉）**：OCR 只管"定位"（同图实测中位 1px、0 token），"理解"仍归 agent 自身视觉——刻意不做 `vision_read`；对照下 VLM 报坐标中位 120px、约 1280 token/次。
+  - **关键实现**：复用 core 截图（同坐标空间）+ region 内存裁剪压延迟；RapidOCR 引擎进程内单例；**子行定位**（按 query 字符偏移比例切密集页合并行框，把 ~30px 误差收到几 px）；单尺度模板匹配；低对比读不出=已知局限、永不崩 server。
+  - 28 单测全绿（纯逻辑 fake OCR + cv2 合成图，含并发锁压测）；macmini + test-win11 真机 e2e 通过（human_browser 真网页 → `vision_locate` → `vision_tap` 完成跳转）。
 
 - **iOS：agent→设备文件上传**(对齐 Android 同款形态,后端换 iOS 栈)。解决"agent 自带的字节传不到 iOS 设备"(旧 `push_file_to_app` 只读 mac host 磁盘,且 Photos 库写入 iOS 16+ 无 shell/afc 通道)。
   - **HTTP `POST /upload`(首选)**:挂在 ios-device server(8769)上的 Starlette 路由,agent 直接 POST 文件字节 → mac 透传给 WDA `/wda/photos/import`(target=photos)或 pymobiledevice3 afc 推 app 沙箱(target=app)→ 返回 JSON。**任意大小**,真机已验 iPad iOS 26.5 4.4MB qinπ.png ~15s 进相册。
@@ -20,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **MCP 工具**：`upload_media`（base64 小文件同步、图片自动进相册）、`stage_upload`+`deliver_staged`+`job_status`（分片暂存 + 后台 push/install + 轮询，MCP-only 环境用）、`get_upload_endpoint`（发现 HTTP 端点）。Android 工具数 25 → 30。
   - **媒体可见性**：`make_visible=true` 对图片 `am broadcast MEDIA_SCANNER_SCAN_FILE`，Android10+ 实测 ~数秒异步索引后进相册/选图器（小红书换背景等）；可见性查询用规范 `_data` 路径（`/storage/emulated/0/...`）并以单条 shell 命令传递，规避 adb-shell 剥引号导致的假阴性。
   - **安全/健壮**：路径穿越 + 引号/分号/`$` 注入防护、SSRF（http/https + 内网/元数据 IP 拒绝 + DNS 重绑定对端复验）、流式落盘防 OOM、后台子进程超时清理、`reap_orphans` 跨平台（Windows 无 SIGKILL 降级）+ 启动清场。真机（华为 VOG-AL00 / Android10）验证：4.4MB 图片传至手机并进相册。
+
+### 文档
+
+- **9 语 README 同步**：8 个翻译版（zh-CN / ja / ko / es / fr / de / pt-BR / ru）连同英文版统一各平台工具数（win 74 / mac 73 / android 31 / ios 30，已含 vision）；本次发版把全部 README + 安装脚本（`install.sh` / `install.ps1`）的版本串与 `uvx` 安装命令从 `v0.8.3-alpha` 同步到 `v0.8.4-alpha`。
 
 ## [0.8.2-alpha] - 2026-05-21
 

@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.3--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.3-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · **Русский**
 
@@ -14,7 +14,7 @@
 > Подключите реальное оборудование Windows / macOS / Android / iOS к LLM-агенту через MCP, чтобы он управлял им как человек. Установка одной командой:
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## Что это
@@ -42,9 +42,9 @@
 
 | Компонент | Версия | Статус |
 |---|---|---|
-| Мост Windows 10/11 | `0.2.0` | ✅ Выпущен (win-device, 74 инструментов, streamable-http) |
-| Мост macOS 12+ | `0.3.0` | ✅ Выпущен (mac-device, launchd, 73 инструмент, процесс выдачи GUI-разрешений) |
-| Мост Android | `0.7.0-alpha` | ✅ Выпущен (android-device, **31 инструментов**, мультиустройства + USB + беспроводной + гибридный ADB) |
+| Мост Windows 10/11 | `0.2.0` | ✅ Выпущен (win-device, 74 инструмента, streamable-http) |
+| Мост macOS 12+ | `0.3.0` | ✅ Выпущен (mac-device, launchd, 73 инструмента, процесс выдачи GUI-разрешений) |
+| Мост Android | `0.7.0-alpha` | ✅ Выпущен (android-device, **31 инструмент**, мультиустройства + USB + беспроводной + гибридный ADB) |
 | CLI-мастер agent-fleet | `0.5.0-alpha` | ✅ Выпущен (`uvx agent-fleet setup` установка в один шаг; конфиги для 6 фреймворков) |
 | Переименование роли → `<os>-device` + гайд по разрешениям macOS | `0.6.0-alpha` | ✅ Выпущен |
 | Патчи v0.6.x (интроспекция UI, smoke-тесты, исправления, усиление защиты установщика…) | `0.6.1–0.6.15` | ✅ Выпущены — см. [CHANGELOG.md](CHANGELOG.md) |
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-Или, если у вас уже есть uv (на этапе v0.8.3-alpha он берётся из git, ещё не в PyPI):
+Или, если у вас уже есть uv (на этапе v0.8.4-alpha он берётся из git, ещё не в PyPI):
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.3-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > Пользователям macOS 12 нужно сначала выполнить `brew install coreutils` (обёртка uv использует `realpath`, которого по умолчанию нет в macOS 12; см. [#2](https://github.com/metahub-tech/agent-fleet/issues/2)).
