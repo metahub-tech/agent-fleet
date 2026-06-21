@@ -97,6 +97,8 @@ agent-fleet CLI
 ## docs/
 
 **共享设计/上手文档**：
+- `docs/2026-06-21-device-op-server-launch.md`
+- `docs/2026-06-21-requirements-from-agenthub-device-op.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
 - `docs/install-pattern.md`

@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import hmac
 import os
+import sys
 
 from starlette.middleware import Middleware
 
@@ -163,11 +164,22 @@ def serve(mcp, prog: str, default_port: int, argv: "list[str] | None" = None) ->
     """Parse args, wire the health route + optional bearer gate, and run the
     server over streamable-http. Shared entry used by each platform's
     ``main()``."""
+    # Line-buffer stdio first so a parent process (launcher / Task Scheduler /
+    # AgentHub desktop) reading our redirected stdout/stderr sees logs in real
+    # time, instead of waiting for an ~8 KB pipe buffer to fill or the process to
+    # exit. Non-tty pipes default to block buffering, which would otherwise hide
+    # startup/health logs the parent uses for readiness checks.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
     args = parse_server_args(prog, default_port, argv)
     register_health_route(mcp)
-    mcp.run(
-        transport="http",
-        host=args.host,
-        port=args.port,
-        middleware=auth_middleware(args.token),
-    )
+    # Pass `middleware` only when a gate is actually configured. FastMCP forwards
+    # it to http_app(middleware=...), which exists from fastmcp 2.3.2 on; omitting
+    # the kwarg entirely keeps the no-token (transitional) path byte-for-byte as
+    # before and avoids handing an empty list to the transport layer.
+    run_kwargs = {"transport": "http", "host": args.host, "port": args.port}
+    gate = auth_middleware(args.token)
+    if gate:
+        run_kwargs["middleware"] = gate
+    mcp.run(**run_kwargs)

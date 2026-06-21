@@ -163,3 +163,79 @@ def test_health_path_exempt():
 def test_non_http_scope_passes_through():
     app, sink = _drive("secret", {"type": "lifespan"})
     assert app.called
+
+
+# --------------------- FastMCP wiring (integration) ---------------------
+# The unit tests above drive BearerAuthMiddleware in isolation; they can't see
+# whether serve()'s real build path actually applies the gate. These exercise
+# that path — register_health_route(mcp) + mcp.http_app(middleware=...) — over an
+# in-process httpx ASGI transport, so a silently-dropped `middleware` kwarg or a
+# broken custom_route would be caught. Skipped when fastmcp/httpx aren't present
+# (CI's python-tests job installs neither and doesn't run common/ tests; this is
+# meant to be run in a platform server venv).
+try:  # noqa: SIM105
+    import fastmcp  # noqa: F401
+    import httpx  # noqa: F401
+
+    _HAS_FASTMCP = True
+except ImportError:  # pragma: no cover
+    _HAS_FASTMCP = False
+
+requires_fastmcp = pytest.mark.skipif(
+    not _HAS_FASTMCP, reason="fastmcp/httpx not installed (run in a server venv)"
+)
+
+
+def _build_app(token):
+    from fastmcp import FastMCP
+
+    from _server_runtime import register_health_route
+
+    mcp = FastMCP("test-server-runtime")
+    register_health_route(mcp)
+    # Mirror serve()'s conditional: only hand `middleware` to FastMCP when a gate
+    # exists, exactly as the production path does.
+    mws = auth_middleware(token)
+    return mcp.http_app(middleware=mws) if mws else mcp.http_app()
+
+
+async def _get(app, path, headers=None):
+    import httpx
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as c:
+        return await c.get(path, headers=headers or {})
+
+
+@requires_fastmcp
+def test_health_route_reachable_unauthenticated():
+    # /health is registered via custom_route and exempt from the gate even when a
+    # token is configured — the parent's liveness probe must not need the secret.
+    r = asyncio.run(_get(_build_app("secret"), HEALTH_PATH))
+    assert r.status_code == 200
+    assert r.json().get("status") == "ok"
+
+
+@requires_fastmcp
+def test_fastmcp_app_gates_without_token():
+    # A non-exempt path with no Authorization header → middleware short-circuits
+    # 401 before routing. Proves the gate is actually wired into the FastMCP app.
+    r = asyncio.run(_get(_build_app("secret"), "/does-not-exist"))
+    assert r.status_code == 401
+
+
+@requires_fastmcp
+def test_fastmcp_app_passes_with_correct_token():
+    # Correct token → gate passes; Starlette then 404s the unknown path. The point
+    # is only that it is NOT 401 (the request got past the gate).
+    r = asyncio.run(
+        _get(_build_app("secret"), "/does-not-exist", headers={"authorization": "Bearer secret"})
+    )
+    assert r.status_code != 401
+
+
+@requires_fastmcp
+def test_fastmcp_app_no_token_means_no_gate():
+    # No token configured → serve() passes no middleware → nothing is gated.
+    r = asyncio.run(_get(_build_app(""), "/does-not-exist"))
+    assert r.status_code != 401
