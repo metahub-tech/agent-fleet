@@ -50,6 +50,7 @@ from fastmcp.utilities.types import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+import _server_runtime
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
 from capabilities import (
@@ -1125,25 +1126,34 @@ _cap_registry.setup(mcp, _enabled_caps)
 
 # ============================================================
 
+def main() -> None:
+    """Console entry point.
+
+    stdio is line-buffered by _server_runtime.serve() (so log redirection,
+    `python mac_device_mcp.py > log 2>&1` from launchctl / manual launchers / a
+    parent process such as AgentHub desktop, flushes in real time instead of
+    waiting for server exit) — mac main() must NOT reconfigure again.
+
+    Bind/port/auth come from --host / --port / --token (env fallbacks
+    FLEET_HOST / FLEET_PORT / FLEET_AUTH_TOKEN), resolved in _server_runtime:
+
+      - default host stays 0.0.0.0 (the macOS Application Firewall, off by default
+        on most setups, + Tailscale ACL gate access); pass --host 127.0.0.1 for
+        loopback-only.
+      - default port 8767; a parent can pass a free port to dodge a busy one.
+      - --token enables a shared-secret bearer gate on every request except
+        GET /health (the liveness probe a parent uses before routing traffic).
+
+    Transport: streamable-http (FastMCP's "http" alias). Replaced the legacy SSE
+    transport in v0.3.0 — long tool calls (>60s, take_screenshot under load,
+    run_shell installs) timed out the SSE keep-alive at intermediate hops and
+    every subsequent call hit -32602 with a stale session_id. streamable-http is
+    per-request and auto-reconnects.
+
+    Endpoint: http://<host>:8767/mcp  (was /sse)
+    """
+    _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767)
+
+
 if __name__ == "__main__":
-    # Line-buffer stdio so log redirection (`python server.py > log 2>&1` from
-    # launchctl / manual launchers) flushes in real time instead of waiting
-    # for server exit.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(line_buffering=True)
-        sys.stderr.reconfigure(line_buffering=True)
-    # Bind 0.0.0.0; the macOS Application Firewall (off by default on most
-    # setups) and Tailscale ACL gate access.
-    #
-    # Transport: streamable-http (FastMCP's "http" alias). Replaces the
-    # legacy SSE transport in v0.3.0 because long tool calls (>60s,
-    # take_screenshot under load, run_shell installs) caused the SSE keep-
-    # alive to time out at intermediate hops; the client kept the old
-    # session_id, the server no longer knew it, and every subsequent call
-    # returned -32602 until the user did /exit + reopen Claude Code.
-    # streamable-http uses per-request streams instead of a long-lived
-    # event channel, so a stale connection is just one bad request --
-    # auto-reconnect on the next call.
-    #
-    # Endpoint: http://<host>:8767/mcp  (was /sse)
-    mcp.run(transport="http", host="0.0.0.0", port=8767)
+    main()

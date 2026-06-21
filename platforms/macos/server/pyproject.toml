@@ -24,7 +24,8 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
-    "fastmcp>=2.0,!=3.3.1",
+    "fastmcp>=2.3.2,!=3.3.1",  # 2.3.2 first exposes http_app(middleware=...), which serve() relies on
+    "starlette>=0.37",  # bearer-auth ASGI middleware + /health route (also a fastmcp dep)
     "pyautogui>=0.9.54",
     "psutil>=5.9",
     "pillow>=10.0",

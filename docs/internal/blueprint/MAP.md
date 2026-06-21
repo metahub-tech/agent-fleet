@@ -98,6 +98,7 @@ agent-fleet CLI
 
 **共享设计/上手文档**：
 - `docs/2026-06-21-device-op-server-launch.md`
+- `docs/2026-06-21-mac-helper-promotion-from-agenthub.md`
 - `docs/2026-06-21-requirements-from-agenthub-device-op.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
