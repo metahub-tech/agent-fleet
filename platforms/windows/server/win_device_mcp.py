@@ -44,6 +44,7 @@ from pywinauto import Desktop
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+import _server_runtime
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
 from capabilities import (
@@ -958,20 +959,31 @@ _cap_registry.setup(mcp, _enabled_caps)
 
 # ============================================================
 
+def main() -> None:
+    """Console entry point.
+
+    Line-buffer stdio first so log redirection (`python win_device_mcp.py > log
+    2>&1` from launchers / Task Scheduler / a parent process such as AgentHub
+    desktop) flushes in real time instead of waiting for server exit.
+
+    Bind/port/auth come from --host / --port / --token (env fallbacks
+    FLEET_HOST / FLEET_PORT / FLEET_AUTH_TOKEN), resolved in _server_runtime:
+
+      - default host stays 0.0.0.0 (Windows Firewall scoped to the Tailscale IP
+        range gates access); pass --host 127.0.0.1 for loopback-only.
+      - default port 8766; a parent can pass a free port to dodge a busy one.
+      - --token enables a shared-secret bearer gate on every request except
+        GET /health (the liveness probe a parent uses before routing traffic).
+
+    Transport: streamable-http (FastMCP's "http" alias). Migrated from SSE in
+    v0.2.x; SSE long-lived event channels timed out at middleboxes during long
+    tool calls (>60s) and every subsequent call hit -32602 with a stale
+    session_id. streamable-http is per-request and auto-reconnects.
+
+    Endpoint: http://<host>:<port>/mcp  (was /sse)
+    """
+    _server_runtime.serve(mcp, prog="agent-fleet-win", default_port=8766)
+
+
 if __name__ == "__main__":
-    # Line-buffer stdio so log redirection (`python server.py > log 2>&1` from
-    # launchers / Task Scheduler) flushes in real time instead of waiting for
-    # server exit.
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(line_buffering=True)
-        sys.stderr.reconfigure(line_buffering=True)
-    # Bind 0.0.0.0; Windows Firewall scoped to Tailscale IP range gates access.
-    #
-    # Transport: streamable-http (FastMCP's "http" alias). Migrated from
-    # SSE in v0.2.x; SSE long-lived event channels timed out at middle-
-    # boxes during long tool calls (>60s) and every subsequent call hit
-    # -32602 with a stale session_id. streamable-http is per-request and
-    # auto-reconnects.
-    #
-    # Endpoint: http://<host>:8766/mcp  (was /sse)
-    mcp.run(transport="http", host="0.0.0.0", port=8766)
+    main()

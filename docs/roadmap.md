@@ -161,7 +161,7 @@ Agent 一次提示，串联多设备。例：
 ### 前置条件
 - 四大平台桥稳定运行（被实际项目长期验证过）
 - Universal Tool Set 公约冻结
-- 实现每调用鉴权 (per-call bearer token)
+- 实现每调用鉴权 (per-call bearer token) — windows 桥已落地共享密钥 bearer + loopback 绑定 + 端口可配（分支 `feat/agenthub-device-op-r1-r10`，AgentHub device-op 对接，见 `docs/2026-06-21-device-op-server-launch.md`）；待推广到 macOS/Android/iOS 桥
 - 至少 Windows + macOS 桥有 CI（lint + smoke test）
 - 公开 docs：英文 Quick Start + 中文完整指南
 - License: Apache 2.0（已配置）
