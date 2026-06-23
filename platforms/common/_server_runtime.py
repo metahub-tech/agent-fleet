@@ -160,7 +160,24 @@ def register_health_route(mcp) -> None:
         return JSONResponse({"status": "ok"})
 
 
-def serve(mcp, prog: str, default_port: int, argv: "list[str] | None" = None) -> None:
+def _run_app(app, host: str, port: int) -> None:
+    """Launch a Starlette/ASGI *app* directly via uvicorn.
+
+    Extracted as a module-level function so tests can monkeypatch it without
+    needing a real uvicorn install.
+    """
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port)
+
+
+def serve(
+    mcp,
+    prog: str,
+    default_port: int,
+    argv: "list[str] | None" = None,
+    extra_routes: "list[tuple[str, object]] | None" = None,
+) -> None:
     """Parse args, wire the health route + optional bearer gate, and run the
     server over streamable-http. Shared entry used by each platform's
     ``main()``."""
@@ -174,12 +191,28 @@ def serve(mcp, prog: str, default_port: int, argv: "list[str] | None" = None) ->
         sys.stderr.reconfigure(line_buffering=True)
     args = parse_server_args(prog, default_port, argv)
     register_health_route(mcp)
-    # Pass `middleware` only when a gate is actually configured. FastMCP forwards
-    # it to http_app(middleware=...), which exists from fastmcp 2.3.2 on; omitting
-    # the kwarg entirely keeps the no-token (transitional) path byte-for-byte as
-    # before and avoids handing an empty list to the transport layer.
-    run_kwargs = {"transport": "http", "host": args.host, "port": args.port}
+
+    if not extra_routes:
+        # Original path: delegate everything to FastMCP's own run(), which
+        # handles uvicorn startup internally.  Pass `middleware` only when a
+        # gate is configured so the no-token transitional case is byte-for-byte
+        # unchanged (avoids handing an empty list to the transport layer).
+        run_kwargs: "dict[str, object]" = {
+            "transport": "http",
+            "host": args.host,
+            "port": args.port,
+        }
+        gate = auth_middleware(args.token)
+        if gate:
+            run_kwargs["middleware"] = gate
+        mcp.run(**run_kwargs)
+        return
+
+    # Extra-routes path: build the Starlette app ourselves so we can attach WS
+    # routes (e.g. the /dom-bridge Chrome-extension channel) that FastMCP's
+    # mcp.run() has no API for.
     gate = auth_middleware(args.token)
-    if gate:
-        run_kwargs["middleware"] = gate
-    mcp.run(**run_kwargs)
+    app = mcp.http_app(transport="http", middleware=gate or None)
+    for path, handler in extra_routes:
+        app.router.add_websocket_route(path, handler)
+    _run_app(app, args.host, args.port)

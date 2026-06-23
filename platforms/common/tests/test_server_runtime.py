@@ -170,3 +170,30 @@ def test_non_http_scope_passes_through():
 # test_server_app_integration.py — kept out of here so this file stays
 # dependency-light pure logic and the integration suite is shared across
 # platforms instead of duplicated per bridge.
+
+
+# -------------------- extra_routes / WS bridge wiring --------------------
+
+
+def test_serve_accepts_extra_routes_without_running(monkeypatch):
+    import _server_runtime as sr
+    captured = {}
+    class _FakeMcp:
+        def http_app(self, **kw): captured["http_app_kw"] = kw; return _FakeApp()
+        def run(self, **kw): captured["run_kw"] = kw
+        def custom_route(self, path, methods=None):
+            """Stub for register_health_route — just discard the decorator."""
+            def _decorator(fn): return fn
+            return _decorator
+    class _FakeRouter:
+        def __init__(self): self.routes = []
+        def add_websocket_route(self, path, handler): self.routes.append((path, handler))
+    class _FakeApp:
+        def __init__(self): self.router = _FakeRouter()
+    monkeypatch.setattr(sr, "_run_app",
+                        lambda app, host, port: captured.update({"routes": app.router.routes, "ran": (host, port)}))
+    async def _h(ws): ...
+    sr.serve(_FakeMcp(), prog="t", default_port=9999, argv=["--port","9001"],
+             extra_routes=[("/dom-bridge", _h)])
+    assert ("/dom-bridge", _h) in captured["routes"]
+    assert captured["ran"] == ("0.0.0.0", 9001)
