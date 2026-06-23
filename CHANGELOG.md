@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 新增
+
+- **pc-device（mac 先行）：human_dom DOM 感知能力模块**。`human_browser` 的精确定位伴生能力——在保持零 automation traces / 真实 profile / OS 级输入的前提下，通过 Chrome 扩展 content script **只读 DOM** 取得元素屏幕坐标，告别"截图猜坐标"。
+  - **架构**：扩展 content script 遍历 DOM 按文字 / `aria-label` / `placeholder` / `title` / `name` 属性匹配并返回 `{center, box, score}`；坐标空间与 `take_screenshot` / `tap` 一致，直接传给 OS 级工具。扩展只读，不点击、不改 DOM、不注入合成事件；操作仍由 `tap` / `type_text` / `press_key` 完成，保持完整的 human 特征。
+  - **OCR 兜底**：canvas / shadow DOM / 动态遮罩等 DOM 不可达场景，`human_dom_locate` 返回 `suggest:"vision_locate"`，自动引导转 `vision_locate`（RapidOCR）继续 OS 级操作。
+  - **MCP 工具**（+3，mac server 70 → 73 → 76）：`human_dom_locate(query, css?)` 按语义查元素返回候选列表；`human_dom_tap(query, css?, nth?)` 定位后 OS 级点击；`human_dom_fill(query, text, css?)` 定位后聚焦 + 全选 + type_text。
+  - **桥**：content script ↔ pc-device server 本地 WebSocket（127.0.0.1），无外网依赖；扩展在真实 profile 一次安装永久生效。
+  - **已验证**：mac 接入完成；win 扩展安装脚本及跨平台 e2e 后续跟进。
+
 ## [0.8.4-alpha] - 2026-06-20
 
 ### 新增
