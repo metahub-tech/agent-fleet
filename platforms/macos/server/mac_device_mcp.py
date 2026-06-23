@@ -1118,8 +1118,11 @@ def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 
 
-def _os_type(s: str) -> None:
-    pyautogui.typewrite(s, interval=0.02)
+def _os_fill(s: str) -> None:
+    """聚焦后用于填充: 全选 + 粘贴(支持中文, 覆盖原内容)。仿 paste_text 走剪贴板 + Cmd+V。"""
+    pyautogui.hotkey("command", "a")
+    pyperclip.copy(s)
+    pyautogui.hotkey("command", "v")
 
 
 _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
@@ -1128,7 +1131,7 @@ _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability())
 _cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
-_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, type_fn=_os_type))
+_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill))
 _cap_registry.setup(mcp, _enabled_caps)
 
 

@@ -37,17 +37,17 @@ human_dom_locate(query)
 
 - `query`：自由文本，按以下顺序匹配：可见文字、`aria-label`、`placeholder`、`title`、`name` 属性。
 - 可附加 CSS selector 缩小范围：`"登录 css=button.submit"`。
-- 返回候选列表，每项含 `{text, center:{x,y}, box:{left,top,width,height}, score}`。
+- 返回候选列表，每项含 `{text, role, center:[x,y], box:{left,top,width,height}, visible, clickable}`（`center` 是 `[x,y]` 列表，无 `score` 字段）。
 - **坐标空间**：屏幕逻辑点（与 `take_screenshot` 像素空间一致），可直接传给 `tap`。
 
 ### 3. 操作
 
 ```
-human_dom_tap(query)          # 定位 + OS 级点击，一步完成
-human_dom_fill(query, text)   # 定位 + 清空 + OS 级 type_text
+human_dom_tap(query, nth=0, css="")   # 定位 + OS 级点击，一步完成
+human_dom_fill(query, text, css="")   # 定位 + 聚焦 + 覆盖式填充
 ```
 
-`human_dom_fill` 内部：`human_dom_tap` 聚焦 → `press_key("ctrl+a")` 全选 → `type_text(text)`。
+`human_dom_fill` 是**覆盖式**填充，内部：定位 → `tap` 聚焦 → Cmd+A 全选 → 剪贴板粘贴（**支持中文**，全选+粘贴的逻辑已内置在 fill 里，覆盖原有内容）。
 
 ### 4. OCR 兜底
 

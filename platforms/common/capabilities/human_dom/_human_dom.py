@@ -1,4 +1,4 @@
-"""human_dom 能力: 注册 human_dom_locate/tap/fill。靠 server 注入 tap_fn/type_fn + bridge。"""
+"""human_dom 能力: 注册 human_dom_locate/tap/fill。靠 server 注入 tap_fn/fill_fn + bridge。"""
 from __future__ import annotations
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
 from ._locate import resolve_locate
@@ -11,9 +11,9 @@ class HumanDomCapability(CapabilityModule):
     skill = "using-human-dom"
     platforms = None
 
-    def __init__(self, bridge, tap_fn, type_fn):
-        self._bridge = bridge; self._tap = tap_fn; self._type = type_fn
-        self.description = "只读 DOM 拿元素屏幕坐标(扩展 content script), 操作仍走 OS 级 tap/type; 未命中落 vision_locate。"
+    def __init__(self, bridge, tap_fn, fill_fn):
+        self._bridge = bridge; self._tap = tap_fn; self._fill = fill_fn
+        self.description = "只读 DOM 拿元素屏幕坐标(扩展 content script), 操作仍走 OS 级 tap/fill; 未命中落 vision_locate。"
 
     def availability(self):
         # 只探注册期能定的依赖(WS 库)。"扩展是否在线"是运行时 locate 的事, 不在此判。
@@ -24,7 +24,7 @@ class HumanDomCapability(CapabilityModule):
             return False, f"starlette WS 不可用: {e}"
 
     def register(self, mcp) -> list[str]:
-        bridge, tap, type_ = self._bridge, self._tap, self._type
+        bridge, tap, fill = self._bridge, self._tap, self._fill
 
         @mcp.tool
         async def human_dom_locate(query: str, css: str = "", max_results: int = 10) -> dict:
@@ -44,13 +44,13 @@ class HumanDomCapability(CapabilityModule):
 
         @mcp.tool
         async def human_dom_fill(query: str, text: str, css: str = "") -> dict:
-            """定位 + 点击聚焦 + OS 级输入。"""
+            """定位 + 点击聚焦 + OS 级填充(全选 + 剪贴板粘贴, 覆盖式, 支持中文)。"""
             r = await resolve_locate(bridge, query, css=css or None)
             if not r.get("ok") or not r["candidates"]:
                 return {"ok": False, "reason": r.get("reason", "not_found"), "suggest": "vision_locate"}
             x, y = r["candidates"][0]["center"]
             tap(int(round(x)), int(round(y)))
-            type_(text)
+            fill(text)
             return {"ok": True, "filled_at": [int(round(x)), int(round(y))]}
 
         return ["human_dom_locate", "human_dom_tap", "human_dom_fill"]
