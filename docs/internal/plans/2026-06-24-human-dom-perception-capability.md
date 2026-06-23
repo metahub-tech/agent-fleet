@@ -117,11 +117,13 @@ def test_serve_accepts_extra_routes_without_running(monkeypatch):
     class _FakeMcp:
         def http_app(self, **kw): captured["http_app_kw"] = kw; return _FakeApp()
         def run(self, **kw): captured["run_kw"] = kw
-    class _FakeApp:
+    class _FakeRouter:
         def __init__(self): self.routes = []
         def add_websocket_route(self, path, handler): self.routes.append((path, handler))
+    class _FakeApp:
+        def __init__(self): self.router = _FakeRouter()
     monkeypatch.setattr(sr, "_run_app",
-                        lambda app, host, port: captured.update({"routes": app.routes, "ran": (host, port)}))
+                        lambda app, host, port: captured.update({"routes": app.router.routes, "ran": (host, port)}))
     async def _h(ws): ...
     sr.serve(_FakeMcp(), prog="t", default_port=9999, argv=["--port","9001"],
              extra_routes=[("/dom-bridge", _h)])
@@ -151,7 +153,7 @@ def serve(mcp, prog, default_port, argv=None, extra_routes=None):
         mcp.run(**run_kwargs); return
     app = mcp.http_app(transport="http", middleware=gate or None)
     for path, handler in extra_routes:
-        app.add_websocket_route(path, handler)   # 按 0A：或 app.router.routes.append(WebSocketRoute(path,handler))
+        app.router.add_websocket_route(path, handler)   # 0A 确认: app 本身无此法, 用 app.router(StarletteWithLifespan)
     _run_app(app, args.host, args.port)
 ```
 （`register_health_route(mcp)` 仍在 `mcp.http_app` 之前调用，保证 /health 进 app。）
