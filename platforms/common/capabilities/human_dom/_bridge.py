@@ -8,7 +8,7 @@ class DomBridge:
         self._token = token or ""
         self._clients = []          # [{ws, tab_id, url, active}]
         self._ids = itertools.count(1)
-        self._pending = {}          # id -> Future (2A 收口用)
+        self._pending = {}          # id -> Future
 
     def check_auth(self, first_frame: dict) -> bool:
         if not self._token: return True
@@ -24,6 +24,13 @@ class DomBridge:
             if c["active"]: return c
         return self._clients[0] if self._clients else None
 
+    def _deliver(self, reply: dict):
+        """把 reply 按 id 投递给对应的 pending future。"""
+        rid = reply.get("id")
+        fut = self._pending.pop(rid, None)
+        if fut and not fut.done():
+            fut.set_result(reply)
+
     async def locate(self, query, css=None, max_results=10, timeout=3.0) -> dict:
         deadline = timeout
         while self._active() is None and deadline > 0:
@@ -31,12 +38,13 @@ class DomBridge:
         c = self._active()
         if c is None: raise TimeoutError("no active tab")
         rid = next(self._ids)
+        fut = asyncio.get_running_loop().create_future()
+        self._pending[rid] = fut
         await c["ws"].send_json({"id":rid,"op":"locate","query":query,"css":css,"max_results":max_results})
-        return await asyncio.wait_for(self._fulfill(c["ws"], rid), timeout=max(deadline,1.0))
-
-    async def _fulfill(self, ws, rid):
-        # 简化版(2A 收口为按 id 配对 future): 直接读该 ws 下一条 reply
-        return await ws.receive_json()
+        try:
+            return await asyncio.wait_for(fut, timeout=max(deadline, 1.0))
+        finally:
+            self._pending.pop(rid, None)
 
 def make_ws_route(bridge: "DomBridge"):
     from starlette.websockets import WebSocket
@@ -48,7 +56,8 @@ def make_ws_route(bridge: "DomBridge"):
         bridge.register(ws, first.get("tab_id"), first.get("url"), first.get("active", True))
         try:
             while True:
-                await ws.receive_json()
+                msg = await ws.receive_json()
+                bridge._deliver(msg)
         except Exception:
             pass
         finally:
