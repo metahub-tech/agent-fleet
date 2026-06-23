@@ -58,10 +58,12 @@ from capabilities import (
     CapabilityRegistry,
     CoreCapability,
     HumanBrowserCapability,
+    HumanDomCapability,
     VisionCapability,
     current_host_os,
     resolve_enabled_capabilities,
 )
+from capabilities.human_dom._bridge import DomBridge, make_ws_route
 
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
@@ -1116,11 +1118,17 @@ def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 
 
+def _os_type(s: str) -> None:
+    pyautogui.typewrite(s, interval=0.02)
+
+
+_dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability())
 _cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
+_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, type_fn=_os_type))
 _cap_registry.setup(mcp, _enabled_caps)
 
 
@@ -1152,7 +1160,8 @@ def main() -> None:
 
     Endpoint: http://<host>:8767/mcp  (was /sse)
     """
-    _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767)
+    _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767,
+                          extra_routes=[make_ws_route(_dom_bridge)])
 
 
 if __name__ == "__main__":
