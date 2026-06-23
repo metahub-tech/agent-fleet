@@ -13,6 +13,7 @@ from ._base import (
 from ._core import CoreCapability
 from .browser import AgentBrowserCapability, HumanBrowserCapability
 from .vision import VisionCapability
+from .human_dom._human_dom import HumanDomCapability
 
 __all__ = [
     "CORE_ID",
@@ -25,6 +26,7 @@ __all__ = [
     "AgentBrowserCapability",
     "HumanBrowserCapability",
     "VisionCapability",
+    "HumanDomCapability",
     "current_host_os",
     "register_list_capabilities",
     "resolve_enabled_capabilities",
