@@ -63,7 +63,7 @@ from capabilities import (
     current_host_os,
     resolve_enabled_capabilities,
 )
-from capabilities.human_dom._bridge import DomBridge, make_ws_route
+from capabilities.human_dom._bridge import DomBridge, make_ws_route, run_bridge_loopback
 
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
@@ -1160,8 +1160,11 @@ def main() -> None:
 
     Endpoint: http://<host>:8767/mcp  (was /sse)
     """
-    _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767,
-                          extra_routes=[make_ws_route(_dom_bridge)])
+    # DOM 桥走独立的【只绑 127.0.0.1】loopback listener（端口 8779），不挂在 0.0.0.0
+    # 的 MCP app 上：扩展永远是本机 Chrome，loopback 即安全边界，避免桥（无 bearer、
+    # token="")在 LAN 上裸奔。MCP server 仍按 --host 绑（默认 0.0.0.0）。
+    run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=8779)
+    _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767)
 
 
 if __name__ == "__main__":

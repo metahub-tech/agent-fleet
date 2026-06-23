@@ -54,3 +54,18 @@ def make_ws_route(bridge: "DomBridge"):
         finally:
             bridge.unregister(ws)
     return ("/dom-bridge", handler)
+
+
+def run_bridge_loopback(bridge, host: str = "127.0.0.1", port: int = 8779):
+    """在守护线程里起一个【只绑 127.0.0.1】的最小 WS server 跑 /dom-bridge。
+    扩展是本机 Chrome → loopback 即安全边界, 不暴露给 LAN。"""
+    import asyncio, threading, uvicorn
+    from starlette.applications import Starlette
+    from starlette.routing import WebSocketRoute
+    path, handler = make_ws_route(bridge)
+    app = Starlette(routes=[WebSocketRoute(path, handler)])
+    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    t = threading.Thread(target=lambda: asyncio.run(server.serve()), daemon=True)
+    t.start()
+    return t

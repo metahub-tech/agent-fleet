@@ -28,3 +28,18 @@ def test_locate_no_active_client_raises_timeout():
     import pytest
     with pytest.raises(TimeoutError):
         asyncio.run(b.locate("发布", timeout=0.2))
+
+def test_run_bridge_loopback_binds_127(monkeypatch):
+    import human_dom._bridge as br
+    captured = {}
+    class _Cfg:
+        def __init__(self, app, host, port, **kw): captured["host"]=host; captured["port"]=port
+    class _Srv:
+        def __init__(self, cfg): ...
+        async def serve(self): ...
+    monkeypatch.setattr(br, "make_ws_route", lambda b: ("/dom-bridge", lambda ws: None))
+    import uvicorn; monkeypatch.setattr(uvicorn, "Config", _Cfg); monkeypatch.setattr(uvicorn, "Server", _Srv)
+    # 线程会起但 _Srv.serve 立即返回; 只断言 host
+    br.run_bridge_loopback(object(), host="127.0.0.1", port=8779)
+    import time; time.sleep(0.1)
+    assert captured["host"] == "127.0.0.1" and captured["port"] == 8779
