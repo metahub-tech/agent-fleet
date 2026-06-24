@@ -45,6 +45,18 @@ def test_locate_no_active_client_raises_timeout():
     with pytest.raises(TimeoutError):
         asyncio.run(b.locate("发布", timeout=0.2))
 
+def test_set_active_updates_client_and_active_selection():
+    # 修真机发现的多 tab bug: content script 报 visibilitychange → set_active → _active 跟前台走。
+    b = DomBridge(token="")
+    ws1, ws2 = object(), object()
+    b.register(ws1, "t1", "x", active=True)
+    b.register(ws2, "t2", "y", active=False)
+    assert b._active()["ws"] is ws1
+    b.set_active(ws1, False)
+    b.set_active(ws2, True)
+    assert b._active()["ws"] is ws2
+
+
 def test_run_bridge_loopback_binds_127(monkeypatch):
     import human_dom._bridge as br
     captured = {}

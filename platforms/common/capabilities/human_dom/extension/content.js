@@ -22,8 +22,9 @@ function matchAll(query, css, max){
 }
 function visibleSample(n){return [...document.querySelectorAll('a,button,[role],input,textarea')]
   .map(visibleText).filter(Boolean).slice(0,n);}
+let ws = null;
 function connect(){
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/dom-bridge`);
+  ws = new WebSocket(`ws://127.0.0.1:${PORT}/dom-bridge`);
   ws.onopen = ()=> ws.send(JSON.stringify({type:"auth", token:TOKEN, tab_id:String(Date.now()),
     url:location.href, active:!document.hidden}));
   ws.onmessage = (ev)=>{
@@ -35,4 +36,8 @@ function connect(){
   };
   ws.onclose = ()=> setTimeout(connect, 1000);
 }
+// 前后台切换时重报 active, 让桥把 locate 派给当前前台 tab(修多 tab 下 active 绑定到旧 tab)
+document.addEventListener("visibilitychange", ()=>{
+  if(ws && ws.readyState===1) ws.send(JSON.stringify({type:"active", active:!document.hidden}));
+});
 connect();

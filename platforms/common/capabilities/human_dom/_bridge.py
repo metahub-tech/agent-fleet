@@ -19,6 +19,12 @@ class DomBridge:
     def unregister(self, ws):
         self._clients = [c for c in self._clients if c["ws"] is not ws]
 
+    def set_active(self, ws, active):
+        """content script 报前后台切换 → 更新该 client 的 active(修多 tab 派发)。"""
+        for c in self._clients:
+            if c["ws"] is ws:
+                c["active"] = bool(active)
+
     def _active(self):
         for c in self._clients:
             if c["active"]: return c
@@ -57,7 +63,10 @@ def make_ws_route(bridge: "DomBridge"):
         try:
             while True:
                 msg = await ws.receive_json()
-                bridge._deliver(msg)
+                if msg.get("type") == "active":
+                    bridge.set_active(ws, msg.get("active"))
+                else:
+                    bridge._deliver(msg)
         except Exception:
             pass
         finally:
