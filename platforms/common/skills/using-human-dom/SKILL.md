@@ -36,8 +36,8 @@ human_dom_locate(query)
 ```
 
 - `query`：自由文本，按以下顺序匹配：可见文字、`aria-label`、`placeholder`、`title`、`name` 属性。
-- 可附加 CSS selector 缩小范围：`"登录 css=button.submit"`。
-- 返回候选列表，每项含 `{text, role, center:[x,y], box:{left,top,width,height}, visible, clickable}`（`center` 是 `[x,y]` 列表，无 `score` 字段）。
+- `css`（独立参数，如 `human_dom_locate("正文", css="[contenteditable]")`）：精确 CSS selector，绕过文字匹配。**富文本 / contenteditable 编辑器**（小红书正文、各类所见即所得编辑器）的 placeholder 常是 CSS 伪元素、按文字 locate 不到 → 直接用 `css="[contenteditable]"` 之类定位；再不行落 `vision_locate`。
+- 返回候选列表，每项含 `{text, role, center:[x,y], box:[left,top,width,height], visible, clickable}`（`center` / `box` 都是列表，无 `score` 字段）。
 - **坐标空间**：屏幕逻辑点（与 `take_screenshot` 像素空间一致），可直接传给 `tap`。
 
 ### 3. 操作
