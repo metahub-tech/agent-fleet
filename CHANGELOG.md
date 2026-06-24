@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 新增
+
+- **pc-device（mac 先行）：human_dom DOM 感知能力模块**。`human_browser` 的精确定位伴生能力——在保持零 automation traces / 真实 profile / OS 级输入的前提下，通过 Chrome 扩展 content script **只读 DOM** 取得元素屏幕坐标，告别"截图猜坐标"。
+  - **架构**：扩展 content script 遍历 DOM 按文字 / `aria-label` / `placeholder` / `title` / `name` 属性匹配并返回 `{text, role, center:[x,y], box, visible, clickable}`（`center` 是 `[x,y]` 列表）；坐标空间与 `take_screenshot` / `tap` 一致，直接传给 OS 级工具。扩展只读，不点击、不改 DOM、不注入合成事件；操作仍由 `tap` / `type_text` / `press_key` 完成，保持完整的 human 特征。
+  - **OCR 兜底**：canvas / shadow DOM / 动态遮罩等 DOM 不可达场景，`human_dom_locate` 返回 `suggest:"vision_locate"`，自动引导转 `vision_locate`（RapidOCR）继续 OS 级操作。
+  - **MCP 工具**（+3，**可选启用**——装扩展后 mac 73 → 76）：`human_dom_locate(query, css?)` 按语义查元素返回候选列表；`human_dom_tap(query, nth?, css?)` 定位后 OS 级点击；`human_dom_fill(query, text, css?)` 定位后聚焦 + 覆盖式填充（全选 + 剪贴板粘贴，支持中文）。
+  - **桥**：content script ↔ pc-device server 本地 WebSocket（**只绑 `127.0.0.1` 的独立 loopback listener**，端口 8779，不挂在对 LAN 开放的 MCP app 上），无外网依赖；扩展在真实 profile 一次安装永久生效。
+  - **生命周期（opt-in）**：要先把扩展装进真实 Chrome（一次性，`install-human-dom-extension.sh` Load unpacked）。server 启动按 `~/.fleet/human-dom-ready` marker 判定——装了才 `enabled`、没装 `list_capabilities` 显 `unavailable` 并引导安装。故**不计入默认工具数（mac fresh 仍 73）**。
+  - **已验证（macmini 真机 e2e）**：扩展装载 + `human_dom_locate`→`tap` 精准落点（无系统性偏移，Retina 坐标公式实测对）+ 中文 `human_dom_fill` + 小红书发布页存草稿全过；marker 门控 enabled/unavailable 真机确认。win 及跨平台后续。
+
 ## [0.8.4-alpha] - 2026-06-20
 
 ### 新增
