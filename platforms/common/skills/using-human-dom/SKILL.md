@@ -19,6 +19,30 @@ The extension **only reads** — it never clicks, never mutates the DOM, never i
 
 **核心判断**：需要真实身份 → 选 human_dom 或 vision_locate 而非 agent_browser。需要 DOM 精度 → human_dom 优先；DOM 不可达 → OCR 兜底。
 
+### human_browser 上元素定位的优先级顺序
+
+在 human_browser 打开页面后，定位元素按以下优先级尝试：
+
+1. **human_dom**（首选）：DOM 语义匹配，精确、0 token、抗动态遮罩，命中率高。
+2. **vision_locate**（OCR 兜底）：DOM 拿不到时（canvas/shadow DOM/动态悬浮层），OCR 识别屏幕文字返回坐标；操作仍用 OS 级 tap/type_text。
+3. **截图 + VLM 眼估**（最后手段）：take_screenshot 后让模型目测坐标，仅当 OCR 也失败时才用。
+
+| 方法 | 精度 | token 消耗 | 适用场景 |
+|---|---|---|---|
+| human_dom | DOM 像素精确 | 0 | 有文字/aria/placeholder 的标准元素 |
+| vision_locate (OCR) | ~1px | 极少 | canvas、自定义控件、动态覆盖层 |
+| 截图 + VLM | ~5–20px | 高（图片 token） | OCR 也失败的极端情况 |
+
+### human_dom 未安装时的处理
+
+先调 `list_capabilities` 检查 human_dom 状态：
+
+- **status=enabled**：直接用 `human_dom_locate/tap/fill`。
+- **status=unavailable**（reason 含"无 ~/.fleet/human-dom-ready 标记"）：**不要自己去 GUI 装扩展**——GUI 安装容易被输入法切换、系统文件选择框等卡住。正确做法：
+  1. **提示用户做一次性安装**：让用户在 mac-device 机器上跑 `bash platforms/macos/scripts/install-human-dom-extension.sh`，按引导在真实 Chrome 里 Load unpacked 扩展目录。
+  2. 安装完成后用户重连 mac-device（`/mcp reconnect` 或重启 server），human_dom 自动启用。
+  3. **安装完成前用 vision_locate 顶着**：`vision_locate(query)` + `tap(x, y)` 可完成所有操作，只是精度略低。
+
 ## 工作流
 
 ### 1. 打开页面（必须等 load，再调 locate）
@@ -61,8 +85,8 @@ tap(x, y)                      # OS 级点击
 ## 边界与注意事项
 
 - **只读扩展**：content script 仅遍历 DOM 拿坐标，不点击、不修改 DOM、不注入合成事件。动作全部由 OS 级工具完成（`tap` / `type_text` / `press_key`）。
-- **需提前安装扩展**（一次性）：在真实 Chrome profile 里以开发者模式加载 `platforms/pc/browser-ext/` 目录，或通过 `setup-pc.sh` 自动安装。安装后对该 profile 永久生效。
-- **桥监听在 127.0.0.1**：content script 通过 WebSocket 连 pc-device server（本机），不走网络。
+- **需提前安装扩展**（一次性）：在真实 Chrome profile 里以开发者模式 Load unpacked 加载 `platforms/common/capabilities/human_dom/extension/` 目录，或跑 `platforms/macos/scripts/install-human-dom-extension.sh` 按引导安装。安装后对该 profile 永久生效（脚本会写 `~/.fleet/human-dom-ready` 标记，重连后 human_dom 才 enabled）。
+- **桥监听在 127.0.0.1:8779**：content script 通过 WebSocket 连本机 mac-device server 的独立 loopback 桥，只绑 127.0.0.1、不走网络。
 - **真实身份**：human_dom 使用的是主机的日常 Chrome profile（真实 cookies / 登录态 / 扩展），操作即等同于本人操作——只在授权场景下使用。
 - **无障碍树不含页面内容**：与 human_browser 一致，UIA/AX tree 只能看到 Chrome 的浏览器 chrome（地址栏、标签），不含页面元素。`find_elements` / `tap_element` 在此无效——页面内容靠 human_dom 或 vision_locate。
 - **目前 mac 已接入**；win 及跨平台扩展安装脚本后续跟进。

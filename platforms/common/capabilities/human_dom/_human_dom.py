@@ -16,12 +16,20 @@ class HumanDomCapability(CapabilityModule):
         self.description = "只读 DOM 拿元素屏幕坐标(扩展 content script), 操作仍走 OS 级 tap/fill; 未命中落 vision_locate。"
 
     def availability(self):
-        # 只探注册期能定的依赖(WS 库)。"扩展是否在线"是运行时 locate 的事, 不在此判。
+        # 1. 探 starlette WS 库依赖（注册期静态判定）。
         try:
             import starlette.websockets  # noqa: F401
-            return True, ""
         except Exception as e:
             return False, f"starlette WS 不可用: {e}"
+        # 2. 探安装标记——扩展已由用户一次性装入真实 Chrome profile。
+        import os
+        if not os.path.exists(os.path.expanduser("~/.fleet/human-dom-ready")):
+            return False, (
+                "human_dom 扩展未安装(无 ~/.fleet/human-dom-ready 标记)。"
+                "跑 platforms/macos/scripts/install-human-dom-extension.sh"
+                " 把扩展装进真实 Chrome 后重连即启用。"
+            )
+        return True, ""
 
     def register(self, mcp) -> list[str]:
         bridge, tap, fill = self._bridge, self._tap, self._fill
