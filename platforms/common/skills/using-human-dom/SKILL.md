@@ -48,39 +48,44 @@ human_dom 能用 = **两层都满足**，排错时先分清缺哪一层：
 | 层 | 是什么 | 缺了会怎样 | 怎么补 |
 |---|---|---|---|
 | ① host 级 provisioning | 标记文件 `~/.fleet/human-dom-ready` 存在（server **启动时静态判定**，决定 human_dom 工具**注册不注册**） | `list_capabilities` 里 human_dom = `unavailable`，**根本没有 human_dom_* 工具** | mac 跑 `install-human-dom-extension.sh`（**引导用户在默认 profile 手动 Load unpacked + 自动写 marker**，脚本本身不自动装扩展）；win 暂无脚本 → `run_shell` 建 marker（见 per-profile 节）。**写完 marker 必须重连 / 重启 server** 才注册（框架不动态增删工具） |
-| ② profile 级 扩展 | human_dom 扩展**已加载进你当前浏览的那个 Chrome profile**（扩展是 per-profile 的） | 工具在，但 `human_dom_locate` 对该 profile 的页面拿不到元素 | 默认日常 profile：Load unpacked 持久安装；**新建专用 profile：`human_browser_open(profile=X, with_human_dom=True)` 免 GUI 自动加载**（见下节） |
+| ② profile 级 扩展 | human_dom 扩展**已加载进你当前浏览的那个 Chrome profile**（扩展是 per-profile 的） | 工具在，但 `human_dom_locate` 对该 profile 的页面拿不到元素 | 任何 profile（默认 / 专用）都用 **chrome://extensions 持久 Load-unpacked**（见下节自助流程；`--load-extension` 在 Chrome137+ 已禁用） |
 
 先 `list_capabilities`：
-- **human_dom = unavailable**（无 marker）：缺第①层。补 marker + 重连 server 即注册（mac 跑 install 脚本，win 用上面 PowerShell 建 marker）。补好前先用 `vision_locate` 顶着。
-  - 唯独**默认日常 profile 的持久安装**才需手动 GUI Load unpacked（且易被输入法 / 文件框卡住，建议让用户做）；**专用 profile 走下节 `with_human_dom=True` 的 `--load-extension` 路完全免 GUI、agent 可自助**。
-- **human_dom = enabled 但 locate 拿不到**：缺第②层——你浏览的 profile 没装扩展。若是专用 profile，用下节 `with_human_dom=True` 重开。
+- **human_dom = unavailable**（无 marker）：缺第①层。补 marker + 重连 server 即注册（mac 跑 install 脚本，win 用下面 PowerShell 建 marker）。补好前先用 `vision_locate` 顶着。
+- **human_dom = enabled 但 locate 拿不到**：缺第②层——你浏览的 profile 没装扩展，按下节自助 Load-unpacked 装进该 profile。
 
 ## 为一个【新 profile】启用 human_dom（per-profile 启用）
 
 **关键事实：human_dom 扩展是 per-Chrome-profile 的。** 真账号 operator 常固定一个**专用持久 profile**（`human_browser_open(profile="~/.fleet/<account-id>")`，见 using-human-browser）；这个新建 profile **默认没装 human_dom 扩展**——即使 host 级 marker 在、human_dom 工具可用，对它的页面也定位不到。
 
-给这个新 profile 开 human_dom，**一次到位、免 GUI**：
+> ⚠️ **`--load-extension` 命令行加载在 Chrome 137+ 已被 Google 禁用**（防恶意软件；本机实测 Chrome 148 完全失效，旧逃生开关 `--disable-features=DisableLoadExtensionCommandLineSwitch` 也失效）。所以**唯一可靠路径是 chrome://extensions 持久 Load-unpacked**——一次性、跨 run 持久、扛得住封禁。下面这套**视觉 agent 可全程自助**（test-win11 真机端到端验证过）。
 
-```
-human_browser_open(url, profile="~/.fleet/<account-id>", with_human_dom=True)
-```
+### 自助 Load-unpacked 装扩展（视觉 agent 流程，已真机验证）
 
-- `with_human_dom=True` 在启动该专用 profile 的 Chrome 时附加 `--load-extension=<human_dom 扩展目录>`，把扩展直接灌进这个 profile —— **无需手动 Load unpacked**，agent 可自助为新 profile 启用 DOM 精度。
-- 返回里 `human_dom_ext: true` 表示扩展已随启动加载。
+为专用 profile `~/.fleet/<account-id>` 装 human_dom 扩展，一次性：
 
-**注意事项（写进流程别踩）：**
-- **只在【全新启动】生效**：`--load-extension` 只在 Chrome 进程冷启时加载。若该 profile 的 Chrome 已在跑，要先**真正关掉它的进程**再带 `with_human_dom=True` 重开。**注意 `browser_quit` 关不掉 human_browser 起的 Chrome**（human_browser 走裸进程启动、不走租约，`browser_quit` 只对 agent_browser 的进程有效）——改用进程级关闭：win `run_shell` 跑 `Stop-Process -Name chrome -Force`（或确保该 `user-data-dir` 无存活 chrome 进程）、mac `pkill -x "Google Chrome"` 或退出 Chrome 窗口。
-- **会有「开发者模式扩展」横幅**：本地可见、网页探测不到（扩展只读、不注入 CDP/webdriver，stealth 不破）。
-- **仅对专用 `profile=` 生效**：`profile` 留空（默认日常 Chrome）走 `open -a` / 直起，不支持 `--load-extension` → 默认 profile 请用持久 Load unpacked（install 脚本）装一次，永久生效。
-- **仍需 host 级 marker**：`with_human_dom=True` 只解决第②层（profile 内扩展），**不创建 marker**。若 `list_capabilities` 显示 human_dom unavailable，先补第①层 marker 并重连 server，工具才存在。
-- **全新 profile 首次连桥会弹「本地网络访问」授权（真机实测）**：全新 profile 第一次加载页面时，human_dom content script 连 `127.0.0.1:8779` 会触发 Chrome「<网站> 想要访问此设备上的其他应用和服务 [允许][屏蔽]」提示（Private Network Access，新版 Chrome 强制）——**必须点一次「允许」**该 profile 才连得上桥（之后对该 profile 持久）。agent 静默点不了 → 用 `vision_locate("允许")` + `vision_tap` 点掉，或让用户点。默认日常 profile 若早授权过则不再弹（所以老 profile 无感、新 profile 才遇到）。
-- **全新 profile 首启可能落在新标签页而非 url**：已有 Chrome 在跑时，带 url 启动全新 user-data-dir 可能被单例把 url 转发给既有实例，且全新 profile 会走首启 promo（登录 Chrome 等）→ 别假设首启就到了目标页。稳妥做法：`with_human_dom=True` 起好该 profile 后，用地址栏（mac `cmd+l` / win `ctrl+l`）+ `type_text` 导航到目标页，再 locate。
+1. **起该 profile**：`human_browser_open(profile="~/.fleet/<account-id>")`。全新 profile 会弹首启 promo（登录 Chrome / 设为默认）→ `vision_tap("不登录")`、`vision_tap("跳过")` 跳过。
+2. **开扩展页**：点地址栏 → **`paste_text("chrome://extensions")`** → `press_key("enter")`。
+   - ★ **务必用 `paste_text` 不要 `type_text`**：中文输入法会把 `//` 打成 `、`（实测踩过），`paste_text` 走剪贴板绕开。
+3. **开开发者模式**：`tap` 右上角「开发者模式」开关（OFF→ON），随后左上出现「加载未打包的扩展程序」按钮 → `tap` 它。
+4. **原生文件框**（"选择扩展程序目录"）：点「文件夹」输入框 → `paste_text("<扩展目录绝对路径>")` → `tap`「选择文件夹」。
+   - 扩展目录：仓库内 `platforms/common/capabilities/human_dom/extension`（win 例：`C:\Users\<u>\agent-fleet\platforms\common\capabilities\human_dom\extension`）。
+   - 装好后列表出现「agent-fleet human_dom locator」即成功；**持久**，跨 Chrome 重启仍在（比 --load-extension 强在这）。
+5. **导航到目标网页**：扩展页（chrome://extensions）本身不连桥——先用地址栏 `paste_text` 导航到真正要操作的网页（如发布页）再继续。
+6. **放行本地网络访问（PNA）**：在目标网页上，human_dom content script 连 `127.0.0.1:8779` 会触发 Chrome「<网站> 想要访问此设备上的其他应用和服务 [允许][屏蔽]」提示（Private Network Access，新版 Chrome 强制）→ **`vision_tap("允许")`**（每个新 profile/origin 一次性；之后持久）。放行后**重载页面**（win `press_key("f5")` / mac `press_key("cmd+r")`）让 content script 重连，桥即 Established。
+7. 之后 `human_dom_locate/tap/fill` 正常用。
+
+**注意事项：**
+- **只读扩展 + 「开发者模式扩展」横幅**：本地可见、网页探测不到（不注入 CDP/webdriver，stealth 不破）。
+- **全新 profile 首启可能落在新标签页而非 url**：已有 Chrome 在跑时带 url 启动新 user-data-dir 可能被单例把 url 转发给既有实例 + 走首启 promo → 别假设首启就到目标页；起好后用地址栏（`paste_text` + enter）导航。
+- **仍需 host 级 marker**：上面装扩展只解决第②层；若 `list_capabilities` 显示 human_dom unavailable（缺第①层 marker），先补 marker 并重连 server（见下），工具才存在。
+- **默认日常 profile**：mac 用 `install-human-dom-extension.sh` 引导一次 Load-unpacked；其它同上手动 Load-unpacked。
 
 **win 上补 host 级 marker（暂无安装脚本）：** win-device 的 `run_shell` **跑 PowerShell**（不是 cmd），用 PowerShell 语法建空标记文件再重连 server——
 ```
 run_shell:  New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.fleet" | Out-Null; New-Item -ItemType File -Force -Path "$env:USERPROFILE\.fleet\human-dom-ready" | Out-Null
 ```
-（`~/.fleet` 在 win 即 `%USERPROFILE%\.fleet`；marker 在 → 重启 win-device server → human_dom 工具注册）。专用 profile 的扩展仍用 `with_human_dom=True` 免 GUI 加载，**无需在 win 上手点 chrome://extensions**。
+（`~/.fleet` 在 win 即 `%USERPROFILE%\.fleet`；marker 在 → 重启 win-device server → human_dom 工具注册）。
 
 ## 工作流
 
@@ -124,11 +129,11 @@ tap(x, y)                      # OS 级点击
 ## 边界与注意事项
 
 - **只读扩展**：content script 仅遍历 DOM 拿坐标，不点击、不修改 DOM、不注入合成事件。动作全部由 OS 级工具完成（`tap` / `type_text` / `press_key`）。
-- **扩展是 per-profile 的，须先装进你浏览的 profile**（两层启用模型见上文）：默认日常 profile → install 脚本 Load unpacked 持久安装一次（写 `~/.fleet/human-dom-ready` 标记，重连后 enabled）；**新建专用 profile → `human_browser_open(profile=X, with_human_dom=True)` 免 GUI `--load-extension`**。扩展目录在 `platforms/common/capabilities/human_dom/extension/`。
-- **桥监听在 127.0.0.1:8779**：content script 通过 WebSocket 连本机 mac-device server 的独立 loopback 桥，只绑 127.0.0.1、不走网络。
+- **扩展是 per-profile 的，须先装进你浏览的 profile**（两层启用模型见上文）：任何 profile 都用 **chrome://extensions 持久 Load-unpacked**（开发者模式→加载未打包→选扩展目录；见上节自助流程，视觉 agent 可自助）。`--load-extension` 命令行加载在 Chrome 137+ 已禁用。扩展目录在 `platforms/common/capabilities/human_dom/extension/`。mac 默认 profile 可用 `install-human-dom-extension.sh` 引导。
+- **桥监听在 127.0.0.1:8779**：content script 通过 WebSocket 连本机 device server（mac/win 同）的独立 loopback 桥，只绑 127.0.0.1、不走网络。
 - **真实身份**：human_dom 使用的是主机的日常 Chrome profile（真实 cookies / 登录态 / 扩展），操作即等同于本人操作——只在授权场景下使用。
 - **无障碍树不含页面内容**：与 human_browser 一致，UIA/AX tree 只能看到 Chrome 的浏览器 chrome（地址栏、标签），不含页面元素。`find_elements` / `tap_element` 在此无效——页面内容靠 human_dom 或 vision_locate。
-- **mac + win 双端已接入**（pc-device）。两端的专用 `profile=` 都推荐用 `with_human_dom=True` 免 GUI 加载扩展（见 per-profile 节）；默认日常 profile 用 install 脚本（mac 有，win 暂无）。
+- **mac + win 双端已接入**（pc-device）。两端任何 profile 都用 chrome://extensions 持久 Load-unpacked 装扩展（见 per-profile 节自助流程，视觉 agent 可自助）；mac 默认 profile 可用 install 脚本。
 - **win 坐标缩放 caveat**：win server 是 DPI-unaware（按逻辑像素工作），坐标公式在 **100% 缩放**真机验过准；**非 100%（125%/150%）缩放未验证**，可能整体偏移——遇偏移落 `vision_locate` 兜底。mac（Retina）公式已真机标定 `top_chrome_px = outerH − innerH`、不乘 dpr。
 
 ## 与 human_browser 的对比
