@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 变更
+
+- **per-profile 启用 human_dom 统一走 chrome://extensions 持久 Load-unpacked**；移除 `human_browser_open` 的 `with_human_dom`/`--load-extension` 路径。真机（Chrome 148）实测 **Google 自 Chrome 137 起禁用了 `--load-extension` 命令行开关**（旧逃生 `--disable-features=DisableLoadExtensionCommandLineSwitch` 亦失效），故 `--load-extension` 装扩展不再可行。专用 profile 装 human_dom 改为一次性 Load-unpacked（跨 run 持久、扛得住封禁），**视觉 agent 可全程自助**（test-win11 端到端验证：装扩展→PNA 放行→`human_dom_locate`/`tap` 通过），步骤见 `using-human-dom` skill。
+
 ### 新增
 
 - **human_dom 接入 win（pc-device 第二端）**。win server 注册 `HumanDomCapability`（注入 `_os_tap` + `_os_fill`=Ctrl+A 全选 + 剪贴板粘贴）+ `127.0.0.1:8779` loopback 桥；`platforms/windows/platform.toml` 启用 human_dom（opt-in，装扩展 + 写 `~/.fleet/human-dom-ready` marker 后 enabled）。让 win 发布员（公众号富文本编辑器里 `div[role=button]` 等只有 vision 才点得到的元素）也拿到 DOM 精度。坐标公式 win 真机标定。

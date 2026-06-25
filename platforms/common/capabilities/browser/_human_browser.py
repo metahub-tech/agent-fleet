@@ -64,22 +64,11 @@ def _chrome_binary() -> "str | None":
     return _chrome_path()  # win/linux: 本来就是 exe
 
 
-def _human_dom_ext_dir() -> "str | None":
-    """human_dom 扩展目录(给 --load-extension 用,让一个【新 profile】启用 human_dom——
-    扩展是 per-profile 的,新建的专用 profile 默认没装,靠这个随启动加载)。"""
-    d = Path(__file__).resolve().parent.parent / "human_dom" / "extension"
-    return str(d) if (d / "manifest.json").exists() else None
-
-
-def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str,
-                       load_extension: "str | None" = None) -> list:
-    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。
-    load_extension: 扩展目录 → 加 --load-extension(让该 profile 启用 human_dom 扩展)。"""
+def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str) -> list:
+    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。"""
     args = [binary, f"--user-data-dir={udd}"]
     if pdir:
         args.append(f"--profile-directory={pdir}")
-    if load_extension:
-        args.append(f"--load-extension={load_extension}")
     if url:
         args.append(url)
     return args
@@ -110,7 +99,7 @@ class HumanBrowserCapability(CapabilityModule):
 
     def register(self, mcp) -> list[str]:
         @mcp.tool
-        def human_browser_open(url: str = "", profile: str = "", with_human_dom: bool = False) -> dict:
+        def human_browser_open(url: str = "", profile: str = "") -> dict:
             """启动/聚焦宿主真实 Chrome(**无 debug 端口、无自动化标志 → 零自动化痕迹**),可选打开 url。
             之后用 core 的 take_screenshot+tap/type_text 或 human_dom 作为人本人操作。仅自有设备/授权账号/正当用途。
 
@@ -121,12 +110,11 @@ class HumanBrowserCapability(CapabilityModule):
             human_browser(+human_dom),不要混用 agent_browser】——混用会落到不同 profile、每次重登。
             传给 agent_browser 与 human_browser 同一个 profile 值 = 同一磁盘 user-data-dir = 同一份登录(R4)。
 
-            with_human_dom(仅对【专用 profile】生效):=True 时随启动 --load-extension 把 human_dom 扩展
-            加载进【这个新 profile】,让该 profile 立即能用 human_dom 定位。**新建的专用 profile 默认没装
-            human_dom 扩展**(扩展是 per-profile 的),所以第一次为某 profile 开 human_dom 就传 with_human_dom=True。
-            注意:--load-extension 只在【全新启动】生效——若该 profile 的 Chrome 已在运行,需先全部关掉再重开;
-            且会有 Chrome "开发者模式扩展" 横幅(本地可见、网页探不到)。默认 profile(留空)请改用持久安装(见 skill)。
-            全新 profile 首次连桥(127.0.0.1:8779)会弹 Chrome "本地网络访问" 授权,需点一次"允许"才连得上桥(见 skill)。"""
+            想让某个 profile 用 human_dom(DOM 精度):human_dom 扩展是 per-profile 的,要装进那个 profile。
+            **Chrome 137+ 已禁用 --load-extension 命令行加载**,所以靠 chrome://extensions 持久 Load-unpacked
+            安装(开发者模式→加载未打包→选扩展目录;一次性、跨 run 持久)。视觉 agent 可自助装(见 using-human-dom
+            「为某 profile 启用 human_dom」)。全新 profile 首次连桥(127.0.0.1:8779)会弹 Chrome "本地网络访问"
+            授权,需点一次"允许"才连得上桥(见 skill)。"""
             url = (url or "").strip()
             profile = (profile or "").strip()
             try:
@@ -142,27 +130,19 @@ class HumanBrowserCapability(CapabilityModule):
                         args = [chrome] + ([url] if url else [])
                         subprocess.Popen(args, start_new_session=True,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    note = "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"
-                    if with_human_dom:
-                        note += ("【with_human_dom 对默认 profile 不生效——默认 profile 走 open -a/直起,"
-                                 "不支持 --load-extension;请用 install 脚本持久 Load unpacked,或改传专用 profile=。】")
                     return {"ok": True, "opened": url or "(chrome)", "profile": "(default-daily)",
-                            "human_dom_ext": False, "note": note}
+                            "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"}
                 binary = _chrome_binary()
                 if binary is None:
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
                 udd, pdir, key = _resolve_profile(profile)
-                ext = _human_dom_ext_dir() if with_human_dom else None
-                if with_human_dom and ext is None:
-                    return {"ok": False, "error": "human_dom 扩展目录未找到(应在 capabilities/human_dom/extension)"}
-                args = _human_launch_args(binary, udd, pdir, url, load_extension=ext)
+                args = _human_launch_args(binary, udd, pdir, url)
                 subprocess.Popen(args, start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                note = f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
-                note += (f" human_dom 扩展已随启动加载进该 profile(load-extension={ext};仅全新启动生效)。"
-                         if ext else "真账号请固定同一 profile + 全程 human_browser(+human_dom)。")
                 return {"ok": True, "opened": url or "(chrome)", "profile": key,
-                        "human_dom_ext": bool(ext), "note": note}
+                        "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
+                                "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"
+                                "想给该 profile 用 human_dom 见 using-human-dom(Load-unpacked,Chrome137+ --load-extension 已禁用)。"}
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
