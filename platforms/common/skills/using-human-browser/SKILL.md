@@ -11,19 +11,28 @@ This is the moat: it reuses the device's OS-level control (core tools), not a br
 
 ## human_browser vs agent_browser (routing)
 
-- **human_browser** (this skill): real Chrome, real logged-in identity, zero traces, but **screenshot + coordinates only** (web content is NOT in the OS accessibility tree). Slower, less precise, higher token cost. Use when **acting as the human on real accounts / identity**: logging in, changing account settings, anything where the site must see a real person.
-- **agent_browser**: Playwright-driven, DOM snapshot+ref, fast and precise, but **has automation traces** and uses an **isolated profile** (not the human's identity). Use for testing, scraping, browsing to learn.
+- **human_browser** (this skill): real Chrome, **real logged-in identity**, zero automation traces. Page localization: **`human_dom`** (read-only DOM locator companion — exact coordinates, see using-human-dom) or screenshot+coordinates. Use when **acting as the human on real accounts / identity**.
+- **agent_browser**: Playwright-driven, DOM snapshot+ref, fast — but **has automation traces** and uses an **isolated profile** (NOT the human's identity, NOT the user's login). Use for testing / scraping / browsing-to-learn on throwaway isolated profiles.
 
-Rule: touching a **real personal account / identity** → human_browser. Otherwise → agent_browser.
+**★ Rule for real accounts (read this — it's the #1 footgun):** a **real account / identity** → **human_browser + human_dom, from the FIRST navigation (including the login scan) through every op. NEVER touch agent_browser for that account** — not even to "just browse and check" first. Why: agent_browser logs into its **isolated profile** (`~/.fleet/agent-browser-profile`), invisible to human_browser; if you scan/login there, your later human_browser runs see a logged-OUT browser → you re-login forever (this was a real bug: a publisher re-scanned every hour for 12h). human_dom now gives human_browser DOM-level precision, so there is **no reason** to use agent_browser on a real account.
+
+## 登录态跨 run 持久 + resume（recurring operator 必读）
+
+A recurring operator (an agent driving a real account every run / cron tick) must reuse ONE login across runs — the user scans **once**, not every run:
+
+- **Pin a dedicated persistent profile**: `human_browser_open(url, profile="~/.fleet/<account-id>")` (a path, or `"dir@ProfileName"`). Launches real Chrome on a **dedicated persistent `--user-data-dir`** → login persists on disk across runs AND stays isolated from the user's personal daily browsing. **Use the SAME `profile` value every run** → first run the user scans QR into it, every later run reuses it (no re-login).
+  - `profile` empty (default) = the user's **daily default Chrome** (also persistent on disk, but mixed with their personal browsing). Fine for one-off interactive acts; for an unattended recurring operator, prefer a pinned dedicated `profile`.
+- **resume**: when interrupted (e.g., you asked the user to log in) and resuming in a NEW run, call `human_browser_open(profile="<same pinned profile>")` — it reopens the SAME logged-in profile. Do NOT open a fresh browser or switch browser mode (loses the login).
+- **R4 (agent↔human, only if you truly must switch)**: pass agent_browser and human_browser the **same `profile` value** → same on-disk `user-data-dir` → same login. Chrome locks a user-data-dir to one process → **quit the other engine first** (`browser_quit(profile=...)`) before opening the same profile in the other; login is preserved (it's on disk). For real accounts you normally never switch — stay in human_browser + human_dom throughout.
 
 ## Workflow (screenshot + OS input, NOT DOM)
 
-1. `human_browser_open(url)` — launches/focuses the real Chrome and (optionally) navigates. Returns immediately.
+1. `human_browser_open(url, profile=...)` — launches/focuses the real Chrome (optional `profile` = dedicated persistent profile for a recurring operator, see above) and (optionally) navigates. Returns immediately.
 2. `take_screenshot` (core tool) — SEE the page. Screenshot pixels == `tap` pixels (logical/point space).
 3. `tap(x, y)` (core) — click where you see the target. `type_text` — type. `press_key` — keys (e.g. `cmd+l` to focus the address bar, `enter` to go).
 4. Re-`take_screenshot` after each action to confirm and locate the next target.
 
-There is **no `browser_snapshot` / ref model here** — that is agent_browser. Web page elements are not reliably in the UIA/AX tree, so `find_elements`/`tap_element` only see Chrome's own chrome (tabs, address bar), not page content. For page content: screenshot + coordinates.
+There is **no `browser_snapshot` / ref model here** — that is agent_browser. Web page elements are not in the UIA/AX tree, so `find_elements`/`tap_element` only see Chrome's own chrome (tabs, address bar), not page content. For page content: **`human_dom`** (read-only DOM locator → exact coordinates; see using-human-dom) or screenshot + coordinates.
 
 To navigate by address bar without `human_browser_open`: `press_key("cmd+l")` (mac) / `press_key("ctrl+l")` (win) → `type_text("https://...")` → `press_key("enter")`.
 

@@ -11,10 +11,10 @@ description: Use when driving a web browser through an agent-fleet device server
 
 ## agent_browser vs human_browser (routing)
 
-- **agent_browser** (this skill): DOM/semantic control via Playwright. Fast, precise, token-efficient. **Has automation traces** (CDP / `navigator.webdriver`). Use for: end-to-end web testing, scraping/reading, browsing to learn, automation where traces are fine.
-- **human_browser** (separate capability): drives the host's real daily Chrome via OS-level input + screenshots, **zero automation traces**, real logged-in identity. Use when **acting as the human** on real accounts (login, account/config changes).
+- **agent_browser** (this skill): DOM/semantic control via Playwright. Fast, precise, token-efficient. **Has automation traces** (CDP / `navigator.webdriver`) and runs in an **isolated profile** (`~/.fleet/agent-browser-profile`, NOT the user's identity/login). Use for: end-to-end web testing, scraping/reading, browsing to learn, automation where traces are fine.
+- **human_browser** (separate capability): drives the host's real Chrome via OS-level input, **zero automation traces**, real logged-in identity; page localization via **human_dom** (DOM-precise) or screenshots. Use when **acting as the human** on real accounts.
 
-Rule: touching a **real personal account / identity** → human_browser. Otherwise → agent_browser.
+**★ Rule — real accounts → human_browser + human_dom, NEVER agent_browser (even to "just check"):** if you log into a **real account** here in agent_browser, the login lands in the **isolated profile**, invisible to human_browser — so the operator's later human_browser runs are logged out and re-login forever (a real bug we hit). For a real account/identity, use **human_browser + human_dom from the first navigation through every op** (human_dom gives agent_browser-grade DOM precision without the traces; see using-human-browser / using-human-dom). agent_browser is for **non-identity** work on throwaway/isolated profiles.
 
 ## Multi-profile + lease model (IMPORTANT — read before driving)
 
