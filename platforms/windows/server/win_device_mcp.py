@@ -52,10 +52,12 @@ from capabilities import (
     CapabilityRegistry,
     CoreCapability,
     HumanBrowserCapability,
+    HumanDomCapability,
     VisionCapability,
     current_host_os,
     resolve_enabled_capabilities,
 )
+from capabilities.human_dom._bridge import DomBridge, run_bridge_loopback
 
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
@@ -949,11 +951,20 @@ def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 
 
+def _os_fill(s: str) -> None:
+    """聚焦后填充: 全选 + 剪贴板粘贴(支持中文, 覆盖原内容)。win 用 Ctrl(非 Cmd)。"""
+    pyautogui.hotkey("ctrl", "a")
+    pyperclip.copy(s)
+    pyautogui.hotkey("ctrl", "v")
+
+
+_dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability())
 _cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
+_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill))
 _cap_registry.setup(mcp, _enabled_caps)
 
 
@@ -982,6 +993,7 @@ def main() -> None:
 
     Endpoint: http://<host>:<port>/mcp  (was /sse)
     """
+    run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=8779)
     _server_runtime.serve(mcp, prog="agent-fleet-win", default_port=8766)
 
 

@@ -89,7 +89,7 @@ tap(x, y)                      # OS 级点击
 - **桥监听在 127.0.0.1:8779**：content script 通过 WebSocket 连本机 mac-device server 的独立 loopback 桥，只绑 127.0.0.1、不走网络。
 - **真实身份**：human_dom 使用的是主机的日常 Chrome profile（真实 cookies / 登录态 / 扩展），操作即等同于本人操作——只在授权场景下使用。
 - **无障碍树不含页面内容**：与 human_browser 一致，UIA/AX tree 只能看到 Chrome 的浏览器 chrome（地址栏、标签），不含页面元素。`find_elements` / `tap_element` 在此无效——页面内容靠 human_dom 或 vision_locate。
-- **目前 mac 已接入**；win 及跨平台扩展安装脚本后续跟进。
+- **mac + win 双端已接入**（pc-device）。win 上扩展同样 Load unpacked 进真实 Chrome 的目标 profile（若发布员用 human_browser 的专用 `profile=`，扩展要装进那个 profile），写 `~/.fleet/human-dom-ready` marker 后 server 端 enabled；坐标公式两平台各自真机标定。
 
 ## 与 human_browser 的对比
 
