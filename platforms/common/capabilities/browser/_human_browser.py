@@ -125,7 +125,8 @@ class HumanBrowserCapability(CapabilityModule):
             加载进【这个新 profile】,让该 profile 立即能用 human_dom 定位。**新建的专用 profile 默认没装
             human_dom 扩展**(扩展是 per-profile 的),所以第一次为某 profile 开 human_dom 就传 with_human_dom=True。
             注意:--load-extension 只在【全新启动】生效——若该 profile 的 Chrome 已在运行,需先全部关掉再重开;
-            且会有 Chrome "开发者模式扩展" 横幅(本地可见、网页探不到)。默认 profile(留空)请改用持久安装(见 skill)。"""
+            且会有 Chrome "开发者模式扩展" 横幅(本地可见、网页探不到)。默认 profile(留空)请改用持久安装(见 skill)。
+            全新 profile 首次连桥(127.0.0.1:8779)会弹 Chrome "本地网络访问" 授权,需点一次"允许"才连得上桥(见 skill)。"""
             url = (url or "").strip()
             profile = (profile or "").strip()
             try:

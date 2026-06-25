@@ -73,6 +73,8 @@ human_browser_open(url, profile="~/.fleet/<account-id>", with_human_dom=True)
 - **会有「开发者模式扩展」横幅**：本地可见、网页探测不到（扩展只读、不注入 CDP/webdriver，stealth 不破）。
 - **仅对专用 `profile=` 生效**：`profile` 留空（默认日常 Chrome）走 `open -a` / 直起，不支持 `--load-extension` → 默认 profile 请用持久 Load unpacked（install 脚本）装一次，永久生效。
 - **仍需 host 级 marker**：`with_human_dom=True` 只解决第②层（profile 内扩展），**不创建 marker**。若 `list_capabilities` 显示 human_dom unavailable，先补第①层 marker 并重连 server，工具才存在。
+- **全新 profile 首次连桥会弹「本地网络访问」授权（真机实测）**：全新 profile 第一次加载页面时，human_dom content script 连 `127.0.0.1:8779` 会触发 Chrome「<网站> 想要访问此设备上的其他应用和服务 [允许][屏蔽]」提示（Private Network Access，新版 Chrome 强制）——**必须点一次「允许」**该 profile 才连得上桥（之后对该 profile 持久）。agent 静默点不了 → 用 `vision_locate("允许")` + `vision_tap` 点掉，或让用户点。默认日常 profile 若早授权过则不再弹（所以老 profile 无感、新 profile 才遇到）。
+- **全新 profile 首启可能落在新标签页而非 url**：已有 Chrome 在跑时，带 url 启动全新 user-data-dir 可能被单例把 url 转发给既有实例，且全新 profile 会走首启 promo（登录 Chrome 等）→ 别假设首启就到了目标页。稳妥做法：`with_human_dom=True` 起好该 profile 后，用地址栏（mac `cmd+l` / win `ctrl+l`）+ `type_text` 导航到目标页，再 locate。
 
 **win 上补 host 级 marker（暂无安装脚本）：** win-device 的 `run_shell` **跑 PowerShell**（不是 cmd），用 PowerShell 语法建空标记文件再重连 server——
 ```
