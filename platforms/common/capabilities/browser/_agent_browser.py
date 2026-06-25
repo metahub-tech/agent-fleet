@@ -30,7 +30,7 @@ from .._base import CapabilityModule, ORIGIN_PROXIED
 
 # _browser_lease lives at common/ top level (not inside the capabilities package);
 # the server/tests put common on sys.path, so import it absolutely.
-from _browser_lease import ENGINE_AGENT, shared_registry, _resolve_profile, _isolated_dir  # noqa: E402
+from _browser_lease import ENGINE_AGENT, shared_registry, _resolve_profile  # noqa: E402
 
 # Advertised surface for list_capabilities (live tools come from the dynamic
 # wrappers; this is a fallback list if introspection can't run).
