@@ -34,6 +34,7 @@ import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 IDLE_TIMEOUT = timedelta(minutes=10)
@@ -44,6 +45,29 @@ _ENGINES = (ENGINE_HUMAN, ENGINE_AGENT)
 
 STATE_ACTIVE = "active"
 STATE_DETACHED = "detached"  # released but process kept for warm reuse
+
+
+def _isolated_dir() -> str:
+    """The default 'isolated' agent profile dir."""
+    return str(Path.home() / ".fleet" / "agent-browser-profile")
+
+
+def _resolve_profile(profile: str) -> "tuple[str, Optional[str], str]":
+    """(user_data_dir, profile_directory, profile_key). Shared by agent_browser AND
+    human_browser so the SAME profile string => SAME key => SAME on-disk Chrome
+    user-data-dir => SAME login (the R4 'same profile, no login loss' guarantee).
+    'isolated' = default agent profile; 'dir@Name' = udd + --profile-directory; a path
+    = that user-data-dir."""
+    profile = (profile or "").strip() or "isolated"
+    if profile == "isolated":
+        udd, pdir = str(Path(_isolated_dir()).resolve()), None
+    elif "@" in profile:
+        d, _, name = profile.partition("@")
+        udd, pdir = str(Path(d).expanduser().resolve()), (name or None)
+    else:
+        udd, pdir = str(Path(profile).expanduser().resolve()), None
+    key = udd + ("::" + pdir if pdir else "")
+    return udd, pdir, key
 
 
 def _default_clock() -> datetime:

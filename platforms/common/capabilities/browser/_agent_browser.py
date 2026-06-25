@@ -30,7 +30,7 @@ from .._base import CapabilityModule, ORIGIN_PROXIED
 
 # _browser_lease lives at common/ top level (not inside the capabilities package);
 # the server/tests put common on sys.path, so import it absolutely.
-from _browser_lease import ENGINE_AGENT, shared_registry  # noqa: E402
+from _browser_lease import ENGINE_AGENT, shared_registry, _resolve_profile, _isolated_dir  # noqa: E402
 
 # Advertised surface for list_capabilities (live tools come from the dynamic
 # wrappers; this is a fallback list if introspection can't run).
@@ -60,26 +60,6 @@ def _augmented_path() -> str:
 
 def _augmented_env() -> dict:
     return {**os.environ, "PATH": _augmented_path()}
-
-
-def _isolated_dir() -> str:
-    return str(Path.home() / ".fleet" / "agent-browser-profile")
-
-
-def _resolve_profile(profile: str) -> tuple[str, Optional[str], str]:
-    """(user_data_dir, profile_directory, profile_key). Key uses the resolved real
-    path so symlinks can't bypass the cross-engine lock. 'isolated' = the default
-    agent profile; 'dir@Name' = user-data-dir + --profile-directory Name."""
-    profile = (profile or "").strip() or "isolated"
-    if profile == "isolated":
-        udd, pdir = str(Path(_isolated_dir()).resolve()), None  # resolve too, so the lock key matches an explicit path
-    elif "@" in profile:
-        d, _, name = profile.partition("@")
-        udd, pdir = str(Path(d).expanduser().resolve()), (name or None)
-    else:
-        udd, pdir = str(Path(profile).expanduser().resolve()), None
-    key = udd + ("::" + pdir if pdir else "")
-    return udd, pdir, key
 
 
 class AgentBrowserSession:

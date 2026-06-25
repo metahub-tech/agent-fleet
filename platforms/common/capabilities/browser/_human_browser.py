@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
+from _browser_lease import _resolve_profile
 
 _MAC_CHROME_APP = "/Applications/Google Chrome.app"
 _WIN_CHROME_PATHS = [
@@ -54,6 +55,25 @@ def _gui_session_ok() -> tuple[bool, str]:
     return True, ""  # win/linux: best-effort
 
 
+def _chrome_binary() -> "str | None":
+    """Chrome 可执行文件路径(用于 --user-data-dir 启动; mac 要 .app 里的二进制,
+    不是 open -a 用的 .app 路径)。"""
+    if sys.platform == "darwin":
+        b = f"{_MAC_CHROME_APP}/Contents/MacOS/Google Chrome"
+        return b if Path(b).exists() else None
+    return _chrome_path()  # win/linux: 本来就是 exe
+
+
+def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str) -> list:
+    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。"""
+    args = [binary, f"--user-data-dir={udd}"]
+    if pdir:
+        args.append(f"--profile-directory={pdir}")
+    if url:
+        args.append(url)
+    return args
+
+
 class HumanBrowserCapability(CapabilityModule):
     id = "human_browser"
     display_name = "浏览器 human_browser(零自动化痕迹,作为人本人)"
@@ -79,29 +99,43 @@ class HumanBrowserCapability(CapabilityModule):
 
     def register(self, mcp) -> list[str]:
         @mcp.tool
-        def human_browser_open(url: str = "") -> dict:
-            """启动/聚焦宿主真实日常 Chrome(**无 debug 端口、无自动化标志 → 零自动化痕迹**),
-            可选打开 url。之后用 core 的 take_screenshot 看页面、tap(x,y)/type_text 作为人本人操作
-            (网页内容不在 OS 无障碍树 → 走截图+坐标)。用于作为人本人操作真实账号/身份;
-            仅限自有设备 / 自有或授权账号 / 正当用途。"""
-            chrome = _chrome_path()
-            if chrome is None:
-                return {"ok": False, "error": "Google Chrome 未安装"}
-            url = url.strip()  # expects a standard (encoded) URL, not a path with spaces
+        def human_browser_open(url: str = "", profile: str = "") -> dict:
+            """启动/聚焦宿主真实 Chrome(**无 debug 端口、无自动化标志 → 零自动化痕迹**),可选打开 url。
+            之后用 core 的 take_screenshot+tap/type_text 或 human_dom 作为人本人操作。仅自有设备/授权账号/正当用途。
+
+            profile: 留空 = 宿主【真实日常 Chrome 默认 profile】(持久,即用户平时的浏览器)。
+            传【专用持久 profile】(路径如 '~/.fleet/wechat-publisher',或 'dir@ProfileName') →
+            用 --user-data-dir 起一个独立持久 profile:登录态跨 run 持久、与用户日常浏览隔离。
+            ★ 真账号 operator(每 run 复用同一登录)请【固定用同一个 profile 值】,且【全程只用
+            human_browser(+human_dom),不要混用 agent_browser】——混用会落到不同 profile、每次重登。
+            传给 agent_browser 与 human_browser 同一个 profile 值 = 同一磁盘 user-data-dir = 同一份登录(R4)。"""
+            url = (url or "").strip()
+            profile = (profile or "").strip()
             try:
-                if sys.platform == "darwin":
-                    args = ["open", "-a", "Google Chrome"] + ([url] if url else [])
-                    subprocess.run(args, timeout=15, check=True,
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                else:
-                    args = [chrome] + ([url] if url else [])
-                    subprocess.Popen(args, start_new_session=True,
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return {
-                    "ok": True,
-                    "opened": url or "(chrome)",
-                    "note": "真实 Chrome 已启动(无自动化痕迹);用 take_screenshot 看页面、tap/type_text 操作。",
-                }
+                if not profile:
+                    chrome = _chrome_path()
+                    if chrome is None:
+                        return {"ok": False, "error": "Google Chrome 未安装"}
+                    if sys.platform == "darwin":
+                        args = ["open", "-a", "Google Chrome"] + ([url] if url else [])
+                        subprocess.run(args, timeout=15, check=True,
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    else:
+                        args = [chrome] + ([url] if url else [])
+                        subprocess.Popen(args, start_new_session=True,
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return {"ok": True, "opened": url or "(chrome)", "profile": "(default-daily)",
+                            "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"}
+                binary = _chrome_binary()
+                if binary is None:
+                    return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
+                udd, pdir, key = _resolve_profile(profile)
+                args = _human_launch_args(binary, udd, pdir, url)
+                subprocess.Popen(args, start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return {"ok": True, "opened": url or "(chrome)", "profile": key,
+                        "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
+                                "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"}
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
