@@ -9,7 +9,10 @@
 # 用法：
 #   bash platforms/macos/scripts/install-human-dom-extension.sh            # 默认日常 Chrome（profile_id=default）
 #   bash platforms/macos/scripts/install-human-dom-extension.sh "<PROFILE>" # 指定专用 profile（传 profile 串）
+#   bash platforms/macos/scripts/install-human-dom-extension.sh "<PROFILE>" <MCP_PORT> # 指定 profile + 非默认 mcp_port
 #       （在 agent-fleet repo 根目录执行，或用绝对路径；PROFILE 串与 human_dom_locate 的 profile 参数一致）
+#       第 2 个参数 MCP_PORT 可选，默认 8767；若 server 以非默认 --port 启动，传对应 mcp_port，
+#       本脚本才会读对的 portfile（并把对的桥端口烤进副本）。
 
 set -euo pipefail
 
@@ -17,12 +20,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 COMMON_DIR="${REPO_ROOT}/platforms/common"
 
-# mac server 默认 mcp_port（与 Task 9 server 的 default_port 对齐）；桥端口回退 = mcp_port + 13。
-MCP_PORT=8767
-PORTFILE="${HOME}/.fleet/dom-bridge-${MCP_PORT}.port"
-
 # 可选参数：要安装到的 profile 串（默认空 = 默认日常 Chrome）。
 PROFILE="${1:-}"
+
+# mac server 默认 mcp_port（与 Task 9 server 的 default_port 对齐）；桥端口回退 = mcp_port + 13。
+# 第 2 位置参数可覆盖：若 server 以非默认 --port 启动，传对应 mcp_port 才能读对 portfile。
+MCP_PORT="${2:-8767}"
+PORTFILE="${HOME}/.fleet/dom-bridge-${MCP_PORT}.port"
 
 # 1. 算 profile_id（""→"default"），install 与 locate 共用同一套规范化逻辑。
 PROFILE_ID="$(python3 -c "import sys; sys.path.insert(0, sys.argv[2]); from capabilities.human_dom._ident import human_dom_profile_id; print(human_dom_profile_id(sys.argv[1]))" "${PROFILE}" "${COMMON_DIR}")"

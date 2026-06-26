@@ -18,5 +18,8 @@ def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_
     # 避免 profile_id 含双引号/反斜杠时破坏 content.js 语法。
     s = s.replace('"__AF_PROFILE_ID__"', json.dumps(profile_id))
     cjs.write_text(s)
+    baked = cjs.read_text()
+    assert "__AF_PORT__" not in baked and "__AF_PROFILE_ID__" not in baked, \
+        "prepare_extension: 占位未完全替换(模板格式变了?)"
     (out / "meta.json").write_text(json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port)}))
     return str(out)

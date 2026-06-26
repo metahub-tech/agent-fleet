@@ -22,3 +22,7 @@ def test_persisted_stable_when_bindable(tmp_path):
 def test_persisted_taken_falls_back_to_derive(tmp_path):
     pf = tmp_path / "p"; pf.write_text("8790")
     assert resolve_bridge_port(8766, portfile=str(pf), is_free=lambda p: p != 8790) == 8779
+
+def test_override_zero_is_not_silently_ignored(tmp_path):
+    # override=0 虽非法端口,但不应被 falsy 静默跳过(回归 if override 陷阱)
+    assert resolve_bridge_port(8766, override=0, portfile=str(tmp_path/"p"), is_free=lambda p: True) == 0

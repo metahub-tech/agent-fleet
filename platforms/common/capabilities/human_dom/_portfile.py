@@ -26,7 +26,7 @@ def _write(pf: str, port: int) -> None:
 def resolve_bridge_port(mcp_port: int, override=None, portfile=None, is_free=None) -> int:
     is_free = is_free or _is_free
     pf = portfile or _portfile_path(mcp_port)
-    if override:
+    if override is not None:
         chosen = int(override)
     else:
         persisted = _read(pf)

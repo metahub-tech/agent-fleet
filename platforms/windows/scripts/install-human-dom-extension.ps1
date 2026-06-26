@@ -10,9 +10,14 @@
 # Usage (run from inside the cloned repo, or with an absolute path):
 #   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\install-human-dom-extension.ps1
 #   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\install-human-dom-extension.ps1 "<PROFILE>"
+#   powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\install-human-dom-extension.ps1 "<PROFILE>" <MCP_PORT>
 #
 # <PROFILE> is the same profile string passed to human_dom_locate. Omit it to
 # target the default everyday Chrome (profile_id=default).
+#
+# <MCP_PORT> is optional and defaults to 8766. If the server was started with a
+# non-default --port, pass that mcp_port as the second argument so this script
+# reads the matching portfile (and bakes the correct bridge port into the copy).
 #
 # NOTE FOR CONTRIBUTORS: Keep this script ASCII / English only.
 # Windows PowerShell 5.1 reads .ps1 files using the system code page (e.g. GBK
@@ -23,7 +28,8 @@
 # automatic variable $PROFILE (case-insensitive), and a param named $Profile
 # would shadow/pollute it, especially when this script is dot-sourced.
 param(
-    [string]$ChromeProfile = ""
+    [string]$ChromeProfile = "",
+    [int]$McpPort = 8766
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,9 +43,9 @@ $WindowsDir = Split-Path -Parent $ScriptDir
 $RepoRoot   = Split-Path -Parent (Split-Path -Parent $WindowsDir)
 $CommonDir  = Join-Path $RepoRoot "platforms\common"
 
-# win server default mcp_port (matches Task 9 server default_port). Bridge port
-# fallback when the persisted port file is absent = mcp_port + 13.
-$McpPort  = 8766
+# win server default mcp_port (matches Task 9 server default_port); overridable via
+# the second arg. Bridge port fallback when the persisted port file is absent =
+# mcp_port + 13.
 $FleetDir = Join-Path $env:USERPROFILE ".fleet"
 $PortFile = Join-Path $FleetDir "dom-bridge-$McpPort.port"
 
