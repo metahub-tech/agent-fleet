@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 变更
 
+- **human_dom 改为按 profile 维度路由**（不再全局猜 active tab）。桥从「全局对当前 active tab 操作」改成「调用方传 `profile`、桥路由到该 profile 那张 tab」，**多 profile 并行操作不再串线**（告别「最小化别的窗口」那类规避 active-tab 串扰的 hack）。
+  - **`human_dom_locate` / `human_dom_tap` / `human_dom_fill` 新增 `profile=""` 参数**：操作哪个 profile 就传哪个，**与 `human_browser_open(profile=...)`、装扩展时的 PROFILE 必须同一串**（三处同串铁律）；不传 = 操作默认日常 Chrome（profile_id="default"）。
+  - **新增 `human_dom_status()` 工具**：列每个 profile 的 `{profile_id, installed, bridge_port, connected}`（只列归本 server 桥端口的），排错时一眼看出该 profile 装没装 / 连没连。
+  - **扩展改 per-profile 副本**：装某 profile 前先用 `prepare_extension` 生成 `~/.fleet/human-dom-ext/<profile_id>/`（把桥端口 + profile_id 烤进 `content.js`，并写 `meta.json`），再 Load-unpacked **那个副本目录**（模板目录有占位符、不能直接 Load）。安装脚本已封装这步：mac `install-human-dom-extension.sh "<PROFILE>"`、win 新增 `install-human-dom-extension.ps1 "<PROFILE>"`（不传 PROFILE = 默认日常 Chrome）。**别移动副本目录**（Load-unpacked 扩展 ID 由路径决定，移动后从 Chrome 消失需重装）。
+  - **桥端口 server 启动时确定并持久化**：写 `~/.fleet/dom-bridge-<mcp_port>.port`（扩展副本烤的就是这个值，保证 server↔扩展端口一致），默认回退 `mcp_port+13`，可用 `--dom-bridge-port` 覆盖。一台机多 server 端口隔离（如 win-device :8766→桥 8779、openclaw :8767→桥 8780 互不撞）。
 - **per-profile 启用 human_dom 统一走 chrome://extensions 持久 Load-unpacked**；移除 `human_browser_open` 的 `with_human_dom`/`--load-extension` 路径。真机（Chrome 148）实测 **Google 自 Chrome 137 起禁用了 `--load-extension` 命令行开关**（旧逃生 `--disable-features=DisableLoadExtensionCommandLineSwitch` 亦失效），故 `--load-extension` 装扩展不再可行。专用 profile 装 human_dom 改为一次性 Load-unpacked（跨 run 持久、扛得住封禁），**视觉 agent 可全程自助**（test-win11 端到端验证：装扩展→PNA 放行→`human_dom_locate`/`tap` 通过），步骤见 `using-human-dom` skill。
 
 ### 新增
@@ -19,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **架构**：扩展 content script 遍历 DOM 按文字 / `aria-label` / `placeholder` / `title` / `name` 属性匹配并返回 `{text, role, center:[x,y], box, visible, clickable}`（`center` 是 `[x,y]` 列表）；坐标空间与 `take_screenshot` / `tap` 一致，直接传给 OS 级工具。扩展只读，不点击、不改 DOM、不注入合成事件；操作仍由 `tap` / `type_text` / `press_key` 完成，保持完整的 human 特征。
   - **OCR 兜底**：canvas / shadow DOM / 动态遮罩等 DOM 不可达场景，`human_dom_locate` 返回 `suggest:"vision_locate"`，自动引导转 `vision_locate`（RapidOCR）继续 OS 级操作。
   - **MCP 工具**（+3，**可选启用**——装扩展后 mac 73 → 76）：`human_dom_locate(query, css?)` 按语义查元素返回候选列表；`human_dom_tap(query, nth?, css?)` 定位后 OS 级点击；`human_dom_fill(query, text, css?)` 定位后聚焦 + 覆盖式填充（全选 + 剪贴板粘贴，支持中文）。
-  - **桥**：content script ↔ pc-device server 本地 WebSocket（**只绑 `127.0.0.1` 的独立 loopback listener**，端口 8779，不挂在对 LAN 开放的 MCP app 上），无外网依赖；扩展在真实 profile 一次安装永久生效。
+  - **桥**：content script ↔ pc-device server 本地 WebSocket（**只绑 `127.0.0.1` 的独立 loopback listener**，端口 8779，不挂在对 LAN 开放的 MCP app 上），无外网依赖；扩展在真实 profile 一次安装永久生效。（注：桥端口现已改为 server 启动时动态确定 + 持久化，见上方「变更」。）
   - **生命周期（opt-in）**：要先把扩展装进真实 Chrome（一次性，`install-human-dom-extension.sh` Load unpacked）。server 启动按 `~/.fleet/human-dom-ready` marker 判定——装了才 `enabled`、没装 `list_capabilities` 显 `unavailable` 并引导安装。故**不计入默认工具数（mac fresh 仍 73）**。
   - **已验证（macmini 真机 e2e）**：扩展装载 + `human_dom_locate`→`tap` 精准落点（无系统性偏移，Retina 坐标公式实测对）+ 中文 `human_dom_fill` + 小红书发布页存草稿全过；marker 门控 enabled/unavailable 真机确认。win 及跨平台后续。
 
