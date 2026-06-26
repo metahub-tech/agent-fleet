@@ -26,8 +26,8 @@ function visibleSample(n){return [...document.querySelectorAll('a,button,[role],
 let ws = null;
 function connect(){
   ws = new WebSocket(`ws://127.0.0.1:${PORT}/dom-bridge`);
-  ws.onopen = ()=> ws.send(JSON.stringify({type:"auth", token:TOKEN, tab_id:String(Date.now()),
-    url:location.href, active:!document.hidden}));
+  ws.onopen = ()=> ws.send(JSON.stringify({type:"auth", token:TOKEN, profile_id:PROFILE_ID,
+    tab_id:String(Date.now()), url:location.href, active:!document.hidden}));
   ws.onmessage = (ev)=>{
     const m = JSON.parse(ev.data); if(m.op!=="locate") return;
     const cands = matchAll(m.query, m.css, m.max_results||10);
