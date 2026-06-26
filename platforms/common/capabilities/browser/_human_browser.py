@@ -81,9 +81,12 @@ class HumanBrowserCapability(CapabilityModule):
     skill = "using-human-browser"
     platforms = None  # any host with a real Chrome + GUI session
     usage_hint = (
-        "作为人本人操作真实账号/配置时用:human_browser_open(url) 启真人日常 Chrome"
-        "(无 debug 端口、零自动化痕迹)→ 再用 core 的 take_screenshot 看页面、tap(x,y)/type_text "
-        "操作(网页内容不在无障碍树,走截图+坐标)。仅自有设备/授权账号/正当用途。"
+        "作为人本人操作真实账号时用(零自动化痕迹)。"
+        "★真账号 / 长期 operator(发布员/cron)→ 必须带固定 profile:"
+        "human_browser_open(url, profile='~/.fleet/<固定值>')——每 run 固定同一 profile 才能跨 run 复用登录"
+        "(用户只扫一次码);漏传 profile 会落到用户默认日常 Chrome、登录落错地方、每次重登。"
+        "再 take_screenshot + tap(x,y)/type_text 或 human_dom 操作(网页不在无障碍树)。"
+        "裸 human_browser_open(url)=默认日常 Chrome,仅一次性/非长期用,真账号别用。仅自有设备/授权账号。"
     )
 
     def __init__(self):
