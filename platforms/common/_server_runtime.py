@@ -83,6 +83,13 @@ def parse_server_args(prog: str, default_port: int, argv: "list[str] | None" = N
         f"{HEALTH_PATH} must send 'Authorization: Bearer <token>'. "
         "Empty = no auth (transitional).",
     )
+    parser.add_argument(
+        "--dom-bridge-port",
+        type=int,
+        default=None,
+        help="human_dom bridge port. When unset, the server derives it from "
+        "--port.",
+    )
     return parser.parse_args(argv)
 
 
@@ -177,10 +184,17 @@ def serve(
     default_port: int,
     argv: "list[str] | None" = None,
     extra_routes: "list[tuple[str, object]] | None" = None,
+    args: "argparse.Namespace | None" = None,
 ) -> None:
     """Parse args, wire the health route + optional bearer gate, and run the
     server over streamable-http. Shared entry used by each platform's
-    ``main()``."""
+    ``main()``.
+
+    ``args`` lets a caller (e.g. ``main()``) parse once and reuse the result —
+    handy when it needs a parsed flag (such as ``--dom-bridge-port``) before
+    handing control over. When ``None`` (every existing caller), args are
+    parsed here exactly as before, so behaviour is unchanged.
+    """
     # Line-buffer stdio first so a parent process (launcher / Task Scheduler /
     # AgentHub desktop) reading our redirected stdout/stderr sees logs in real
     # time, instead of waiting for an ~8 KB pipe buffer to fill or the process to
@@ -189,7 +203,8 @@ def serve(
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(line_buffering=True)
         sys.stderr.reconfigure(line_buffering=True)
-    args = parse_server_args(prog, default_port, argv)
+    if args is None:
+        args = parse_server_args(prog, default_port, argv)
     register_health_route(mcp)
 
     if not extra_routes:
