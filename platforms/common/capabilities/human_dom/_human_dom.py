@@ -10,6 +10,16 @@ class HumanDomCapability(CapabilityModule):
     origin = ORIGIN_SELF_BUILT
     skill = "using-human-dom"
     platforms = None
+    usage_hint = (
+        "配合 human_browser 在真账号页面做 DOM 精确定位(只读扫 DOM→屏幕坐标,动作仍 OS 级、零痕迹)。"
+        "human_dom_locate(query|css)→坐标;human_dom_tap=定位+点击;"
+        "human_dom_fill(query,text,css)=定位+聚焦+覆盖填(全选+粘贴,支持中文大段)。"
+        "★往富文本编辑器(公众号正文等 contenteditable)写大段:"
+        "human_dom_fill(css='[contenteditable]', query='占位符如 从这里开始写正文', text=...),"
+        "比截图+键盘可靠(实测正文字数 0→52)。"
+        "扩展 per-profile,先装进该 profile(见 using-human-dom);"
+        "拿不到(canvas/自定义按钮如发布)落 vision_locate。"
+    )
 
     def __init__(self, bridge, tap_fn, fill_fn):
         self._bridge = bridge; self._tap = tap_fn; self._fill = fill_fn
