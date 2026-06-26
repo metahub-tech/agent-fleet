@@ -58,6 +58,8 @@ from capabilities import (
     resolve_enabled_capabilities,
 )
 from capabilities.human_dom._bridge import DomBridge, run_bridge_loopback
+from capabilities.human_dom._portfile import resolve_bridge_port
+from _server_runtime import parse_server_args
 
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
@@ -958,13 +960,26 @@ def _os_fill(s: str) -> None:
     pyautogui.hotkey("ctrl", "v")
 
 
+# 桥端口在 server 启动时一次确定(随 --port 派生 / --dom-bridge-port 覆盖 / 持久值复用),
+# 必须在 _cap_registry.setup() 之前算好——human_dom_status 工具在 register() 时就把
+# bridge_port 捕获进闭包(_human_dom.py),晚于 setup 再改来不及了。所以在【模块导入期】
+# 解析一次 args(取 --port/--dom-bridge-port);main() 复用同一份(serve(args=_server_args)
+# + run_bridge_loopback(port=_bridge_port)),不二次 parse。
+# 注:本模块也被 server 测试以 `import win_device_mcp` 形式导入(此时 sys.argv 是 pytest 的),
+# 故 parse 失败(SystemExit/未知参数)退回纯默认端口,保证导入期 floor check 不被打断。
+try:
+    _server_args = parse_server_args(prog="agent-fleet-win", default_port=8766)
+except SystemExit:
+    _server_args = parse_server_args(prog="agent-fleet-win", default_port=8766, argv=[])
+_bridge_port = resolve_bridge_port(_server_args.port, override=_server_args.dom_bridge_port)
+
 _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability())
 _cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
-_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill))
+_cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
 _cap_registry.setup(mcp, _enabled_caps)
 
 
@@ -993,8 +1008,9 @@ def main() -> None:
 
     Endpoint: http://<host>:<port>/mcp  (was /sse)
     """
-    run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=8779)
-    _server_runtime.serve(mcp, prog="agent-fleet-win", default_port=8766)
+    run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=_bridge_port)
+    print(f"[human_dom] bridge on 127.0.0.1:{_bridge_port}", file=sys.stderr)
+    _server_runtime.serve(mcp, prog="agent-fleet-win", default_port=8766, args=_server_args)
 
 
 if __name__ == "__main__":
