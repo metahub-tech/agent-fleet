@@ -1,5 +1,6 @@
 // 只读铁律: 绝不 .click()/.value=/派发事件/改 DOM。端口/token 由 install 脚本注入占位常量。
-const PORT = (window.__AF_HUMAN_DOM_PORT__ || 8779), TOKEN = (window.__AF_HUMAN_DOM_TOKEN__ || "");
+const PORT = (__AF_PORT__ || 8779), TOKEN = (window.__AF_HUMAN_DOM_TOKEN__ || "");
+const PROFILE_ID = ("__AF_PROFILE_ID__" || "default");
 function geom(){return {screenX, screenY, innerW:innerWidth, innerH:innerHeight,
   outerW:outerWidth, outerH:outerHeight, dpr:devicePixelRatio, scrollX, scrollY};}
 function visibleText(el){const t=(el.innerText||el.value||el.getAttribute("aria-label")||
