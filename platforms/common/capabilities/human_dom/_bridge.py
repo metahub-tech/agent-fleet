@@ -92,3 +92,20 @@ def run_bridge_loopback(bridge, host: str = "127.0.0.1", port: int = 8779):
     t = threading.Thread(target=lambda: asyncio.run(server.serve()), daemon=True)
     t.start()
     return t
+
+
+def make_bridge_app(bridge):
+    """构 starlette app(含 /dom-bridge 路由)，供挂到调用方的 loop。"""
+    from starlette.applications import Starlette
+    from starlette.routing import WebSocketRoute
+    path, handler = make_ws_route(bridge)
+    return Starlette(routes=[WebSocketRoute(path, handler)])
+
+
+async def serve_bridge_in_loop(bridge, host: str = "127.0.0.1", port: int = 8779):
+    """在调用者的 event loop 里跑桥(单 loop, 消跨 loop 隐患); 仍只绑 127.0.0.1。
+    调用方: loop.create_task(serve_bridge_in_loop(bridge, '127.0.0.1', port))。"""
+    import uvicorn
+    app = make_bridge_app(bridge)
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    await server.serve()

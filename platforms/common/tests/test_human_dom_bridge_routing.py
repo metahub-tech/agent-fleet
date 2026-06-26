@@ -37,3 +37,8 @@ def test_locate_no_profile_raises():
     b = DomBridge()
     with pytest.raises(Exception):
         asyncio.run(b.locate("q", css=None, profile_id="ZZZ", timeout=0.4))
+
+def test_bridge_app_has_route():
+    from capabilities.human_dom._bridge import make_bridge_app, DomBridge
+    app = make_bridge_app(DomBridge())
+    assert any(getattr(r, "path", None) == "/dom-bridge" for r in app.routes)
