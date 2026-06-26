@@ -69,11 +69,22 @@ openclaw ──human_dom_locate(profile=Y)──▶ 独立 server(:8767 桥:8780
 - 每 profile 一个扩展目录（如 `~/.fleet/human-dom-ext/<profile_id>/`）。代价：多目录；收益：确定、零运行时依赖、与 Chrome137+ Load-unpacked 一致。
 - **旧装法兼容**：旧扩展没有这些占位/没 PROFILE_ID → 不发 `profile_id`，由桥侧按缺省视为 `"default"`（§4.8），不靠 content.js 兜底。
 
-### 4.2 profile 标识规范化（install 与 locate 必须用同一套）
-定义共享纯函数 `human_dom_profile_id(profile_str) -> str`（放 `capabilities/human_dom/_ident.py`，被 install + human_dom 工具共用）：
-- `""`（默认日常 Chrome）→ `"default"`；
-- 非空 → 规范化（`expanduser`、去空白、统一分隔符）后的稳定串（与 `human_browser_open(profile=...)` 同一入参得同一 id）。
-- **铁律**：安装某 profile 烤入的 `PROFILE_ID` == `human_dom_profile_id(开这个 profile 时传给 human_browser_open 的 profile 串)`。调用方对三处（`human_browser_open` / 安装 / `human_dom_locate`）**用同一个 profile 串**即可对上。
+### 4.2 profile 标识规范化（install 与 locate 必须用同一套）——算法写死
+定义共享纯函数 `human_dom_profile_id(profile_str) -> str`（放 `capabilities/human_dom/_ident.py`，被 install + human_dom 工具共用）。**不能直接用 `_resolve_profile` 的 key**（key 形如 `/abs/udd::Default`，含 `::`、`/`、绝对路径——既不能当文件系统目录名(win 非法字符)，两端规范化也易对不上）。算法写死为「可读前缀 + 短散列」、**文件系统安全**：
+
+```
+def human_dom_profile_id(profile_str):
+    s = (profile_str or "").strip()
+    if not s: return "default"
+    udd, pdir, _key = _resolve_profile(s)          # 复用同一解析，吸收 ""/路径/dir@Name 差异
+    canon = f"{os.path.realpath(os.path.expanduser(udd))}::{pdir or ''}"  # 规范化基准
+    h = hashlib.sha1(canon.encode()).hexdigest()[:8]
+    slug = re.sub(r'[^a-z0-9]+','-', os.path.basename(udd).lower()).strip('-')[:24] or "p"
+    return f"{slug}-{h}"                            # 如 wechat-pub-3f9a1c2b；纯 [a-z0-9-]，可当目录名
+```
+- 输出**纯 `[a-z0-9-]`**：既做 `profile_id`、又直接做扩展目录名 `~/.fleet/human-dom-ext/<profile_id>/`，win/mac 都合法。
+- **以 `_resolve_profile` 的解析结果为基准**（不是原始串）：`~/.fleet/x`、`/abs/.../x`、`x@Default` 等只要 `_resolve_profile` 解到同一 udd/pdir 就得同一 id，吸收入参格式差异。
+- **铁律**：安装某 profile 烤入的 `PROFILE_ID` == `human_dom_profile_id(开这个 profile 用的同一 profile 串)`。调用方对三处（`human_browser_open` / 安装 / `human_dom_locate`）传同一 profile 串即对上；不一致表现为 `no_tab_for_profile`（§6）。
 
 ### 4.3 content.js
 - auth 帧加 `profile_id`：`{type:"auth", token, profile_id, tab_id, url, active}`。
@@ -87,22 +98,39 @@ openclaw ──human_dom_locate(profile=Y)──▶ 独立 server(:8767 桥:8780
 ### 4.5 human_dom 工具 `_human_dom.py` + `_locate.py`
 - `human_dom_locate(query, css="", max_results=10, profile="")`、`human_dom_tap(query, nth=0, css="", profile="")`、`human_dom_fill(query, text, css="", profile="")`。
 - 内部 `pid = human_dom_profile_id(profile)`，传给 `resolve_locate(bridge, ..., profile_id=pid)`。
-- `resolve_locate`：透传 profile_id；无该 profile 的 tab → `{"ok":False,"reason":"no_tab_for_profile","profile":pid,"suggest":"先 human_browser_open(profile=…) 起该 profile 并装好 human_dom 扩展；或 vision_locate"}`。
+- `resolve_locate`：透传 profile_id；无该 profile 的 tab → `{"ok":False,"reason":"no_tab_for_profile","profile":pid,"suggest":"该 profile 可能(a)没起浏览器/没导航到目标页，或(b)没装 human_dom 扩展(每个 profile 要单独装，见 using-human-dom)；先确认，或用 vision_locate 兜底"}`。
+- **M3 诊断性**：全局 marker `~/.fleet/human-dom-ready` 只表示"本机装过"，**不代表某个 profile 装了**（多 profile 下 availability 仍 enabled，但某 profile 可能没装）。本期不改 availability 判定，靠上面 suggest 文案明确把"该 profile 没装扩展"列为首要怀疑；per-profile 安装台账留作后续（§9）。
 
 ### 4.6 桥端口可配 `_bridge.py` + server 接线
-- `run_bridge_loopback(bridge, host, port)` 已支持传 port；改 win/mac 接线处：`bridge_port = args.dom_bridge_port or (args.port + 13)`，调用 `run_bridge_loopback(..., port=bridge_port)`。
-- win/mac server 的 argparse 加可选 `--dom-bridge-port`（缺省走 `--port+13`）。
-- 派生约定：`8766→8779`（dev 不变，兼容现有默认 profile 扩展）、`8767→8780`（openclaw）。日志打印实际 bridge 端口。
+**S1 控制流（必须先理顺）**：现状 `main()` 里**先** `run_bridge_loopback(..., port=8779)`（写死）、**再** `_server_runtime.serve(mcp, ...)`，而 `serve()` 内部自己 `parse_server_args()`、不把 args 暴露给 caller → **按 args 取桥端口的链路是断的**。改法：
+- `_server_runtime` 暴露 `parse_server_args()`，且 `serve(mcp, *, args=None, ...)` 接受**已解析的 args**（None 时才自己 parse，保持兼容）。
+- win/mac `main()` 改为：`args = parse_server_args()` → `bridge_port = args.dom_bridge_port or (args.port + 13)` → `run_bridge_loopback(..., port=bridge_port)` → `serve(mcp, args=args, ...)`。
+- argparse 加可选 `--dom-bridge-port`（缺省走 `--port+13`）。日志打印实际 bridge 端口。
+
+**派生约定与护栏（N1）**：`+13` 仅用于 `8766→8779`（dev 不变、兼容现有默认 profile 扩展）和 `8767→8780`（openclaw）这两对；win-device 与 mac-device 不同机、不撞。**同机起多个 server 必须显式 `--dom-bridge-port`**（不能靠 +13 自动避撞）；openclaw 独立 server（同机 :8767）即走派生得 8780，其 profile 扩展烤 8780（见 §9）。
 
 ### 4.7 默认日常 Chrome（profile 留空）——重点考虑
 - `human_browser_open(profile="")` = 默认日常 Chrome（`open -a`/直起），其 human_dom **同样按 profile 路由**，`profile_id="default"`。
-- 默认 profile 的扩展由 **`install-human-dom-extension.sh`** 装入：脚本改为先 `prepare_extension(out_dir, bridge_port=<该机 server 派生端口>, profile_id="default")` 再引导 Load-unpacked 那个 out_dir。
+- 默认 profile 的扩展由安装引导装入：先 `prepare_extension(out_dir="~/.fleet/human-dom-ext/default", bridge_port=<该机 server 派生端口=--port+13>, profile_id="default")` 生成目录，再 Load-unpacked 那个 out_dir。
+  - bridge_port 来自该机 server 的 `--port`（脚本/工具读同一派生：`--port+13`，或调用方显式给）。
+  - **M1 流程衔接**：`prepare_extension` 是 Python（跨平台）；安装引导负责调它拿到 `out_dir` 后**打印/打开**该目录供用户 Load-unpacked。mac 改 `install-human-dom-extension.sh`、**win 新增 `scripts/install-human-dom-extension.ps1`**（N2，本期范围）；视觉 agent 自助流程（using-human-dom）也改为「先 prepare_extension 再 Load-unpacked 那个 out_dir」。
+  - **M1 运维提醒**：Load-unpacked 扩展 ID 由目录绝对路径决定 → **别移动 `~/.fleet/human-dom-ext/`**，移动后扩展会从 Chrome 消失需重装；写进 skill 注意事项。
 - `human_dom_locate(profile="")` → `human_dom_profile_id("")="default"` → 路由到默认 profile 的 active tab（用户日常浏览器里当前前台那个 tab）。
 - 默认 profile 与专用 profile 同时装了 human_dom：`profile=""`→默认、`profile="~/.fleet/X"`→专用，**不串线**。
 
+### 4.8a 桥并发 / event-loop 模型（S2，借这次一并加固）
+现状 `run_bridge_loopback` 用 `asyncio.run(server.serve())` 在**独立守护线程的独立 loop** 跑；而 `human_dom_locate` 在 MCP 主 loop 执行。于是 `bridge.locate()` 跨 loop `ws.send_json()` + `_deliver` 跨线程 `fut.set_result()` 都是**未定义行为**，`_clients` 也无锁。单 profile 下并发少没爆，profile 路由后并发上升，必须加固。
+
+- **决策：桥 loopback listener 跑在 MCP server 的同一 event loop 内**（用 FastMCP 启动钩子/lifespan 把 `server.serve()` 作为 task 起在主 loop），**仍只绑 `127.0.0.1`**（不挂 MCP 的 0.0.0.0 app，保 [[2026-06-24-human-dom-perception-capability]] 定的「loopback-only 不暴露 LAN」）。单 loop → 没有跨 loop 的 ws/future 问题。
+- `_clients` 全在该单 loop 内访问；遍历（`_active`）时对列表**取快照**再迭代，避免 unregister 并发改表。
+- 若启动钩子接线代价过大，退路：保留独立线程，但 `ws.send_json` 走 `run_coroutine_threadsafe(..., bridge_loop)`、`fut.set_result` 走 `mcp_loop.call_soon_threadsafe`、`_clients` 加 `threading.Lock`。**首选单 loop**。
+
 ### 4.8 向后兼容与迁移
 - **旧扩展（没烤 PROFILE_ID）**：auth 不带 `profile_id` → 桥按缺省视为 `"default"`（让现存「默认 profile 安装」继续配 `profile=""` 用）。
-- **旧调用（不传 profile）**：`profile` 默认 `""` → `"default"`。即「不传 profile」语义 = 操作默认日常 Chrome。**注意**：现有操作专用 profile 但没传 profile 的调用方（如发布员 prompt、skill 示例）**必须改成显式传 profile**，否则会路由到 default 找不到目标——skill/prompt 同步更新（见 §7）。
+- **旧调用（不传 profile）**：`profile` 默认 `""` → `"default"`。即「不传 profile」语义 = 操作默认日常 Chrome。
+- ⚠️ **M4 安全风险（比"找不到"更严重）**：若**默认 profile 也装了扩展**（既有装法就装在日常 Chrome）且日常 Chrome 开着，旧调用方（本该操作专用 profile 却没传 profile）会 `profile=""`→**悄悄路由到日常 Chrome 的某个 tab、操作错账号**（不是 `no_tab_for_profile`，是"找错了"，更难发现）。对策：
+  - **桥绝不 fallback**：请求的 profile 无 client 时直接 `no_tab_for_profile`，**即使 default 有 client 也不回落**（§6）。这能挡住"目标 profile 没起"的情况，但挡不住"调用方把专用误写成默认"。
+  - **真正的防线 = 调用方显式传 profile**。因此：**合并前必须同步改完所有真账号调用方的 profile 传参**——尤其 **ops 仓发布员/pulse prompt 的 human_dom 调用补 `profile=<固定值>`**，这是**本变更的硬前提/阻断项**（不是"单独跟进"）。skill 示例同步（§7）。
 - 端口派生默认保持 8779（dev），现有默认 profile 扩展（连 8779）不受影响。
 
 ---
@@ -132,7 +160,7 @@ openclaw ──human_dom_locate(profile=Y)──▶ 独立 server(:8767 桥:8780
 
 - `using-human-dom`：① `human_dom_*` 加 `profile=` 用法，强调**三处同一个 profile 串**（open/装扩展/locate）；② 自助 Load-unpacked 流程改为「先 `prepare_extension` 生成带 PROFILE_ID/PORT 的目录再 Load-unpacked」；③ 多 profile 必须显式传 profile、否则落 default。
 - `using-human-browser`：专用 profile 段补「human_dom 要传同一 profile」。
-- 发布员/pulse prompt（ops 仓）：human_dom 调用补 `profile=<固定值>`（**不在本仓，单独跟 AgentHub/ops 同步**）。
+- **发布员/pulse prompt（ops 仓）：human_dom 调用补 `profile=<固定值>`——这是【合并前硬前提】（M4），不是事后跟进**。虽不在本仓，但必须与本变更同批落地（否则真账号有静默误操作风险）；本仓 PR 描述里写明该依赖、合并前确认 ops 侧已改。
 
 ---
 
@@ -149,5 +177,7 @@ openclaw ──human_dom_locate(profile=Y)──▶ 独立 server(:8767 桥:8780
 
 ## 9. 本期范围与后续
 
-- **本期**：A（profile 路由）+ B（端口可配）+ 安装/默认 profile/兼容 + skill。openclaw 独立 server 据此（:8767 派生 8780、其 profile 扩展烤 8780）。
-- **后续/可选**：profile 安装台账（哪些 profile 装了扩展，避免重复装）；prepare_extension 做成 fleet-cli 子命令。
+- **本期**：A（profile 路由）+ B（端口可配）+ 桥并发加固（§4.8a）+ `prepare_extension`/默认 profile/win `.ps1` 安装引导 + 兼容 + skill + ops prompt 同步（硬前提）。
+- **openclaw 独立 server（确认接线）**：openclaw 在 test-win11 起的 server 是 `--port 8767` → 桥派生 **8780**；其操作的每个 profile 装的扩展用 `prepare_extension(bridge_port=8780, profile_id=…)` 生成；与 dev(:8766/8779) 端口隔离、各自 profile 路由。我这套 dev 维持 8766/8779 不动。
+- **已知债（本期不改，知会）**：① `~/.fleet/human-dom-ready` marker 在引导打印后即写、不等真装完（N4，旧债，靠 suggest 文案补偿）；② `tab_id=Date.now()` 同毫秒可能重复（N3，当前只按 profile 路由、不影响，注明"tab_id 仅 debug、不保证唯一"）。
+- **后续/可选**：per-profile 安装台账（哪些 profile 装了扩展，避免重复装 + 让 availability/suggest 更准）；`prepare_extension` 做成 fleet-cli 子命令。
