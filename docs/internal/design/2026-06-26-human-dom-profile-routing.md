@@ -65,7 +65,7 @@ openclaw ──human_dom_locate(profile=Y)──▶ 独立 server(:8767 桥:8780
 
 - 扩展目录改为「模板 + 生成」：
   - `extension/content.js` 里两个占位常量：`const PORT = __AF_PORT__;`、`const PROFILE_ID = "__AF_PROFILE_ID__";`。
-  - 新增 setup 函数 `prepare_extension(out_dir, bridge_port, profile_id)`：把模板拷到 `out_dir`、把 `__AF_PORT__`→端口、`__AF_PROFILE_ID__`→profile_id，产出该 profile 专属扩展目录，再 Load-unpacked。
+  - 新增 setup 函数 `prepare_extension(out_dir, bridge_port, profile_id)`：把模板拷到 `out_dir`、把 `__AF_PORT__`→端口、`__AF_PROFILE_ID__`→profile_id、再写一份 `meta.json {profile_id, bridge_port}`（给 `human_dom_status` 用，§4.5a），产出该 profile 专属扩展目录，再 Load-unpacked。
 - 每 profile 一个扩展目录（如 `~/.fleet/human-dom-ext/<profile_id>/`）。代价：多目录；收益：确定、零运行时依赖、与 Chrome137+ Load-unpacked 一致。
 - **旧装法兼容**：旧扩展没有这些占位/没 PROFILE_ID → 不发 `profile_id`，由桥侧按缺省视为 `"default"`（§4.8），不靠 content.js 兜底。
 
@@ -99,15 +99,34 @@ def human_dom_profile_id(profile_str):
 - `human_dom_locate(query, css="", max_results=10, profile="")`、`human_dom_tap(query, nth=0, css="", profile="")`、`human_dom_fill(query, text, css="", profile="")`。
 - 内部 `pid = human_dom_profile_id(profile)`，传给 `resolve_locate(bridge, ..., profile_id=pid)`。
 - `resolve_locate`：透传 profile_id；无该 profile 的 tab → `{"ok":False,"reason":"no_tab_for_profile","profile":pid,"suggest":"该 profile 可能(a)没起浏览器/没导航到目标页，或(b)没装 human_dom 扩展(每个 profile 要单独装，见 using-human-dom)；先确认，或用 vision_locate 兜底"}`。
-- **M3 诊断性**：全局 marker `~/.fleet/human-dom-ready` 只表示"本机装过"，**不代表某个 profile 装了**（多 profile 下 availability 仍 enabled，但某 profile 可能没装）。本期不改 availability 判定，靠上面 suggest 文案明确把"该 profile 没装扩展"列为首要怀疑；per-profile 安装台账留作后续（§9）。
+- **M3 诊断性**：全局 marker `~/.fleet/human-dom-ready` 只表示"本机装过"，**不代表某个 profile 装了**。本期加 per-profile 安装状态（§4.5a），suggest 文案 + status 工具一起把"该 profile 没装扩展"诊断清楚。
+
+### 4.5a per-profile 安装状态（Q1：本期）
+要能**显式判断某个 profile 装没装扩展**（管理 10 个 profile 时必需）。两个维度：
+- **静态（装没装，不依赖开页面）**：`prepare_extension` 给每 profile 生成 `~/.fleet/human-dom-ext/<profile_id>/` 目录，内含烤好的 content.js + 一份 `meta.json {profile_id, bridge_port}`。**目录存在 = 该 profile 装过**；`bridge_port` 记它归哪个 server（端口）。
+- **运行时（当前连没连桥）**：桥的 `_clients` 带 `profile_id` → server 知道当前哪些 profile 的 content script 连着（= 装好且有 http 页面开着）。
+- **新工具 `human_dom_status() -> {profiles:[{profile_id, installed, bridge_port, connected, tab_url?}]}`**：
+  - 扫 `~/.fleet/human-dom-ext/*/meta.json` 里 `bridge_port == 本 server 桥端口` 的（= 归本 server 的 profile）→ `installed=true`；
+  - 与桥当前连着的 profile_id 求交 → `connected=true`；
+  - 让 agent/用户一眼看清「哪些 profile 装了、连着、归本 server」。
+- 注：本 server 只列归自己（端口匹配）的 profile；跨 server 的扩展看不到（按端口隔离，Q4-B）。
 
 ### 4.6 桥端口可配 `_bridge.py` + server 接线
 **S1 控制流（必须先理顺）**：现状 `main()` 里**先** `run_bridge_loopback(..., port=8779)`（写死）、**再** `_server_runtime.serve(mcp, ...)`，而 `serve()` 内部自己 `parse_server_args()`、不把 args 暴露给 caller → **按 args 取桥端口的链路是断的**。改法：
 - `_server_runtime` 暴露 `parse_server_args()`，且 `serve(mcp, *, args=None, ...)` 接受**已解析的 args**（None 时才自己 parse，保持兼容）。
-- win/mac `main()` 改为：`args = parse_server_args()` → `bridge_port = args.dom_bridge_port or (args.port + 13)` → `run_bridge_loopback(..., port=bridge_port)` → `serve(mcp, args=args, ...)`。
-- argparse 加可选 `--dom-bridge-port`（缺省走 `--port+13`）。日志打印实际 bridge 端口。
+- win/mac `main()` 改为：`args = parse_server_args()` → `bridge_port = resolve_bridge_port(args)` → `run_bridge_loopback(..., port=bridge_port)` → `serve(mcp, args=args, ...)`。
+- argparse 加可选 `--dom-bridge-port`。
 
-**派生约定与护栏（N1）**：`+13` 仅用于 `8766→8779`（dev 不变、兼容现有默认 profile 扩展）和 `8767→8780`（openclaw）这两对；win-device 与 mac-device 不同机、不撞。**同机起多个 server 必须显式 `--dom-bridge-port`**（不能靠 +13 自动避撞）；openclaw 独立 server（同机 :8767）即走派生得 8780，其 profile 扩展烤 8780（见 §9）。
+**桥端口在「server 启动时」一次定死并持久化（关键：扩展安装读这个持久值，不在扩展侧探端口）**：
+`resolve_bridge_port(args)` 顺序——
+1. `--dom-bridge-port` 显式给 → 用它；
+2. 否则读持久文件 `~/.fleet/dom-bridge-<mcp_port>.port`，若其中端口**当前可绑** → 用它（**跨重启稳定**：已烤好的扩展继续对得上）；
+3. 否则试 `mcp_port + 13`，可绑 → 用它（dev `8766→8779` 维持不变、兼容现有扩展）；
+4. **仍被占用 → 从 `mcp_port+13` 起向后扫**（+14、+15…）到第一个可绑端口；
+5. 把最终选定端口**写回 `~/.fleet/dom-bridge-<mcp_port>.port`** 并日志打印。
+- **为什么在启动时扫、而不在扩展安装时扫**：端口必须和扩展烤死的 PORT 一致；启动时定死并持久 → **后续所有扩展安装都读这个持久值来烤**，server 与扩展永远一致。
+- **扩展安装取端口**：`prepare_extension(...)` 的 `bridge_port` 由安装流程从 `~/.fleet/dom-bridge-<mcp_port>.port` 读取（或查运行中 server 的 `human_dom_status`，见 §4.5a），不让人工填、不在扩展侧猜。
+- 同机多 server（如 dev :8766 与 openclaw :8767）各自按上面解析：8766→8779、8767→8780（撞了自动向后扫），各写各的持久文件，互不干扰。
 
 ### 4.7 默认日常 Chrome（profile 留空）——重点考虑
 - `human_browser_open(profile="")` = 默认日常 Chrome（`open -a`/直起），其 human_dom **同样按 profile 路由**，`profile_id="default"`。
@@ -169,15 +188,16 @@ def human_dom_profile_id(profile_str):
 纯逻辑 Linux 可测：
 - `human_dom_profile_id`：`""→"default"`、路径规范化、同入参幂等。
 - `DomBridge`：多 client 不同 profile_id；`_active(pid)` 只在该组取；`locate(profile_id)` 派到对组、对其它组不影响；无该 profile → 抛/`no_tab_for_profile`；缺 profile_id 视为 default。
-- 桥端口派生：`port+13`、`--dom-bridge-port` 覆盖。
-- `prepare_extension`：占位替换正确、manifest 仍合法。
+- `resolve_bridge_port`：显式覆盖 > 持久值(可绑) > port+13 > 向后扫；持久文件读写；持久值不可绑时回落扫描。
+- `prepare_extension`：占位替换正确（PORT/PROFILE_ID）、manifest 仍合法、写 `meta.json{profile_id,bridge_port}`。
+- `human_dom_status`：扫 ext 目录(按 bridge_port 过滤本 server) × 桥连接 → installed/connected 正确；跨 server(端口不符)不计入。
 真机（test-win11）：两个 profile 各装带不同 PROFILE_ID 的扩展，`human_dom_locate(profile=A)`/`(profile=B)` 分别命中各自页面、互不串线；默认 profile `profile=""` 命中默认 Chrome。
 
 ---
 
 ## 9. 本期范围与后续
 
-- **本期**：A（profile 路由）+ B（端口可配）+ 桥并发加固（§4.8a）+ `prepare_extension`/默认 profile/win `.ps1` 安装引导 + 兼容 + skill + ops prompt 同步（硬前提）。
+- **本期**：A（profile 路由）+ B（端口启动时确定/向后扫/持久化，§4.6）+ **per-profile 安装状态 + `human_dom_status` 工具（§4.5a，Q1）** + 桥并发加固（§4.8a）+ `prepare_extension`/默认 profile/win `.ps1` 安装引导 + 兼容 + skill + ops prompt 同步（硬前提）。
 - **openclaw 独立 server（确认接线）**：openclaw 在 test-win11 起的 server 是 `--port 8767` → 桥派生 **8780**；其操作的每个 profile 装的扩展用 `prepare_extension(bridge_port=8780, profile_id=…)` 生成；与 dev(:8766/8779) 端口隔离、各自 profile 路由。我这套 dev 维持 8766/8779 不动。
 - **已知债（本期不改，知会）**：① `~/.fleet/human-dom-ready` marker 在引导打印后即写、不等真装完（N4，旧债，靠 suggest 文案补偿）；② `tab_id=Date.now()` 同毫秒可能重复（N3，当前只按 profile 路由、不影响，注明"tab_id 仅 debug、不保证唯一"）。
-- **后续/可选**：per-profile 安装台账（哪些 profile 装了扩展，避免重复装 + 让 availability/suggest 更准）；`prepare_extension` 做成 fleet-cli 子命令。
+- **后续/可选**：`prepare_extension`/`human_dom_status` 做成 fleet-cli 子命令；availability() 改读 per-profile（目前仍用全局 marker）。
