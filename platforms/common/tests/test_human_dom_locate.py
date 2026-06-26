@@ -4,7 +4,7 @@ from human_dom._locate import resolve_locate
 
 class FakeBridge:
     def __init__(self, reply): self._reply = reply
-    async def locate(self, query, css=None, max_results=10, timeout=3.0): return self._reply
+    async def locate(self, query, css=None, max_results=10, profile_id="default", timeout=3.0): return self._reply
 
 GEOM = {"screenX":0,"screenY":0,"innerW":1000,"innerH":900,"outerW":1000,"outerH":900,"dpr":1,"scrollX":0,"scrollY":0}
 
@@ -27,5 +27,5 @@ def test_bridge_no_client_returns_structured_error():
     class NoClient:
         async def locate(self, *a, **k): raise TimeoutError("no active tab")
     out = asyncio.run(resolve_locate(NoClient(), "发布"))
-    assert out["ok"] is False and out["reason"] == "bridge_no_active_tab"
-    assert out["suggest"] == "vision_locate"
+    assert out["ok"] is False and out["reason"] == "no_tab_for_profile"
+    assert out["profile"] == "default"
