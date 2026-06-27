@@ -2,13 +2,12 @@
 from __future__ import annotations
 from ._geom import viewport_to_screen
 
-async def resolve_locate(bridge, query, css=None, max_results=10, timeout=3.0) -> dict:
+async def resolve_locate(bridge, query, css=None, max_results=10, profile_id="default", timeout=3.0) -> dict:
     try:
-        reply = await bridge.locate(query, css=css, max_results=max_results, timeout=timeout)
+        reply = await bridge.locate(query, css=css, max_results=max_results, profile_id=profile_id, timeout=timeout)
     except TimeoutError:
-        return {"ok": False, "reason": "bridge_no_active_tab",
-                "suggest": "vision_locate",
-                "hint": "页面未就绪或无 active tab 的扩展连入; 先 take_screenshot 确认页面 load, 或用 vision_locate"}
+        return {"ok": False, "reason": "no_tab_for_profile", "profile": profile_id,
+                "suggest": "该 profile 可能没起浏览器/没导航到目标页，或没装 human_dom 扩展(每 profile 单独装,见 using-human-dom);或 vision_locate"}
     except Exception as e:
         return {"ok": False, "reason": f"bridge_error:{type(e).__name__}", "suggest": "vision_locate"}
     if not reply.get("ok"):

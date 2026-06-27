@@ -13,9 +13,9 @@ def test_auth_rejects_wrong_token():
 
 def test_locate_pairs_reply_by_id():
     b = DomBridge(token="")
-    ws = FakeWS(); b.register(ws, tab_id="t1", url="x", active=True)
+    ws = FakeWS(); b.register(ws, profile_id="default", tab_id="t1", url="x", active=True)
     async def scenario():
-        task = asyncio.create_task(b.locate("发布", timeout=2.0))
+        task = asyncio.create_task(b.locate("发布", profile_id="default", timeout=2.0))
         await asyncio.sleep(0.05)          # 让 locate 发出请求、注册 pending
         rid = ws.sent[0]["id"]
         b._deliver({"id": rid, "ok": True, "candidates": [], "viewport": {}})
@@ -25,10 +25,10 @@ def test_locate_pairs_reply_by_id():
 
 def test_concurrent_locates_get_their_own_reply():
     b = DomBridge(token="")
-    ws = FakeWS(); b.register(ws, tab_id="t1", url="x", active=True)
+    ws = FakeWS(); b.register(ws, profile_id="default", tab_id="t1", url="x", active=True)
     async def scenario():
-        t1 = asyncio.create_task(b.locate("A", timeout=2.0))
-        t2 = asyncio.create_task(b.locate("B", timeout=2.0))
+        t1 = asyncio.create_task(b.locate("A", profile_id="default", timeout=2.0))
+        t2 = asyncio.create_task(b.locate("B", profile_id="default", timeout=2.0))
         await asyncio.sleep(0.05)
         id1 = next(m["id"] for m in ws.sent if m["query"] == "A")
         id2 = next(m["id"] for m in ws.sent if m["query"] == "B")
@@ -43,18 +43,18 @@ def test_locate_no_active_client_raises_timeout():
     import pytest
     b = DomBridge(token="")
     with pytest.raises(TimeoutError):
-        asyncio.run(b.locate("发布", timeout=0.2))
+        asyncio.run(b.locate("发布", profile_id="default", timeout=0.2))
 
 def test_set_active_updates_client_and_active_selection():
     # 修真机发现的多 tab bug: content script 报 visibilitychange → set_active → _active 跟前台走。
     b = DomBridge(token="")
     ws1, ws2 = object(), object()
-    b.register(ws1, "t1", "x", active=True)
-    b.register(ws2, "t2", "y", active=False)
-    assert b._active()["ws"] is ws1
+    b.register(ws1, "default", "t1", "x", active=True)
+    b.register(ws2, "default", "t2", "y", active=False)
+    assert b._active("default")["ws"] is ws1
     b.set_active(ws1, False)
     b.set_active(ws2, True)
-    assert b._active()["ws"] is ws2
+    assert b._active("default")["ws"] is ws2
 
 
 def test_run_bridge_loopback_binds_127(monkeypatch):
