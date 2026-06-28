@@ -64,9 +64,23 @@ def _chrome_binary() -> "str | None":
     return _chrome_path()  # win/linux: 本来就是 exe
 
 
+# 全新 profile 首启会弹原生窗口(Chrome 登录提示/「设为默认浏览器」横幅/What's New/FRE),
+# 操作员 agent 不认识这些原生窗口会乱处理(误关标签、重开落登录页、甚至误触其它应用)。
+# 这组 flag 在 test-win11 真机验证可靠消除、直接进目标页(AgentHub #211)。均为首启抑制开关,
+# 不禁用扩展、不影响 human_dom 加载(扩展走 chrome://extensions Load-unpacked,不靠命令行)。
+_FIRST_RUN_SUPPRESS_FLAGS = [
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-features=ChromeWhatsNewUI,SigninPromo,ForYouFre",
+    "--disable-fre",
+]
+
+
 def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str) -> list:
-    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。"""
-    args = [binary, f"--user-data-dir={udd}"]
+    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。
+    含 _FIRST_RUN_SUPPRESS_FLAGS 消除全新 profile 首启原生弹窗(见常量注释)。
+    url 保持最后一个位置参(Chrome 把位置参当要打开的 URL)。"""
+    args = [binary, f"--user-data-dir={udd}", *_FIRST_RUN_SUPPRESS_FLAGS]
     if pdir:
         args.append(f"--profile-directory={pdir}")
     if url:
