@@ -48,7 +48,7 @@ human_dom 能用 = **两层都满足**，排错时先分清缺哪一层：
 | 层 | 是什么 | 缺了会怎样 | 怎么补 |
 |---|---|---|---|
 | ① host 级 provisioning | 标记文件 `~/.fleet/human-dom-ready` 存在（server **启动时静态判定**，决定 human_dom 工具**注册不注册**） | `list_capabilities` 里 human_dom = `unavailable`，**根本没有 human_dom_* 工具** | 跑安装脚本（mac `install-human-dom-extension.sh` / win `install-human-dom-extension.ps1`，**引导在目标 profile 手动 Load unpacked + 自动写 marker**），或手动 `run_shell` 建 marker（见 per-profile 节）。**写完 marker 必须重连 / 重启 server** 才注册（框架不动态增删工具） |
-| ② profile 级 扩展 | human_dom 扩展**已加载进你当前浏览的那个 Chrome profile**（扩展是 per-profile 副本，每份烤入了该 profile 的桥端口 + profile_id） | 工具在，但 `human_dom_locate` 对该 profile 的页面拿不到元素，或路由到别的 profile | 先为该 profile 生成一份烤好的扩展副本（跑 `install-human-dom-extension.sh "<PROFILE>"` 或手动 `prepare_extension` → `~/.fleet/human-dom-ext/<id>/`），再用 **chrome://extensions 持久 Load-unpacked 那个副本目录**（见下节自助流程；`--load-extension` 在 Chrome137+ 已禁用） |
+| ② profile 级 扩展 | human_dom 扩展**已加载进你当前浏览的那个 Chrome profile**（扩展是 per-profile 副本，每份烤入了该 profile 的桥端口 + profile_id） | 工具在，但 `human_dom_locate` 对该 profile 的页面拿不到元素，或路由到别的 profile | 副本现在由 **`human_browser_open(profile=X)` 自动烤**（起专用 profile 时算 profile_id+读桥端口生成 `~/.fleet/human-dom-ext/<id>/`，路径在其返回的 `human_dom_ext` 字段；无需另跑安装脚本——见下节第 0 步），再用 **chrome://extensions 持久 Load-unpacked 那个副本目录**（`--load-extension` 在 Chrome137+ 已禁用） |
 
 先 `list_capabilities`：
 - **human_dom = unavailable**（无 marker）：缺第①层。补 marker + 重连 server 即注册（mac 跑 `install-human-dom-extension.sh` / win 跑 `install-human-dom-extension.ps1`，脚本会自动写 marker；或手动建 marker，见下）。补好前先用 `vision_locate` 顶着。
@@ -68,22 +68,20 @@ human_dom 能用 = **两层都满足**，排错时先分清缺哪一层：
 
 为专用 profile `~/.fleet/<account-id>` 装 human_dom 扩展，一次性。**全程认准同一个 PROFILE 串**（= 后面 `human_dom_locate(profile=...)` 要传的那个）：
 
-0. **先生成该 profile 的扩展副本目录**（不能直接 Load 模板 —— 模板的 `content.js` 里 `__AF_PORT__` / `__AF_PROFILE_ID__` 还是占位符，未烤不连桥）：
-   - 推荐跑安装脚本，它自动算 profile_id + 读 server 持久化的桥端口 + 烤好副本到 `~/.fleet/human-dom-ext/<profile_id>/`，并引导后续 Load-unpacked：
-     - mac：`bash platforms/macos/scripts/install-human-dom-extension.sh "<PROFILE>"`
-     - win：`powershell -ExecutionPolicy Bypass -File .\platforms\windows\scripts\install-human-dom-extension.ps1 "<PROFILE>"`
-     - **不传 PROFILE = 装进默认日常 Chrome**（profile_id=default）。
-   - 或手动 `prepare_extension(out_dir, bridge_port, profile_id)` 自己烤（`profile_id = human_dom_profile_id(PROFILE)`，bridge_port 读 `~/.fleet/dom-bridge-<mcp_port>.port`）。
-1. **起该 profile**：`human_browser_open(profile="~/.fleet/<account-id>")`。全新 profile 会弹首启 promo（登录 Chrome / 设为默认）→ `vision_tap("不登录")`、`vision_tap("跳过")` 跳过。
-2. **开扩展页**：点地址栏 → **`paste_text("chrome://extensions")`** → `press_key("enter")`。
+0. **起该 profile（这一步会自动烤好扩展副本）**：`human_browser_open(profile="~/.fleet/<account-id>")`。
+   - ★ **auto-bake（最省事，别漏）**：起【专用 profile】时 human_browser_open **自动为它烤好扩展副本**（算 profile_id + 读本 server 桥端口 → `~/.fleet/human-dom-ext/<profile_id>/`）；**副本目录路径在返回的 `human_dom_ext` 字段里**，第 3 步直接选它，**无需另跑安装脚本**。（不能直接 Load 仓库模板 —— 模板 `content.js` 里 `__AF_PORT__`/`__AF_PROFILE_ID__` 是占位符、未烤不连桥；漏烤直接去 Load 模板是最常见的失败。）
+   - **全新 profile 首启弹窗**：会弹「登录 Chrome」「设为默认」两个原生弹窗 → `vision_tap("不登录")`、`vision_tap("跳过")` 跳过。（**若本 server 已部署 human_browser 的首启抑制启动 flag**〔随 AgentHub #211 配套交付，起专用 profile 时注入 `--no-first-run` 等〕，这两个弹窗不出现、可直接往下。）
+   - 手动/特殊场景仍可：跑安装脚本（mac `install-human-dom-extension.sh "<PROFILE>"` / win `.ps1`）或 `prepare_extension(out_dir, bridge_port, profile_id)` 自己烤；**不传 PROFILE = 默认日常 Chrome**（profile_id=default、`human_dom_*` 也不传 profile）。
+1. **开扩展页**：点地址栏 → **`paste_text("chrome://extensions")`** → `press_key("enter")`。
    - ★ **务必用 `paste_text` 不要 `type_text`**：中文输入法会把 `//` 打成 `、`（实测踩过），`paste_text` 走剪贴板绕开。
-3. **开开发者模式**：`tap` 右上角「开发者模式」开关（OFF→ON），随后左上出现「加载未打包的扩展程序」按钮 → `tap` 它。
-4. **原生文件框**（"选择扩展程序目录"）：点「文件夹」输入框 → `paste_text("<烤好的副本目录绝对路径>")` → `tap`「选择文件夹」。
-   - **选的是第 0 步烤好的副本目录** `~/.fleet/human-dom-ext/<profile_id>/`（win 例：`C:\Users\<u>\.fleet\human-dom-ext\<profile_id>`），**不是**仓库里的模板目录 `platforms/common/capabilities/human_dom/extension`（模板有占位符、未烤不能用）。
+   - ★ **别用 `human_browser_open(url="chrome://extensions")` 开扩展页**：实测它只会**新开一个标签页、不导航**过去；要在已起的那个窗口里走地址栏 `paste_text`。
+2. **开开发者模式**：`tap` 右上角「开发者模式」开关（OFF→ON），随后左上出现「加载未打包的扩展程序」按钮 → `tap` 它。
+3. **原生文件框**（"选择扩展程序目录"）：点「文件夹」输入框 → `paste_text("<第 0 步返回的 human_dom_ext 副本目录绝对路径>")` → `tap`「选择文件夹」。
+   - **选的是烤好的副本目录** `~/.fleet/human-dom-ext/<profile_id>/`（win 例：`C:\Users\<u>\.fleet\human-dom-ext\<profile_id>`），**不是**仓库模板目录 `platforms/common/capabilities/human_dom/extension`（模板有占位符、未烤不能用）。
    - 装好后列表出现「agent-fleet human_dom locator」即成功；**持久**，跨 Chrome 重启仍在（比 --load-extension 强在这）。
-5. **导航到目标网页**：扩展页（chrome://extensions）本身不连桥——先用地址栏 `paste_text` 导航到真正要操作的网页（如发布页）再继续。
-6. **放行本地网络访问（PNA）**：在目标网页上，human_dom content script 连本机桥（`127.0.0.1:<桥端口>`，桥端口由 server 启动时确定、烤进副本里）会触发 Chrome「<网站> 想要访问此设备上的其他应用和服务 [允许][屏蔽]」提示（Private Network Access，新版 Chrome 强制）→ **`vision_tap("允许")`**（每个新 profile/origin 一次性；之后持久）。放行后**重载页面**（win `press_key("f5")` / mac `press_key("cmd+r")`）让 content script 重连，桥即 Established。
-7. 之后 `human_dom_locate/tap/fill` 正常用，**记得每次都传 `profile="<同一个 PROFILE 串>"`**（不传=操作 default）。可先 `human_dom_status()` 确认该 profile `installed:true / connected:true`。
+4. **导航到目标网页**：扩展页（chrome://extensions）本身不连桥——先用地址栏 `paste_text` 导航到真正要操作的网页（如发布页）再继续。
+5. **放行本地网络访问（PNA）**：在目标网页上，human_dom content script 连本机桥（`127.0.0.1:<桥端口>`，桥端口由 server 启动时确定、烤进副本里）会触发 Chrome「<网站> 想要访问此设备上的其他应用和服务 [允许][屏蔽]」提示（Private Network Access，新版 Chrome 强制）→ **`vision_tap("允许")`**（每个新 profile/origin 一次性；之后持久）。放行后**重载页面**（win `press_key("f5")` / mac `press_key("cmd+r")`）让 content script 重连，桥即 Established。
+6. 之后 `human_dom_locate/tap/fill` 正常用，**记得每次都传 `profile="<同一个 PROFILE 串>"`**（不传=操作 default）。可先 `human_dom_status()` 确认该 profile `installed:true / connected:true`。
 
 **注意事项：**
 - **只读扩展 + 「开发者模式扩展」横幅**：本地可见、网页探测不到（不注入 CDP/webdriver，stealth 不破）。

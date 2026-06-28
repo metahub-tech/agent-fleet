@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **`human_browser_open(profile=X)` 自动烤 human_dom 扩展副本（auto-bake，AgentHub #211 操作员发布链硬门）**：起专用 profile 时若该 profile 的扩展副本 `~/.fleet/human-dom-ext/<profile_id>/` 不存在（或烤入的桥端口与当前不符）则**自动生成**（算 profile_id + 读本 server 桥端口 + `prepare_extension`），副本目录在返回的 **`human_dom_ext`** 字段——agent 无需另跑安装脚本，直接 chrome://extensions Load-unpacked 该目录即可。省掉 per-profile 启用最易漏的一步（漏烤会误 Load 仓库模板而失败、模板含占位符不连桥）。auto-bake 任何异常都不阻断起浏览器。`using-human-dom` skill 已据 test-win11(Chrome 149) 实测固化全流程（开扩展页必须地址栏 `paste_text` / 选副本非模板 / PNA 放行 + 重载 等）。配套的「全新 profile 首启弹窗抑制」启动 flag 在 PR#67 单独交付。
+
 - **human_dom 接入 win（pc-device 第二端）**。win server 注册 `HumanDomCapability`（注入 `_os_tap` + `_os_fill`=Ctrl+A 全选 + 剪贴板粘贴）+ `127.0.0.1:8779` loopback 桥；`platforms/windows/platform.toml` 启用 human_dom（opt-in，装扩展 + 写 `~/.fleet/human-dom-ready` marker 后 enabled）。让 win 发布员（公众号富文本编辑器里 `div[role=button]` 等只有 vision 才点得到的元素）也拿到 DOM 精度。坐标公式 win 真机标定。
 
 - **pc-device（mac 先行）：human_dom DOM 感知能力模块**。`human_browser` 的精确定位伴生能力——在保持零 automation traces / 真实 profile / OS 级输入的前提下，通过 Chrome 扩展 content script **只读 DOM** 取得元素屏幕坐标，告别"截图猜坐标"。
