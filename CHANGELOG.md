@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **消除全新 profile 首启原生弹窗（AgentHub #211）**：`human_browser_open` 起【专用 profile】注入首启抑制 flag `_FIRST_RUN_SUPPRESS_FLAGS`（`--no-first-run --no-default-browser-check --disable-features=ChromeWhatsNewUI,SigninPromo,ForYouFre --disable-fre`），全新 profile 直接进目标页、无「登录 Chrome / 设为默认 / What's New / FRE」原生弹窗——操作员 agent 不再被不认识的原生窗口卡住（误关标签 / 落登录页）。仅作用于专用 profile 的 `_human_launch_args`（win/linux/mac 同路径）；mac 默认日常 profile 走 `open -a`、已过首启不需要。均为首启抑制开关，**不引入自动化痕迹**（零 automation traces 铁律不破）、不影响 human_dom 扩展加载。test-win11(Chrome 149) 真机验证。配套的 auto-bake 见 PR#68。
+
 - **human_dom 接入 win（pc-device 第二端）**。win server 注册 `HumanDomCapability`（注入 `_os_tap` + `_os_fill`=Ctrl+A 全选 + 剪贴板粘贴）+ `127.0.0.1:8779` loopback 桥；`platforms/windows/platform.toml` 启用 human_dom（opt-in，装扩展 + 写 `~/.fleet/human-dom-ready` marker 后 enabled）。让 win 发布员（公众号富文本编辑器里 `div[role=button]` 等只有 vision 才点得到的元素）也拿到 DOM 精度。坐标公式 win 真机标定。
 
 - **pc-device（mac 先行）：human_dom DOM 感知能力模块**。`human_browser` 的精确定位伴生能力——在保持零 automation traces / 真实 profile / OS 级输入的前提下，通过 Chrome 扩展 content script **只读 DOM** 取得元素屏幕坐标，告别"截图猜坐标"。
