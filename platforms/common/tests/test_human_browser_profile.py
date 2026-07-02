@@ -72,3 +72,26 @@ def test_ensure_ext_skips_default_or_no_port(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert _ensure_human_dom_ext("", 8779) is None          # 默认日常 profile(无 profile) 不烤
     assert _ensure_human_dom_ext("~/.fleet/op-x", None) is None  # 无桥端口不烤
+
+
+# --- P0-A(AgentHub #100): 确定性装扩展 —— debug 端口 + CDP loadUnpacked ---
+from capabilities.browser import _human_browser as _hb
+
+def test_launch_args_remote_debug_adds_ephemeral_port():
+    args = _human_launch_args("/c", "/udd", "Default", "http://x", remote_debug=True)
+    assert "--remote-debugging-port=0" in args   # 临时端口(写进 DevToolsActivePort)
+    assert args[-1] == "http://x"                 # url 仍在最后
+    assert "--user-data-dir=/udd" in args
+
+def test_launch_args_no_remote_debug_by_default():
+    args = _human_launch_args("/c", "/udd", None, "")
+    assert not any("remote-debugging" in a for a in args)  # 默认不开 debug 端口
+
+def test_maybe_load_human_dom_delegates_to_loader(monkeypatch):
+    import capabilities.human_dom._loader as L
+    seen = {}
+    monkeypatch.setattr(L, "load_dom_extension",
+                        lambda udd, ext, **kw: seen.update(udd=udd, ext=ext) or {"ok": True, "id": "xyz"})
+    r = _hb._maybe_load_human_dom("/udd", "/ext")
+    assert r == {"ok": True, "id": "xyz"}
+    assert seen == {"udd": "/udd", "ext": "/ext"}

@@ -65,14 +65,35 @@ def _chrome_binary() -> "str | None":
     return _chrome_path()  # win/linux: 本来就是 exe
 
 
-def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str) -> list:
-    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。"""
+def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str,
+                       remote_debug: bool = False) -> list:
+    """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。
+
+    remote_debug=True 时加 `--remote-debugging-port=0`(临时端口, Chrome 起后写进
+    <udd>/DevToolsActivePort) —— 供 server 侧 CDP `Extensions.loadUnpacked` 确定性
+    装 human_dom 扩展(零 GUI)。不加 --enable-automation → navigator.webdriver 仍 false;
+    本机 no-Origin 客户端才连得上 CDP(网页带 Origin→Chrome 默认 403), moat 不破。"""
     args = [binary, f"--user-data-dir={udd}"]
     if pdir:
         args.append(f"--profile-directory={pdir}")
+    if remote_debug:
+        args.append("--remote-debugging-port=0")
     if url:
         args.append(url)
     return args
+
+
+def _maybe_load_human_dom(udd: str, ext_dir: str) -> "dict | None":
+    """经 CDP 把烤好的 human_dom 扩展副本装进该 profile 的 Chrome(零 GUI)。
+    human_dom 能力不在本 server → 返回 None; 否则返回 loader 的 {ok,...} 结果。永不抛。"""
+    try:
+        from ..human_dom._loader import load_dom_extension
+    except Exception:
+        return None
+    try:
+        return load_dom_extension(udd, ext_dir)
+    except Exception as e:  # loader 已保证不抛, 这里再兜一层防御
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | None":
@@ -90,16 +111,18 @@ def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | Non
         return None  # human_dom 能力不在本 server → human_browser 仍可独立用
     try:
         pid = human_dom_profile_id(profile)
+        udd, pdir, _key = _resolve_profile(profile)  # 存进 meta 供 status 查 Secure Preferences
         ext_dir = os.path.expanduser(f"~/.fleet/human-dom-ext/{pid}")
         meta = Path(ext_dir) / "meta.json"
         need = True
         if meta.exists():
-            try:  # 已有副本: 仅当烤入的桥端口与当前不符才重烤(server 换端口后副本会失效)
-                need = json.loads(meta.read_text(encoding="utf-8")).get("bridge_port") != int(bridge_port)
+            try:  # 已有副本: 桥端口不符(server 换端口副本失效)或旧 meta 缺 udd → 重烤
+                m = json.loads(meta.read_text(encoding="utf-8"))
+                need = m.get("bridge_port") != int(bridge_port) or "udd" not in m
             except Exception:
                 need = True  # meta 损坏 → 重烤
         if need:
-            prepare_extension(ext_dir, bridge_port, pid)  # 已存在会先 rmtree 再 copytree
+            prepare_extension(ext_dir, bridge_port, pid, udd=udd, profile_dir=pdir)  # 已存在会先 rmtree
         return ext_dir
     except Exception:
         return None
@@ -147,11 +170,11 @@ class HumanBrowserCapability(CapabilityModule):
             human_browser(+human_dom),不要混用 agent_browser】——混用会落到不同 profile、每次重登。
             传给 agent_browser 与 human_browser 同一个 profile 值 = 同一磁盘 user-data-dir = 同一份登录(R4)。
 
-            想让某个 profile 用 human_dom(DOM 精度):human_dom 扩展是 per-profile 的,要装进那个 profile。
-            **Chrome 137+ 已禁用 --load-extension 命令行加载**,所以靠 chrome://extensions 持久 Load-unpacked
-            安装(开发者模式→加载未打包→选扩展目录;一次性、跨 run 持久)。视觉 agent 可自助装(见 using-human-dom
-            「为某 profile 启用 human_dom」)。全新 profile 首次连桥(127.0.0.1:8779)会弹 Chrome "本地网络访问"
-            授权,需点一次"允许"才连得上桥(见 skill)。"""
+            想让某个 profile 用 human_dom(DOM 精度):**无需操作员任何手动操作**——传专用 profile 时
+            server 会自动把 human_dom 扩展装进该 profile(auto-bake 副本 + 起 Chrome 带临时 debug 端口 +
+            经 CDP `Extensions.loadUnpacked` 确定性装,零 GUI/零视觉;Chrome137+ 禁了 --load-extension,
+            这是替代路径)。返回里 human_dom.ok=true 即已装好,导航到目标页后直接 human_dom_locate/tap/fill。
+            全新 profile 首次连桥会弹 Chrome "本地网络访问"授权,点一次"允许"才连得上桥(见 skill)。"""
             url = (url or "").strip()
             profile = (profile or "").strip()
             try:
@@ -174,19 +197,26 @@ class HumanBrowserCapability(CapabilityModule):
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
                 udd, pdir, key = _resolve_profile(profile)
                 ext_dir = _ensure_human_dom_ext(profile, self._bridge_port)  # auto-bake 扩展副本(缺则烤)
-                args = _human_launch_args(binary, udd, pdir, url)
+                args = _human_launch_args(binary, udd, pdir, url, remote_debug=bool(ext_dir))
                 subprocess.Popen(args, start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 resp = {"ok": True, "opened": url or "(chrome)", "profile": key,
                         "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
                                 "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"}
                 if ext_dir:
-                    resp["human_dom_ext"] = ext_dir
-                    resp["note"] += (f" human_dom 扩展副本已自动烤好在 {ext_dir};该 profile 首次用 human_dom:"
-                                     "地址栏 paste_text('chrome://extensions')→开发者模式→加载未打包 选该副本目录"
-                                     "→导航到目标页→PNA 点「允许」→f5 重载。扩展装一次、跨 run 持久;详见 using-human-dom。")
+                    # 确定性装扩展: 起 Chrome 时带临时 debug 端口, 再经 CDP loadUnpacked 把烤好的
+                    # 副本装进该 profile —— 零 GUI/零视觉/零 DPI(Chrome137+ 禁 --load-extension 的替代)。
+                    load = _maybe_load_human_dom(udd, ext_dir)
+                    resp["human_dom"] = load or {"ok": False, "error": "human_dom 能力不在本 server"}
+                    if load and load.get("ok"):
+                        resp["note"] += (" human_dom 扩展已自动装入该 profile(CDP loadUnpacked, 零 GUI, 无需操作员点扩展页);"
+                                         "导航到目标页后即可 human_dom_locate/tap/fill。装一次、本 run 生效, 每次 open 幂等重装。")
+                    else:
+                        err = (load or {}).get("error", "未知")
+                        resp["note"] += (f" human_dom 扩展自动装入未成功({err});仍可用 human_browser(截图+tap),"
+                                         "human_dom 精度暂不可用。可重试 human_browser_open, 或见 using-human-dom 排错。")
                 else:
-                    resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(Load-unpacked,Chrome137+ --load-extension 已禁用)。"
+                    resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(server 侧 CDP 自动装, 无需操作员手动)。"
                 return resp
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
