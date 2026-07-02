@@ -17,7 +17,12 @@ def _installed_on_disk(ext_subdir):
         return False
 
 
-def compute_status(ext_root, self_bridge_port, connected_ids):
+def compute_status(ext_root, self_bridge_port=None, connected_ids=frozenset()):
+    """扫 ~/.fleet/human-dom-ext 的每个 bake 目录报 {profile_id, installed, bridge_port, connected}。
+    installed = 纯盘扫描(loaded.json 标记), **不按 bridge_port 过滤** —— 换 server/换桥端口后
+    旧 profile 的 installed 信息不丢(AgentHub #100: profiles=[] 把 installed 也丢了)。
+    connected = 该 profile_id 是否连在【本 server 的桥】(connected_ids), 才是活跃 WS 维度。
+    self_bridge_port 已不用于过滤(保留形参兼容)。"""
     import json, os
     out = []
     root = os.path.expanduser(ext_root)
@@ -29,11 +34,9 @@ def compute_status(ext_root, self_bridge_port, connected_ids):
             meta = json.load(open(os.path.join(subdir, "meta.json")))
         except Exception:
             continue
-        if int(meta.get("bridge_port", -1)) != int(self_bridge_port):
-            continue
         pid = meta.get("profile_id")
         out.append({"profile_id": pid, "installed": _installed_on_disk(subdir),
-                    "bridge_port": int(self_bridge_port), "connected": pid in connected_ids})
+                    "bridge_port": meta.get("bridge_port"), "connected": pid in connected_ids})
     return out
 
 
@@ -139,13 +142,13 @@ class HumanDomCapability(CapabilityModule):
             fill(text)
             return {"ok": True, "filled_at": [int(round(x)), int(round(y))]}
 
-        bp = self._bridge_port
         @mcp.tool
         async def human_dom_status() -> dict:
-            """human_dom 双维度状态: {installed, connected, profiles, hint}(只统本 server 桥端口的 profile)。
-            installed=扩展已装入该 profile(读装成功即写的 loaded.json 标记), connected=当前连着桥。
+            """human_dom 双维度状态: {installed, connected, profiles, hint}。
+            installed=扩展已装入该 profile(纯盘扫描 loaded.json 标记, 报所有已装副本、不按桥端口过滤);
+            connected=该 profile 当前连在【本 server 的桥】; 每条 bridge_port 是它烤入的桥端口。
             关键: installed=true/connected=false ≠ 未安装 —— 别重装, 重开 human_browser_open 或导航到目标页即可(见 hint)。"""
             connected = {c["profile_id"] for c in list(bridge._clients)}
-            return build_status(compute_status("~/.fleet/human-dom-ext", bp, connected))
+            return build_status(compute_status("~/.fleet/human-dom-ext", connected_ids=connected))
 
         return ["human_dom_locate", "human_dom_tap", "human_dom_fill", "human_dom_status"]

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 修复
+
+- **human_dom 桥注册阻断修复：关本地网络访问(LNA/PNA)检查**（AgentHub #100，阻断级）。系统排查 + instrument 真桥实锤根因：公开页(example.com/公众号)的 content script 直连 localhost 桥(`ws://127.0.0.1`)被 Chrome 本地网络访问 gate——弹「本地网络访问 允许/屏蔽」且即使允许也有长延迟, WS 注册不上 → `human_dom_locate` 持续 `no_tab_for_profile`、`connected` 从未 true(桥/注册/路由逻辑本身正确)。修：`human_browser_open` 起 human_dom 专用 profile 时给 Chrome 加 `--disable-features=LocalNetworkAccessChecks`(与首启 feature 合并进同一个 `--disable-features`, Chrome 只认最后一个)。真机验(Chrome 149)：全新 profile 首启即 `connected`(1s)、**零弹窗零人工**、`human_dom_locate` 命中 example.com「Learn more」。作用域仅本专用 profile, 非自动化标志, `navigator.webdriver` 仍 false, moat 不破。
+- **`human_dom_status` 的 installed 改纯盘扫描, 不再按 bridge_port 过滤**（AgentHub #100）：换 server / 换桥端口后旧 profile 的 installed 信息不丢(读 `loaded.json` 标记盘扫描)；`connected` 才是「连在本 server 桥」的活跃 WS 维度；每条报自己烤入的 `bridge_port`。
+- **using-human-dom skill 更新为 v0.8.6+ 自动装现实**：删掉操作员手动开 chrome://extensions / Load-unpacked / 点 PNA 允许 / F5 那套(已被 server 侧 CDP `Extensions.loadUnpacked` + 关 LNA flag 取代)；`human_browser_open(profile=..)` 一步全包。
+
 ### 变更
 
 - **human_dom 改为按 profile 维度路由**（不再全局猜 active tab）。桥从「全局对当前 active tab 操作」改成「调用方传 `profile`、桥路由到该 profile 那张 tab」，**多 profile 并行操作不再串线**（告别「最小化别的窗口」那类规避 active-tab 串扰的 hack）。

@@ -24,16 +24,19 @@ def test_isolated_default():
 
 
 # --- _human_launch_args 专用 profile 启动参数（纯函数）---
-from capabilities.browser._human_browser import _human_launch_args, _FIRST_RUN_SUPPRESS_FLAGS
+from capabilities.browser._human_browser import (
+    _human_launch_args, _FIRST_RUN_FLAGS, _FIRST_RUN_DISABLE_FEATURES)
+
+_FR_DF = "--disable-features=" + ",".join(_FIRST_RUN_DISABLE_FEATURES)
 
 def test_launch_args_with_profile_dir():
     args = _human_launch_args("/c", "/udd", "Default", "http://x")
-    assert args == ["/c", "--user-data-dir=/udd", *_FIRST_RUN_SUPPRESS_FLAGS,
+    assert args == ["/c", "--user-data-dir=/udd", *_FIRST_RUN_FLAGS, _FR_DF,
                     "--profile-directory=Default", "http://x"]
 
 def test_launch_args_no_pdir_no_url():
     args = _human_launch_args("/c", "/udd", None, "")
-    assert args == ["/c", "--user-data-dir=/udd", *_FIRST_RUN_SUPPRESS_FLAGS]
+    assert args == ["/c", "--user-data-dir=/udd", *_FIRST_RUN_FLAGS, _FR_DF]
     assert "--profile-directory" not in " ".join(args)  # pdir=None 不带
 
 def test_launch_args_suppresses_first_run_popups():
@@ -111,3 +114,20 @@ def test_maybe_load_human_dom_delegates_to_loader(monkeypatch):
     assert r == {"ok": True, "id": "xyz"}
     assert seen["udd"] == "/udd" and seen["ext"] == "/ext"
     assert seen["kw"] == {"navigate_url": "http://t"}  # navigate_url 透传给 loader
+
+
+# --- P0/P2(AgentHub #100 桥注册阻断): 关 LocalNetworkAccessChecks 让公开页直连 localhost 桥 ---
+def test_launch_args_disables_lna_for_human_dom():
+    # 真机实证根因: 公开页(example.com/公众号)→localhost 桥的 WS 被 PNA/LNA gate, 弹窗+长延迟,
+    # 注册不上 → locate no_tab_for_profile。remote_debug(human_dom)时关掉 LNA 检查即首启 connected。
+    args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=True)
+    feats = [a for a in args if a.startswith("--disable-features=")]
+    assert len(feats) == 1, "只能有一个 --disable-features(Chrome 只认最后一个, 必须合并)"
+    assert "LocalNetworkAccessChecks" in feats[0]
+    for f in ("ChromeWhatsNewUI", "SigninPromo", "ForYouFre"):  # 首启 feature 也在同一个 flag 里
+        assert f in feats[0]
+
+def test_launch_args_no_lna_disable_without_human_dom():
+    args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=False)
+    feats = [a for a in args if a.startswith("--disable-features=")]
+    assert len(feats) == 1 and "LocalNetworkAccessChecks" not in feats[0]
