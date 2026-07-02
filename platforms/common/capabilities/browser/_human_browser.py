@@ -69,25 +69,33 @@ def _chrome_binary() -> "str | None":
 # 操作员 agent 不认识这些原生窗口会乱处理(误关标签、重开落登录页、甚至误触其它应用)。
 # 这组 flag 在 test-win11 真机验证可靠消除、直接进目标页(AgentHub #211)。均为首启抑制开关,
 # 不禁用扩展、不影响 human_dom 加载(扩展走 CDP loadUnpacked, 不靠命令行)。
-_FIRST_RUN_SUPPRESS_FLAGS = [
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-features=ChromeWhatsNewUI,SigninPromo,ForYouFre",
-    "--disable-fre",
-]
+# 首启抑制 flag(消除全新 profile 的登录提示/设默认横幅/What's New/FRE, AgentHub #211)。
+# --disable-features 的 feature 名单单列, 便于与 human_dom 的 LNA disable 合并成【一个】
+# --disable-features flag —— Chrome 有多个 --disable-features 时只认最后一个, 拆开会互相覆盖。
+_FIRST_RUN_FLAGS = ["--no-first-run", "--no-default-browser-check", "--disable-fre"]
+_FIRST_RUN_DISABLE_FEATURES = ["ChromeWhatsNewUI", "SigninPromo", "ForYouFre"]
+# human_dom(remote_debug)时额外关掉「本地网络访问(LNA/PNA)」检查: 否则 content script 从
+# 公开页(example.com/公众号等)直连 localhost 桥(ws://127.0.0.1)会被 Chrome gate ——弹「本地
+# 网络访问 允许/屏蔽」且即使允许也有长延迟, WS 注册不上 → human_dom_locate 持续 no_tab_for_profile
+# (AgentHub #100 真机实锤)。关掉后全新 profile 首启即 connected、零弹窗零人工。作用域仅本专用
+# profile 的 Chrome(不动用户日常 Chrome); 非自动化标志, navigator.webdriver 仍 false, moat 不破。
+_HUMANDOM_DISABLE_FEATURES = ["LocalNetworkAccessChecks"]
 
 
 def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str,
                        remote_debug: bool = False) -> list:
     """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。
 
-    含 _FIRST_RUN_SUPPRESS_FLAGS 消除全新 profile 首启原生弹窗(见常量注释)。
-    remote_debug=True 时加 `--remote-debugging-port=0`(临时端口, Chrome 起后写进
-    <udd>/DevToolsActivePort) —— 供 server 侧 CDP `Extensions.loadUnpacked` 确定性
-    装 human_dom 扩展(零 GUI)。不加 --enable-automation → navigator.webdriver 仍 false;
-    本机 no-Origin 客户端才连得上 CDP(网页带 Origin→Chrome 默认 403), moat 不破。
-    url 保持最后一个位置参(Chrome 把位置参当要打开的 URL)。"""
-    args = [binary, f"--user-data-dir={udd}", *_FIRST_RUN_SUPPRESS_FLAGS]
+    含首启抑制 flag(见 _FIRST_RUN_* 注释)。remote_debug=True(human_dom)时:
+    ① 加 `--remote-debugging-port=0`(临时端口 → DevToolsActivePort)供 CDP `Extensions.loadUnpacked`
+    确定性装扩展; ② 关 LocalNetworkAccessChecks 让 content script 直连 localhost 桥不被 PNA gate。
+    不加 --enable-automation → navigator.webdriver 仍 false; 本机 no-Origin 客户端才连得上 CDP,
+    moat 不破。所有 --disable-features 合并成一个 flag。url 保持最后一个位置参。"""
+    feats = list(_FIRST_RUN_DISABLE_FEATURES)
+    if remote_debug:
+        feats += _HUMANDOM_DISABLE_FEATURES
+    args = [binary, f"--user-data-dir={udd}", *_FIRST_RUN_FLAGS,
+            f"--disable-features={','.join(feats)}"]
     if pdir:
         args.append(f"--profile-directory={pdir}")
     if remote_debug:

@@ -12,15 +12,19 @@ def _bake(root, pid, port, loaded=False):
     return d
 
 
-def test_status_filters_by_port_and_marks_connected(tmp_path):
+def test_status_reports_all_dirs_and_marks_connected(tmp_path):
+    # P1(AgentHub #100): installed 盘扫描不再按 bridge_port 过滤 —— 换 server/换桥端口后旧
+    # profile 的 installed 不丢(founder: profiles=[] 把 installed 也丢了)。connected 才是 WS 维度。
     root = tmp_path / "human-dom-ext"
-    for pid, port in [("a-1", 8779), ("b-2", 8779), ("c-3", 8780)]:
+    for pid, port in [("a-1", 8779), ("b-2", 8779), ("c-3", 8782)]:
         _bake(root, pid, port, loaded=True)
-    out = compute_status(ext_root=str(root), self_bridge_port=8779, connected_ids={"a-1"})
+    out = compute_status(str(root), connected_ids={"a-1"})
     ids = {p["profile_id"]: p for p in out}
-    assert set(ids) == {"a-1", "b-2"}  # 只列本 server 桥端口(8779)的
-    assert ids["a-1"]["connected"] is True and ids["b-2"]["connected"] is False
-    assert all(p["installed"] for p in out)
+    assert set(ids) == {"a-1", "b-2", "c-3"}  # 全报, 不因 bridge_port 不同而丢
+    assert all(p["installed"] for p in out)    # installed 只看盘上 loaded.json
+    assert ids["a-1"]["connected"] is True      # 连在本桥
+    assert ids["b-2"]["connected"] is False and ids["c-3"]["connected"] is False
+    assert ids["c-3"]["bridge_port"] == 8782     # 每条报自己烤入的桥端口
 
 
 # --- P0-B(AgentHub #100): installed 维度 = 查 loaded.json 标记(装成功即写, 比 Chrome
