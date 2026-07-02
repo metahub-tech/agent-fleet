@@ -127,10 +127,43 @@ def _cdp_call(sock, cid: int, method: str, params: dict = None, timeout: float =
     return None
 
 
-def load_dom_extension(udd: str, ext_dir, timeout: float = 10.0,
+def _navigate(port, url, timeout, _open):
+    """装完扩展后把当前 page 导航到 url。**必须 load 之后再 navigate**: content script 只在
+    【新导航】时注入; 若启动就带 url, 扩展装好前页面已加载→脚本不注入→桥连不上(真机实证)。"""
+    try:
+        pages = json.loads(_open(f"http://127.0.0.1:{port}/json", timeout=5).read().decode("utf-8"))
+        page = [t for t in pages if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+        if not page:
+            return False
+        ps = _ws_connect(page[0]["webSocketDebuggerUrl"], timeout=timeout)
+        try:
+            _cdp_call(ps, 2, "Page.navigate", {"url": url}, timeout=timeout)
+            return True
+        finally:
+            try:
+                ps.close()
+            except Exception:
+                pass
+    except Exception:
+        return False
+
+
+def _write_loaded_marker(ext_dir, extid):
+    """装成功后写 <ext_dir>/loaded.json —— human_dom_status 判 installed 的可靠即时信号。
+    不用 Chrome 的 Secure Preferences: 它 flush 惰性(真机实证 open 后数秒仍空), 即时查盘不可靠;
+    这个标记由我方在装成功那刻写, 端口来自同目录 meta.json。best-effort, 失败不影响装扩展。"""
+    try:
+        Path(ext_dir, "loaded.json").write_text(
+            json.dumps({"loaded": True, "extid": extid}), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def load_dom_extension(udd: str, ext_dir, navigate_url=None, timeout: float = 10.0,
                        _open=urllib.request.urlopen, _sleep=time.sleep) -> dict:
     """在【已起、带 --remote-debugging-port=0 的】Chrome(该 udd)里经 CDP
-    Extensions.loadUnpacked 装 ext_dir。返回 {ok:True,id} 或 {ok:False,error}。永不抛。"""
+    Extensions.loadUnpacked 装 ext_dir; 装完(可选)navigate 到 navigate_url 让 content script 注入。
+    返回 {ok:True,id[,navigated]} 或 {ok:False,error}。永不抛。"""
     port = _read_devtools_port(udd, timeout=timeout, _sleep=_sleep)
     if port is None:
         return {"ok": False, "error": "DevToolsActivePort 未就绪(chrome debug 端口没起来)"}
@@ -147,7 +180,7 @@ def load_dom_extension(udd: str, ext_dir, timeout: float = 10.0,
             return {"ok": False, "error": "loadUnpacked 无响应"}
         if "error" in reply:
             return {"ok": False, "error": f"loadUnpacked 报错: {reply['error'].get('message', '?')}"}
-        return {"ok": True, "id": reply.get("result", {}).get("id")}
+        result = {"ok": True, "id": reply.get("result", {}).get("id")}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     finally:
@@ -156,3 +189,7 @@ def load_dom_extension(udd: str, ext_dir, timeout: float = 10.0,
                 sock.close()
             except Exception:
                 pass
+    _write_loaded_marker(ext_dir, result.get("id"))
+    if navigate_url:
+        result["navigated"] = _navigate(port, navigate_url, timeout, _open)
+    return result

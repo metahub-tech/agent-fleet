@@ -91,7 +91,8 @@ def test_maybe_load_human_dom_delegates_to_loader(monkeypatch):
     import capabilities.human_dom._loader as L
     seen = {}
     monkeypatch.setattr(L, "load_dom_extension",
-                        lambda udd, ext, **kw: seen.update(udd=udd, ext=ext) or {"ok": True, "id": "xyz"})
-    r = _hb._maybe_load_human_dom("/udd", "/ext")
+                        lambda udd, ext, **kw: seen.update(udd=udd, ext=ext, kw=kw) or {"ok": True, "id": "xyz"})
+    r = _hb._maybe_load_human_dom("/udd", "/ext", navigate_url="http://t")
     assert r == {"ok": True, "id": "xyz"}
-    assert seen == {"udd": "/udd", "ext": "/ext"}
+    assert seen["udd"] == "/udd" and seen["ext"] == "/ext"
+    assert seen["kw"] == {"navigate_url": "http://t"}  # navigate_url 透传给 loader

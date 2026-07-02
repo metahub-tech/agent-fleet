@@ -83,15 +83,16 @@ def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str,
     return args
 
 
-def _maybe_load_human_dom(udd: str, ext_dir: str) -> "dict | None":
-    """经 CDP 把烤好的 human_dom 扩展副本装进该 profile 的 Chrome(零 GUI)。
+def _maybe_load_human_dom(udd: str, ext_dir: str, navigate_url=None) -> "dict | None":
+    """经 CDP 把烤好的 human_dom 扩展副本装进该 profile 的 Chrome(零 GUI); 装完(可选)导航到
+    navigate_url 让 content script 注入(见 loader: 必须 load 后再 navigate)。
     human_dom 能力不在本 server → 返回 None; 否则返回 loader 的 {ok,...} 结果。永不抛。"""
     try:
         from ..human_dom._loader import load_dom_extension
     except Exception:
         return None
     try:
-        return load_dom_extension(udd, ext_dir)
+        return load_dom_extension(udd, ext_dir, navigate_url=navigate_url)
     except Exception as e:  # loader 已保证不抛, 这里再兜一层防御
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -197,16 +198,19 @@ class HumanBrowserCapability(CapabilityModule):
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
                 udd, pdir, key = _resolve_profile(profile)
                 ext_dir = _ensure_human_dom_ext(profile, self._bridge_port)  # auto-bake 扩展副本(缺则烤)
-                args = _human_launch_args(binary, udd, pdir, url, remote_debug=bool(ext_dir))
+                # 有 human_dom: 先起空页(不带目标 url), 装完扩展再经 CDP navigate 到 url ——
+                # content script 只在【新导航】时注入, 启动就带 url 会导致装好前页面已加载、脚本不注入。
+                launch_url = "" if ext_dir else url
+                args = _human_launch_args(binary, udd, pdir, launch_url, remote_debug=bool(ext_dir))
                 subprocess.Popen(args, start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 resp = {"ok": True, "opened": url or "(chrome)", "profile": key,
                         "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
                                 "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"}
                 if ext_dir:
-                    # 确定性装扩展: 起 Chrome 时带临时 debug 端口, 再经 CDP loadUnpacked 把烤好的
-                    # 副本装进该 profile —— 零 GUI/零视觉/零 DPI(Chrome137+ 禁 --load-extension 的替代)。
-                    load = _maybe_load_human_dom(udd, ext_dir)
+                    # 确定性装扩展: 起 Chrome 带临时 debug 端口, 经 CDP loadUnpacked 把烤好的副本装进该
+                    # profile, 再 navigate 到目标 url —— 零 GUI/零视觉/零 DPI(Chrome137+ 禁 --load-extension 的替代)。
+                    load = _maybe_load_human_dom(udd, ext_dir, navigate_url=url or None)
                     resp["human_dom"] = load or {"ok": False, "error": "human_dom 能力不在本 server"}
                     if load and load.get("ok"):
                         resp["note"] += (" human_dom 扩展已自动装入该 profile(CDP loadUnpacked, 零 GUI, 无需操作员点扩展页);"

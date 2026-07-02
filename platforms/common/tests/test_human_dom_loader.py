@@ -108,15 +108,19 @@ def test_read_devtools_port_absent_returns_none_fast(tmp_path):
 def test_load_dom_extension_happy_path(tmp_path):
     udd = tmp_path / "udd"
     udd.mkdir()
+    ext = tmp_path / "ext"
+    ext.mkdir()
     with _FakeBrowser() as fb:
         (udd / "DevToolsActivePort").write_text(f"{fb.port}\n/devtools/browser/fake\n")
-        r = _loader.load_dom_extension(str(udd), r"C:\some\ext-dir", timeout=5.0)
+        r = _loader.load_dom_extension(str(udd), str(ext), timeout=5.0)
         assert r["ok"] is True and r["id"] == "fakeextid123"
-        # 传了正确 path
-        assert fb.state["request"]["params"]["path"] == r"C:\some\ext-dir"
+        assert fb.state["request"]["params"]["path"] == str(ext)
         assert fb.state["request"]["method"] == "Extensions.loadUnpacked"
         # 我方客户端 no-Origin(不给网页开 CDP 口子)
         assert fb.state["origin_seen"] is None
+        # 装成功写 loaded.json 标记(installed 的即时可靠信号)
+        marker = json.loads((ext / "loaded.json").read_text(encoding="utf-8"))
+        assert marker["loaded"] is True and marker["extid"] == "fakeextid123"
 
 
 def test_load_dom_extension_no_port_degrades(tmp_path):

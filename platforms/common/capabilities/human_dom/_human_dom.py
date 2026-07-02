@@ -5,23 +5,16 @@ from ._locate import resolve_locate
 from ._ident import human_dom_profile_id
 
 
-def _installed_on_disk(meta):
-    """查该 profile 的 Chrome Secure Preferences 是否含本扩展(CDP loadUnpacked 会把
-    unpacked 扩展的 source path 写进 Secure Preferences; 扩展不落 Extensions/<id>/, 故查 prefs)。
-    返回 True/False; meta 无 udd(旧副本) → None(交由调用方兜底)。agent-fleet 是本机进程直接查盘。"""
+def _installed_on_disk(ext_subdir):
+    """查该 profile 的 human_dom 是否已装入 Chrome —— 读我方在 CDP loadUnpacked 成功那刻写的
+    <ext_dir>/loaded.json 标记。**不用 Chrome 的 Secure Preferences**: 它 flush 惰性(真机实证
+    open 后数秒仍空), 即时查盘不可靠; loaded.json 由 _loader 装成功即写, 端口一致性由外层 meta 保证。"""
     import json, os
-    udd = meta.get("udd")
-    if not udd:
-        return None
-    pdir = meta.get("profile_dir") or "Default"
-    sp = os.path.join(os.path.expanduser(udd), pdir, "Secure Preferences")
     try:
-        text = open(sp, encoding="utf-8", errors="ignore").read()
+        m = json.load(open(os.path.join(ext_subdir, "loaded.json"), encoding="utf-8"))
+        return bool(m.get("loaded"))
     except Exception:
         return False
-    pid = meta.get("profile_id") or ""
-    # source path = <home>/.fleet/human-dom-ext/<pid>; 两段子串同现 = 本扩展已登记该 profile
-    return ("human-dom-ext" in text) and bool(pid) and (pid in text)
 
 
 def compute_status(ext_root, self_bridge_port, connected_ids):
@@ -31,16 +24,15 @@ def compute_status(ext_root, self_bridge_port, connected_ids):
     if not os.path.isdir(root):
         return out
     for name in sorted(os.listdir(root)):
+        subdir = os.path.join(root, name)
         try:
-            meta = json.load(open(os.path.join(root, name, "meta.json")))
+            meta = json.load(open(os.path.join(subdir, "meta.json")))
         except Exception:
             continue
         if int(meta.get("bridge_port", -1)) != int(self_bridge_port):
             continue
         pid = meta.get("profile_id")
-        disk = _installed_on_disk(meta)
-        installed = disk if disk is not None else True  # 旧 meta 无 udd → 兜底 baked-existence
-        out.append({"profile_id": pid, "installed": installed,
+        out.append({"profile_id": pid, "installed": _installed_on_disk(subdir),
                     "bridge_port": int(self_bridge_port), "connected": pid in connected_ids})
     return out
 

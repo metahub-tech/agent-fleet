@@ -52,16 +52,17 @@ human_browser 的立身之本是「无 debug 端口、无自动化标志 → 零
 - `load_dom_extension(udd, ext_dir, timeout=8) -> dict`：编排上面两步。
 
 **改 `_human_browser.py`**：
-- `_human_launch_args`：起专用 profile 且要装 human_dom 时，加 `--remote-debugging-port=0`（放在 first-run flags 后、url 前）。
-- `human_browser_open` 专用 profile 分支：auto-bake（已有）→ Popen（带 debug port）→ 调 `load_dom_extension(udd, ext_dir)` → 返回 `human_dom_loaded: {ok,id}`（替代/补充原 `human_dom_ext`）。装失败降级：仍开浏览器，note 提示回退。
+- `_human_launch_args`：起专用 profile 且要装 human_dom 时，加 `--remote-debugging-port=0`（临时端口）。
+- `human_browser_open` 专用 profile 分支：auto-bake（已有）→ **起 Chrome 时不带目标 url（起空页）** → Popen → 调 `load_dom_extension(udd, ext_dir, navigate_url=url)` → 返回 `human_dom: {ok,id,navigated}`。装失败降级：仍开浏览器，note 提示回退。
+- **关键顺序（真机实证）：必须 load 扩展后再 navigate**。content script 只在【新导航】时注入；若启动就带 url，扩展装好前页面已加载 → 脚本不注入 → 桥连不上。故 loader 装完再经 CDP `Page.navigate` 到目标页。
 - docstring 更新：删掉「靠 chrome://extensions 持久 Load-unpacked / 视觉 agent 自助装」那套，改成「server 侧 CDP 自动装、operator 零操作」。
 
 **win/mac server 注入**：`HumanBrowserCapability(bridge_port=_bridge_port)` 已注入桥端口，无需改接线（loadUnpacked 在能力内做）。
 
 ### 3.2 P0-B：`human_dom_status` 双维度 `{installed, connected, profiles, hint}`
 
-- `compute_status` 增强：per-profile 除 `connected`（桥有该 profile_id 的活 client）外，`installed` 改为**查该 profile 的 Secure Preferences 是否含本扩展**（按烤好的副本 source path 子串匹配，唯一 pid 命中）。
-- meta.json 扩展存 `udd` + `profile_dir`，让 status 能定位 `<udd>/<pdir|Default>/Secure Preferences`。
+- `compute_status` 增强：per-profile 除 `connected`（桥有该 profile_id 的活 client）外，`installed` = **`<ext_dir>/loaded.json` 标记存在**（`_loader` 在 CDP loadUnpacked 成功那刻写）。
+- **为何不用 Chrome 的 Secure Preferences（原需求建议）**：真机实证 open 后 4s Secure Preferences 仍 size 0——Chrome 惰性 flush，即时查盘不可靠（会误判 installed=false 致验收失败）。unpacked 扩展也不落 `Extensions/<id>/`。故改用**我方在装成功即写的 `loaded.json`**：同样是盘上信号、但由我方控制时机、即时可靠。
 - 顶层加 `hint`：讲清 installed=T/connected=F ⇒「已装、只是当前没连（没开页/没导航）→ 重开 human_browser_open 即自动重连，别重装」；installed=F ⇒「下次 human_browser_open 会自动装」。终结「未连接=未安装」误判。
 
 ### 3.3 P1-A：视觉坐标系 DPI 失配修复
