@@ -49,3 +49,41 @@ def test_launch_args_suppresses_first_run_popups():
     # url 仍是最后一个位置参(Chrome 把位置参当要打开的 URL),flag 在它之前
     assert args[-1] == "http://x"
     assert args[0] == "/c" and args[1] == "--user-data-dir=/udd"  # binary + udd 仍在最前
+
+
+# --- auto-bake: 起专用 profile 时自动烤 human_dom 扩展副本(AgentHub #211 ★最大优化)---
+import json
+from capabilities.browser._human_browser import _ensure_human_dom_ext
+from capabilities.human_dom._ident import human_dom_profile_id
+
+def test_ensure_ext_auto_bakes_copy(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # win 用 USERPROFILE
+    ext = _ensure_human_dom_ext("~/.fleet/op-x", 8779)
+    assert ext is not None and Path(ext).is_dir()
+    assert Path(ext).name == human_dom_profile_id("~/.fleet/op-x")  # 目录名=profile_id
+    cjs = (Path(ext) / "content.js").read_text(encoding="utf-8")
+    assert "__AF_PROFILE_ID__" not in cjs and "__AF_PORT__" not in cjs  # 占位已烤掉(非模板)
+    meta = json.loads((Path(ext) / "meta.json").read_text(encoding="utf-8"))
+    assert meta["bridge_port"] == 8779
+
+def test_ensure_ext_idempotent_same_port(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    ext1 = _ensure_human_dom_ext("~/.fleet/op-x", 8779)
+    sentinel = Path(ext1) / "_keep.txt"; sentinel.write_text("x")  # 若重烤(rmtree)会被删
+    ext2 = _ensure_human_dom_ext("~/.fleet/op-x", 8779)  # 桥端口同 → 不重烤
+    assert ext2 == ext1 and sentinel.exists()  # 哨兵还在 = 没重烤
+
+def test_ensure_ext_rebakes_on_port_change(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    ext = _ensure_human_dom_ext("~/.fleet/op-x", 8779)
+    sentinel = Path(ext) / "_keep.txt"; sentinel.write_text("x")
+    _ensure_human_dom_ext("~/.fleet/op-x", 8780)  # 桥端口变 → 重烤(server 换端口后旧副本失效)
+    assert not sentinel.exists()  # 哨兵被删 = 重烤了
+    meta = json.loads((Path(ext) / "meta.json").read_text(encoding="utf-8"))
+    assert meta["bridge_port"] == 8780
+
+def test_ensure_ext_skips_default_or_no_port(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert _ensure_human_dom_ext("", 8779) is None          # 默认日常 profile(无 profile) 不烤
+    assert _ensure_human_dom_ext("~/.fleet/op-x", None) is None  # 无桥端口不烤

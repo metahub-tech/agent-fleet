@@ -13,6 +13,7 @@ graft. It exposes one launcher tool; everything else is core + the skill.
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -88,6 +89,36 @@ def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str) -> l
     return args
 
 
+def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | None":
+    """全新 profile 起浏览器时,自动为它烤好 human_dom 扩展副本(若缺、或副本桥端口与当前不符)。
+    返回副本目录(供 agent chrome://extensions Load-unpacked);拿不到返回 None,绝不阻断开浏览器。
+    便利封装:省掉 agent 另跑 install 脚本——这是 per-profile 启用最易漏的坑(漏烤会去 Load
+    仓库模板目录而失败,模板含占位符不连桥)。human_dom 扩展走 Load-unpacked(Chrome137+ 禁了
+    --load-extension),本函数只负责【烤好副本】,Load-unpacked 仍由 agent 在 chrome://extensions 做。"""
+    if not profile or not bridge_port:
+        return None  # 默认日常 profile(无 profile) / 无桥端口 → 不 auto-bake
+    try:
+        from ..human_dom._ident import human_dom_profile_id
+        from ..human_dom._setup import prepare_extension
+    except Exception:
+        return None  # human_dom 能力不在本 server → human_browser 仍可独立用
+    try:
+        pid = human_dom_profile_id(profile)
+        ext_dir = os.path.expanduser(f"~/.fleet/human-dom-ext/{pid}")
+        meta = Path(ext_dir) / "meta.json"
+        need = True
+        if meta.exists():
+            try:  # 已有副本: 仅当烤入的桥端口与当前不符才重烤(server 换端口后副本会失效)
+                need = json.loads(meta.read_text(encoding="utf-8")).get("bridge_port") != int(bridge_port)
+            except Exception:
+                need = True  # meta 损坏 → 重烤
+        if need:
+            prepare_extension(ext_dir, bridge_port, pid)  # 已存在会先 rmtree 再 copytree
+        return ext_dir
+    except Exception:
+        return None
+
+
 class HumanBrowserCapability(CapabilityModule):
     id = "human_browser"
     display_name = "浏览器 human_browser(零自动化痕迹,作为人本人)"
@@ -103,7 +134,10 @@ class HumanBrowserCapability(CapabilityModule):
         "裸 human_browser_open(url)=默认日常 Chrome,仅一次性/非长期用,真账号别用。仅自有设备/授权账号。"
     )
 
-    def __init__(self):
+    def __init__(self, bridge_port: "int | None" = None):
+        # bridge_port: 本 server 的 human_dom 桥端口(由 server 注入)。起【专用 profile】时
+        # 用它 auto-bake 该 profile 的 human_dom 扩展副本(把此端口烤进副本)。None=不 auto-bake。
+        self._bridge_port = bridge_port
         self.description = (
             "自建:启动宿主真实日常 Chrome(无 debug 端口、无自动化标志 → 零自动化痕迹),"
             "通过截图 + OS 级坐标点击/输入(core 工具)作为人本人操作真实账号/身份。"
@@ -153,13 +187,21 @@ class HumanBrowserCapability(CapabilityModule):
                 if binary is None:
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
                 udd, pdir, key = _resolve_profile(profile)
+                ext_dir = _ensure_human_dom_ext(profile, self._bridge_port)  # auto-bake 扩展副本(缺则烤)
                 args = _human_launch_args(binary, udd, pdir, url)
                 subprocess.Popen(args, start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return {"ok": True, "opened": url or "(chrome)", "profile": key,
+                resp = {"ok": True, "opened": url or "(chrome)", "profile": key,
                         "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
-                                "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"
-                                "想给该 profile 用 human_dom 见 using-human-dom(Load-unpacked,Chrome137+ --load-extension 已禁用)。"}
+                                "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"}
+                if ext_dir:
+                    resp["human_dom_ext"] = ext_dir
+                    resp["note"] += (f" human_dom 扩展副本已自动烤好在 {ext_dir};该 profile 首次用 human_dom:"
+                                     "地址栏 paste_text('chrome://extensions')→开发者模式→加载未打包 选该副本目录"
+                                     "→导航到目标页→PNA 点「允许」→f5 重载。扩展装一次、跨 run 持久;详见 using-human-dom。")
+                else:
+                    resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(Load-unpacked,Chrome137+ --load-extension 已禁用)。"
+                return resp
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
