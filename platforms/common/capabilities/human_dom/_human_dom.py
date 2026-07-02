@@ -142,11 +142,11 @@ class HumanDomCapability(CapabilityModule):
             fill(text)
             return {"ok": True, "filled_at": [int(round(x)), int(round(y))]}
 
-        bp = self._bridge_port
         @mcp.tool
         async def human_dom_status() -> dict:
-            """human_dom 双维度状态: {installed, connected, profiles, hint}(只统本 server 桥端口的 profile)。
-            installed=扩展已装入该 profile(读装成功即写的 loaded.json 标记), connected=当前连着桥。
+            """human_dom 双维度状态: {installed, connected, profiles, hint}。
+            installed=扩展已装入该 profile(纯盘扫描 loaded.json 标记, 报所有已装副本、不按桥端口过滤);
+            connected=该 profile 当前连在【本 server 的桥】; 每条 bridge_port 是它烤入的桥端口。
             关键: installed=true/connected=false ≠ 未安装 —— 别重装, 重开 human_browser_open 或导航到目标页即可(见 hint)。"""
             connected = {c["profile_id"] for c in list(bridge._clients)}
             return build_status(compute_status("~/.fleet/human-dom-ext", connected_ids=connected))

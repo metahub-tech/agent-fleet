@@ -47,7 +47,7 @@ human_dom 能用 = **两层都满足**，排错时先分清缺哪一层：
 
 | 层 | 是什么 | 缺了会怎样 | 怎么补 |
 |---|---|---|---|
-| ① host 级 provisioning | 标记文件 `~/.fleet/human-dom-ready` 存在（server **启动时静态判定**，决定 human_dom 工具**注册不注册**） | `list_capabilities` 里 human_dom = `unavailable`，**根本没有 human_dom_* 工具** | 跑安装脚本（mac `install-human-dom-extension.sh` / win `install-human-dom-extension.ps1`，**引导在目标 profile 手动 Load unpacked + 自动写 marker**），或手动 `run_shell` 建 marker（见 per-profile 节）。**写完 marker 必须重连 / 重启 server** 才注册（框架不动态增删工具） |
+| ① host 级 provisioning | 标记文件 `~/.fleet/human-dom-ready` 存在（server **启动时静态判定**，决定 human_dom 工具**注册不注册**） | `list_capabilities` 里 human_dom = `unavailable`，**根本没有 human_dom_* 工具** | 建 marker：`run_shell` 建 `~/.fleet/human-dom-ready`（见 per-profile 节末尾）或跑安装脚本自动写。**写完 marker 必须重连 / 重启 server** 才注册（框架不动态增删工具）。这是 host 级一次性 provisioning、非操作员运行期步骤 |
 | ② profile 级 扩展 | human_dom 扩展**已加载进你当前浏览的那个 Chrome profile**（扩展是 per-profile 副本，每份烤入了该 profile 的桥端口 + profile_id） | 工具在，但 `human_dom_locate` 对该 profile 的页面拿不到元素，或路由到别的 profile | **`human_browser_open(profile=X)` 一步自动装**（auto-bake 副本 + server 侧 CDP `Extensions.loadUnpacked` 装进该 profile + 关 LNA 检查直连桥）——操作员零手动，见下节 |
 
 先 `list_capabilities`：
