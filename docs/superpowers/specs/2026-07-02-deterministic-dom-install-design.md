@@ -89,3 +89,15 @@ human_browser 的立身之本是「无 debug 端口、无自动化标志 → 零
 ## 6. 验收标准（创始人定）
 
 test-win11 连续 5 次：删团队→装新团队（全新 profile）→ operator 走到发布环节 → **扩展零人工就绪**（installed+connected true）→ human_dom_locate 出元素。5 连全绿才算过。
+
+## 7. Architect 评审收口（有条件可落地 → 已收口）
+
+architect 判 moat【可接受】：真正保住 moat 的是三条不变量——① 只 `--remote-debugging-port=0`、不加 `--enable-automation`（`navigator.webdriver` 恒 false）；② loader **装完即 detach、绝不 `Runtime.enable`/`Page.enable`**（故 operator 与真账号页交互时无任何 CDP domain enabled → 著名的 Runtime.enable 控制台侧信道不触发）；③ 端口临时/仅 127.0.0.1/网页 PNA+Origin 双重够不着（对目标站 JS 不可远程观测，残留仅本地攻击面）。
+
+**收口项：**
+1. **moat 回归护栏（已加）**：`test_moat_launch_never_enables_automation` / `test_moat_loader_never_enables_cdp_domains` / `test_moat_loader_detaches_after_load` —— 后人若给 loader 加 `Runtime.enable`、让 client 常驻、或误加 `--enable-automation`，测试即红。这是 moat 最脆弱点，已上锁。
+2. **跨引擎破口（已知风险，措辞加粗，未机制强制）**：`human_browser_open` 不走共享 lease；若 `agent_browser` 先以 `--enable-automation` 起了同一 profile 的 udd，Chrome 单实例会把随后的 human_browser_open 转发进那个带自动化标志的实例 → `navigator.webdriver` 变 true、moat 破。**这是 human_browser 既有行为（非本 PR 引入），但本决策放大其后果。** 铁律：真账号 profile **全程只用 human_browser(+human_dom)、绝不与 agent_browser 混用同一 profile**（usage_hint 已声明）。后续硬化：让 open 走共享 lease 把「同 profile 拒混引擎」从文字升为机制。
+3. **验收权威门 = `connected=true` / `human_dom_locate` 出元素**，`installed`(loaded.json) 仅作辅助——`_write_loaded_marker` 是 best-effort，落盘失败会 stale-false（功能正常但 installed 字面 false），故别把「installed 字面 true」当唯一硬门。
+4. **「零操作」限定范围**：指 **operator 运行期零操作**（不点扩展页、不跑脚本）。新宿主仍需一次性 provisioning：`touch ~/.fleet/human-dom-ready` + 重启 server（host 级开关，决定是否注册 human_dom 工具族；在 5 连循环之外、之前完成，不绊验收）。
+5. **已知边界**：`~/.fleet/human-dom-ext/<pid>` 按 profile（非 server）分目录、只烤一个 bridge_port；正式部署维持「一 profile 一 server」。`--remote-debugging-pipe`（彻底无端口，L3 更隐蔽）保留为 moat 后续硬化项（Windows 下 Python 传 fd handle 较复杂，收益边际）。
+6. **需真机回归的触发点**：Chrome 大版本升级（CDP `Extensions` 域标 experimental，有签名/行为漂移可能）。

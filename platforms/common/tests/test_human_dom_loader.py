@@ -128,3 +128,34 @@ def test_load_dom_extension_no_port_degrades(tmp_path):
     r = _loader.load_dom_extension(str(tmp_path / "udd"), "/x", timeout=0.4,
                                    _sleep=lambda s: None)
     assert r["ok"] is False and "error" in r
+
+
+# --- moat 回归护栏(architect 评审条件1): 锁死「零自动化痕迹」不变量 ---
+# 这三条是 moat 最脆弱点: 后人若给 loader 加 Runtime.enable(触发控制台 getter 侧信道)、
+# 让 CDP client 常驻不 detach、或误加 --enable-automation(navigator.webdriver→true),
+# moat 会【静默破裂】。下面测试红即告警。
+
+def test_moat_launch_never_enables_automation():
+    from capabilities.browser._human_browser import _human_launch_args
+    for rd in (True, False):
+        args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=rd)
+        assert not any("enable-automation" in a for a in args), "moat: 绝不加 --enable-automation"
+
+
+def test_moat_loader_never_enables_cdp_domains():
+    # 只扫 CDP domain enable 的方法调用(会挂 domain/触发 Runtime.enable 控制台侧信道)。
+    # --enable-automation 是启动 flag, 由 test_moat_launch_never_enables_automation 覆盖;
+    # loader moat 注释里出现「不加 --enable-automation」是文档、不算违规。
+    import inspect
+    src = inspect.getsource(_loader)
+    for forbidden in ("Runtime.enable", "Page.enable", "Network.enable", "DOM.enable"):
+        assert forbidden not in src, (
+            f"moat 护栏: loader 出现 {forbidden} —— 会挂着 CDP domain/触发侧信道, 破零自动化痕迹。"
+            "确定性装扩展只该发 Extensions.loadUnpacked + Page.navigate 后立即 detach。")
+
+
+def test_moat_loader_detaches_after_load():
+    # loader 装完必须关连接(不常驻 CDP client): 源码里 load_dom_extension 有 sock.close()
+    import inspect
+    src = inspect.getsource(_loader.load_dom_extension)
+    assert "close()" in src, "moat: load_dom_extension 必须装完 detach(sock.close)"
