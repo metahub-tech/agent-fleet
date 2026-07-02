@@ -42,6 +42,12 @@ from fastmcp.utilities.types import Image
 
 from pywinauto import Desktop
 
+from win_input import _ensure_dpi_awareness, _send_unicode
+
+# 进程尽早设为 per-monitor DPI aware: 否则 DPI 缩放≠100% 机器上 take_screenshot(物理像素)与
+# tap/get_screen_size(逻辑像素)坐标系错位, 视觉点击漂移(AgentHub #100 P1-A)。幂等、失败不阻断。
+_ensure_dpi_awareness()
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
 import _server_runtime
@@ -137,7 +143,11 @@ def get_status() -> dict:
 @mcp.tool
 @with_touch
 def get_screen_size() -> dict:
-    """Return the primary screen resolution (logical pixels, no DPI compensation)."""
+    """Return the primary screen resolution in PHYSICAL pixels.
+
+    Process is per-monitor DPI-aware, so this matches take_screenshot's pixel
+    space and tap(x,y) coordinates exactly — tap in the same space you read off
+    the screenshot (AgentHub #100 P1-A: no more physical-vs-logical mismatch)."""
     w, h = pyautogui.size()
     return {"width": w, "height": h}
 
@@ -519,11 +529,16 @@ def move_mouse(
 @mcp.tool
 @with_touch
 def type_text(
-    text: Annotated[str, Field(description="ASCII text")],
-    interval: Annotated[float, Field(description="Per-char delay in seconds")] = 0.02,
+    text: Annotated[str, Field(description="Text to type (Unicode-safe, IME-proof)")],
+    interval: Annotated[float, Field(description="Per-char delay in seconds")] = 0.0,
 ) -> dict:
-    """Type ASCII text at the focused control. Use paste_text for non-ASCII."""
-    pyautogui.typewrite(text, interval=interval)
+    """Type text at the focused control via KEYEVENTF_UNICODE (injects Unicode code
+    points directly, bypassing keyboard layout AND IME).
+
+    Root-fixes the Chinese-IME hijack where the old VK-based typewrite turned `/`
+    into `、` (AgentHub #100 P2). Handles any Unicode incl. CJK; for very long/rich
+    text paste_text (clipboard) is still preferable."""
+    _send_unicode(text, interval=interval)
     return {"ok": True, "len": len(text)}
 
 

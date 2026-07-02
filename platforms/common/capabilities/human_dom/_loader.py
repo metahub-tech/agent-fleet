@@ -19,29 +19,35 @@ import struct
 import time
 import urllib.request
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
-_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  # RFC6455 magic(仅 handshake 断言用)
+_WS_OP_TIMEOUT = 8.0    # 单个 ws 连接/CDP 命令的上限(与整体连接预算区分, 避免最坏累加过大)
+_HTTP_TIMEOUT = 3.0     # /json、/json/version 单次 http 上限
 
 
-def _read_devtools_port(udd: str, timeout: float = 8.0, _sleep=time.sleep) -> "int | None":
-    """轮询 <udd>/DevToolsActivePort 拿 Chrome 起后写的临时 debug 端口(首行=端口)。
-    Chrome 写该文件有延迟, 故重试到 timeout。"""
+def _read_devtools_port(udd: str, timeout: float = 8.0, _sleep=time.sleep) -> Optional[int]:
+    """轮询 <udd>/DevToolsActivePort 拿 Chrome 起后写的临时 debug 端口(首行=端口)。"""
     pf = Path(udd) / "DevToolsActivePort"
     deadline = timeout
     while deadline > 0:
-        try:
-            first = pf.read_text(encoding="utf-8").splitlines()[0].strip()
-            if first:
-                return int(first)
-        except Exception:
-            pass
+        p = _read_port_once(udd)
+        if p is not None:
+            return p
         _sleep(0.2)
         deadline -= 0.2
     return None
 
 
-def _ws_connect(ws_url: str, timeout: float = 8.0):
+def _read_port_once(udd: str) -> Optional[int]:
+    try:
+        first = (Path(udd) / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()[0].strip()
+        return int(first) if first else None
+    except Exception:
+        return None
+
+
+def _ws_connect(ws_url: str, timeout: float = _WS_OP_TIMEOUT):
     """连 CDP browser ws。不带 Origin 头(见模块注释)。"""
     u = urlparse(ws_url)
     sock = socket.create_connection((u.hostname, u.port), timeout=timeout)
@@ -68,6 +74,30 @@ def _ws_connect(ws_url: str, timeout: float = 8.0):
     return sock
 
 
+def _http_json(url: str, _open, timeout: float = _HTTP_TIMEOUT):
+    with _open(url, timeout=timeout) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _connect_browser(udd, overall_timeout, _open, _sleep):
+    """轮询 DevToolsActivePort + /json/version 直到 browser ws 连上, 返回 (sock, port)。
+    兼容: (a)全新 profile 冷启动慢(要建目录/first-run); (b)上次 Chrome 崩溃留下的【陈旧端口】——
+    新 Chrome 会改写 DevToolsActivePort, 死端口的 /json/version 失败故继续轮直到读到活端口。
+    连不上返回 (None, None)。"""
+    end = time.time() + overall_timeout
+    while True:
+        port = _read_port_once(udd)
+        if port is not None:
+            try:
+                ws_url = _http_json(f"http://127.0.0.1:{port}/json/version", _open)["webSocketDebuggerUrl"]
+                return _ws_connect(ws_url), port
+            except Exception:
+                pass  # 端口未就绪/已死 → 等新 Chrome 改写后再试
+        if time.time() >= end:
+            return None, None
+        _sleep(0.3)
+
+
 def _ws_send(sock, obj: dict) -> None:
     """发一帧 masked text(client→server 必须掩码)。"""
     data = json.dumps(obj).encode()
@@ -88,7 +118,8 @@ def _ws_send(sock, obj: dict) -> None:
 
 
 def _ws_recv_text(sock) -> dict:
-    """读一帧 server→client(不掩码), 跳过非数据帧, 返回 JSON。"""
+    """读一帧 server→client(不掩码), 跳过控制帧, 返回 JSON。
+    CDP 命令响应体小, 不分片; 故只取单帧的 payload。"""
     def rd(k):
         r = b""
         while len(r) < k:
@@ -113,7 +144,7 @@ def _ws_recv_text(sock) -> dict:
         return json.loads(payload.decode("utf-8"))
 
 
-def _cdp_call(sock, cid: int, method: str, params: dict = None, timeout: float = 8.0):
+def _cdp_call(sock, cid: int, method: str, params: "Optional[dict]" = None, timeout: float = _WS_OP_TIMEOUT):
     """发一条 CDP 命令, 读到 id 匹配的响应(丢弃中途的事件)。"""
     _ws_send(sock, {"id": cid, "method": method, "params": params or {}})
     deadline = time.time() + timeout
@@ -127,17 +158,17 @@ def _cdp_call(sock, cid: int, method: str, params: dict = None, timeout: float =
     return None
 
 
-def _navigate(port, url, timeout, _open):
+def _navigate(port, url, _open):
     """装完扩展后把当前 page 导航到 url。**必须 load 之后再 navigate**: content script 只在
     【新导航】时注入; 若启动就带 url, 扩展装好前页面已加载→脚本不注入→桥连不上(真机实证)。"""
     try:
-        pages = json.loads(_open(f"http://127.0.0.1:{port}/json", timeout=5).read().decode("utf-8"))
+        pages = _http_json(f"http://127.0.0.1:{port}/json", _open)
         page = [t for t in pages if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
         if not page:
             return False
-        ps = _ws_connect(page[0]["webSocketDebuggerUrl"], timeout=timeout)
+        ps = _ws_connect(page[0]["webSocketDebuggerUrl"])
         try:
-            _cdp_call(ps, 2, "Page.navigate", {"url": url}, timeout=timeout)
+            _cdp_call(ps, 2, "Page.navigate", {"url": url})
             return True
         finally:
             try:
@@ -151,7 +182,7 @@ def _navigate(port, url, timeout, _open):
 def _write_loaded_marker(ext_dir, extid):
     """装成功后写 <ext_dir>/loaded.json —— human_dom_status 判 installed 的可靠即时信号。
     不用 Chrome 的 Secure Preferences: 它 flush 惰性(真机实证 open 后数秒仍空), 即时查盘不可靠;
-    这个标记由我方在装成功那刻写, 端口来自同目录 meta.json。best-effort, 失败不影响装扩展。"""
+    这个标记由我方在装成功那刻写。best-effort, 失败不影响装扩展。"""
     try:
         Path(ext_dir, "loaded.json").write_text(
             json.dumps({"loaded": True, "extid": extid}), encoding="utf-8")
@@ -159,23 +190,17 @@ def _write_loaded_marker(ext_dir, extid):
         pass
 
 
-def load_dom_extension(udd: str, ext_dir, navigate_url=None, timeout: float = 10.0,
+def load_dom_extension(udd: str, ext_dir, navigate_url=None, timeout: float = 20.0,
                        _open=urllib.request.urlopen, _sleep=time.sleep) -> dict:
     """在【已起、带 --remote-debugging-port=0 的】Chrome(该 udd)里经 CDP
     Extensions.loadUnpacked 装 ext_dir; 装完(可选)navigate 到 navigate_url 让 content script 注入。
+    timeout 是【连上 debug 端口】的整体预算(冷启动新 profile 可能数秒); 单步 ws/CDP 另有上限。
     返回 {ok:True,id[,navigated]} 或 {ok:False,error}。永不抛。"""
-    port = _read_devtools_port(udd, timeout=timeout, _sleep=_sleep)
-    if port is None:
-        return {"ok": False, "error": "DevToolsActivePort 未就绪(chrome debug 端口没起来)"}
+    sock, port = _connect_browser(udd, timeout, _open, _sleep)
+    if sock is None:
+        return {"ok": False, "error": "chrome debug 端口未就绪(DevToolsActivePort/json 未响应)"}
     try:
-        raw = _open(f"http://127.0.0.1:{port}/json/version", timeout=5).read()
-        ws_url = json.loads(raw.decode("utf-8"))["webSocketDebuggerUrl"]
-    except Exception as e:
-        return {"ok": False, "error": f"取 CDP browser ws 失败: {type(e).__name__}: {e}"}
-    sock = None
-    try:
-        sock = _ws_connect(ws_url, timeout=timeout)
-        reply = _cdp_call(sock, 1, "Extensions.loadUnpacked", {"path": str(ext_dir)}, timeout=timeout)
+        reply = _cdp_call(sock, 1, "Extensions.loadUnpacked", {"path": str(ext_dir)})
         if reply is None:
             return {"ok": False, "error": "loadUnpacked 无响应"}
         if "error" in reply:
@@ -184,12 +209,11 @@ def load_dom_extension(udd: str, ext_dir, navigate_url=None, timeout: float = 10
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     finally:
-        if sock is not None:
-            try:
-                sock.close()
-            except Exception:
-                pass
+        try:
+            sock.close()
+        except Exception:
+            pass
     _write_loaded_marker(ext_dir, result.get("id"))
     if navigate_url:
-        result["navigated"] = _navigate(port, navigate_url, timeout, _open)
+        result["navigated"] = _navigate(port, navigate_url, _open)
     return result

@@ -5,8 +5,7 @@ from pathlib import Path
 
 _TEMPLATE = Path(__file__).resolve().parent / "extension"
 
-def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_dir=None,
-                      udd=None, profile_dir=None) -> str:
+def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_dir=None) -> str:
     tpl = Path(template_dir) if template_dir else _TEMPLATE
     out = Path(out_dir)
     if out.exists():
@@ -23,12 +22,6 @@ def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_
     baked = cjs.read_text(encoding="utf-8")
     assert "__AF_PORT__" not in baked and "__AF_PROFILE_ID__" not in baked, \
         "prepare_extension: 占位未完全替换(模板格式变了?)"
-    meta = {"profile_id": profile_id, "bridge_port": int(bridge_port)}
-    # udd/profile_dir: 供 human_dom_status 定位该 profile 的 Secure Preferences 判 installed
-    # (仅在提供时写入, 不破坏未传时的旧 meta 形状/旧测试)。
-    if udd is not None:
-        meta["udd"] = str(udd)
-    if profile_dir is not None:
-        meta["profile_dir"] = str(profile_dir)
-    (out / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    (out / "meta.json").write_text(
+        json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port)}), encoding="utf-8")
     return str(out)

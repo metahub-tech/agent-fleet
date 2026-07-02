@@ -112,18 +112,16 @@ def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | Non
         return None  # human_dom 能力不在本 server → human_browser 仍可独立用
     try:
         pid = human_dom_profile_id(profile)
-        udd, pdir, _key = _resolve_profile(profile)  # 存进 meta 供 status 查 Secure Preferences
         ext_dir = os.path.expanduser(f"~/.fleet/human-dom-ext/{pid}")
         meta = Path(ext_dir) / "meta.json"
         need = True
         if meta.exists():
-            try:  # 已有副本: 桥端口不符(server 换端口副本失效)或旧 meta 缺 udd → 重烤
-                m = json.loads(meta.read_text(encoding="utf-8"))
-                need = m.get("bridge_port") != int(bridge_port) or "udd" not in m
+            try:  # 已有副本: 仅当烤入的桥端口与当前不符才重烤(server 换端口后副本会失效)
+                need = json.loads(meta.read_text(encoding="utf-8")).get("bridge_port") != int(bridge_port)
             except Exception:
                 need = True  # meta 损坏 → 重烤
         if need:
-            prepare_extension(ext_dir, bridge_port, pid, udd=udd, profile_dir=pdir)  # 已存在会先 rmtree
+            prepare_extension(ext_dir, bridge_port, pid)  # 已存在会先 rmtree 再 copytree
         return ext_dir
     except Exception:
         return None
@@ -213,12 +211,24 @@ class HumanBrowserCapability(CapabilityModule):
                     load = _maybe_load_human_dom(udd, ext_dir, navigate_url=url or None)
                     resp["human_dom"] = load or {"ok": False, "error": "human_dom 能力不在本 server"}
                     if load and load.get("ok"):
+                        navd = load.get("navigated")
+                        nav_note = ("" if url == "" else
+                                    ("已导航到目标页。" if navd else "但目标页导航未成功, 请手动导航(导航后 content script 自动注入)。"))
                         resp["note"] += (" human_dom 扩展已自动装入该 profile(CDP loadUnpacked, 零 GUI, 无需操作员点扩展页);"
-                                         "导航到目标页后即可 human_dom_locate/tap/fill。装一次、本 run 生效, 每次 open 幂等重装。")
+                                         f"{nav_note}之后 human_dom_locate/tap/fill 可用。装一次、本 run 生效, 每次 open 幂等重装。")
                     else:
                         err = (load or {}).get("error", "未知")
-                        resp["note"] += (f" human_dom 扩展自动装入未成功({err});仍可用 human_browser(截图+tap),"
-                                         "human_dom 精度暂不可用。可重试 human_browser_open, 或见 using-human-dom 排错。")
+                        # 降级: 装扩展没成但仍要把用户请求的 url 打开(否则停在空白页)。正在运行的
+                        # Chrome 会把该 url 转给现有实例; 没起来的话这条会新建一个带 url 的实例。
+                        if url:
+                            try:
+                                subprocess.Popen(_human_launch_args(binary, udd, pdir, url),
+                                                 start_new_session=True,
+                                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            except Exception:
+                                pass
+                        resp["note"] += (f" human_dom 扩展自动装入未成功({err});已照常打开目标页, 仍可用 human_browser"
+                                         "(截图+tap), human_dom 精度暂不可用。可重试 human_browser_open, 或见 using-human-dom 排错。")
                 else:
                     resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(server 侧 CDP 自动装, 无需操作员手动)。"
                 return resp

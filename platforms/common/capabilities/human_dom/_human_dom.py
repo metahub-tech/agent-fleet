@@ -94,13 +94,15 @@ class HumanDomCapability(CapabilityModule):
             import starlette.websockets  # noqa: F401
         except Exception as e:
             return False, f"starlette WS 不可用: {e}"
-        # 2. 探安装标记——扩展已由用户一次性装入真实 Chrome profile。
+        # 2. 探【本 host 启用标记】——决定是否在本机注册 human_dom 工具族(host 级开关)。
+        #    per-profile 扩展现由 human_browser_open 起专用 profile 时经 CDP 自动装(见 _loader),
+        #    无需手动跑安装脚本; 这个 marker 只表示"本 host 要用 human_dom"。
         import os
         if not os.path.exists(os.path.expanduser("~/.fleet/human-dom-ready")):
             return False, (
-                "human_dom 扩展未安装(无 ~/.fleet/human-dom-ready 标记)。"
-                "跑 platforms/macos/scripts/install-human-dom-extension.sh"
-                " 把扩展装进真实 Chrome 后重连即启用。"
+                "本 host 未启用 human_dom(无 ~/.fleet/human-dom-ready 标记)。"
+                "创建该标记文件(touch ~/.fleet/human-dom-ready)并重启 server 即注册 human_dom 工具;"
+                "之后 human_browser_open(profile=..) 会自动把扩展装进该 profile(零 GUI)。"
             )
         return True, ""
 
@@ -141,7 +143,7 @@ class HumanDomCapability(CapabilityModule):
         @mcp.tool
         async def human_dom_status() -> dict:
             """human_dom 双维度状态: {installed, connected, profiles, hint}(只统本 server 桥端口的 profile)。
-            installed=已装扩展(查该 profile Secure Preferences), connected=当前连着桥。
+            installed=扩展已装入该 profile(读装成功即写的 loaded.json 标记), connected=当前连着桥。
             关键: installed=true/connected=false ≠ 未安装 —— 别重装, 重开 human_browser_open 或导航到目标页即可(见 hint)。"""
             connected = {c["profile_id"] for c in list(bridge._clients)}
             return build_status(compute_status("~/.fleet/human-dom-ext", bp, connected))
