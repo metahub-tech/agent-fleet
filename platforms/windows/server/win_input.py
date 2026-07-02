@@ -1,0 +1,100 @@
+"""Windows 输入/DPI 辅助(AgentHub #100 P1-A/P2)。
+
+- `_ensure_dpi_awareness()`: 让本进程 per-monitor DPI aware, 消除 take_screenshot(物理像素)
+  与 tap/get_screen_size(默认逻辑像素)在 DPI 缩放≠100% 机器上的坐标系错位。
+- `_send_unicode(text)`: 逐字符用 KEYEVENTF_UNICODE 注入 Unicode 码点, 绕过 VK 键码 →
+  中文输入法(搜狗等)不再把 `/` 改写成 `、`(真机实证 pyautogui.typewrite 的 VK 方案被劫持)。
+
+ctypes.windll 仅在函数内惰性引用 → 本模块可在非 Windows 上导入(供纯函数单测)。
+"""
+from __future__ import annotations
+
+
+def _utf16_units(text: str) -> "list[int]":
+    """把字符串拆成 UTF-16 码元序列(BMP 直接; 非 BMP 拆 surrogate pair)。
+    KEYEVENTF_UNICODE 一次发一个 16-bit 码元, 故 emoji 等需两个。纯函数、可测。"""
+    units = []
+    for ch in text:
+        code = ord(ch)
+        if code <= 0xFFFF:
+            units.append(code)
+        else:
+            c = code - 0x10000
+            units.append(0xD800 + (c >> 10))
+            units.append(0xDC00 + (c & 0x3FF))
+    return units
+
+
+def _ensure_dpi_awareness() -> bool:
+    """进程设为 per-monitor DPI aware(幂等、失败不抛)。返回是否设置成功(仅供日志/测试)。
+    设为 aware 后 ImageGrab、pyautogui.size()、SetCursorPos 三者统一到物理像素、自洽。"""
+    try:
+        import ctypes
+    except Exception:
+        return False
+    # PER_MONITOR_AWARE_V2 = DPI_AWARENESS_CONTEXT (HANDLE)-4 (Win10 1703+)
+    try:
+        f = ctypes.windll.user32.SetProcessDpiAwarenessContext
+        f.restype = ctypes.c_bool
+        f.argtypes = [ctypes.c_void_p]
+        if f(ctypes.c_void_p(-4)):
+            return True
+    except Exception:
+        pass
+    try:  # 退化: PROCESS_PER_MONITOR_DPI_AWARE = 2 (Win8.1+)
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return True
+    except Exception:
+        pass
+    try:  # 最后退化: 系统级 aware (Vista+)
+        ctypes.windll.user32.SetProcessDPIAware()
+        return True
+    except Exception:
+        return False
+
+
+def _send_unicode(text: str, interval: float = 0.0) -> None:
+    """逐字符用 KEYEVENTF_UNICODE 直接注入 Unicode 码点(绕开键盘布局与 IME)。Windows only。
+
+    注意: INPUT 的 union 必须能容纳最大成员 MOUSEINPUT, 且 cbSize 传【完整 INPUT 大小】
+    (64 位 40 字节)——只放 KEYBDINPUT 会让 sizeof 偏小、cbSize 不符, SendInput 静默失败
+    (真机实证: 少了 mi 成员时一个字符都发不出去)。"""
+    import ctypes
+    import time
+    from ctypes import wintypes
+
+    KEYEVENTF_KEYUP = 0x0002
+    KEYEVENTF_UNICODE = 0x0004
+    INPUT_KEYBOARD = 1
+    ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
+
+    class _MOUSEINPUT(ctypes.Structure):
+        _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG),
+                    ("mouseData", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                    ("time", wintypes.DWORD), ("dwExtraInfo", ULONG_PTR)]
+
+    class _KEYBDINPUT(ctypes.Structure):
+        _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD),
+                    ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD),
+                    ("dwExtraInfo", ULONG_PTR)]
+
+    class _INPUTUNION(ctypes.Union):
+        _fields_ = [("mi", _MOUSEINPUT), ("ki", _KEYBDINPUT)]  # mi 让 union 达到正确大小
+
+    class _INPUT(ctypes.Structure):
+        _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+
+    def _mk(scan, flags):
+        inp = _INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.u.ki = _KEYBDINPUT(0, scan, flags, 0, None)
+        return inp
+
+    send = ctypes.windll.user32.SendInput
+    size = ctypes.sizeof(_INPUT)
+    for unit in _utf16_units(text):
+        arr = (_INPUT * 2)(_mk(unit, KEYEVENTF_UNICODE),
+                           _mk(unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
+        send(2, ctypes.byref(arr), size)
+        if interval:
+            time.sleep(interval)

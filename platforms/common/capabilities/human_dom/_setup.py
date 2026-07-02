@@ -22,5 +22,6 @@ def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_
     baked = cjs.read_text(encoding="utf-8")
     assert "__AF_PORT__" not in baked and "__AF_PROFILE_ID__" not in baked, \
         "prepare_extension: 占位未完全替换(模板格式变了?)"
-    (out / "meta.json").write_text(json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port)}), encoding="utf-8")
+    (out / "meta.json").write_text(
+        json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port)}), encoding="utf-8")
     return str(out)
