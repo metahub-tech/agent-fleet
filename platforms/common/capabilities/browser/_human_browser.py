@@ -65,15 +65,29 @@ def _chrome_binary() -> "str | None":
     return _chrome_path()  # win/linux: 本来就是 exe
 
 
+# 全新 profile 首启会弹原生窗口(Chrome 登录提示/「设为默认浏览器」横幅/What's New/FRE),
+# 操作员 agent 不认识这些原生窗口会乱处理(误关标签、重开落登录页、甚至误触其它应用)。
+# 这组 flag 在 test-win11 真机验证可靠消除、直接进目标页(AgentHub #211)。均为首启抑制开关,
+# 不禁用扩展、不影响 human_dom 加载(扩展走 CDP loadUnpacked, 不靠命令行)。
+_FIRST_RUN_SUPPRESS_FLAGS = [
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-features=ChromeWhatsNewUI,SigninPromo,ForYouFre",
+    "--disable-fre",
+]
+
+
 def _human_launch_args(binary: str, udd: str, pdir: "str | None", url: str,
                        remote_debug: bool = False) -> list:
     """构造带专用 user-data-dir 的 Chrome 启动参数(纯函数,可测)。
 
+    含 _FIRST_RUN_SUPPRESS_FLAGS 消除全新 profile 首启原生弹窗(见常量注释)。
     remote_debug=True 时加 `--remote-debugging-port=0`(临时端口, Chrome 起后写进
     <udd>/DevToolsActivePort) —— 供 server 侧 CDP `Extensions.loadUnpacked` 确定性
     装 human_dom 扩展(零 GUI)。不加 --enable-automation → navigator.webdriver 仍 false;
-    本机 no-Origin 客户端才连得上 CDP(网页带 Origin→Chrome 默认 403), moat 不破。"""
-    args = [binary, f"--user-data-dir={udd}"]
+    本机 no-Origin 客户端才连得上 CDP(网页带 Origin→Chrome 默认 403), moat 不破。
+    url 保持最后一个位置参(Chrome 把位置参当要打开的 URL)。"""
+    args = [binary, f"--user-data-dir={udd}", *_FIRST_RUN_SUPPRESS_FLAGS]
     if pdir:
         args.append(f"--profile-directory={pdir}")
     if remote_debug:
