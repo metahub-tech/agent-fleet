@@ -65,14 +65,16 @@ def _chrome_binary() -> "str | None":
     return _chrome_path()  # win/linux: 本来就是 exe
 
 
-# 全新 profile 首启会弹原生窗口(Chrome 登录提示/「设为默认浏览器」横幅/What's New/FRE),
-# 操作员 agent 不认识这些原生窗口会乱处理(误关标签、重开落登录页、甚至误触其它应用)。
-# 这组 flag 在 test-win11 真机验证可靠消除、直接进目标页(AgentHub #211)。均为首启抑制开关,
-# 不禁用扩展、不影响 human_dom 加载(扩展走 CDP loadUnpacked, 不靠命令行)。
-# 首启抑制 flag(消除全新 profile 的登录提示/设默认横幅/What's New/FRE, AgentHub #211)。
-# --disable-features 的 feature 名单单列, 便于与 human_dom 的 LNA disable 合并成【一个】
-# --disable-features flag —— Chrome 有多个 --disable-features 时只认最后一个, 拆开会互相覆盖。
-_FIRST_RUN_FLAGS = ["--no-first-run", "--no-default-browser-check", "--disable-fre"]
+# 专用 profile 干净启动 flag(test-win11 真机验证)——两类原生弹窗抑制:
+# ① 首启抑制: 消除全新 profile 的登录提示/设默认横幅/What's New/FRE 原生窗口(AgentHub #211),
+#    否则操作员 agent 不认识会乱处理(误关标签/重开落登录页/误触其它应用)。
+# ② --hide-crash-restore-bubble: 上次 Chrome 被异常退出(强杀/崩溃)后 profile 带「未正确关闭」标记,
+#    下次开窗弹「要恢复页面吗」气泡, 干扰 operator 判断(连锁误诊登录态/tab 迷失, AgentHub #100 轮10)。
+#    我方清理已改优雅关窗, 但产品兜住用户侧任何异常退出场景。
+# 均不禁用扩展、不影响 human_dom 加载(扩展走 CDP loadUnpacked)。--disable-features 的 feature 名单
+# 单列, 便于与 human_dom 的 LNA disable 合并成【一个】--disable-features(Chrome 有多个只认最后一个)。
+_FIRST_RUN_FLAGS = ["--no-first-run", "--no-default-browser-check", "--disable-fre",
+                    "--hide-crash-restore-bubble"]
 _FIRST_RUN_DISABLE_FEATURES = ["ChromeWhatsNewUI", "SigninPromo", "ForYouFre"]
 # human_dom(remote_debug)时额外关掉「本地网络访问(LNA/PNA)」检查: 否则 content script 从
 # 公开页(example.com/公众号等)直连 localhost 桥(ws://127.0.0.1)会被 Chrome gate ——弹「本地
