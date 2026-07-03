@@ -98,3 +98,85 @@ def _send_unicode(text: str, interval: float = 0.0) -> None:
         send(2, ctypes.byref(arr), size)
         if interval:
             time.sleep(interval)
+
+
+def maximize_chrome_window_for_udd(udd: str, timeout: float = 8.0) -> bool:
+    """确定性把某 profile(--user-data-dir=udd)的 Chrome 浏览器窗口 Win32 ShowWindow(SW_MAXIMIZE)
+    强制最大化(不模拟键盘快捷键)。—— `--start-maximized` 会被 Chrome 的 per-profile 窗口尺寸恢复
+    机制覆盖(真机实证公众平台窗口被恢复成 945x1012 半屏, AgentHub #100 轮12), 故 open 后由 server
+    按 profile 定位窗口强制最大化。best-effort, 失败/超时返回 False, 永不抛。Windows only。
+
+    定位法: 找 cmdline 含 `--user-data-dir=<udd>` 的 chrome 进程 pid → EnumWindows 取归这些 pid 的
+    可见、有标题、类名 Chrome_WidgetWin_1 的顶层窗口(浏览器主窗口) → ShowWindow(SW_MAXIMIZE)。
+    """
+    try:
+        import ctypes
+        import time
+        from ctypes import wintypes
+        import psutil
+    except Exception:
+        return False
+
+    SW_MAXIMIZE = 3
+    user32 = ctypes.windll.user32
+    needle = f"--user-data-dir={udd}"
+
+    def _chrome_pids():
+        pids = set()
+        for p in psutil.process_iter(["name", "cmdline"]):
+            try:
+                nm = (p.info.get("name") or "").lower()
+                if "chrome" in nm and needle in " ".join(p.info.get("cmdline") or []):
+                    pids.add(p.pid)
+            except Exception:
+                pass
+        return pids
+
+    def _windows_for(pids):
+        found = []
+
+        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        def _cb(hwnd, _lp):
+            try:
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                pid = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                if pid.value not in pids:
+                    return True
+                if user32.GetWindowTextLengthW(hwnd) <= 0:
+                    return True
+                buf = ctypes.create_unicode_buffer(64)
+                user32.GetClassNameW(hwnd, buf, 64)
+                if buf.value == "Chrome_WidgetWin_1":   # 浏览器主窗口类
+                    r = wintypes.RECT()
+                    # 过滤 Chrome 的小工具窗口(如某些 298x101 弹层): 只认够大的真浏览器窗口
+                    if user32.GetWindowRect(hwnd, ctypes.byref(r)) and \
+                            (r.right - r.left) >= 400 and (r.bottom - r.top) >= 300:
+                        found.append(hwnd)
+            except Exception:
+                pass
+            return True
+
+        user32.EnumWindows(_cb, 0)
+        return found
+
+    end = time.time() + timeout
+    hwnds = []
+    while time.time() < end:
+        pids = _chrome_pids()
+        if pids:
+            hwnds = _windows_for(pids)
+            if hwnds:
+                break
+        time.sleep(0.3)
+    if not hwnds:
+        return False
+    ok = False
+    for h in hwnds:
+        try:
+            user32.ShowWindow(h, SW_MAXIMIZE)
+            ok = True
+        except Exception:
+            pass
+    return ok

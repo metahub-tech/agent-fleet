@@ -71,10 +71,12 @@ def _chrome_binary() -> "str | None":
 # ② --hide-crash-restore-bubble: 上次 Chrome 被异常退出(强杀/崩溃)后 profile 带「未正确关闭」标记,
 #    下次开窗弹「要恢复页面吗」气泡, 干扰 operator 判断(连锁误诊登录态/tab 迷失, AgentHub #100 轮10)。
 #    我方清理已改优雅关窗, 但产品兜住用户侧任何异常退出场景。
+# ③ --start-maximized: 首帧最大化提示(会被 Chrome per-profile 窗口尺寸恢复覆盖成半屏, 真正强制靠
+#    open 后 server 侧 Win32 ShowWindow, 见 _maybe_maximize / maximize_fn; 此 flag 只作首帧观感)。
 # 均不禁用扩展、不影响 human_dom 加载(扩展走 CDP loadUnpacked)。--disable-features 的 feature 名单
 # 单列, 便于与 human_dom 的 LNA disable 合并成【一个】--disable-features(Chrome 有多个只认最后一个)。
 _FIRST_RUN_FLAGS = ["--no-first-run", "--no-default-browser-check", "--disable-fre",
-                    "--hide-crash-restore-bubble"]
+                    "--hide-crash-restore-bubble", "--start-maximized"]
 _FIRST_RUN_DISABLE_FEATURES = ["ChromeWhatsNewUI", "SigninPromo", "ForYouFre"]
 # human_dom(remote_debug)时额外关掉「本地网络访问(LNA/PNA)」检查: 否则 content script 从
 # 公开页(example.com/公众号等)直连 localhost 桥(ws://127.0.0.1)会被 Chrome gate ——弹「本地
@@ -119,6 +121,18 @@ def _maybe_load_human_dom(udd: str, ext_dir: str, navigate_url=None) -> "dict | 
         return load_dom_extension(udd, ext_dir, navigate_url=navigate_url)
     except Exception as e:  # loader 已保证不抛, 这里再兜一层防御
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+def _maybe_maximize(maximize_fn, udd: str) -> None:
+    """起窗后调平台注入的窗口最大化(win: Win32 ShowWindow(SW_MAXIMIZE) 按 profile 定位窗口强制
+    最大化)。`--start-maximized` 会被 Chrome per-profile 尺寸恢复覆盖(真机实证半屏), 故 server 侧
+    确定性强制。无 maximize_fn(mac/linux 暂未注入)则跳过。best-effort, 永不抛。"""
+    if not maximize_fn:
+        return
+    try:
+        maximize_fn(udd)
+    except Exception:
+        pass
 
 
 def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | None":
@@ -166,10 +180,12 @@ class HumanBrowserCapability(CapabilityModule):
         "裸 human_browser_open(url)=默认日常 Chrome,仅一次性/非长期用,真账号别用。仅自有设备/授权账号。"
     )
 
-    def __init__(self, bridge_port: "int | None" = None):
+    def __init__(self, bridge_port: "int | None" = None, maximize_fn=None):
         # bridge_port: 本 server 的 human_dom 桥端口(由 server 注入)。起【专用 profile】时
         # 用它 auto-bake 该 profile 的 human_dom 扩展副本(把此端口烤进副本)。None=不 auto-bake。
+        # maximize_fn(udd): 平台注入的窗口强制最大化(win: Win32 ShowWindow); None=不最大化(mac/linux)。
         self._bridge_port = bridge_port
+        self._maximize_fn = maximize_fn
         self.description = (
             "自建:启动宿主真实日常 Chrome(无 debug 端口、无自动化标志 → 零自动化痕迹),"
             "通过截图 + OS 级坐标点击/输入(core 工具)作为人本人操作真实账号/身份。"
@@ -255,6 +271,10 @@ class HumanBrowserCapability(CapabilityModule):
                                          "(截图+tap), human_dom 精度暂不可用。可重试 human_browser_open, 或见 using-human-dom 排错。")
                 else:
                     resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(server 侧 CDP 自动装, 无需操作员手动)。"
+                # 起窗后 server 侧确定性强制最大化(Win32 ShowWindow)——防 Chrome per-profile 尺寸恢复
+                # 把窗口恢复成半屏(真机实证)覆盖 --start-maximized; agent 零操作, 不模拟键盘。
+                _maybe_maximize(self._maximize_fn, udd)
+                resp["maximized"] = bool(self._maximize_fn)
                 return resp
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}

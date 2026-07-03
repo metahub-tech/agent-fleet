@@ -140,3 +140,24 @@ def test_launch_args_hides_crash_restore_bubble():
     for rd in (True, False):
         args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=rd)
         assert "--hide-crash-restore-bubble" in args
+
+
+# --- P1(AgentHub #100 轮12): 起窗后 server 侧 Win32 强制最大化(--start-maximized 被 profile 恢复覆盖) ---
+def test_launch_args_start_maximized():
+    # --start-maximized 作首帧提示(会被 profile 尺寸恢复覆盖, 真正强制靠 server 侧 Win32 ShowWindow)
+    args = _human_launch_args("/c", "/udd", None, "http://x")
+    assert "--start-maximized" in args
+
+def test_maybe_maximize_calls_fn():
+    seen = []
+    _hb._maybe_maximize(lambda udd: seen.append(udd), "/udd")
+    assert seen == ["/udd"]
+
+def test_maybe_maximize_none_and_raise_are_safe():
+    _hb._maybe_maximize(None, "/udd")            # 无 fn(mac/linux) → no-op
+    _hb._maybe_maximize(lambda u: (_ for _ in ()).throw(RuntimeError("x")), "/udd")  # 抛也吞掉
+
+def test_init_accepts_maximize_fn():
+    cap = _hb.HumanBrowserCapability(bridge_port=8779, maximize_fn=lambda u: None)
+    assert cap._maximize_fn is not None
+    assert _hb.HumanBrowserCapability()._maximize_fn is None  # 默认无
