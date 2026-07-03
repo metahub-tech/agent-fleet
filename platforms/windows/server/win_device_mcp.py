@@ -42,7 +42,7 @@ from fastmcp.utilities.types import Image
 
 from pywinauto import Desktop
 
-from win_input import _ensure_dpi_awareness, _send_unicode
+from win_input import _ensure_dpi_awareness, _send_unicode, maximize_chrome_window_for_udd
 
 # 进程尽早设为 per-monitor DPI aware: 否则 DPI 缩放≠100% 机器上 take_screenshot(物理像素)与
 # tap/get_screen_size(逻辑像素)坐标系错位, 视觉点击漂移(AgentHub #100 P1-A)。幂等、失败不阻断。
@@ -992,7 +992,7 @@ _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())
-_cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port))  # 起专用 profile 时 auto-bake human_dom 扩展副本
+_cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=maximize_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 强制最大化
 _cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
 _cap_registry.setup(mcp, _enabled_caps)
