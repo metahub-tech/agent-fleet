@@ -131,3 +131,12 @@ def test_launch_args_no_lna_disable_without_human_dom():
     args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=False)
     feats = [a for a in args if a.startswith("--disable-features=")]
     assert len(feats) == 1 and "LocalNetworkAccessChecks" not in feats[0]
+
+
+# --- P1(AgentHub #100 轮10): 抑制异常退出后的「恢复页面?」崩溃气泡 ---
+def test_launch_args_hides_crash_restore_bubble():
+    # 强杀 chrome 后 profile 带「未正确关闭」标记 → 下次开窗弹恢复气泡, 干扰 operator。
+    # 专用 profile 两条路(human_dom 与否)都要带该 flag(异常退出兜底)。
+    for rd in (True, False):
+        args = _human_launch_args("/c", "/udd", None, "http://x", remote_debug=rd)
+        assert "--hide-crash-restore-bubble" in args
