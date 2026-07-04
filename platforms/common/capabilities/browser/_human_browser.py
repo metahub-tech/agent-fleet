@@ -145,7 +145,7 @@ def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | Non
         return None  # 默认日常 profile(无 profile) / 无桥端口 → 不 auto-bake
     try:
         from ..human_dom._ident import human_dom_profile_id
-        from ..human_dom._setup import prepare_extension
+        from ..human_dom._setup import prepare_extension, template_hash
     except Exception:
         return None  # human_dom 能力不在本 server → human_browser 仍可独立用
     try:
@@ -154,8 +154,9 @@ def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | Non
         meta = Path(ext_dir) / "meta.json"
         need = True
         if meta.exists():
-            try:  # 已有副本: 仅当烤入的桥端口与当前不符才重烤(server 换端口后副本会失效)
-                need = json.loads(meta.read_text(encoding="utf-8")).get("bridge_port") != int(bridge_port)
+            try:  # 已有副本: 桥端口不符(server 换端口副本失效)或 content.js 模板变了(R1/R3 改了扩展)→ 重烤
+                m = json.loads(meta.read_text(encoding="utf-8"))
+                need = m.get("bridge_port") != int(bridge_port) or m.get("tpl_hash") != template_hash()
             except Exception:
                 need = True  # meta 损坏 → 重烤
         if need:

@@ -1,8 +1,32 @@
 """human_dom 能力: 注册 human_dom_locate/tap/fill。靠 server 注入 tap_fn/fill_fn + bridge。"""
 from __future__ import annotations
+import asyncio
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
 from ._locate import resolve_locate
 from ._ident import human_dom_profile_id
+
+
+def _fill_snippet(text, n: int = 16) -> str:
+    """取填入文本的前 n 个非空白字符作回读匹配片段(够独特, 又不至于把整段拿来匹配)。纯函数、可测。"""
+    return (text or "").strip()[:n]
+
+
+async def _verify_fill(bridge, text, css, profile_id) -> bool:
+    """R2 回读校验(AgentHub #100): fill 后按【填入片段本身】再 locate, 某候选 visibleText 含该片段
+    才算真落字。**绝不只判「非空」**—— 空 ProseMirror 的占位串也在 innerText 里, 判非空会假成功。
+    永不抛(回读出错→视为未通过, 保守降级 vision)。"""
+    snip = _fill_snippet(text)
+    if not snip:
+        return True  # 填空串无意义, 不拦
+    try:
+        await asyncio.sleep(0.4)  # 让编辑器处理完 paste 事件、DOM 落定再回读
+        r = await resolve_locate(bridge, snip, css=css, profile_id=profile_id, timeout=3.0)
+    except Exception:
+        return False
+    if not r.get("ok"):
+        return False
+    low = snip.lower()
+    return any(low in (c.get("text") or "").lower() for c in r.get("candidates", []))
 
 
 def _installed_on_disk(ext_subdir):
@@ -132,15 +156,20 @@ class HumanDomCapability(CapabilityModule):
 
         @mcp.tool
         async def human_dom_fill(query: str, text: str, css: str = "", profile: str = "") -> dict:
-            """定位 + 点击聚焦 + OS 级填充(全选 + 剪贴板粘贴, 覆盖式, 支持中文)。"""
-            r = await resolve_locate(bridge, query, css=css or None,
-                                     profile_id=human_dom_profile_id(profile))
+            """定位 + 点击聚焦 + OS 级填充(全选 + 剪贴板粘贴, 覆盖式, 支持中文) + 回读校验。
+            R2(#100): fill 后按填入片段回读, 真落字才 ok:True/verified:True; 没落字(点在占位壳/
+            粘贴被拦/焦点没进真编辑体)→ ok:False/reason:fill_verify_failed/suggest vision, 不再假成功。"""
+            pid = human_dom_profile_id(profile)
+            r = await resolve_locate(bridge, query, css=css or None, profile_id=pid)
             if not r.get("ok") or not r["candidates"]:
                 return {"ok": False, "reason": r.get("reason", "not_found"), "suggest": "vision_locate"}
             x, y = r["candidates"][0]["center"]
             tap(int(round(x)), int(round(y)))
             fill(text)
-            return {"ok": True, "filled_at": [int(round(x)), int(round(y))]}
+            if await _verify_fill(bridge, text, css=css or None, profile_id=pid):
+                return {"ok": True, "filled_at": [int(round(x)), int(round(y))], "verified": True}
+            return {"ok": False, "reason": "fill_verify_failed", "suggest": "vision_locate",
+                    "filled_at": [int(round(x)), int(round(y))]}
 
         @mcp.tool
         async def human_dom_status() -> dict:

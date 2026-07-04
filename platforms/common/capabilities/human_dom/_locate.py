@@ -19,5 +19,6 @@ async def resolve_locate(bridge, query, css=None, max_results=10, profile_id="de
         m = viewport_to_screen(c["rectViewport"], geom)
         out.append({"text": c.get("text"), "role": c.get("role"),
                     "center": m["center"], "box": m["box"],
-                    "visible": c.get("visible", True), "clickable": c.get("clickable", True)})
+                    "visible": c.get("visible", True), "clickable": c.get("clickable", True),
+                    "editable": c.get("editable", False)})  # R3: 真可编辑(排序已把它排前)
     return {"ok": True, "candidates": out}
