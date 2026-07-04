@@ -18,7 +18,10 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
 from _browser_lease import _resolve_profile
@@ -166,6 +169,139 @@ def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | Non
         return None
 
 
+# ── 幂等复用(AgentHub #100 轮31)──────────────────────────────────────────────
+# 真实场景: 操作员 agent 把 human_browser_open 当"翻页/刷新"反复调(一个任务 17 次)。原实现
+# 每次无条件重启 Chrome + 重跑 CDP 装扩展 → ①慢(每次冷启动数秒)②破坏(把已登录的目标页顶成新标签/
+# Google 首页, agent 落错页 churn)。光靠 skill 文案劝不住模型的重开习惯, 故在【工具层】做成幂等:
+# 同一 profile 的 Chrome 已在运行就复用 —— 不重 spawn、不重装扩展、不顶掉当前页。
+#
+# 探测两路(先盘、后进程内): ① 盘扫描 <udd>/DevToolsActivePort + /json/version 探活的 CDP 端点
+# (human_dom 起窗带 --remote-debugging-port=0, 端口随 Chrome 存活; 跨 server 重启也可探到)。
+# ② 进程内启动注册表(本 server 生命周期内起过的 profile→Popen 句柄; 覆盖【无 debug 端口】的非
+# human_dom 专用 profile)。任一命中即视为已开。冷启动路径起窗后登记, 供后续复用探测。
+_LAUNCHED: "dict[str, subprocess.Popen]" = {}
+_LAUNCHED_LOCK = threading.Lock()      # 守 _LAUNCHED 与 _KEY_LOCKS 两个字典的读写
+_KEY_LOCKS: "dict[str, threading.Lock]" = {}
+
+
+def _key_lock(key: str) -> threading.Lock:
+    """取该 profile_key 的专属锁(不存在则建)。用于把「探测冷/热 → 冷启动 spawn → 登记」串成
+    原子临界区: 同一 profile 的并发 open(FastMCP 同步工具跑在线程池, 多客户端/重叠调用会并发)
+    只会冷启动一次, 不会双 spawn/双装扩展。不同 profile 各自的锁 → 仍可并发起窗(参照
+    BrowserLeaseRegistry.bind 把 start_fn 收进锁内的范式, 但按 key 细粒度以免拖累跨 profile)。"""
+    with _LAUNCHED_LOCK:
+        lk = _KEY_LOCKS.get(key)
+        if lk is None:
+            lk = _KEY_LOCKS[key] = threading.Lock()
+        return lk
+
+
+def _proc_alive(proc) -> bool:
+    """我方起的 Chrome 进程是否仍存活(poll()==None)。探测出错保守判否。"""
+    try:
+        return proc is not None and proc.poll() is None
+    except Exception:
+        return False
+
+
+def _record_launch(key: str, proc) -> None:
+    """冷启动起窗后登记 profile_key→进程句柄, 供后续 human_browser_open 复用探测。"""
+    with _LAUNCHED_LOCK:
+        _LAUNCHED[key] = proc
+
+
+def _probe_debug_port(udd: str, _open=urllib.request.urlopen, timeout: float = 1.5) -> "int | None":
+    """快速单探: 该 udd 是否已有【存活的】Chrome CDP 端点。读一次 <udd>/DevToolsActivePort,
+    /json/version 响应且是 Chrome → 返回端口; 文件缺失 / 陈旧死端口(连接被拒) → None。永不抛。
+    (陈旧端口: 上次 Chrome 崩溃留下的 DevToolsActivePort 指向已死端口 → /json/version 失败 → None,
+    正确地判冷、走冷启动。)"""
+    try:
+        from ..human_dom._loader import _read_port_once, _http_json
+    except Exception:
+        return None
+    try:
+        port = _read_port_once(udd)
+        if not port:
+            return None
+        ver = _http_json(f"http://127.0.0.1:{port}/json/version", _open, timeout=timeout)
+        if ver.get("webSocketDebuggerUrl") or "Chrome" in (ver.get("Browser", "") or ""):
+            return port
+    except Exception:
+        return None
+    return None
+
+
+def _detect_reuse(key: str, udd: str, _probe=None) -> "dict | None":
+    """该 profile 的 Chrome 是否已在运行? 已开返回 {'port': int|None, 'via': str}(warm), 否则 None(冷)。
+    先盘扫 debug 端点(跨重启 / human_dom 专用 profile 都可探到), 再退回进程内启动注册表(覆盖无 debug
+    端口的非 human_dom profile, 仅本 server 生命周期内)。命中进程内但进程已死 → 清掉陈旧记录、判冷。"""
+    probe = _probe or _probe_debug_port
+    port = probe(udd)
+    if port is not None:
+        return {"port": port, "via": "debug-port"}
+    with _LAUNCHED_LOCK:
+        proc = _LAUNCHED.get(key)
+        if proc is not None and _proc_alive(proc):
+            return {"port": None, "via": "in-process"}
+        if proc is not None:  # 进程已死 → 丢弃陈旧记录, 判冷
+            _LAUNCHED.pop(key, None)
+    return None
+
+
+def _same_origin(a: str, b: str) -> bool:
+    """两 url 是否同源(scheme+host+port 一致)。解析失败或空串 → False(视为不同源)。"""
+    try:
+        pa, pb = urlparse(a or ""), urlparse(b or "")
+        if not pa.hostname or not pb.hostname:
+            return False
+        return (pa.scheme, pa.hostname, pa.port) == (pb.scheme, pb.hostname, pb.port)
+    except Exception:
+        return False
+
+
+def _warm_navigate(port: "int | None", url: str, _open=urllib.request.urlopen) -> str:
+    """复用路径下的窗口内导航决策(绝不新开标签、绝不 spawn)。返回状态 token:
+      no-url          — 未传 url, 保持当前页不动。
+      no-port         — 无 debug 通道(非 human_dom profile), 无法窗口内导航, 保持不动(不 spawn)。
+      probe-failed    — 读不到窗口标签态, 保守保持不动。
+      multi-tab-noop  — 窗口有多个标签, 无法可靠判定"前台页", 遵循"宁可 no-op"不自动导航(R2 防破坏)。
+      same-origin-noop— (单标签)与当前页同源(视为已在目标站), 不重载以保护登录态/编辑器(R2 防破坏)。
+      navigated       — (单标签)在当前页内导航到目标 url 成功。
+      nav-failed      — 尝试窗口内导航未成功。
+
+    只在【恰好一个 page 标签】时才做窗口内导航: 多标签下 CDP /json 无法可靠标出"操作员当前前台看的
+    那张标签", 盲选 page[0] 可能把已登录的目标页导航掉(reviewer #1), 故多标签一律不动、交操作员手切。"""
+    if not url:
+        return "no-url"
+    if not port:
+        return "no-port"
+    try:
+        from ..human_dom._loader import _http_json, _navigate
+    except Exception:
+        return "no-port"
+    try:
+        pages = _http_json(f"http://127.0.0.1:{port}/json", _open)
+        page_urls = [t.get("url", "") for t in pages if t.get("type") == "page"]
+    except Exception:
+        return "probe-failed"          # 读不到标签态 → 保守不动(绝不盲导航)
+    if len(page_urls) > 1:
+        return "multi-tab-noop"        # 多标签: 无法可靠判前台页 → 不动
+    if page_urls and _same_origin(page_urls[0], url):
+        return "same-origin-noop"      # 唯一标签已同源 → 不重载
+    return "navigated" if _navigate(port, url, _open) else "nav-failed"
+
+
+_WARM_NAV_NOTE = {
+    "no-url": " 未指定 url, 保持当前页不动。",
+    "no-port": " 已复用窗口; 无 debug 通道做窗口内导航, 如需换页请在窗口内点链接/地址栏。",
+    "probe-failed": " 未能读取窗口标签状态, 保持当前页不动; 如需换页请在窗口内点链接/地址栏。",
+    "multi-tab-noop": " 窗口内有多个标签, 为避免顶掉当前页未自动导航; 如需换页请在窗口内点链接/地址栏切换。",
+    "same-origin-noop": " 目标 url 与当前页同源(视为已在目标站), 未重载以保护登录态/编辑器。",
+    "navigated": " 已在现有窗口内导航到目标 url(未新开标签)。",
+    "nav-failed": " 窗口内导航未成功, 请在窗口内手动导航。",
+}
+
+
 class HumanBrowserCapability(CapabilityModule):
     id = "human_browser"
     display_name = "浏览器 human_browser(零自动化痕迹,作为人本人)"
@@ -214,7 +350,13 @@ class HumanBrowserCapability(CapabilityModule):
             server 会自动把 human_dom 扩展装进该 profile(auto-bake 副本 + 起 Chrome 带临时 debug 端口 +
             经 CDP `Extensions.loadUnpacked` 确定性装,零 GUI/零视觉;Chrome137+ 禁了 --load-extension,
             这是替代路径)。返回里 human_dom.ok=true 即已装好,导航到目标页后直接 human_dom_locate/tap/fill。
-            全新 profile 首次连桥会弹 Chrome "本地网络访问"授权,点一次"允许"才连得上桥(见 skill)。"""
+            全新 profile 首次连桥会弹 Chrome "本地网络访问"授权,点一次"允许"才连得上桥(见 skill)。
+
+            幂等复用:对【专用 profile】,该 profile 的 Chrome 已在运行时本调用会复用现有窗口——
+            不重启浏览器、不重装扩展、不新开标签,返回 reused:true。只首次冷启动 spawn+装扩展。
+            故反复调用廉价且无破坏:传 url 且与当前页同源即视为已在目标站不重载(保护登录态/编辑器);
+            仅换到不同源目标时在现有窗口内导航(不新开标签)。不必把本工具当翻页用,同站跳转在窗口内点链接/
+            地址栏即可;想确认窗口状态用 human_dom_status。"""
             url = (url or "").strip()
             profile = (profile or "").strip()
             try:
@@ -231,19 +373,44 @@ class HumanBrowserCapability(CapabilityModule):
                         subprocess.Popen(args, start_new_session=True,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     return {"ok": True, "opened": url or "(chrome)", "profile": "(default-daily)",
-                            "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"}
+                            "reused": False,
+                            "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"
+                                    "(默认日常 Chrome 由 Chrome 自身单例转发, 幂等复用仅对专用 profile 生效。)"}
                 binary = _chrome_binary()
                 if binary is None:
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
                 udd, pdir, key = _resolve_profile(profile)
-                ext_dir = _ensure_human_dom_ext(profile, self._bridge_port)  # auto-bake 扩展副本(缺则烤)
-                # 有 human_dom: 先起空页(不带目标 url), 装完扩展再经 CDP navigate 到 url ——
-                # content script 只在【新导航】时注入, 启动就带 url 会导致装好前页面已加载、脚本不注入。
-                launch_url = "" if ext_dir else url
-                args = _human_launch_args(binary, udd, pdir, launch_url, remote_debug=bool(ext_dir))
-                subprocess.Popen(args, start_new_session=True,
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                resp = {"ok": True, "opened": url or "(chrome)", "profile": key,
+                # 幂等复用: 该 profile 的 Chrome 已在运行就复用 —— 不重 spawn、不重装扩展、不顶掉当前页
+                # (AgentHub #100 轮31: 操作员把 human_browser_open 当翻页反复调, 重开数秒冷启动 + 顶登录页)。
+                # 「探测冷/热 → (冷)spawn → 登记」收进 per-key 锁, 保证同一 profile 并发 open 只冷启动一次
+                # (不双 spawn/双装扩展); 慢的 CDP 装扩展留在锁外(不长占锁, 不拖累别的 profile)。
+                ext_dir = None
+                with _key_lock(key):
+                    warm = _detect_reuse(key, udd)
+                    if warm is None:
+                        ext_dir = _ensure_human_dom_ext(profile, self._bridge_port)  # auto-bake 扩展副本(缺则烤)
+                        # 有 human_dom: 先起空页(不带目标 url), 装完扩展再经 CDP navigate 到 url ——
+                        # content script 只在【新导航】时注入, 启动就带 url 会导致装好前页面已加载、脚本不注入。
+                        launch_url = "" if ext_dir else url
+                        args = _human_launch_args(binary, udd, pdir, launch_url, remote_debug=bool(ext_dir))
+                        proc = subprocess.Popen(args, start_new_session=True,
+                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        _record_launch(key, proc)  # 锁内登记 → 后续同 profile open 即探到热、跳过 spawn+装扩展
+                        print(f"[human_browser] cold-start profile={key} human_dom={bool(ext_dir)}", file=sys.stderr)
+                # ── 热路径(复用): 锁外做窗口内导航/最大化(非破坏)──
+                if warm is not None:
+                    nav = _warm_navigate(warm["port"], url)
+                    _maybe_maximize(self._maximize_fn, udd)  # 复用只做 focus/最大化
+                    print(f"[human_browser] reuse profile={key} via={warm['via']} nav={nav}", file=sys.stderr)
+                    return {
+                        "ok": True, "opened": url or "(chrome)", "profile": key,
+                        "reused": True, "reuse_via": warm["via"],
+                        "note": "该 profile 的 Chrome 已在运行, 复用现有窗口(未重启浏览器、未重装扩展、未新开标签)。"
+                                + _WARM_NAV_NOTE.get(nav, ""),
+                        "maximized": bool(self._maximize_fn),
+                    }
+                # ── 冷路径(首开): 锁外做 CDP 装扩展/导航/最大化 ──
+                resp = {"ok": True, "opened": url or "(chrome)", "profile": key, "reused": False,
                         "note": f"专用持久 profile 已启动(user-data-dir={udd});登录态跨 run 持久。"
                                 "真账号请固定同一 profile + 全程 human_browser(+human_dom)。"}
                 if ext_dir:
@@ -256,7 +423,7 @@ class HumanBrowserCapability(CapabilityModule):
                         nav_note = ("" if url == "" else
                                     ("已导航到目标页。" if navd else "但目标页导航未成功, 请手动导航(导航后 content script 自动注入)。"))
                         resp["note"] += (" human_dom 扩展已自动装入该 profile(CDP loadUnpacked, 零 GUI, 无需操作员点扩展页);"
-                                         f"{nav_note}之后 human_dom_locate/tap/fill 可用。装一次、本 run 生效, 每次 open 幂等重装。")
+                                         f"{nav_note}之后 human_dom_locate/tap/fill 可用。装一次即可, 后续 human_browser_open 复用现有窗口不重装。")
                     else:
                         err = (load or {}).get("error", "未知")
                         # 降级: 装扩展没成但仍要把用户请求的 url 打开(否则停在空白页)。正在运行的
