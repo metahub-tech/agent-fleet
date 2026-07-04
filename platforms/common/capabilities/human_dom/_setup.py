@@ -1,9 +1,20 @@
 """生成某 profile 专属的 human_dom 扩展目录(烤入 port+profile_id)+ meta.json。"""
 from __future__ import annotations
-import json, shutil
+import hashlib, json, shutil
 from pathlib import Path
 
 _TEMPLATE = Path(__file__).resolve().parent / "extension"
+
+
+def template_hash(template_dir=None) -> str:
+    """content.js 模板内容 hash —— 模板改了(如 R1/R3 改 content.js)时, 让 _ensure_human_dom_ext
+    识别出已烤副本过时并重烤; 否则老副本的旧 content.js 不会被更新(改了不生效)。"""
+    tpl = Path(template_dir) if template_dir else _TEMPLATE
+    try:
+        return hashlib.sha1((tpl / "content.js").read_bytes()).hexdigest()[:12]
+    except Exception:
+        return ""
+
 
 def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_dir=None) -> str:
     tpl = Path(template_dir) if template_dir else _TEMPLATE
@@ -23,5 +34,6 @@ def prepare_extension(out_dir: str, bridge_port: int, profile_id: str, template_
     assert "__AF_PORT__" not in baked and "__AF_PROFILE_ID__" not in baked, \
         "prepare_extension: 占位未完全替换(模板格式变了?)"
     (out / "meta.json").write_text(
-        json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port)}), encoding="utf-8")
+        json.dumps({"profile_id": profile_id, "bridge_port": int(bridge_port),
+                    "tpl_hash": template_hash(template_dir)}), encoding="utf-8")
     return str(out)

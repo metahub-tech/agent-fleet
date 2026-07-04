@@ -1,7 +1,7 @@
 import json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from capabilities.human_dom._setup import prepare_extension
+from capabilities.human_dom._setup import prepare_extension, template_hash
 
 def test_prepare_bakes_port_profile_and_meta(tmp_path):
     out = tmp_path / "ext"
@@ -13,7 +13,20 @@ def test_prepare_bakes_port_profile_and_meta(tmp_path):
     assert (out / "manifest.json").exists()
     json.loads((out / "manifest.json").read_text())
     meta = json.loads((out / "meta.json").read_text())
-    assert meta == {"profile_id": "wechat-ab12cd34", "bridge_port": 8780}
+    assert meta["profile_id"] == "wechat-ab12cd34" and meta["bridge_port"] == 8780
+    # tpl_hash: content.js 模板 hash, 供 _ensure_human_dom_ext 识别模板改动重烤
+    assert meta["tpl_hash"] and meta["tpl_hash"] == template_hash()
+
+def test_template_hash_stable_nonempty():
+    assert template_hash() and template_hash() == template_hash()  # 稳定、非空
+
+def test_baked_content_reads_data_placeholder():
+    # R1: 模板 content.js 的 visibleText 补读 data-placeholder / aria-placeholder(ProseMirror 占位)
+    cjs = (Path(__file__).resolve().parent.parent
+           / "capabilities/human_dom/extension/content.js").read_text(encoding="utf-8")
+    assert "data-placeholder" in cjs and "aria-placeholder" in cjs
+    # R3: 候选按 editable 排序(真编辑体 > 占位 widget)
+    assert "isContentEditable" in cjs and "_editable" in cjs
 
 
 def test_prepare_overwrites_existing_out_dir(tmp_path):
