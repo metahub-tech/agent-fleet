@@ -180,3 +180,45 @@ def maximize_chrome_window_for_udd(udd: str, timeout: float = 8.0) -> bool:
         except Exception:
             pass
     return ok
+
+
+def _dpi_to_scale(dpi) -> float:
+    """DPI(96=100%) → 显示缩放倍率。dpi 非正/None 视为读取失败 → 1.0。纯函数、可测。"""
+    if not dpi or dpi <= 0:
+        return 1.0
+    return round(dpi / 96.0, 4)
+
+
+def read_scale_factor() -> float:
+    """主屏 OS 显示缩放(1.0/1.25/1.5…)。读不到降级 1.0, 绝不抛。
+    仅供自检/诚实上报, 【绝不进 tap 坐标运算】——awareness 生效时截图↔tap 比值恒 1.0,
+    与本值(OS 显示缩放)无关(spec §4.3 红线)。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        shcore = ctypes.windll.shcore
+        # HMONITOR 是指针宽度句柄: 显式声明 restype/argtypes, 否则 ctypes 默认 c_int 会在
+        # 64 位下截断句柄 → GetDpiForMonitor 收到无效句柄 → 缩放屏误报 scale_factor=1.0。
+        user32.MonitorFromPoint.restype = ctypes.c_void_p
+        user32.MonitorFromPoint.argtypes = [wintypes.POINT, ctypes.c_ulong]
+        shcore.GetDpiForMonitor.argtypes = [
+            ctypes.c_void_p, ctypes.c_int,
+            ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint),
+        ]
+        hmon = user32.MonitorFromPoint(wintypes.POINT(0, 0), 1)  # MONITOR_DEFAULTTOPRIMARY
+        dx, dy = ctypes.c_uint(), ctypes.c_uint()
+        # MDT_EFFECTIVE_DPI=0; 成功返回 S_OK(0)
+        if shcore.GetDpiForMonitor(hmon, 0, ctypes.byref(dx), ctypes.byref(dy)) == 0:
+            return _dpi_to_scale(dx.value)
+    except Exception:
+        pass
+    return 1.0
+
+
+def dpi_awareness_report(aware: bool):
+    """awareness 失败时的 stderr 告警文案(成功→None)。纯函数、可测。"""
+    if aware:
+        return None
+    return ("[dpi] per-monitor DPI awareness 设置失败; 缩放≠100% 屏上截图与 tap 坐标将错位、"
+            "视觉点击漂移。请确认 Win10 1703+ 且进程有权限。")

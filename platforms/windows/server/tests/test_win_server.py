@@ -105,3 +105,39 @@ def test_proc_delegation_runs_a_command():
         assert "p1b_marker" in out
     finally:
         _fn(srv.force_terminate)(pid)
+
+
+# --- R1 坐标系确定性校正 on-host smoke（spec §5.2）---
+
+def test_screenshot_and_vision_share_single_capture_primitive():
+    # ①注入身份: vision 拿到的 capture_fn 就是单一原语(同一函数对象), 不是各写一份
+    vis = srv._cap_registry._modules["vision"]
+    assert vis._capture_fn is srv._capture_in_tap_space
+
+
+def test_take_screenshot_delegates_to_single_primitive(monkeypatch):
+    # ②委派证明: monkeypatch 单一原语 → take_screenshot 必调它(未各写一份 grab), 防复发闸
+    called = {"n": 0}
+
+    def spy(region=None):
+        called["n"] += 1
+        return b"\x89PNG_sentinel"
+
+    monkeypatch.setattr(srv, "_capture_in_tap_space", spy)
+    _fn(srv.take_screenshot)()
+    assert called["n"] == 1
+
+
+def test_dpi_aware_and_scale_factor_exposed():
+    # 正向锚点: Win10 1703+ 上 awareness 应成功; scale_factor 仅自检不进坐标
+    ss = _fn(srv.get_screen_size)()
+    assert "dpi_aware" in ss and "scale_factor" in ss
+    assert ss["dpi_aware"] is True
+    assert isinstance(ss["scale_factor"], (int, float)) and ss["scale_factor"] >= 1.0
+    assert "dpi_aware" in _fn(srv.get_status)()
+
+
+def test_dpi_awareness_report_pure():
+    import win_input
+    assert win_input.dpi_awareness_report(True) is None
+    assert "漂移" in win_input.dpi_awareness_report(False)

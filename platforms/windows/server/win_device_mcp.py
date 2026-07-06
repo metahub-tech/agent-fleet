@@ -31,6 +31,15 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
+# per-monitor DPI awareness 必须在 pyautogui / PIL / pywinauto 之前置位: 这些库 import 时会
+# 锁定进程 DPI 模式, 之后再置可能【静默失败】→ 缩放屏视觉点击漂移(AgentHub #100 轮3
+# (1347,82) vs (1893,115))。这里接返回值并可观测, 不再裸调丢弃。win_input 无重依赖、可在此点安全 import。
+from win_input import _ensure_dpi_awareness as _boot_dpi_awareness, dpi_awareness_report
+_DPI_AWARE = _boot_dpi_awareness()
+_dpi_warn = dpi_awareness_report(_DPI_AWARE)
+if _dpi_warn:
+    print(_dpi_warn, file=sys.stderr)
+
 import psutil
 import pyautogui
 import pyperclip
@@ -42,14 +51,11 @@ from fastmcp.utilities.types import Image
 
 from pywinauto import Desktop
 
-from win_input import _ensure_dpi_awareness, _send_unicode, maximize_chrome_window_for_udd
-
-# 进程尽早设为 per-monitor DPI aware: 否则 DPI 缩放≠100% 机器上 take_screenshot(物理像素)与
-# tap/get_screen_size(逻辑像素)坐标系错位, 视觉点击漂移(AgentHub #100 P1-A)。幂等、失败不阻断。
-_ensure_dpi_awareness()
+from win_input import _send_unicode, maximize_chrome_window_for_udd, read_scale_factor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 import _server_runtime
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
@@ -132,8 +138,11 @@ def release(
 
 @mcp.tool
 def get_status() -> dict:
-    """Show whether the Windows test machine is currently claimed and by whom."""
-    return _state_registry.status(_SERIAL)
+    """Show whether the Windows test machine is currently claimed and by whom.
+    Also reports `dpi_aware` (per-monitor DPI awareness; false → 缩放屏视觉点击不可信)。"""
+    st = _state_registry.status(_SERIAL)
+    st["dpi_aware"] = _DPI_AWARE
+    return st
 
 
 # ============================================================
@@ -147,9 +156,24 @@ def get_screen_size() -> dict:
 
     Process is per-monitor DPI-aware, so this matches take_screenshot's pixel
     space and tap(x,y) coordinates exactly — tap in the same space you read off
-    the screenshot (AgentHub #100 P1-A: no more physical-vs-logical mismatch)."""
+    the screenshot (AgentHub #100 P1-A: no more physical-vs-logical mismatch).
+
+    `scale_factor` = OS 显示缩放(如 1.5), 仅供自检/上报, 【不等于截图↔tap 像素比】
+    (awareness 生效时该比值恒 1.0), 别拿它算坐标。`dpi_aware` = 进程是否成功 per-monitor
+    DPI aware; false 时缩放屏坐标不可信、应降级(改用自身视觉 / element-action)。"""
     w, h = pyautogui.size()
-    return {"width": w, "height": h}
+    return {"width": w, "height": h,
+            "scale_factor": read_scale_factor(), "dpi_aware": _DPI_AWARE}
+
+
+def _capture_in_tap_space(region=None) -> bytes:
+    """截屏 → PNG bytes, 【恒在 tap 坐标空间】。win: 进程 per-monitor DPI aware, ImageGrab 出
+    物理像素 = tap(SetCursorPos)空间, 不 resize。这是本端截图的唯一真理, take_screenshot 与
+    vision 注入都调它(spec §4.2)。region=(left,top,right,bottom) 恒在 tap(物理)空间。"""
+    img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 @mcp.tool
@@ -160,11 +184,8 @@ def take_screenshot(
         Field(description="(left, top, right, bottom); None = full screen"),
     ] = None,
 ) -> Image:
-    """Capture the screen and return a PNG."""
-    img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return Image(data=buf.getvalue(), format="png")
+    """Capture the screen and return a PNG (in tap coordinate space)."""
+    return Image(data=_capture_in_tap_space(region), format="png")
 
 
 @mcp.tool
@@ -524,6 +545,24 @@ def move_mouse(
     """Move the mouse to a coordinate."""
     pyautogui.moveTo(x, y, duration=duration)
     return {"ok": True, "x": x, "y": y}
+
+
+@mcp.tool
+@with_touch
+def hover_preview(x: int, y: int):
+    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state, e.g. button
+    highlight — zero-delay capture reflects the immediate highlight, not dwell-delayed
+    tooltips), screenshot, and draw a crosshair marker at (x, y). Use to verify a locate
+    result before an irreversible / low-confidence tap: does the marked point land on the
+    intended target? The marker is drawn deterministically at the tap point (screenshots
+    do NOT capture the hardware cursor). Success -> PNG Image; failure -> {"ok": False, "error": ...}."""
+    # 无返回类型注解(全仓唯一): 成功返 Image、失败返 dict(异构), 标注解会让 fastmcp outputSchema 与实际不符
+    try:
+        pyautogui.moveTo(x, y)
+        png = _capture_in_tap_space()  # R1 合并 reconcile: 旧名 _capture_logical_png→单一原语; tap 空间 PNG, 画在 (x,y) 即真落点
+        return Image(data=draw_crosshair(png, x, y), format="png")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 @mcp.tool
@@ -956,14 +995,7 @@ except Exception as e:  # never let capability config crash server startup
     _enabled_caps = ["core"]
 
 # OS 原语 helpers 注入 vision(capability 不 import server, 破循环依赖)。
-def _capture_logical_png() -> bytes:
-    """全屏抓图 → PNG bytes(同 take_screenshot, 供 vision 注入)。"""
-    img = ImageGrab.grab()
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
+# 截图统一走 _capture_in_tap_space(上文单一原语), 保证 vision 看到的空间 == take_screenshot 空间。
 def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 
@@ -993,7 +1025,7 @@ _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=maximize_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 强制最大化
-_cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
+_cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
 _cap_registry.setup(mcp, _enabled_caps)
 

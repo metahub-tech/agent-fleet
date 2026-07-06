@@ -108,3 +108,19 @@ def test_match_template_below_threshold():
     tmpl = _textured_img()[60:90, 100:140].copy()  # "OK" 图标, 不在全黑图里
     r = _locate.match_template(img, tmpl, threshold=0.85, offset=(0, 0))
     assert r["found"] is False and "best_score" in r
+
+
+def test_rank_candidates_exposes_ocr_conf():
+    # R5: 候选透出 OCR 检测置信度 ocr_conf, 保留 match 质量 score
+    items = [{"text": "登录", "box": [10, 20, 40, 18], "conf": 0.87}]
+    cands = _locate.rank_candidates(items, "登录")
+    assert cands[0]["ocr_conf"] == 0.87
+    assert cands[0]["score"] == 1.0            # 既有 match 质量(exact)不变
+    assert cands[0]["match_field"] == "exact"
+
+
+def test_rank_candidates_ocr_conf_defaults_when_missing():
+    # 无 conf → 防御默认 0.0, 不 KeyError
+    items = [{"text": "登录", "box": [10, 20, 40, 18]}]
+    cands = _locate.rank_candidates(items, "登录")
+    assert cands[0]["ocr_conf"] == 0.0

@@ -50,7 +50,10 @@ from fastmcp.utilities.types import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 import _server_runtime
+from _capture_geom import resize_to_tap_space  # 截图→tap 空间归一(单一实现, spec §4.2)
+from mac_dpi import read_scale_factor          # 主屏 backingScaleFactor(仅自检/上报)
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
 from capabilities import (
@@ -145,9 +148,10 @@ def get_status() -> dict:
 @mcp.tool
 @with_touch
 def get_screen_size() -> dict:
-    """Return the primary screen resolution (logical pixels)."""
+    """Return the primary screen resolution (logical/tap pixels).
+    `scale_factor` = 主屏 backingScaleFactor(Retina 2.0), 仅供自检/上报, 不进坐标运算。"""
     w, h = pyautogui.size()
-    return {"width": w, "height": h}
+    return {"width": w, "height": h, "scale_factor": read_scale_factor()}
 
 
 def _frame_is_black(img) -> bool:
@@ -205,25 +209,11 @@ def _wake_display() -> None:
         pass
 
 
-@mcp.tool
-@with_touch
-def take_screenshot(
-    region: Annotated[
-        Optional[tuple[int, int, int, int]],
-        Field(description="(left, top, right, bottom) in logical pixels; None = full screen"),
-    ] = None,
-) -> Image:
-    """Capture the screen and return a PNG sized to LOGICAL pixels.
-
-    On Retina, ImageGrab returns physical pixels (e.g. 2880x1800) while
-    pyautogui clicks use logical pixels (e.g. 1440x900). We resize the
-    grab to logical size so screenshot pixel coordinates can be passed
-    directly to `click(x, y)` without scaling math.
-
-    On idle hosts the panel may be asleep (black frame) or showing a
-    screensaver; we detect that and wake + re-grab, so the capture reflects
-    the real desktop without slowing the normal (awake) path.
-    """
+def _capture_in_tap_space(region=None) -> bytes:
+    """截屏 → PNG bytes, 【恒在 tap 坐标空间】(逻辑点)。mac: ImageGrab 出物理(Retina 2x),
+    pyautogui 点击用逻辑点 → 抓完 resize 回逻辑; idle 黑屏/屏保先唤醒 re-grab。这是本端截图的
+    唯一真理, take_screenshot 与 vision 注入都调它(spec §4.2)。黑屏唤醒逻辑也只此一份。
+    region=(left,top,right,bottom) 恒在 tap(逻辑)空间; grab 内部才落到物理, 绝不拿物理 region crop。"""
     # Check state BEFORE waking: a slept panel reads all-black and a screensaver
     # shows as a process -- both detect cleanly here. Don't wake-then-test the
     # grab: the wake fade-in yields non-black, half-transparent frames that slip
@@ -233,16 +223,27 @@ def take_screenshot(
         _wake_display()
         time.sleep(1.5)  # wait for the panel wake + fade-in animation to finish
         img = ImageGrab.grab(bbox=region) if region else ImageGrab.grab()
-    if region is None:
-        target = pyautogui.size()
-    else:
-        target = (region[2] - region[0], region[3] - region[1])
-    if img.size != target:
-        from PIL import Image as PILImage
-        img = img.resize(target, PILImage.LANCZOS)
+    target = pyautogui.size() if region is None else (region[2] - region[0], region[3] - region[1])
+    img = resize_to_tap_space(img, target)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
-    return Image(data=buf.getvalue(), format="png")
+    return buf.getvalue()
+
+
+@mcp.tool
+@with_touch
+def take_screenshot(
+    region: Annotated[
+        Optional[tuple[int, int, int, int]],
+        Field(description="(left, top, right, bottom) in logical pixels; None = full screen"),
+    ] = None,
+) -> Image:
+    """Capture the screen and return a PNG sized to LOGICAL (tap) pixels.
+
+    On Retina, ImageGrab returns physical pixels while clicks use logical pixels;
+    the shared `_capture_in_tap_space` primitive resizes to logical so screenshot
+    coordinates pass directly to click(x, y). Idle black/screensaver → wake + re-grab."""
+    return Image(data=_capture_in_tap_space(region), format="png")
 
 
 # ============================================================
@@ -273,6 +274,24 @@ def move_mouse(
     """Move the mouse to a coordinate."""
     pyautogui.moveTo(x, y, duration=duration)
     return {"ok": True, "x": x, "y": y}
+
+
+@mcp.tool
+@with_touch
+def hover_preview(x: int, y: int):
+    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state, e.g. button
+    highlight — zero-delay capture reflects the immediate highlight, not dwell-delayed
+    tooltips), screenshot, and draw a crosshair marker at (x, y). Use to verify a locate
+    result before an irreversible / low-confidence tap: does the marked point land on the
+    intended target? The marker is drawn deterministically at the tap point (screenshots
+    do NOT capture the hardware cursor). Success -> PNG Image; failure -> {"ok": False, "error": ...}."""
+    # 无返回类型注解(全仓唯一): 成功返 Image、失败返 dict(异构), 标注解会让 fastmcp outputSchema 与实际不符
+    try:
+        pyautogui.moveTo(x, y)
+        png = _capture_in_tap_space()  # R1 合并 reconcile: 旧名 _capture_logical_png→单一原语(mac 内部 grab→resize 回逻辑; 绝不裸 grab)
+        return Image(data=draw_crosshair(png, x, y), format="png")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 @mcp.tool
@@ -1100,22 +1119,6 @@ except Exception as e:  # never let capability config crash server startup
     _enabled_caps = ["core"]
 
 # OS 原语 helpers 注入 vision(capability 不 import server, 破循环依赖)。
-def _capture_logical_png() -> bytes:
-    """全屏抓图 → logical 像素 PNG bytes(同 take_screenshot, 供 vision 注入)。"""
-    img = ImageGrab.grab()
-    if _frame_is_black(img) or _screensaver_running():
-        _wake_display()
-        time.sleep(1.5)
-        img = ImageGrab.grab()
-    target = pyautogui.size()
-    if img.size != target:
-        from PIL import Image as PILImage
-        img = img.resize(target, PILImage.LANCZOS)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
 def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 
@@ -1145,7 +1148,7 @@ _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port))  # 起专用 profile 时 auto-bake human_dom 扩展副本
-_cap_registry.add(VisionCapability(capture_fn=_capture_logical_png, tap_fn=_os_tap))
+_cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
 _cap_registry.setup(mcp, _enabled_caps)
 
