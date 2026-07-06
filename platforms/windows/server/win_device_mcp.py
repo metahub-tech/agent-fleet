@@ -530,11 +530,13 @@ def move_mouse(
 @mcp.tool
 @with_touch
 def hover_preview(x: int, y: int):
-    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state/tooltip),
-    screenshot, and draw a crosshair marker at (x, y). Use to verify a locate result
-    before an irreversible / low-confidence tap: does the marked point land on the
+    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state, e.g. button
+    highlight — zero-delay capture reflects the immediate highlight, not dwell-delayed
+    tooltips), screenshot, and draw a crosshair marker at (x, y). Use to verify a locate
+    result before an irreversible / low-confidence tap: does the marked point land on the
     intended target? The marker is drawn deterministically at the tap point (screenshots
     do NOT capture the hardware cursor). Success -> PNG Image; failure -> {"ok": False, "error": ...}."""
+    # 无返回类型注解(全仓唯一): 成功返 Image、失败返 dict(异构), 标注解会让 fastmcp outputSchema 与实际不符
     try:
         pyautogui.moveTo(x, y)
         png = _capture_logical_png()   # tap 空间 PNG(与 tap/move 同坐标空间, 画在 (x,y) 即真落点)
