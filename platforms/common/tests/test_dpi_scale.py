@@ -37,3 +37,13 @@ def test_dpi_awareness_report_text():
 def test_read_scale_factor_fallback_off_windows():
     # 无 windll → 优雅降级 1.0, 不抛
     assert win_input.read_scale_factor() == 1.0
+
+
+# --- mac ---
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "macos" / "server"))
+import mac_dpi
+
+
+def test_mac_read_scale_factor_fallback_off_mac():
+    # 无 AppKit(非 mac) → 优雅降级 1.0, 不抛
+    assert mac_dpi.read_scale_factor() == 1.0
