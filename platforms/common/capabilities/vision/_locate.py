@@ -52,6 +52,7 @@ def rank_candidates(ocr_items, query: str, offset=(0, 0), max_results: int = 20)
             "center": [cx + ox, cy + oy],
             "box": [x + ox, y + oy, w, h],
             "score": _MATCH_SCORE[mf],
+            "ocr_conf": round(float(it.get("conf", 0.0)), 3),  # R5: OCR 检测置信度(行级), 供低置信闸
             "match_field": mf,
             "on_screen": True,  # 只 OCR 可见截图, 命中即在屏
         })

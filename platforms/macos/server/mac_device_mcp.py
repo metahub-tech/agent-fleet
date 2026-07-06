@@ -50,6 +50,7 @@ from fastmcp.utilities.types import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 import _server_runtime
 from _capture_geom import resize_to_tap_space  # 截图→tap 空间归一(单一实现, spec §4.2)
 from mac_dpi import read_scale_factor          # 主屏 backingScaleFactor(仅自检/上报)
@@ -273,6 +274,24 @@ def move_mouse(
     """Move the mouse to a coordinate."""
     pyautogui.moveTo(x, y, duration=duration)
     return {"ok": True, "x": x, "y": y}
+
+
+@mcp.tool
+@with_touch
+def hover_preview(x: int, y: int):
+    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state, e.g. button
+    highlight — zero-delay capture reflects the immediate highlight, not dwell-delayed
+    tooltips), screenshot, and draw a crosshair marker at (x, y). Use to verify a locate
+    result before an irreversible / low-confidence tap: does the marked point land on the
+    intended target? The marker is drawn deterministically at the tap point (screenshots
+    do NOT capture the hardware cursor). Success -> PNG Image; failure -> {"ok": False, "error": ...}."""
+    # 无返回类型注解(全仓唯一): 成功返 Image、失败返 dict(异构), 标注解会让 fastmcp outputSchema 与实际不符
+    try:
+        pyautogui.moveTo(x, y)
+        png = _capture_logical_png()   # tap 空间 PNG(mac: grab→resize 回逻辑; 绝不裸 grab, 否则 Retina 物理错位)
+        return Image(data=draw_crosshair(png, x, y), format="png")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 @mcp.tool
