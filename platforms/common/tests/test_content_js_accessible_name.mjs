@@ -78,5 +78,9 @@ check(rArticle[0].text, "文章", "aria-label 作可及名");
 const texts = ctx.matchAll("", "", 10).map((c) => c.text).sort();
 check(texts, ["文章", "视频"], "相邻不同图标(视频/文章)都在(不误并), 纯视觉 div 被丢, 无重复");
 
+// --- visibleSample: 诊断用 accessibleName, 纯视觉无名被 filter ---
+ctx.document.querySelectorAll = () => [divVideo, divArticle, divPurely];
+check(ctx.visibleSample(8).sort(), ["文章", "视频"], "诊断样本用 accessibleName, 纯视觉无名被 filter 掉");
+
 if (failed) { console.error(`${failed} 条失败`); process.exit(1); }
 console.log("R4 accessibleName 测试全过");

@@ -63,8 +63,8 @@ function matchAll(query, css, max){
   // R3: 先按【可编辑】排(真编辑体 > 占位 widget), 再按 exact 精确匹配排。
   out.sort((a,b)=>(b._editable-a._editable)||(b._exact-a._exact)); return out.slice(0,max);
 }
-function visibleSample(n){return [...document.querySelectorAll('a,button,[role],input,textarea')]
-  .map(visibleText).filter(Boolean).slice(0,n);}
+function visibleSample(n){return [...document.querySelectorAll('a,button,[role],input,textarea,[aria-label],img[alt]')]
+  .slice(0,40).map(accessibleName).filter(Boolean).slice(0,n);}
 let ws = null;
 function connect(){
   ws = new WebSocket(`ws://127.0.0.1:${PORT}/dom-bridge`);
