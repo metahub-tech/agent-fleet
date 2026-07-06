@@ -54,7 +54,9 @@ class VisionCapability(CapabilityModule):
         def vision_locate(query: str, region: Optional[tuple] = None,
                           max_results: int = 20) -> dict:
             """按可见文字在屏上定位元素(无障碍树失效时用,如网页/canvas/Electron)。返回排序候选
-            (含与 tap 同坐标空间的 center)。region=(left,top,right,bottom) 限定区域、None=全屏。"""
+            (含与 tap 同坐标空间的 center)。每候选两个置信度维度: score=匹配质量(exact=1.0/prefix/
+            contains, 与读得清不清无关); ocr_conf=OCR 检测置信度(该文本【行级】读得多确信, 小/糊/低对比
+            会低——低置信闸对文字路径看这个)。region=(left,top,right,bottom) 限定区域、None=全屏。"""
             try:
                 items, cands, ocr_ms = _locate_impl(query, region, max_results)
             except Exception as e:
@@ -106,7 +108,8 @@ class VisionCapability(CapabilityModule):
                                 region: Optional[tuple] = None,
                                 threshold: float = 0.85) -> dict:
             """按图标图(无字元素)定位。template_b64 / template_path 二选一(同当前显示缩放截取,
-            单尺度,跨 DPI 会掉)。命中返回 center(与 tap 同坐标空间)。"""
+            单尺度,跨 DPI 会掉)。命中返回 center(与 tap 同坐标空间)。score/best_score=模板匹配置信度
+            ∈[0,1](真置信度, 图标路径的低置信闸看这个)。"""
             if template_b64 is None and template_path is None:
                 return {"ok": False, "error": "template_b64 or template_path required"}
             try:
