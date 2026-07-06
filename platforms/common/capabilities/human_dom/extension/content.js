@@ -33,7 +33,7 @@ function accessibleName(el){
   if(img){const t=(img.getAttribute("alt")||"").trim(); if(t) return t;}
   const al = el.querySelector(":scope > [aria-label], :scope > * > [aria-label]");
   if(al){const t=(al.getAttribute("aria-label")||"").trim(); if(t) return t;}
-  const sv = el.querySelector(":scope svg title");
+  const sv = el.querySelector(":scope svg title, :scope > title");  // 后代 svg title, 或 el 本身是 svg
   if(sv){const t=(sv.textContent||"").trim(); if(t) return t;}
   return "";
 }
@@ -63,7 +63,7 @@ function matchAll(query, css, max){
   // R3: 先按【可编辑】排(真编辑体 > 占位 widget), 再按 exact 精确匹配排。
   out.sort((a,b)=>(b._editable-a._editable)||(b._exact-a._exact)); return out.slice(0,max);
 }
-function visibleSample(n){return [...document.querySelectorAll('a,button,[role],input,textarea,[aria-label],img[alt]')]
+function visibleSample(n){return [...document.querySelectorAll('a,button,[role],input,textarea,[aria-label],[aria-labelledby],img[alt]')]
   .slice(0,40).map(accessibleName).filter(Boolean).slice(0,n);}
 let ws = null;
 function connect(){
