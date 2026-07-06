@@ -1100,11 +1100,6 @@ except Exception as e:  # never let capability config crash server startup
     _enabled_caps = ["core"]
 
 # OS 原语 helpers 注入 vision(capability 不 import server, 破循环依赖)。
-def _capture_logical_png() -> bytes:
-    """[保留兼容] 全屏截图 → tap 空间 PNG bytes。实现收敛到单一 _capture_in_tap_space。"""
-    return _capture_in_tap_space()
-
-
 def _os_tap(x: int, y: int) -> None:
     pyautogui.click(x=x, y=y)
 

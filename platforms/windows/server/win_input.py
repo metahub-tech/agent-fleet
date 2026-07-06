@@ -198,6 +198,14 @@ def read_scale_factor() -> float:
         from ctypes import wintypes
         user32 = ctypes.windll.user32
         shcore = ctypes.windll.shcore
+        # HMONITOR 是指针宽度句柄: 显式声明 restype/argtypes, 否则 ctypes 默认 c_int 会在
+        # 64 位下截断句柄 → GetDpiForMonitor 收到无效句柄 → 缩放屏误报 scale_factor=1.0。
+        user32.MonitorFromPoint.restype = ctypes.c_void_p
+        user32.MonitorFromPoint.argtypes = [wintypes.POINT, ctypes.c_ulong]
+        shcore.GetDpiForMonitor.argtypes = [
+            ctypes.c_void_p, ctypes.c_int,
+            ctypes.POINTER(ctypes.c_uint), ctypes.POINTER(ctypes.c_uint),
+        ]
         hmon = user32.MonitorFromPoint(wintypes.POINT(0, 0), 1)  # MONITOR_DEFAULTTOPRIMARY
         dx, dy = ctypes.c_uint(), ctypes.c_uint()
         # MDT_EFFECTIVE_DPI=0; 成功返回 S_OK(0)
