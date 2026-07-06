@@ -50,6 +50,7 @@ _ensure_dpi_awareness()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 import _server_runtime
 from _device_state import DeviceStateRegistry
 from _manifest import load_manifest
@@ -524,6 +525,22 @@ def move_mouse(
     """Move the mouse to a coordinate."""
     pyautogui.moveTo(x, y, duration=duration)
     return {"ok": True, "x": x, "y": y}
+
+
+@mcp.tool
+@with_touch
+def hover_preview(x: int, y: int):
+    """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state/tooltip),
+    screenshot, and draw a crosshair marker at (x, y). Use to verify a locate result
+    before an irreversible / low-confidence tap: does the marked point land on the
+    intended target? The marker is drawn deterministically at the tap point (screenshots
+    do NOT capture the hardware cursor). Success -> PNG Image; failure -> {"ok": False, "error": ...}."""
+    try:
+        pyautogui.moveTo(x, y)
+        png = _capture_logical_png()   # tap 空间 PNG(与 tap/move 同坐标空间, 画在 (x,y) 即真落点)
+        return Image(data=draw_crosshair(png, x, y), format="png")
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 @mcp.tool
