@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 修复
 
+- **vision 坐标系确定性校正（R1，AgentHub #100 目标3）**：把「vision 截图坐标空间 ≡ tap 坐标空间」从两条隐式约定做成显式硬不变量。取证反转：单主屏上 win 全物理 / mac 全逻辑，vision 输出 center **已在 tap 空间**，需求字面的「读 scale 除到 tap 空间」会**双重校正**把对的坐标搞歪——故 R1 不加除法层，而是焊死不变量：
+  - **① win DPI awareness 提前置位**：把 `_ensure_dpi_awareness()` 移到 `import pyautogui`/`PIL`/`pywinauto` 之前（这些库 import 会锁定进程 DPI 模式、之后再置可能静默失败），并**接返回值 + 失败 stderr 告警**（不再裸调丢弃）；堵死静默失效重现 (1347,82) vs (1893,115) 的 1.5x 漂移。
+  - **② 每端收敛单一 `_capture_in_tap_space` 原语**：`take_screenshot` 与 vision 注入的 capture_fn 都调它，「截图空间＝tap 空间」只有一处实现——灭掉 mac 原来两份 `grab→wake→resize` 复制（改一处漏一处即分叉）；win 删名不副实的 `_capture_logical_png`。
+  - **③ 暴露 `scale_factor`/`dpi_aware`**：`get_screen_size`（两端）+ `get_status`（win）新增；零新依赖（win `GetDpiForMonitor` / mac `NSScreen.backingScaleFactor`）。**仅供自检/诚实上报，绝不进 tap 坐标运算**（awareness 生效时截图↔tap 比值恒 1.0，`scale_factor` 是 OS 显示缩放≠像素比）。`dpi_aware:false` 时坐标已知不可信、上层可降级（awareness 失效兜底交 R2）。
+  - 纯函数 `resize_to_tap_space`/`_dpi_to_scale`/`read_scale_factor`/`dpi_awareness_report` 抽出、平台无关单测覆盖（9 条，本机可跑）；单入口不分叉 + 真机 150% DPI 命中 + 共享 tap 面回归属 on-host/真机门禁。
 - **`human_browser_open` 幂等复用：同一 profile 已开就复用现有窗口，不重启浏览器/不重装扩展/不新开标签**（AgentHub #100 轮31）。真机实证：操作员 agent 把 `human_browser_open` 当"翻页/刷新"反复调（一个任务 17 次），原实现每次无条件重启 Chrome + 重跑 CDP 装扩展 → ①慢（每次冷启动数秒）②破坏（有时把已登录的公众号后台页顶成新标签/Google 首页，agent 落错页 churn）。光靠 skill 文案劝不住模型的重开习惯，故在工具层做成幂等：
   - **探测两路**：① 盘扫 `<udd>/DevToolsActivePort` + `/json/version` 探活的 CDP 端点（human_dom 专用 profile 带临时 debug 端口，随 Chrome 存活，**跨 server 重启也可探到**）；② 进程内启动注册表（覆盖无 debug 端口的非 human_dom 专用 profile，本 server 生命周期内）。任一命中即视为已开。陈旧 `DevToolsActivePort`（上次崩溃留下的死端口）`/json/version` 失败 → 正确判冷、走冷启动。
   - **热路径（复用）**：不重 `subprocess.Popen`、不重跑 `_maybe_load_human_dom`（不重装扩展）、不重 auto-bake；返回 `reused: true` + `reuse_via`。传 url 时【只在恰好 1 个标签】才在当前页内导航（多标签无法可靠判前台页→一律不动，绝不盲选 `page[0]` 顶掉登录页）；与当前页同源即视为已在目标站不重载（保护登录态/编辑器）。仅做 focus/最大化（非破坏）。
