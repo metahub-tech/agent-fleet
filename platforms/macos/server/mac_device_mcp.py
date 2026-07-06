@@ -288,7 +288,7 @@ def hover_preview(x: int, y: int):
     # 无返回类型注解(全仓唯一): 成功返 Image、失败返 dict(异构), 标注解会让 fastmcp outputSchema 与实际不符
     try:
         pyautogui.moveTo(x, y)
-        png = _capture_logical_png()   # tap 空间 PNG(mac: grab→resize 回逻辑; 绝不裸 grab, 否则 Retina 物理错位)
+        png = _capture_in_tap_space()  # R1 合并 reconcile: 旧名 _capture_logical_png→单一原语(mac 内部 grab→resize 回逻辑; 绝不裸 grab)
         return Image(data=draw_crosshair(png, x, y), format="png")
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
