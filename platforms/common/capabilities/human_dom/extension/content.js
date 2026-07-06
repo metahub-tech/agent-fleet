@@ -13,6 +13,30 @@ function visibleText(el){
   for(const s of srcs){const t=(s||"").trim(); if(t) return t;}
   return "";
 }
+// R4: 更完整的可及名 —— 既有 visibleText 链【完全不动】, 仅在其返回空时追加 fallback:
+//   aria-labelledby → 自身 alt → 浅层后代(img[alt]/[aria-label]/svg title)。把带可及名的图标入口
+//   (如 <div role=button><img alt=视频>)从 vision 兜底拉回 DOM 定位。仍只读, 绝不改 DOM。
+//   顺序: 既有链非空即返回(零回归关键), 空才走新源; labelledby 优先于后代(显式名更权威)。
+//   后代限浅层(1-2 层)防深层无关配图 alt; 确切层级 Phase B 取证真实 DOM 后定稿。
+function accessibleName(el){
+  const own = visibleText(el);
+  if(own) return own;                                    // 既有非空结果原样返回
+  const lb = el.getAttribute("aria-labelledby");
+  if(lb){
+    const t = lb.split(/\s+/).map(id=>{const r=document.getElementById(id); return r?visibleText(r):"";})
+      .filter(Boolean).join(" ").trim();                 // getElementById 可能 null → 跳过
+    if(t) return t;
+  }
+  const alt = (el.getAttribute("alt")||"").trim();       // el 本身是 <img>
+  if(alt) return alt;
+  const img = el.querySelector(":scope > img[alt], :scope > * > img[alt]");
+  if(img){const t=(img.getAttribute("alt")||"").trim(); if(t) return t;}
+  const al = el.querySelector(":scope > [aria-label], :scope > * > [aria-label]");
+  if(al){const t=(al.getAttribute("aria-label")||"").trim(); if(t) return t;}
+  const sv = el.querySelector(":scope svg title");
+  if(sv){const t=(sv.textContent||"").trim(); if(t) return t;}
+  return "";
+}
 // R3: 真可编辑(contenteditable=true / input / textarea)判定, 排在 ce=false 占位 widget 前, 避免
 // fill 打在占位壳上(ProseMirror 的占位 div 是 contenteditable=false 的 widget)。
 function isEditable(el){return el.isContentEditable ||
