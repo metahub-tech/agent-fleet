@@ -43,19 +43,23 @@ function isEditable(el){return el.isContentEditable ||
   ["input","textarea","select"].includes(el.tagName.toLowerCase());}
 function matchAll(query, css, max){
   const pool = css ? [...document.querySelectorAll(css)]
-    : [...document.querySelectorAll('a,button,input,textarea,[role],[onclick],[contenteditable]')];
-  const q = (query||"").toLowerCase(), out=[];
+    : [...document.querySelectorAll('a,button,input,textarea,[role],[onclick],[contenteditable],[aria-label],[aria-labelledby],img[alt]')];
+  const q = (query||"").toLowerCase(), raw=[];
   for(const el of pool){
-    const txt = visibleText(el); if(!txt && !css) continue;
+    const txt = accessibleName(el); if(!txt && !css) continue;
     if(css || txt.toLowerCase().includes(q)){
       const r = el.getBoundingClientRect();
       if(r.width===0||r.height===0) continue;
-      out.push({text:txt, role:el.getAttribute("role")||el.tagName.toLowerCase(),
+      raw.push({el, text:txt, role:el.getAttribute("role")||el.tagName.toLowerCase(),
         rectViewport:{left:r.left,top:r.top,width:r.width,height:r.height},
         visible:true, clickable:!el.disabled, editable:isEditable(el),
         _exact: txt.toLowerCase()===q, _editable: isEditable(el)?1:0});
     }
   }
+  // R4: DOM-包含去重 —— 同可及名且被【同名 DOM 祖先】包含的候选丢掉, 只留外层可点容器
+  //     (防 <div role=button><img alt=视频> 的 div 与 img 双命中)。【绝不按中心距】: 会误并相邻不同图标。
+  const out = raw.filter((c)=> !raw.some((o)=> o!==c && o.text===c.text && o.el!==c.el && o.el.contains(c.el)));
+  out.forEach(c=>{ delete c.el; });                       // el 仅用于去重, 不入契约
   // R3: 先按【可编辑】排(真编辑体 > 占位 widget), 再按 exact 精确匹配排。
   out.sort((a,b)=>(b._editable-a._editable)||(b._exact-a._exact)); return out.slice(0,max);
 }

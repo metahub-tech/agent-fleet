@@ -58,5 +58,25 @@ check(ctx.accessibleName(el({ attrs: { "aria-labelledby": "missing" }, qs: (s) =
   "音频", "labelledby id 不存在 → null-guard 不崩, 回落后代 img alt");
 check(ctx.accessibleName(el({ attrs: { role: "button" } })), "", "无任何可及名源 → 空(纯视觉, 留 R3)");
 
+// --- matchAll: 扩池 + DOM-包含去重(绝不按中心距) ---
+const imgVideo = el({ tag: "img", attrs: { alt: "视频" }, rect: { left: 5, top: 0, width: 8, height: 8 } });
+const divVideo = el({ attrs: { role: "button" }, rect: { left: 0, top: 0, width: 20, height: 20 },
+  qs: (s) => (s.includes("img[alt]") ? imgVideo : null), contains: (o) => o === imgVideo });
+const divArticle = el({ attrs: { "aria-label": "文章" }, rect: { left: 100, top: 0, width: 20, height: 20 } });
+const divPurely = el({ attrs: { role: "button" }, rect: { left: 200, top: 0, width: 20, height: 20 } }); // 无可及名
+ctx.document.querySelectorAll = () => [divVideo, imgVideo, divArticle, divPurely];
+
+const rVideo = ctx.matchAll("视频", "", 10);
+check(rVideo.length, 1, "视频: div+img 双命中 → DOM 包含去重只留外层(1 个)");
+check(rVideo[0].role, "button", "去重保留外层可点容器 div, 丢内层 img");
+check("el" in rVideo[0], false, "去重用的临时 el 字段不入契约");
+
+const rArticle = ctx.matchAll("文章", "", 10);
+check(rArticle.length, 1, "文章: 扩池纳入 [aria-label] 裸 div");
+check(rArticle[0].text, "文章", "aria-label 作可及名");
+
+const texts = ctx.matchAll("", "", 10).map((c) => c.text).sort();
+check(texts, ["文章", "视频"], "相邻不同图标(视频/文章)都在(不误并), 纯视觉 div 被丢, 无重复");
+
 if (failed) { console.error(`${failed} 条失败`); process.exit(1); }
 console.log("R4 accessibleName 测试全过");
