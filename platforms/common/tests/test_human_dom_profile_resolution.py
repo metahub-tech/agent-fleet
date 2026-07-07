@@ -115,3 +115,43 @@ def test_tap_omitted_resolves_operator_and_marks(monkeypatch):
     r = asyncio.run(tools["human_dom_tap"]("q"))
     assert r["ok"] and r["tapped"] == [30, 40] and r["resolved_profile"] == "op-bbb"
     assert taps == [(30, 40)]
+
+
+# --- _do_fill: E2 失败重试一次(re-tap 复用首次 center) ---
+
+def test_do_fill_retries_once_then_succeeds(monkeypatch):
+    async def fake_resolve(bridge, q, css=None, profile_id="default", timeout=3.0):
+        return {"ok": True, "candidates": [{"center": [30, 40]}]}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    seq = iter([False, True])                       # 首次 verify 失败, 重试成功
+    async def fake_verify(bridge, text, css, profile_id): return next(seq)
+    monkeypatch.setattr(_human_dom, "_verify_fill", fake_verify)
+    taps = []
+    r = asyncio.run(_human_dom._do_fill(object(), lambda x, y: taps.append((x, y)),
+                                        lambda s: None, "q", "txt", None, "op-aaa"))
+    assert r["ok"] and r["verified"] and r["retried"] is True
+    assert r["resolved_profile"] == "op-aaa"
+    assert taps == [(30, 40), (30, 40)]             # re-tap 复用首次 center, 两次相同
+
+
+def test_do_fill_both_fail_returns_verify_failed(monkeypatch):
+    async def fake_resolve(bridge, q, css=None, profile_id="default", timeout=3.0):
+        return {"ok": True, "candidates": [{"center": [30, 40]}]}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    async def fake_verify(bridge, text, css, profile_id): return False
+    monkeypatch.setattr(_human_dom, "_verify_fill", fake_verify)
+    taps = []
+    r = asyncio.run(_human_dom._do_fill(object(), lambda x, y: taps.append((x, y)),
+                                        lambda s: None, "q", "txt", None, "op-aaa"))
+    assert r["ok"] is False and r["reason"] == "fill_verify_failed"
+    assert r["resolved_profile"] == "op-aaa"
+    assert len(taps) == 2                            # 首次 + 重试一次, 不死循环
+
+
+def test_do_fill_not_found(monkeypatch):
+    async def fake_resolve(bridge, q, css=None, profile_id="default", timeout=3.0):
+        return {"ok": False, "reason": "no_tab_for_profile", "profile": "op-aaa"}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    r = asyncio.run(_human_dom._do_fill(object(), lambda x, y: None, lambda s: None,
+                                        "q", "txt", None, "op-aaa"))
+    assert r["ok"] is False and r["reason"] == "no_tab_for_profile" and r["resolved_profile"] == "op-aaa"
