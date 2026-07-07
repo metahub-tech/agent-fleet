@@ -163,8 +163,7 @@ class HumanDomCapability(CapabilityModule):
             先 human_browser_open 并等页面 load。未命中/桥未连会建议改用 vision_locate。"""
             pid = resolve_profile_id(bridge, profile)
             r = await resolve_locate(bridge, query, css=css or None, max_results=max_results, profile_id=pid)
-            if r.get("ok"):
-                r["resolved_profile"] = pid
+            r["resolved_profile"] = pid   # 成功/未命中/no_tab 都带, 与 tap/fill 统一可观测(catch 静默误解析)
             return r
 
         @mcp.tool

@@ -106,6 +106,15 @@ def test_locate_omitted_resolves_operator_and_marks(monkeypatch):
     assert fake_resolve.pid == "op-aaa"                          # 真的用 operator 去 locate
 
 
+def test_locate_not_found_still_marks_resolved_profile(monkeypatch):
+    # 未命中也带 resolved_profile(与 tap/fill 统一, catch 静默误解析)
+    async def fake_resolve(bridge, q, css=None, max_results=10, profile_id="default", timeout=3.0):
+        return {"ok": True, "count": 0, "candidates": [], "ocr_sample": ""}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    r = asyncio.run(_tools(_FakeBridge("op-ccc"))["human_dom_locate"]("q"))
+    assert r["resolved_profile"] == "op-ccc"
+
+
 def test_tap_omitted_resolves_operator_and_marks(monkeypatch):
     async def fake_resolve(bridge, q, css=None, profile_id="default", timeout=3.0):
         return {"ok": True, "candidates": [{"center": [30, 40]}]}
