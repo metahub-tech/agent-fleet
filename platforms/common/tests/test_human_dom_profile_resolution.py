@@ -48,3 +48,33 @@ def test_active_operator_none_when_only_default():
 
 def test_active_operator_none_when_empty():
     assert DomBridge().active_operator_profile() is None
+
+
+# --- resolve_profile_id ---
+from capabilities.human_dom._ident import resolve_profile_id, human_dom_profile_id
+
+
+class _FakeBridge:
+    def __init__(self, op): self._op = op; self._clients = []
+    def active_operator_profile(self): return self._op
+
+
+class _RaisingBridge:
+    _clients = []
+    def active_operator_profile(self):
+        raise AssertionError("显式 profile 不该问桥")
+
+
+def test_resolve_explicit_does_not_consult_bridge():
+    # 显式 profile → 走 human_dom_profile_id, 不问桥(RaisingBridge 若被问会抛)
+    assert resolve_profile_id(_RaisingBridge(), "~/.fleet/foo") == human_dom_profile_id("~/.fleet/foo")
+
+
+def test_resolve_omitted_uses_operator():
+    assert resolve_profile_id(_FakeBridge("op-aaa"), "") == "op-aaa"
+    assert resolve_profile_id(_FakeBridge("op-aaa"), None) == "op-aaa"
+    assert resolve_profile_id(_FakeBridge("op-aaa"), "   ") == "op-aaa"   # 纯空白视为省略
+
+
+def test_resolve_omitted_falls_back_default():
+    assert resolve_profile_id(_FakeBridge(None), "") == "default"          # 无 operator → default
