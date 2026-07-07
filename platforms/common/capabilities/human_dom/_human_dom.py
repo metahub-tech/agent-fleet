@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
 from ._locate import resolve_locate
-from ._ident import human_dom_profile_id
+from ._ident import human_dom_profile_id, resolve_profile_id
 
 
 def _fill_snippet(text, n: int = 16) -> str:
@@ -139,20 +139,25 @@ class HumanDomCapability(CapabilityModule):
         @mcp.tool
         async def human_dom_locate(query: str, css: str = "", max_results: int = 10, profile: str = "") -> dict:
             """只读 DOM 定位: 按文字/aria-label/placeholder(或 css)找元素, 返回屏幕坐标候选。
+            省略 profile 时解析到当前活跃 operator profile(非硬 default); 成功带 resolved_profile。
             先 human_browser_open 并等页面 load。未命中/桥未连会建议改用 vision_locate。"""
-            return await resolve_locate(bridge, query, css=css or None, max_results=max_results,
-                                        profile_id=human_dom_profile_id(profile))
+            pid = resolve_profile_id(bridge, profile)
+            r = await resolve_locate(bridge, query, css=css or None, max_results=max_results, profile_id=pid)
+            if r.get("ok"):
+                r["resolved_profile"] = pid
+            return r
 
         @mcp.tool
         async def human_dom_tap(query: str, nth: int = 0, css: str = "", profile: str = "") -> dict:
-            """定位 + OS 级点击(locate+tap 合一缩小漂移窗)。"""
-            r = await resolve_locate(bridge, query, css=css or None,
-                                     profile_id=human_dom_profile_id(profile))
+            """定位 + OS 级点击(locate+tap 合一缩小漂移窗)。省略 profile 解析到活跃 operator。"""
+            pid = resolve_profile_id(bridge, profile)
+            r = await resolve_locate(bridge, query, css=css or None, profile_id=pid)
             if not r.get("ok") or not r["candidates"]:
-                return {"ok": False, "reason": r.get("reason", "not_found"), "suggest": "vision_locate"}
+                return {"ok": False, "reason": r.get("reason", "not_found"),
+                        "resolved_profile": pid, "suggest": "vision_locate"}
             x, y = r["candidates"][min(nth, len(r["candidates"]) - 1)]["center"]
             tap(int(round(x)), int(round(y)))
-            return {"ok": True, "tapped": [int(round(x)), int(round(y))]}
+            return {"ok": True, "tapped": [int(round(x)), int(round(y))], "resolved_profile": pid}
 
         @mcp.tool
         async def human_dom_fill(query: str, text: str, css: str = "", profile: str = "") -> dict:

@@ -78,3 +78,40 @@ def test_resolve_omitted_uses_operator():
 
 def test_resolve_omitted_falls_back_default():
     assert resolve_profile_id(_FakeBridge(None), "") == "default"          # 无 operator → default
+
+
+# --- 工具接线: locate/tap 用 resolve_profile_id + 成功带 resolved_profile ---
+from capabilities.human_dom import _human_dom
+from capabilities.human_dom._human_dom import HumanDomCapability
+
+
+class FakeMcp:
+    def __init__(self): self.tools = {}
+    def tool(self, fn): self.tools[fn.__name__] = fn; return fn   # 捕获原 async fn
+
+
+def _tools(bridge, tap=None, fill=None):
+    cap = HumanDomCapability(bridge, tap_fn=tap or (lambda x, y: None), fill_fn=fill or (lambda s: None))
+    m = FakeMcp(); cap.register(m); return m.tools
+
+
+def test_locate_omitted_resolves_operator_and_marks(monkeypatch):
+    async def fake_resolve(bridge, q, css=None, max_results=10, profile_id="default", timeout=3.0):
+        fake_resolve.pid = profile_id
+        return {"ok": True, "candidates": [{"text": "x", "center": [10, 20], "box": [0, 0, 1, 1]}]}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    tools = _tools(_FakeBridge("op-aaa"))
+    r = asyncio.run(tools["human_dom_locate"]("q"))              # 省略 profile
+    assert r["ok"] and r["resolved_profile"] == "op-aaa"        # 解析到 operator + 可观测
+    assert fake_resolve.pid == "op-aaa"                          # 真的用 operator 去 locate
+
+
+def test_tap_omitted_resolves_operator_and_marks(monkeypatch):
+    async def fake_resolve(bridge, q, css=None, profile_id="default", timeout=3.0):
+        return {"ok": True, "candidates": [{"center": [30, 40]}]}
+    monkeypatch.setattr(_human_dom, "resolve_locate", fake_resolve)
+    taps = []
+    tools = _tools(_FakeBridge("op-bbb"), tap=lambda x, y: taps.append((x, y)))
+    r = asyncio.run(tools["human_dom_tap"]("q"))
+    assert r["ok"] and r["tapped"] == [30, 40] and r["resolved_profile"] == "op-bbb"
+    assert taps == [(30, 40)]
