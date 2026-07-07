@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from .._base import CapabilityModule, ORIGIN_SELF_BUILT
 from ._locate import resolve_locate
-from ._ident import human_dom_profile_id
+from ._ident import resolve_profile_id
 
 
 def _fill_snippet(text, n: int = 16) -> str:
@@ -27,6 +27,26 @@ async def _verify_fill(bridge, text, css, profile_id) -> bool:
         return False
     low = snip.lower()
     return any(low in (c.get("text") or "").lower() for c in r.get("candidates", []))
+
+
+async def _do_fill(bridge, tap, fill, query, text, css, pid) -> dict:
+    """定位 → tap 聚焦 → OS fill → 回读校验; 失败重试一次(re-tap 复用首次 center、不 re-locate)再降级。
+    模块级(非闭包)便于单测。resolved_profile 一路带回可观测。retry 只一次防死循环;
+    _os_fill 全选+粘贴覆盖式, re-fill 不追加、无副作用(取证文档实证落字机制本身 work)。"""
+    r = await resolve_locate(bridge, query, css=css, profile_id=pid)
+    if not r.get("ok") or not r["candidates"]:
+        return {"ok": False, "reason": r.get("reason", "not_found"),
+                "resolved_profile": pid, "suggest": "vision_locate"}
+    x, y = r["candidates"][0]["center"]
+    ix, iy = int(round(x)), int(round(y))
+    for attempt in range(2):                 # 首次 + 至多重试一次
+        tap(ix, iy)                          # 重试复用首次 center(不 re-locate, 避 R3 重排漂移)
+        fill(text)
+        if await _verify_fill(bridge, text, css=css, profile_id=pid):
+            return {"ok": True, "filled_at": [ix, iy], "verified": True,
+                    "resolved_profile": pid, "retried": attempt > 0}
+    return {"ok": False, "reason": "fill_verify_failed", "suggest": "vision_locate",
+            "filled_at": [ix, iy], "resolved_profile": pid}
 
 
 def _installed_on_disk(ext_subdir):
@@ -139,37 +159,32 @@ class HumanDomCapability(CapabilityModule):
         @mcp.tool
         async def human_dom_locate(query: str, css: str = "", max_results: int = 10, profile: str = "") -> dict:
             """只读 DOM 定位: 按文字/aria-label/placeholder(或 css)找元素, 返回屏幕坐标候选。
+            省略 profile 时解析到当前活跃 operator profile(非硬 default); 成功带 resolved_profile。
             先 human_browser_open 并等页面 load。未命中/桥未连会建议改用 vision_locate。"""
-            return await resolve_locate(bridge, query, css=css or None, max_results=max_results,
-                                        profile_id=human_dom_profile_id(profile))
+            pid = resolve_profile_id(bridge, profile)
+            r = await resolve_locate(bridge, query, css=css or None, max_results=max_results, profile_id=pid)
+            r["resolved_profile"] = pid   # 成功/未命中/no_tab 都带, 与 tap/fill 统一可观测(catch 静默误解析)
+            return r
 
         @mcp.tool
         async def human_dom_tap(query: str, nth: int = 0, css: str = "", profile: str = "") -> dict:
-            """定位 + OS 级点击(locate+tap 合一缩小漂移窗)。"""
-            r = await resolve_locate(bridge, query, css=css or None,
-                                     profile_id=human_dom_profile_id(profile))
+            """定位 + OS 级点击(locate+tap 合一缩小漂移窗)。省略 profile 解析到活跃 operator。"""
+            pid = resolve_profile_id(bridge, profile)
+            r = await resolve_locate(bridge, query, css=css or None, profile_id=pid)
             if not r.get("ok") or not r["candidates"]:
-                return {"ok": False, "reason": r.get("reason", "not_found"), "suggest": "vision_locate"}
+                return {"ok": False, "reason": r.get("reason", "not_found"),
+                        "resolved_profile": pid, "suggest": "vision_locate"}
             x, y = r["candidates"][min(nth, len(r["candidates"]) - 1)]["center"]
             tap(int(round(x)), int(round(y)))
-            return {"ok": True, "tapped": [int(round(x)), int(round(y))]}
+            return {"ok": True, "tapped": [int(round(x)), int(round(y))], "resolved_profile": pid}
 
         @mcp.tool
         async def human_dom_fill(query: str, text: str, css: str = "", profile: str = "") -> dict:
-            """定位 + 点击聚焦 + OS 级填充(全选 + 剪贴板粘贴, 覆盖式, 支持中文) + 回读校验。
-            R2(#100): fill 后按填入片段回读, 真落字才 ok:True/verified:True; 没落字(点在占位壳/
-            粘贴被拦/焦点没进真编辑体)→ ok:False/reason:fill_verify_failed/suggest vision, 不再假成功。"""
-            pid = human_dom_profile_id(profile)
-            r = await resolve_locate(bridge, query, css=css or None, profile_id=pid)
-            if not r.get("ok") or not r["candidates"]:
-                return {"ok": False, "reason": r.get("reason", "not_found"), "suggest": "vision_locate"}
-            x, y = r["candidates"][0]["center"]
-            tap(int(round(x)), int(round(y)))
-            fill(text)
-            if await _verify_fill(bridge, text, css=css or None, profile_id=pid):
-                return {"ok": True, "filled_at": [int(round(x)), int(round(y))], "verified": True}
-            return {"ok": False, "reason": "fill_verify_failed", "suggest": "vision_locate",
-                    "filled_at": [int(round(x)), int(round(y))]}
+            """定位 + 点击聚焦 + OS 级填充(全选 + 剪贴板粘贴, 覆盖式, 支持中文) + 回读校验(失败重试一次)。
+            省略 profile 解析到活跃 operator。R2(#100): fill 后按填入片段回读, 真落字才 ok:True/verified:True;
+            两次都没落字→ ok:False/reason:fill_verify_failed/suggest vision, 不再假成功。带 resolved_profile。"""
+            pid = resolve_profile_id(bridge, profile)
+            return await _do_fill(bridge, tap, fill, query, text, css or None, pid)
 
         @mcp.tool
         async def human_dom_status() -> dict:

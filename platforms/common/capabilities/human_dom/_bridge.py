@@ -1,7 +1,7 @@
 """human_dom 本地桥: content script 直连的 WS 客户端注册表 + locate 派发 + WS 认证。
 绑 127.0.0.1; WS 不经 BearerAuthMiddleware, 首帧 {type:'auth',token} 自校验。"""
 from __future__ import annotations
-import asyncio, hmac, itertools, threading
+import asyncio, hmac, itertools, threading, time
 
 class DomBridge:
     def __init__(self, token: str = ""):
@@ -19,7 +19,8 @@ class DomBridge:
     def register(self, ws, profile_id, tab_id, url, active):
         with self._lock:
             self._clients.append({"ws": ws, "profile_id": profile_id or "default",
-                                  "tab_id": tab_id, "url": url, "active": active})
+                                  "tab_id": tab_id, "url": url, "active": active,
+                                  "last_active_ts": time.monotonic()})
     def unregister(self, ws):
         with self._lock:
             self._clients = [c for c in self._clients if c["ws"] is not ws]
@@ -30,6 +31,8 @@ class DomBridge:
             for c in self._clients:
                 if c["ws"] is ws:
                     c["active"] = bool(active)
+                    if active:
+                        c["last_active_ts"] = time.monotonic()  # 最近活跃 → 省略 profile 解析优先它
 
     def _active(self, profile_id):
         with self._lock:
@@ -38,6 +41,19 @@ class DomBridge:
             if c["active"]:
                 return c
         return group[0] if group else None
+
+    def active_operator_profile(self):
+        """省略 profile 时的解析源: 返回当前【最近活跃的非 "default" operator profile】的 profile_id;
+        无 operator tab 连着 → None(调用方回退 "default")。修 P6: 省略 profile 硬默认 "default"→no_tab。"""
+        with self._lock:  # 锁内一次性 copy (profile_id, active, ts), 排序在锁外, 消脏读
+            ops = [(c["profile_id"], bool(c.get("active")), c.get("last_active_ts", 0.0))
+                   for c in self._clients if c["profile_id"] != "default"]
+        if not ops:
+            return None
+        active = [t for t in ops if t[1]]
+        pool = active or ops
+        pool.sort(key=lambda t: t[2], reverse=True)   # 最近活跃优先
+        return pool[0][0]
 
     @staticmethod
     def _safe_set(fut, reply):
