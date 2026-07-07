@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 修复
 
+- **human_dom 省略 profile 解析硬化（AgentHub #100 E2E P6 真机根因）**：`human_dom_locate/tap/fill` **省略 profile 时不再硬默认 "default"**，而是解析到桥当前活跃的 operator profile。取证四次反转后锁定真根因：#100 十轮 E2E 的 P6 轮发布员 108 turns 填不进公众号标题→request_help，**不是** data-placeholder locate 盲区（早在 59fe476 实现、P1-P10 标题都填过）、**不是** fill 落字问题，而是 `human_browser_open(profile=op-...)` 带对了、但随后 `human_dom_fill` **没带 profile** → `human_dom_profile_id("")` 硬返回 "default" → 桥严格路由找不到 default tab（operator tab 注册 `op-...`）→ `no_tab_for_profile`，死在解析步没到 DOM。
+  - **主项**：`DomBridge.active_operator_profile()`（连接客户端注册表=当前真活跃证据，最近活跃优先 + `last_active_ts`，锁内 copy 消脏读）+ `resolve_profile_id(bridge, profile)`（**显式 profile 一行不变**、省略→活跃 operator、无 operator 连桥→回退 "default"）；三工具响应带 **`resolved_profile`** 可观测（catch 静默误落 default）。
+  - **有意语义收紧**：operator tab 与日常 default Chrome 同时连桥时，「省略 profile」从「default」改指「operator」（治 P6）；「零回归」仅限无 operator 连桥；要精确打日常 default 用显式 profile（逃生口）。
+  - **次项**：`human_dom_fill` 主体抽模块级 `_do_fill` + **E2 失败重试一次**（re-tap 复用首次 center、不 re-locate）再降级。E1/E2/E3（visibleText 读 data-placeholder / fill 回读 / 真可编辑排序）早在 59fe476 实现，本批**不重写**、单测守着。
+  - **真机验收（test-win11 复现 P6）**：省略 profile 的 `human_dom_fill(query="请在这里输入标题")` 现 `{ok:true, verified:true, resolved_profile:"op-f218...", retried:true}`——解析命中 operator、标题真落字、E2 重试真机 kicked in；对照原失败 `{ok:false, reason:no_tab_for_profile, profile:default}`→108 turns。22 单测（含显式零回归 + 解析算法 + E2 重试）本机绿。iframe 穿透（E4）后置不做。
 - **vision 坐标系确定性校正（R1，AgentHub #100 目标3）**：把「vision 截图坐标空间 ≡ tap 坐标空间」从两条隐式约定做成显式硬不变量。取证反转：单主屏上 win 全物理 / mac 全逻辑，vision 输出 center **已在 tap 空间**，需求字面的「读 scale 除到 tap 空间」会**双重校正**把对的坐标搞歪——故 R1 不加除法层，而是焊死不变量：
   - **① win DPI awareness 提前置位**：把 `_ensure_dpi_awareness()` 移到 `import pyautogui`/`PIL`/`pywinauto` 之前（这些库 import 会锁定进程 DPI 模式、之后再置可能静默失败），并**接返回值 + 失败 stderr 告警**（不再裸调丢弃）；堵死静默失效重现 (1347,82) vs (1893,115) 的 1.5x 漂移。
   - **② 每端收敛单一 `_capture_in_tap_space` 原语**：`take_screenshot` 与 vision 注入的 capture_fn 都调它，「截图空间＝tap 空间」只有一处实现——灭掉 mac 原来两份 `grab→wake→resize` 复制（改一处漏一处即分叉）；win 删名不副实的 `_capture_logical_png`。
