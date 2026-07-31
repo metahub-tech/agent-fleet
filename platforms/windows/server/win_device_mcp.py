@@ -51,7 +51,7 @@ from fastmcp.utilities.types import Image
 
 from pywinauto import Desktop
 
-from win_input import _send_unicode, maximize_chrome_window_for_udd, read_scale_factor
+from win_input import _send_unicode, foreground_chrome_window_for_udd, read_scale_factor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
@@ -1024,7 +1024,7 @@ _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())
-_cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=maximize_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 强制最大化
+_cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=foreground_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 置前(activate 二态: 激活/非激活最大化)
 _cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
 _cap_registry.setup(mcp, _enabled_caps)

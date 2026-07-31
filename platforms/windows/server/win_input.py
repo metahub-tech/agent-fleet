@@ -100,11 +100,13 @@ def _send_unicode(text: str, interval: float = 0.0) -> None:
             time.sleep(interval)
 
 
-def maximize_chrome_window_for_udd(udd: str, timeout: float = 8.0) -> bool:
-    """确定性把某 profile(--user-data-dir=udd)的 Chrome 浏览器窗口 Win32 ShowWindow(SW_MAXIMIZE)
-    强制最大化(不模拟键盘快捷键)。—— `--start-maximized` 会被 Chrome 的 per-profile 窗口尺寸恢复
-    机制覆盖(真机实证公众平台窗口被恢复成 945x1012 半屏, AgentHub #100 轮12), 故 open 后由 server
-    按 profile 定位窗口强制最大化。best-effort, 失败/超时返回 False, 永不抛。Windows only。
+def foreground_chrome_window_for_udd(udd: str, activate: bool = True, timeout: float = 8.0) -> bool:
+    """确定性把某 profile(--user-data-dir=udd)的 Chrome 浏览器窗口最大化(不模拟键盘快捷键)。
+    activate=True(默认, 兼容旧 1 参调用): ShowWindow(SW_MAXIMIZE) 激活最大化(旧行为)。
+    activate=False: 非激活最大化(填【窗口所在屏】工作区 + SWP_NOACTIVATE, 不夺键盘焦点, spec §6.1, 治 #188)。
+    —— `--start-maximized` 会被 Chrome 的 per-profile 窗口尺寸恢复机制覆盖(真机实证公众平台窗口被恢复成
+    945x1012 半屏, AgentHub #100 轮12), 故 open 后由 server 按 profile 定位窗口强制最大化。
+    best-effort, 失败/超时返回 False, 永不抛。Windows only。
 
     定位法: 找 cmdline 含 `--user-data-dir=<udd>` 的 chrome 进程 pid → EnumWindows 取归这些 pid 的
     可见、有标题、类名 Chrome_WidgetWin_1 的顶层窗口(浏览器主窗口) → ShowWindow(SW_MAXIMIZE)。
@@ -175,11 +177,50 @@ def maximize_chrome_window_for_udd(udd: str, timeout: float = 8.0) -> bool:
     ok = False
     for h in hwnds:
         try:
-            user32.ShowWindow(h, SW_MAXIMIZE)
+            if activate:
+                user32.ShowWindow(h, SW_MAXIMIZE)          # 激活最大化(旧行为)
+            else:
+                _maximize_no_activate(user32, h)           # 非激活: 填工作区不夺焦点(§6.1)
             ok = True
         except Exception:
             pass
     return ok
+
+
+def _maximize_no_activate(user32, hwnd):
+    """把窗口填满【它所在显示器】的工作区, 提到最前但不夺键盘焦点(spec §6.1, treat #188)。
+    HWND_TOP 提最前 + SWP_NOACTIVATE 不激活, 二者不冲突; 【不加 SWP_NOZORDER】(它会让 HWND_TOP 失效)。
+    显示器用 MonitorFromWindow(DEFAULTTONEAREST) 取窗口【实际所在】屏(绝不用 MonitorFromPoint 主屏,
+    否则副屏窗口被搬到主屏, architect delta-2b)。best-effort, 交由调用方 try 兜。"""
+    import ctypes
+    from ctypes import wintypes
+
+    class RECT(ctypes.Structure):
+        _fields_ = [("left", wintypes.LONG), ("top", wintypes.LONG),
+                    ("right", wintypes.LONG), ("bottom", wintypes.LONG)]
+
+    class MONITORINFO(ctypes.Structure):
+        _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", RECT),
+                    ("rcWork", RECT), ("dwFlags", wintypes.DWORD)]
+
+    MONITOR_DEFAULTTONEAREST = 2
+    HWND_TOP = 0
+    SWP_NOACTIVATE = 0x0010
+    user32.MonitorFromWindow.restype = ctypes.c_void_p
+    user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+    hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(MONITORINFO)]
+    if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+        return
+    w = mi.rcWork.right - mi.rcWork.left
+    h = mi.rcWork.bottom - mi.rcWork.top
+    user32.SetWindowPos(hwnd, HWND_TOP, mi.rcWork.left, mi.rcWork.top, w, h, SWP_NOACTIVATE)
+
+
+# 旧名别名(他处若有引用不炸); 新名语义更准(激活/非激活二态)
+maximize_chrome_window_for_udd = foreground_chrome_window_for_udd
 
 
 def _dpi_to_scale(dpi) -> float:
