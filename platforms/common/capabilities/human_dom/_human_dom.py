@@ -193,6 +193,21 @@ class HumanDomCapability(CapabilityModule):
             connected=该 profile 当前连在【本 server 的桥】; 每条 bridge_port 是它烤入的桥端口。
             关键: installed=true/connected=false ≠ 未安装 —— 别重装, 重开 human_browser_open 或导航到目标页即可(见 hint)。"""
             connected = {c["profile_id"] for c in list(bridge._clients)}
-            return build_status(compute_status("~/.fleet/human-dom-ext", connected_ids=connected))
+            st = build_status(compute_status("~/.fleet/human-dom-ext", connected_ids=connected))
+            for p in st["profiles"]:              # 观测: 每 profile 带上 focused(带外查; 不影响 installed/connected)
+                if p.get("connected"):
+                    p["focused"] = bridge.focus_state(p["profile_id"])
+            return st
 
-        return ["human_dom_locate", "human_dom_tap", "human_dom_fill", "human_dom_status"]
+        @mcp.tool
+        async def human_dom_focused(profile: str = "") -> dict:
+            """前台检查(带外, Class C, 取代截图目测作首选): 该 profile 活跃 tab 是否真持焦点(document.hasFocus())。
+            focused=True → 可直接 OS 操作; False → human_browser_open(profile, activate=True) 拉回后复查;
+            None → 拿不到信号(未连桥 / chrome:// / 非 Chrome / 旧扩展未上报) → 调用方回落 take_screenshot(spec §5.2/§6.4)。
+            省略 profile 走与 locate/tap/fill 相同的 resolve_profile_id(继承活跃 operator)。"""
+            pid = resolve_profile_id(bridge, profile)
+            f = bridge.focus_state(pid)
+            reason = "focused" if f is True else ("not_focused" if f is False else "no_signal")
+            return {"ok": True, "focused": f, "profile": pid, "reason": reason}
+
+        return ["human_dom_locate", "human_dom_tap", "human_dom_fill", "human_dom_status", "human_dom_focused"]
