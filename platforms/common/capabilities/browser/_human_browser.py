@@ -126,16 +126,17 @@ def _maybe_load_human_dom(udd: str, ext_dir: str, navigate_url=None) -> "dict | 
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
-def _maybe_maximize(maximize_fn, udd: str) -> None:
-    """起窗后调平台注入的窗口最大化(win: Win32 ShowWindow(SW_MAXIMIZE) 按 profile 定位窗口强制
-    最大化)。`--start-maximized` 会被 Chrome per-profile 尺寸恢复覆盖(真机实证半屏), 故 server 侧
-    确定性强制。无 maximize_fn(mac/linux 暂未注入)则跳过。best-effort, 永不抛。"""
-    if not maximize_fn:
-        return
+def _maybe_foreground(fn, udd: str, activate: bool) -> bool:
+    """起窗后调平台注入的窗口置前/最大化。activate=True: 激活最大化(Win32 ShowWindow(SW_MAXIMIZE));
+    activate=False: 非激活最大化(win 填工作区不夺焦点, spec §6.1)。`--start-maximized` 会被 Chrome
+    per-profile 尺寸恢复覆盖(真机实证半屏), 故 server 侧确定性强制。返回是否真的调用生效(供 activated/
+    maximized 如实置, 不再用 bool(fn))。无 fn(mac/linux 未注入)→ False。best-effort, 永不抛。"""
+    if not fn:
+        return False
     try:
-        maximize_fn(udd)
+        return bool(fn(udd, activate))
     except Exception:
-        pass
+        return False
 
 
 def _ensure_human_dom_ext(profile: str, bridge_port: "int | None") -> "str | None":
@@ -335,8 +336,11 @@ class HumanBrowserCapability(CapabilityModule):
 
     def register(self, mcp) -> list[str]:
         @mcp.tool
-        def human_browser_open(url: str = "", profile: str = "") -> dict:
+        def human_browser_open(url: str = "", profile: str = "", activate: bool = False) -> dict:
             """启动/聚焦宿主真实 Chrome(**无 debug 端口、无自动化标志 → 零自动化痕迹**),可选打开 url。
+            activate=False(默认)【不抢前台】(复用路径零重激活, 治 #188);即将在浏览器里动手前才传
+            activate=True 把该 profile 的 Chrome 拉前台(见 using-human-browser 的"查→不对才拉"循环:
+            先 human_dom_focused 查, 不对才 activate=True)。
             之后用 core 的 take_screenshot+tap/type_text 或 human_dom 作为人本人操作。仅自有设备/授权账号/正当用途。
 
             profile: 留空 = 宿主【真实日常 Chrome 默认 profile】(持久,即用户平时的浏览器)。
@@ -365,17 +369,20 @@ class HumanBrowserCapability(CapabilityModule):
                     if chrome is None:
                         return {"ok": False, "error": "Google Chrome 未安装"}
                     if sys.platform == "darwin":
-                        args = ["open", "-a", "Google Chrome"] + ([url] if url else [])
+                        bg = [] if activate else ["-g"]     # -g: 不抢前台(spec §6.2, mac 此路径能兑现)
+                        args = ["open"] + bg + ["-a", "Google Chrome"] + ([url] if url else [])
                         subprocess.run(args, timeout=15, check=True,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     else:
+                        # Windows/Linux: Chrome 单例转发由 Chrome 自身控制前台, activate 压不掉(§6.3)。
                         args = [chrome] + ([url] if url else [])
                         subprocess.Popen(args, start_new_session=True,
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     return {"ok": True, "opened": url or "(chrome)", "profile": "(default-daily)",
-                            "reused": False,
+                            "reused": False, "activated": None,   # 不确定性控前台(§6.3): None, 不假称 False
                             "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"
-                                    "(默认日常 Chrome 由 Chrome 自身单例转发, 幂等复用仅对专用 profile 生效。)"}
+                                    "(默认日常 Chrome 由 Chrome 自身单例转发把窗口带前台, activate 不控;"
+                                    "需后台/不打扰运行请用专用 profile。幂等复用仅对专用 profile 生效。)"}
                 binary = _chrome_binary()
                 if binary is None:
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
@@ -400,14 +407,15 @@ class HumanBrowserCapability(CapabilityModule):
                 # ── 热路径(复用): 锁外做窗口内导航/最大化(非破坏)──
                 if warm is not None:
                     nav = _warm_navigate(warm["port"], url)
-                    _maybe_maximize(self._maximize_fn, udd)  # 复用只做 focus/最大化
-                    print(f"[human_browser] reuse profile={key} via={warm['via']} nav={nav}", file=sys.stderr)
+                    # 复用默认【不抢前台】(P0 治 #188): 仅 activate=True 才拉前台+最大化; 默认零重激活。
+                    acted = _maybe_foreground(self._maximize_fn, udd, activate) if activate else False
+                    print(f"[human_browser] reuse profile={key} via={warm['via']} nav={nav} activate={activate}", file=sys.stderr)
                     return {
                         "ok": True, "opened": url or "(chrome)", "profile": key,
                         "reused": True, "reuse_via": warm["via"],
                         "note": "该 profile 的 Chrome 已在运行, 复用现有窗口(未重启浏览器、未重装扩展、未新开标签)。"
                                 + _WARM_NAV_NOTE.get(nav, ""),
-                        "maximized": bool(self._maximize_fn),
+                        "maximized": acted, "activated": acted and activate,
                     }
                 # ── 冷路径(首开): 锁外做 CDP 装扩展/导航/最大化 ──
                 resp = {"ok": True, "opened": url or "(chrome)", "profile": key, "reused": False,
@@ -439,10 +447,11 @@ class HumanBrowserCapability(CapabilityModule):
                                          "(截图+tap), human_dom 精度暂不可用。可重试 human_browser_open, 或见 using-human-dom 排错。")
                 else:
                     resp["note"] += " 想给该 profile 用 human_dom 见 using-human-dom(server 侧 CDP 自动装, 无需操作员手动)。"
-                # 起窗后 server 侧确定性强制最大化(Win32 ShowWindow)——防 Chrome per-profile 尺寸恢复
-                # 把窗口恢复成半屏(真机实证)覆盖 --start-maximized; agent 零操作, 不模拟键盘。
-                _maybe_maximize(self._maximize_fn, udd)
-                resp["maximized"] = bool(self._maximize_fn)
+                # 起窗后 server 侧最大化(Win32): activate=True 激活最大化; activate=False 非激活最大化
+                # (填工作区不夺焦点, §6.1)——防 Chrome per-profile 尺寸恢复覆盖 --start-maximized; 不模拟键盘。
+                acted = _maybe_foreground(self._maximize_fn, udd, activate)
+                resp["maximized"] = acted
+                resp["activated"] = acted and activate
                 return resp
             except Exception as e:
                 return {"ok": False, "error": f"{type(e).__name__}: {e}"}

@@ -148,14 +148,14 @@ def test_launch_args_start_maximized():
     args = _human_launch_args("/c", "/udd", None, "http://x")
     assert "--start-maximized" in args
 
-def test_maybe_maximize_calls_fn():
+def test_maybe_foreground_calls_fn():
     seen = []
-    _hb._maybe_maximize(lambda udd: seen.append(udd), "/udd")
-    assert seen == ["/udd"]
+    ok = _hb._maybe_foreground(lambda udd, activate: seen.append((udd, activate)) or True, "/udd", True)
+    assert seen == [("/udd", True)] and ok is True
 
-def test_maybe_maximize_none_and_raise_are_safe():
-    _hb._maybe_maximize(None, "/udd")            # 无 fn(mac/linux) → no-op
-    _hb._maybe_maximize(lambda u: (_ for _ in ()).throw(RuntimeError("x")), "/udd")  # 抛也吞掉
+def test_maybe_foreground_none_and_raise_are_safe():
+    assert _hb._maybe_foreground(None, "/udd", False) is False   # 无 fn(mac/linux) → False
+    assert _hb._maybe_foreground(lambda u, a: (_ for _ in ()).throw(RuntimeError("x")), "/udd", True) is False  # 抛→False
 
 def test_init_accepts_maximize_fn():
     cap = _hb.HumanBrowserCapability(bridge_port=8779, maximize_fn=lambda u: None)
