@@ -29,12 +29,12 @@ A recurring operator (an agent driving a real account every run / cron tick) mus
 
 ## Workflow (screenshot + OS input, NOT DOM)
 
-1. `human_browser_open(url, profile=...)` — launches the real Chrome. **默认不抢前台**（`activate=False`）；只有即将在浏览器里动手时才传 `activate=True` 把该 profile 的 Chrome 拉前台。To get DOM precision on a dedicated profile, install the human_dom extension into it once (Load-unpacked — see using-human-dom).
-2. **动手前先查前台（查→不对才拉；按【组】非逐帧）** — OS 输入（`tap`/`type_text`/`press_key`/`paste_text`/`swipe`/`move_mouse`/`hover_preview`）打在**当时的前台窗口**，前台不是目标浏览器就会误点/往别的应用敲字（数据错发）。规则：**一组无中断的连续动作（如 `cmd+l`→输网址→回车）组首查一次；任何等待/加载/跳页/重试之后必须重查**（用户很可能就在你等的那几秒切走了应用）：
-   - `human_dom_focused(profile=...)` → `focused=true` 直接操作；
-   - `focused=false` → `human_browser_open(profile=..., activate=True)` 拉回 → 复查 → 操作；
-   - `focused=None` / 拿不到（未连/`chrome://`/非 Chrome）/ **该工具不存在或调用报错（旧 server 未升级）** → 回落 `take_screenshot` 目测前台，**别卡住、别重试**。
-3. `take_screenshot` (core) — SEE the page. Screenshot pixels == `tap` pixels (logical/point space). 也是前台检查拿不到信号时的兜底判断手段。
+1. `human_browser_open(url, profile=...)` — launches the real Chrome. **Does NOT grab foreground by default** (`activate=False`); pass `activate=True` only when you are about to operate in the browser, to bring that profile's Chrome to the front. To get DOM precision on a dedicated profile, install the human_dom extension into it once (Load-unpacked — see using-human-dom).
+2. **Verify foreground before acting (check → pull only if wrong; per ACTION-GROUP, not per frame)** — OS input (`tap`/`type_text`/`press_key`/`paste_text`/`swipe`/`move_mouse`/`hover_preview`) lands on whatever window is currently in front; if that isn't your target browser you'll misclick or type into another app (data misdirection). Rule: check once at the start of an uninterrupted group of actions (e.g. `cmd+l` → type URL → enter); re-check after any wait / load / navigation / retry (the user may have switched away during those seconds):
+   - `human_dom_focused(profile=...)` → `focused=true`: operate directly;
+   - `focused=false` → `human_browser_open(profile=..., activate=True)` to pull it front → re-check → operate;
+   - `focused=None` / can't tell (not connected / `chrome://` / non-Chrome) / **tool missing or call errors (older server not yet upgraded)** → fall back to `take_screenshot` and eyeball the foreground; **don't get stuck, don't retry**.
+3. `take_screenshot` (core) — SEE the page. Screenshot pixels == `tap` pixels (logical/point space). Also the fallback foreground check when the out-of-band check returns no signal.
 4. `tap(x, y)` / `type_text` / `press_key` (e.g. `cmd+l` → address bar, `enter`) — operate.
 5. Re-`take_screenshot` after each action to confirm and locate the next target.
 
@@ -45,6 +45,6 @@ To navigate by address bar without `human_browser_open`: `press_key("cmd+l")` (m
 ## What to know
 
 - **Real identity / profile**: this is the human's actual Chrome (real cookies, logins, extensions). Acting here acts as the person — only do so on the user's own device with their own/authorized accounts, for legitimate purposes.
-- **Shared screen aware（别假设独占屏幕）**: human_browser 驱动物理鼠标/键盘，而这台机器**用户可能正在同时用**。**不要例行抢前台**；每组动作动手前按 Workflow step 2 先查前台是不是你的目标浏览器（`human_dom_focused`，拿不到回落 `take_screenshot`），不对才 `activate=True` 拉回。走错窗口＝往别的应用敲字（比抢焦点更糟，是数据错发）。拉前台首选 `human_browser_open(..., activate=True)`（按 profile 定位到正确那个窗口），`focus_window` 退兜底（目标非 Chrome 时）。
+- **Shared screen aware (do NOT assume an exclusive screen)**: human_browser drives the physical mouse/keyboard on a machine the user may be using at the same time. Do NOT routinely grab foreground; before each action-group verify the foreground is your target browser (Workflow step 2 — `human_dom_focused`, falling back to `take_screenshot`), and pull it front only if it isn't. Operating on the wrong window means typing into another app (worse than a focus-steal — it's data misdirection). To bring the browser front, prefer `human_browser_open(..., activate=True)` (targets the correct window by profile); `focus_window` is the fallback (when the target isn't Chrome).
 - **Zero traces is real but not magic**: no CDP/webdriver to detect, and OS input is genuinely `isTrusted`. BUT behavioral signals (instant moves, timing) can still be sampled by aggressive bot-detection — human_browser is far stealthier than agent_browser, not an undetectable cloak. CAPTCHAs can still appear (humans get them too).
 - **Headed only**: needs an active GUI/desktop session on the host. If Chrome isn't installed or no GUI session, `list_capabilities` shows human_browser as `unavailable` with the reason.
