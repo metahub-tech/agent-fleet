@@ -69,7 +69,7 @@ let ws = null;
 function connect(){
   ws = new WebSocket(`ws://127.0.0.1:${PORT}/dom-bridge`);
   ws.onopen = ()=> ws.send(JSON.stringify({type:"auth", token:TOKEN, profile_id:PROFILE_ID,
-    tab_id:String(Date.now()), url:location.href, active:!document.hidden}));
+    tab_id:String(Date.now()), url:location.href, active:!document.hidden, focused:document.hasFocus()}));
   ws.onmessage = (ev)=>{
     const m = JSON.parse(ev.data); if(m.op!=="locate") return;
     const cands = matchAll(m.query, m.css, m.max_results||10);
@@ -79,8 +79,13 @@ function connect(){
   };
   ws.onclose = ()=> setTimeout(connect, 1000);
 }
-// 前后台切换时重报 active, 让桥把 locate 派给当前前台 tab(修多 tab 下 active 绑定到旧 tab)
-document.addEventListener("visibilitychange", ()=>{
-  if(ws && ws.readyState===1) ws.send(JSON.stringify({type:"active", active:!document.hidden}));
-});
+// 前后台/焦点切换重报 active+focused(§6.4): active=!hidden 修多 tab 下 locate 派发绑旧 tab;
+// focused=document.hasFocus() 供前台检查(切【应用】时 hidden 不变、只有 hasFocus 翻, 故 window
+// focus/blur 也挂——visibilitychange 不在切应用时触发, 只挂它会让 focused 陈旧)。窄帧不带
+// profile_id 等(ws 连接对象已在桥端标识 client)。仍只读, 不改 DOM(守 :1 铁律)。
+function report(){ if(ws && ws.readyState===1)
+  ws.send(JSON.stringify({type:"active", active:!document.hidden, focused:document.hasFocus()})); }
+document.addEventListener("visibilitychange", report);
+window.addEventListener("focus", report);
+window.addEventListener("blur", report);
 connect();

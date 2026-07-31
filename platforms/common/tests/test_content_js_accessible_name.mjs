@@ -13,7 +13,7 @@ src = src.replace(/__AF_PORT__/g, "8779").replace(/"__AF_PROFILE_ID__"/g, '"t"')
 const ctx = {
   WebSocket: function () { this.send = () => {}; },
   document: { hidden: false, addEventListener: () => {}, querySelectorAll: () => [], getElementById: () => null },
-  location: { href: "about:blank" }, setTimeout: () => {}, window: {},
+  location: { href: "about:blank" }, setTimeout: () => {}, window: { addEventListener: () => {} },
   screenX: 0, screenY: 0, innerWidth: 0, innerHeight: 0, outerWidth: 0, outerHeight: 0,
   devicePixelRatio: 1, scrollX: 0, scrollY: 0,
 };
