@@ -119,6 +119,12 @@ human_dom_locate(query, profile="<PROFILE>")
 
 ### 3. 操作
 
+> **动手前先查前台（查→不对才拉）**：`human_dom_tap`/`human_dom_fill` 底层是**绝对屏幕坐标的 OS 级 tap + 全选粘贴**，打在**当时的前台窗口**——前台不是目标浏览器就会误点、或把内容全选粘贴进别的应用（数据错发，比抢焦点更糟）。按【组】非逐帧：一组无中断连续动作组首查一次；任何等待/加载/跳页/重试后必重查（用户可能在你等的那几秒切走应用）：
+> - `human_dom_focused(profile="<PROFILE>")` → `focused=true` 直接操作；
+> - `focused=false` → `human_browser_open(profile="<PROFILE>", activate=True)` 拉回 → 复查 → 操作；
+> - `focused=None` / 工具不存在 / 调用报错（旧 server 未升级）→ 回落 `take_screenshot` 目测前台，别卡住别重试。
+> `human_dom_focused` 省略 profile 时与 locate/tap/fill 走同一 `resolve_profile_id`（继承活跃 operator）。
+
 ```
 human_dom_tap(query, nth=0, css="", profile="<PROFILE>")   # 定位 + OS 级点击，一步完成
 human_dom_fill(query, text, css="", profile="<PROFILE>")   # 定位 + 聚焦 + 覆盖式填充

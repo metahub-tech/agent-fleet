@@ -29,10 +29,14 @@ A recurring operator (an agent driving a real account every run / cron tick) mus
 
 ## Workflow (screenshot + OS input, NOT DOM)
 
-1. `human_browser_open(url, profile=...)` — launches/focuses the real Chrome (optional `profile` = dedicated persistent profile for a recurring operator, see above) and (optionally) navigates. Returns immediately. To get DOM precision on a dedicated profile, install the human_dom extension into it once (Load-unpacked — see using-human-dom).
-2. `take_screenshot` (core tool) — SEE the page. Screenshot pixels == `tap` pixels (logical/point space).
-3. `tap(x, y)` (core) — click where you see the target. `type_text` — type. `press_key` — keys (e.g. `cmd+l` to focus the address bar, `enter` to go).
-4. Re-`take_screenshot` after each action to confirm and locate the next target.
+1. `human_browser_open(url, profile=...)` — launches the real Chrome. **默认不抢前台**（`activate=False`）；只有即将在浏览器里动手时才传 `activate=True` 把该 profile 的 Chrome 拉前台。To get DOM precision on a dedicated profile, install the human_dom extension into it once (Load-unpacked — see using-human-dom).
+2. **动手前先查前台（查→不对才拉；按【组】非逐帧）** — OS 输入（`tap`/`type_text`/`press_key`/`paste_text`/`swipe`/`move_mouse`/`hover_preview`）打在**当时的前台窗口**，前台不是目标浏览器就会误点/往别的应用敲字（数据错发）。规则：**一组无中断的连续动作（如 `cmd+l`→输网址→回车）组首查一次；任何等待/加载/跳页/重试之后必须重查**（用户很可能就在你等的那几秒切走了应用）：
+   - `human_dom_focused(profile=...)` → `focused=true` 直接操作；
+   - `focused=false` → `human_browser_open(profile=..., activate=True)` 拉回 → 复查 → 操作；
+   - `focused=None` / 拿不到（未连/`chrome://`/非 Chrome）/ **该工具不存在或调用报错（旧 server 未升级）** → 回落 `take_screenshot` 目测前台，**别卡住、别重试**。
+3. `take_screenshot` (core) — SEE the page. Screenshot pixels == `tap` pixels (logical/point space). 也是前台检查拿不到信号时的兜底判断手段。
+4. `tap(x, y)` / `type_text` / `press_key` (e.g. `cmd+l` → address bar, `enter`) — operate.
+5. Re-`take_screenshot` after each action to confirm and locate the next target.
 
 There is **no `browser_snapshot` / ref model here** — that is agent_browser. Web page elements are not in the UIA/AX tree, so `find_elements`/`tap_element` only see Chrome's own chrome (tabs, address bar), not page content. For page content: **`human_dom`** (read-only DOM locator → exact coordinates; see using-human-dom) or screenshot + coordinates.
 
@@ -41,6 +45,6 @@ To navigate by address bar without `human_browser_open`: `press_key("cmd+l")` (m
 ## What to know
 
 - **Real identity / profile**: this is the human's actual Chrome (real cookies, logins, extensions). Acting here acts as the person — only do so on the user's own device with their own/authorized accounts, for legitimate purposes.
-- **Exclusive screen + input**: human_browser drives the physical mouse/keyboard. While you operate it, don't run other OS-input operations on this host concurrently — they fight over the cursor.
+- **Shared screen aware（别假设独占屏幕）**: human_browser 驱动物理鼠标/键盘，而这台机器**用户可能正在同时用**。**不要例行抢前台**；每组动作动手前按 Workflow step 2 先查前台是不是你的目标浏览器（`human_dom_focused`，拿不到回落 `take_screenshot`），不对才 `activate=True` 拉回。走错窗口＝往别的应用敲字（比抢焦点更糟，是数据错发）。拉前台首选 `human_browser_open(..., activate=True)`（按 profile 定位到正确那个窗口），`focus_window` 退兜底（目标非 Chrome 时）。
 - **Zero traces is real but not magic**: no CDP/webdriver to detect, and OS input is genuinely `isTrusted`. BUT behavioral signals (instant moves, timing) can still be sampled by aggressive bot-detection — human_browser is far stealthier than agent_browser, not an undetectable cloak. CAPTCHAs can still appear (humans get them too).
 - **Headed only**: needs an active GUI/desktop session on the host. If Chrome isn't installed or no GUI session, `list_capabilities` shows human_browser as `unavailable` with the reason.
