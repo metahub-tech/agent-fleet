@@ -194,9 +194,8 @@ class HumanDomCapability(CapabilityModule):
             关键: installed=true/connected=false ≠ 未安装 —— 别重装, 重开 human_browser_open 或导航到目标页即可(见 hint)。"""
             connected = {c["profile_id"] for c in list(bridge._clients)}
             st = build_status(compute_status("~/.fleet/human-dom-ext", connected_ids=connected))
-            for p in st["profiles"]:              # 观测: 每 profile 带上 focused(带外查; 不影响 installed/connected)
-                if p.get("connected"):
-                    p["focused"] = bridge.focus_state(p["profile_id"])
+            for p in st["profiles"]:              # 观测: 每 profile 带上 focused(带外查; 未连/旧扩展→None; 不影响 installed/connected)
+                p["focused"] = bridge.focus_state(p["profile_id"])
             return st
 
         @mcp.tool

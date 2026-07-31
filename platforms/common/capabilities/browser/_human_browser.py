@@ -381,8 +381,8 @@ class HumanBrowserCapability(CapabilityModule):
                     return {"ok": True, "opened": url or "(chrome)", "profile": "(default-daily)",
                             "reused": False, "activated": None,   # 不确定性控前台(§6.3): None, 不假称 False
                             "note": "真实日常 Chrome 已启动(默认 profile,持久);take_screenshot+tap/type_text 或 human_dom 操作。"
-                                    "(默认日常 Chrome 由 Chrome 自身单例转发把窗口带前台, activate 不控;"
-                                    "需后台/不打扰运行请用专用 profile。幂等复用仅对专用 profile 生效。)"}
+                                    "(Windows/Linux 下默认日常 Chrome 由 Chrome 自身单例转发把窗口带前台、activate 不控;"
+                                    "mac 已按 activate 用 -g;需后台/不打扰稳定运行请用专用 profile。幂等复用仅对专用 profile 生效。)"}
                 binary = _chrome_binary()
                 if binary is None:
                     return {"ok": False, "error": "Google Chrome 可执行文件未找到"}
