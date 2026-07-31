@@ -16,21 +16,25 @@ class DomBridge:
         if not self._token: return True
         return hmac.compare_digest(str(first_frame.get("token","")), self._token)
 
-    def register(self, ws, profile_id, tab_id, url, active):
+    def register(self, ws, profile_id, tab_id, url, active, focused=None):
         with self._lock:
             self._clients.append({"ws": ws, "profile_id": profile_id or "default",
                                   "tab_id": tab_id, "url": url, "active": active,
+                                  "focused": focused,   # None=旧扩展未上报(§6.4⑤); 前台检查带外查用, 不进 locate 派发
                                   "last_active_ts": time.monotonic()})
     def unregister(self, ws):
         with self._lock:
             self._clients = [c for c in self._clients if c["ws"] is not ws]
 
-    def set_active(self, ws, active):
-        """content script 报前后台切换 → 更新该 client 的 active(修多 tab 派发)。"""
+    def set_active(self, ws, active, focused=None):
+        """content script 报前后台/焦点切换 → 更新该 client 的 active(修多 tab 派发) 与 focused(前台检查)。
+        focused=None 表示本帧未带该字段 → 不覆盖(不把已有值抹成 None)。"""
         with self._lock:
             for c in self._clients:
                 if c["ws"] is ws:
                     c["active"] = bool(active)
+                    if focused is not None:
+                        c["focused"] = focused
                     if active:
                         c["last_active_ts"] = time.monotonic()  # 最近活跃 → 省略 profile 解析优先它
 
@@ -54,6 +58,13 @@ class DomBridge:
         pool = active or ops
         pool.sort(key=lambda t: t[2], reverse=True)   # 最近活跃优先
         return pool[0][0]
+
+    def focus_state(self, profile_id):
+        """前台检查(带外, Class C)源: 该 profile 活跃 client 的 focused(document.hasFocus())。
+        无连接 / 旧扩展未上报 focused 键 → None(调用方回落截图, spec §6.4 ⑤/⑦)。
+        复用 _active 选活跃 client, 【不改】其 locate 派发语义(focused 与 active 分离)。"""
+        c = self._active(profile_id)
+        return c.get("focused") if c else None
 
     @staticmethod
     def _safe_set(fut, reply):
@@ -106,12 +117,12 @@ def make_ws_route(bridge: "DomBridge"):
         if not bridge.check_auth(first):
             await ws.close(code=4401); return
         bridge.register(ws, first.get("profile_id", "default"), first.get("tab_id"),
-                        first.get("url"), first.get("active", True))
+                        first.get("url"), first.get("active", True), first.get("focused"))
         try:
             while True:
                 msg = await ws.receive_json()
                 if msg.get("type") == "active":
-                    bridge.set_active(ws, msg.get("active"))
+                    bridge.set_active(ws, msg.get("active"), msg.get("focused"))
                 else:
                     bridge._deliver(msg)
         except Exception:
