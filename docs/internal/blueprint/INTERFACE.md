@@ -90,6 +90,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `get_more_search_results(search_id: Annotated[str, Field(description='Returned by start_search')], offset: Annotated[int, Field(description='Start match index (0-based)')], length: Annotated[int, Field(description='Max matches to return', ge=1, le=1000)]) -> dict`
 - `get_screen_size() -> dict`
 - `get_status() -> dict`
+- `hover_preview(x: int, y: int)`
 - `interact_with_process(pid: Annotated[int, Field(description='PID returned by start_process')], input_text: Annotated[str, Field(description='Text to send to the process stdin (newline added automatically)')]) -> dict`
 - `kill_process(pid: int) -> dict`
 - `launch_app(target: Annotated[str, Field(description="App name (e.g. 'Safari', 'Terminal') or full path")], args: Annotated[Optional[list[str]], Field(description='Files / URLs to open with the app')]) -> dict`
@@ -137,6 +138,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 - `get_more_search_results(search_id: Annotated[str, Field(description='Returned by start_search')], offset: Annotated[int, Field(description='Start match index (0-based)')], length: Annotated[int, Field(description='Max matches to return', ge=1, le=1000)]) -> dict`
 - `get_screen_size() -> dict`
 - `get_status() -> dict`
+- `hover_preview(x: int, y: int)`
 - `inspect_window(title_substring: Annotated[str, Field(description='Window whose title contains this substring')], max_depth: Annotated[int, Field(description='UI tree max depth', ge=1, le=10)]) -> str`
 - `interact_with_process(pid: Annotated[int, Field(description='PID returned by start_process')], input_text: Annotated[str, Field(description='Text to send to the process stdin (newline added automatically)')]) -> dict`
 - `kill_process(pid: int) -> dict`

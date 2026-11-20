@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **项目初始化资产（纯文档，不改代码/契约）**：新增根 [`AGENTS.md`](AGENTS.md)（agent 常驻指令：事实真源顺序 / 12 条硬约束 / 验证矩阵 / 已知漂移 / 10 个高频坑 / 本会话 live 设备约束）、[`docs/project-map.md`](docs/project-map.md)（操作层地图：运行时拓扑与端口 · 代码地图 · 能力框架与工具计数口径 · 三条关键数据流 · 三条安装路径 · 本机可跑的验证矩阵 · 文档生成与 CI 门禁 · 13 条漂移登记 · 任务配方）、`.dsh/skills/project-init/SKILL.md`（DSH 项目级技能：按「文件 → 生成物 → 运行时」重建认知并出报告，可重复执行）。
+  - 三份资产同源于对 `aa6628b` 的实测核对，并把核对结论固化成「漂移登记」：`python3 scripts/gen_docs.py --check` 在 main 上 exit 1（README win 74 / mac 73 vs AST 75 / 74）；`hover_preview` 自 #75 起从未进入任何工具表（含 `INTERFACE.md`，故 `blueprint-check` 第二步应红）；`gen_docs.py` 的 `capability_tool_count()` 缺 `human_dom` 分支（恒算 0）；`ONBOARDING.md` 四个工具数全错（android 26 / ios 27 硬错）；`SNAPSHOT.base_commit` 落后 35 个 commit。
+  - 定位说明：`AGENTS.md` 只放跨任务稳定的约束与指针，结构性内容仍由 `MAP.md` / `INTERFACE.md` 生成器维护，避免再造一份会漂移的手写全貌文档。
+
 - **消除全新 profile 首启原生弹窗（AgentHub #211）**：`human_browser_open` 起【专用 profile】注入首启抑制 flag `_FIRST_RUN_SUPPRESS_FLAGS`（`--no-first-run --no-default-browser-check --disable-features=ChromeWhatsNewUI,SigninPromo,ForYouFre --disable-fre`），全新 profile 直接进目标页、无「登录 Chrome / 设为默认 / What's New / FRE」原生弹窗——操作员 agent 不再被不认识的原生窗口卡住（误关标签 / 落登录页）。仅作用于专用 profile 的 `_human_launch_args`（win/linux/mac 同路径）；mac 默认日常 profile 走 `open -a`、已过首启不需要。均为首启抑制开关，**不引入自动化痕迹**（零 automation traces 铁律不破）、不影响 human_dom 扩展加载。test-win11(Chrome 149) 真机验证。配套的 auto-bake 见 PR#68。
 - **`human_browser_open(profile=X)` 自动烤 human_dom 扩展副本（auto-bake，AgentHub #211 操作员发布链硬门）**：起专用 profile 时若该 profile 的扩展副本 `~/.fleet/human-dom-ext/<profile_id>/` 不存在（或烤入的桥端口与当前不符）则**自动生成**（算 profile_id + 读本 server 桥端口 + `prepare_extension`），副本目录在返回的 **`human_dom_ext`** 字段——agent 无需另跑安装脚本，直接 chrome://extensions Load-unpacked 该目录即可。省掉 per-profile 启用最易漏的一步（漏烤会误 Load 仓库模板而失败、模板含占位符不连桥）。auto-bake 任何异常都不阻断起浏览器。`using-human-dom` skill 已据 test-win11(Chrome 149) 实测固化全流程（开扩展页必须地址栏 `paste_text` / 选副本非模板 / PNA 放行 + 重载 等）。配套的「全新 profile 首启弹窗抑制」启动 flag 在 PR#67 单独交付。
 
