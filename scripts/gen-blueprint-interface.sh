@@ -102,10 +102,12 @@ PYEOF
 } | tr -d '\r' > "${TMP}"
 
 if [ "${CHECK}" = "1" ]; then
-  if ! diff -q "${OUT}" "${TMP}" >/dev/null 2>&1; then
+  # Same CR-insensitivity as gen-blueprint-map.sh: CRLF worktree is not a drift.
+  tr -d '\r' < "${OUT}" > "${TMP}.out.lf" 2>/dev/null || : > "${TMP}.out.lf"
+  if ! diff -q "${TMP}.out.lf" "${TMP}" >/dev/null 2>&1; then
     echo "❌ ${OUT} 与代码现状不同步" >&2
     echo "请跑 \`./scripts/gen-blueprint-interface.sh\` 后重新提交" >&2
-    diff "${OUT}" "${TMP}" >&2 || true
+    diff "${TMP}.out.lf" "${TMP}" >&2 || true
     exit 1
   fi
   echo "✓ ${OUT} 与代码同步"
