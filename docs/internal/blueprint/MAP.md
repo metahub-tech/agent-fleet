@@ -92,6 +92,7 @@ agent-fleet CLI
 - `scripts/gen-blueprint-interface.sh` — gen-blueprint-interface.sh
 - `scripts/gen-blueprint-map.sh` — gen-blueprint-map.sh
 - `scripts/gen-docs.py`
+- `scripts/install_skills.py`
 - `scripts/install-agent-side.py`
 
 ## docs/
@@ -102,6 +103,7 @@ agent-fleet CLI
 - `docs/2026-06-21-requirements-from-agenthub-device-op.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
+- `docs/install-for-agents.md`
 - `docs/install-pattern.md`
 - `docs/project-map.md`
 - `docs/roadmap.md`

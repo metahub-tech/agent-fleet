@@ -16,6 +16,8 @@
 > ```bash
 > uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
+>
+> **不想自己装、要把这件事交给 agent？** 把 [`docs/install-for-agents.md`](docs/install-for-agents.md) 给它——那是一份确定性的执行手册：装 MCP server、把 skill（`using-win` / `using-human-dom` / …）装进 agent 自己的技能目录、打通 human-browser 的 DOM 扩展，最后只把 4 件「只有人能做」的事交还给你（系统权限、ADB 授权、iOS 签名、Tailscale 登录）。
 
 ## 是什么
 

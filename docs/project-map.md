@@ -71,7 +71,7 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 | `platforms/<name>/scripts/` | 设备端安装/启动/排错脚本 | `setup-*.{ps1,sh}`、`_launch-*`、`diagnose.ps1`（仅 Windows） |
 | `platforms/<name>/skills/using-*/SKILL.md` | **给调用方 agent 用的**平台操作规范 | 这些是产品资产，不是 DSH 会话技能；措辞/坐标/失败表都在这里 |
 | `cli/src/fleet/` | `agent-fleet setup` 向导 | `wizard.py` 流程、`installers/`（按 manifest 装）、`frameworks/`（6 种 agent 配置输出）、`guidance/*.yaml`（权限引导剧本）、`verify.py`/`smoke.py` |
-| `scripts/` | 仓库级生成器与门禁 | `gen_docs.py`（活的，`--check`/`--write`）、`gen-docs.py`（同名旧物，别动）、`gen-blueprint-{map,interface}.sh`、`check-blueprint-refs.sh`、`check-ps-syntax.sh`、`install-agent-side.py`（老的 agent 端安装路径） |
+| `scripts/` | 仓库级生成器与门禁 | `gen_docs.py`（活的，`--check`/`--write`）、`gen-docs.py`（同名旧物，别动）、`gen-blueprint-{map,interface}.sh`、`check-blueprint-refs.sh`、`check-ps-syntax.sh`、`install-agent-side.py`（老的 agent 端安装路径）、`install_skills.py`（只装 skill，不碰 config） |
 | `docs/internal/blueprint/` | 自动生成 + ADR 的全貌册 | **只读**；改动由生成器和人共同维护，CODEOWNERS 钉住 |
 | `docs/internal/{design,plans,specs}/` | 内部设计留档 | append-only 历史，**不做同步维护**，与新代码不一致属正常 |
 | `docs/superpowers/{specs,plans}/` | 近年用 superpowers 方法论产出的设计/计划 | 同上，历史留档 |
@@ -236,6 +236,7 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 改安装脚本（.ps1/.sh） | **纯 ASCII/英文**（PS 5.1 在非 UTF-8 locale 会乱码解析失败）→ `$ErrorActionPreference="Stop"` → 幂等 → 跑 `check-ps-syntax.sh` / `bash -n`（本地跑不了就交 CI）→ `CHANGELOG` |
 | 改用户可见文档 | 分支 `docs/…`、commit `docs:` → 同步 `docs/platforms/<p>.md` + `platforms/<p>/README.md` → `CHANGELOG [Unreleased]` → 9 语 README 同步（至少 `zh-CN`）→ 套 `PULL_REQUEST_TEMPLATE/docs.md` + `needs-review` |
 | 改 CLI 向导 | `cli/src/fleet/` → 同步 `cli/tests/` → `uv sync` 后 `PYTHONPATH=src pytest` → 影响安装行为时更新 `docs/install-pattern.md` |
+| 把项目装到一台机器上（或交给 agent 装） | [`docs/install-for-agents.md`](install-for-agents.md)：S0 探测 → S1 装设备桥 → S2 自检 → S3 `install_skills.py` → S4 human_dom provisioning → S5 人类 4 步 | `python3 scripts/install_skills.py --list`；装完 `list_capabilities` 对账 |
 | 查「这台设备现在能干什么」 | 调该设备 `list_capabilities()`（别读文档）；接线方式见 §6 |
 | 排查设备连不上 | `/mcp` 状态 → `http://` 非 `https://` → `tailscale status`/`ping` → `curl -sI http://host:8766/mcp` → 设备端 `Get-NetTCPConnection -LocalPort 8766`（`docs/agent-host-setup.md:149-197`） |
 
