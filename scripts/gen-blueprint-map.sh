@@ -95,11 +95,14 @@ trap 'rm -f "${TMP}"' EXIT
 } | tr -d '\r' > "${TMP}"
 
 if [ "${CHECK}" = "1" ]; then
-  if ! diff -q "${OUT}" "${TMP}" >/dev/null 2>&1; then
+  # Compare with line endings normalised on BOTH sides: a Windows checkout is
+  # CRLF while the generator emits LF, and that difference is not a content drift.
+  tr -d '\r' < "${OUT}" > "${TMP}.out.lf" 2>/dev/null || : > "${TMP}.out.lf"
+  if ! diff -q "${TMP}.out.lf" "${TMP}" >/dev/null 2>&1; then
     echo "❌ ${OUT} 与代码现状不同步" >&2
     echo "请跑 \`./scripts/gen-blueprint-map.sh\` 后重新提交（蓝图维护 SOP）" >&2
     echo "--- 期望（基于代码） vs 当前文件 ---" >&2
-    diff "${OUT}" "${TMP}" >&2 || true
+    diff "${TMP}.out.lf" "${TMP}" >&2 || true
     exit 1
   fi
   echo "✓ ${OUT} 与代码同步"
