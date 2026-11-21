@@ -102,6 +102,7 @@ flowchart LR
 | 键盘 | `paste_text(text)` | 通过剪贴板贴入 Unicode | desktop |
 | 进程 | `kill_process(pid)` | 按 PID 杀进程 | desktop |
 | 进程 | `list_processes(name_filter?)` | 列运行中进程 | desktop |
+| 指针验证 | `hover_preview(x, y)` | 移真鼠标到 (x,y) 不点 + 截图 + 画确定性十字（验证落点，R5 起） | desktop |
 
 **Shell 网关**（跨三平台，iOS 无）：
 
@@ -118,7 +119,7 @@ iOS 完全沙箱无 shell 工具；移动端 shell 命令请用 mac-device 的 `
 | 平台 | 额外工具（实际代码） |
 |---|---|
 | Windows | `list_windows`, `inspect_window`, `focus_window`（pywinauto 窗口操作）+ `human_browser_open` + `browser_*`（共 27 个 playwright-mcp 嫁接，能力框架动态注入，不在 INTERFACE.md 静态清单）+ `vision_locate`/`vision_tap`/`vision_locate_image`（vision 能力：无障碍树失效时本地 OCR/模板匹配像素定位）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
-| macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ `vision_locate`/`vision_tap`/`vision_locate_image`（同 Windows，vision 能力）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
+| macOS | `run_applescript`（AppleScript 网关）+ `human_browser_open` + `browser_*`（同 Windows）+ `vision_locate`/`vision_tap`/`vision_locate_image`（同 Windows，vision 能力）+ `human_dom_*`（5 个，opt-in，需就绪标记）+ 文件/搜索/进程一系列 desktop-commander 嫁接工具 |
 | Android | `list_packages`, `push_file`, `pull_file`（PackageManager 与 adb push/pull）+ `upload_media`/`stage_upload`/`deliver_staged`/`job_status`/`get_upload_endpoint` 与 HTTP `POST /upload`（agent 自带字节传手机：落主机暂存→adb push→可选 install/媒体扫描）|
 | iOS | `activate_app`, `device_info`, `list_apps`, `push_file_to_app`, `pull_file_from_app`（pymobiledevice3 + WDA 专属）+ `upload_to_photos`/`upload_to_app`/`get_upload_endpoint` 与 HTTP `POST /upload`（agent 自带字节传 iOS：target=photos 经自家 WDA 扩展 `/wda/photos/import` → PHPhotoLibrary 入相册；target=app 经 pymobiledevice3 afc 推 app 沙箱）|
 
@@ -168,7 +169,7 @@ agent-fleet/
 1. **Tailscale ACL** —— 只有 Agent 主机能连到设备主机（按 IP / tag 锁定）
 2. **OS 防火墙** —— MCP 端口只允许 Tailscale 接口（Windows 上限定 `Tailscale` 网卡，macOS 上限定 `utun*`）
 3. **MCP server bind** —— 设备本地 `0.0.0.0`，被防火墙限制范围
-4. **Auth (规划中)** —— 每设备独立 bearer token；当前未实现，依赖 1–3 层
+4. **Bearer token（已实现，默认关闭）** —— win/mac server 支持 `--token` / `FLEET_AUTH_TOKEN`（纯 ASGI 网关，`/health` 豁免）；android/ios 目前无此参数，仍只依赖 1–3 层
 
 私有网络内此模型够用。公网部署需要额外的：
 - 每调用鉴权

@@ -14,7 +14,7 @@
 git log -1 --format="%h %ad %s" --date=short   # main 最后一次提交 2026-08-01 aa6628b
 git tag -l --sort=-v:refname | Select-Object -First 3   # 最新 tag v0.8.13-alpha
 
-# 2) 改东西前先跑「现状体检」（结果见 §6，当前就是红的，不要以为是你的锅）
+# 2) 改东西前先跑「现状体检」（2026-11-21 对齐后已转绿；再变红说明文档又落后于代码）
 python3 scripts/gen_docs.py --check
 
 # 3) 只改文档？只改平台代码？先看 §3 的分流表，别在同一 PR 里混。
@@ -78,16 +78,16 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 
 ## 4. 验证：先看清「我这台机器能跑什么」
 
-本机（Windows 10/11）实测：PowerShell **5.1**（无 `pwsh` 7）、**无 WSL / 无 Git Bash**、`python3` 3.12、`pytest` 9.1、`uv` 可用。
+本机（Windows 10/11）实测：PowerShell **5.1**（无 `pwsh` 7）、**Git Bash 可用**（`E:\Program Files\Git\bin\bash.exe`；`C:\Windows\System32\bash.exe` 是 WSL 桩，别用）、`python3` 3.12、`pytest` 9.1、`uv` 可用。
 
 | 门禁 | 命令 | 本机 |
 |---|---|---|
-| 文档漂移（工具数 + 端口表） | `python3 scripts/gen_docs.py --check` | ✅ 能跑；**当前 exit 1**（见 §6） |
+| 文档漂移（工具数 + 端口表） | `python3 scripts/gen_docs.py --check` | ✅ **当前 exit 0**（2026-11-21 对齐后） |
 | 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 28 passed |
 | 共享层单测 | `python3 -m pytest platforms/common/tests -q --basetemp=<仓库外目录>` | ⚠️ 约 10 个 Windows 环境性失败（bash 硬编码 / GBK 解码 / 路径进 regex），**不是回归** |
 | CLI 单测 | `cd cli; $env:PYTHONPATH="src"; python3 -m pytest` | ⚠️ 先 `uv sync`（或 `pip install -e ".[dev]"`），否则缺 `questionary`/`mcp` 直接 collection error |
-| 蓝图三步 | `gen-blueprint-{map,interface}.sh --check`、`check-blueprint-refs.sh` | ❌ 需要 bash → 靠 CI（ubuntu） |
-| PS 语法 | `./scripts/check-ps-syntax.sh`（需 pwsh 7 + bash） | ❌ 本机无 pwsh 7 → 靠 CI |
+| 蓝图三步 | `& 'E:\Program Files\Git\bin\bash.exe' -lc "cd /e/workspace/.../agent-fleet && PYTHONUTF8=1 ./scripts/gen-blueprint-map.sh --check"`（interface / refs 同理） | ✅ 需 **Git Bash + `PYTHONUTF8=1`**（脚本内嵌 Python 未指定 encoding） |
+| PS 语法 | `./scripts/check-ps-syntax.sh`（需 pwsh 7） | ❌ 本机无 pwsh 7 → 用 PS 5.1 `Parser::ParseFile` 近似验证，正式门禁交 CI |
 
 `--basetemp` 必带：本机 `%TEMP%` 权限被拒会让 `tmp_path` 直接报错。**CI 绿 ≠ 全绿**：`python-tests` 是 `continue-on-error`，`gen_docs.py --check` 根本不在 CI 里，`platforms/**` 测试也没进 CI。
 
@@ -108,14 +108,26 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 
 ---
 
-## 6. 已知漂移（初始化时实测，别当成自己造成的）
+## 6. 对齐状态（2026-11-21 已修一轮；明细见 project-map §9）
 
-完整 13 条见 [`docs/project-map.md`](docs/project-map.md) §9。最要紧的四条：
+**已修复**（`gen_docs.py --check`、三个蓝图 `--check`、`platforms/tests` 均绿）：
 
-1. **`python3 scripts/gen_docs.py --check` 在 main 上就是红的**：README 写 win 74 / mac 73，AST 口径是 75 / 74（`--write` 只修端口表，**修不了 README 数字**）。
-2. **`hover_preview` 从未进入任何工具表**：代码有（`win_device_mcp.py:552`、`mac_device_mcp.py:281`），`README*`、平台 `README`、`docs/platforms/*.md`、`INTERFACE.md` 都没有 → `gen-blueprint-interface.sh --check` 应当红（CI `blueprint-check` 第二步）。
-3. **`gen_docs.py:75-85` 的 `capability_tool_count()` 没有 `human_dom` 分支**，恒算 0（AST 本身能数到那 5 个）→ 真机满配比脚本数多 5。这属**代码缺陷**，先开 Issue。
-4. **`ONBOARDING.md:55` 的四个数字全错**，其中 android 26 / ios 27 是硬错（实际 31 / 30）；`SNAPSHOT.md` 的 `base_commit` 落后 35 个 commit（超自定 7 天红线 14 倍）。
+1. 版本串：安装脚本/badge/`uvx` 命令从 `v0.8.4-alpha` → **`v0.8.13-alpha`**；`__version__` 与 5 个 `pyproject.toml` 从 `0.8.4a1` → **`0.8.13a1`**（含 `test_smoke` 断言）。
+2. 工具数：README/平台 README/`docs/platforms/*` 附录/`ONBOARDING.md` 统一到**默认满配 75 / 74 / 31 / 30**；`human_dom` 明确为 opt-in（+5 → 80 / 79）。
+3. `hover_preview` 进 `INTERFACE.md`（重生成）、两平台 README / setup guide、`docs/architecture.md`、`SNAPSHOT.md`。
+4. `docs/architecture.md` 的 Auth 表述改为「已实现，默认关闭」（win/mac `--token`）。
+5. `gen_docs.py` 增加 `OPT_IN_CAPABILITIES` 与 `human_dom` 计数分支：默认总数不含 opt-in，运行时以 `list_capabilities()` 为准。
+6. `docs/roadmap.md` 补齐 0.8.3–0.8.13；`SNAPSHOT.md` 回填 `base_commit` / 日期。
+7. `docs/install-pattern.md` 的旧命名（`*_gui_mcp.py`、`android`/`iphone`）与「iOS v0.7 计划 TBD」按现行目录契约重写，并补上 `platform.toml` 与 `platforms/common/` 说明。
+
+**仍待处理**（不要顺手改，按 project-map §9.2 分流）：
+
+1. `docs/internal/README.md` 索引缺 `blueprint/`，也没承认 `docs/superpowers/`。
+2. `CHANGELOG.md` 缺 v0.8.5–v0.8.13 版本段（21 个 commit 仍堆在 `[Unreleased]`）。
+3. `scripts/gen-blueprint-*.sh` 内嵌 Python 未显式 `encoding="utf-8"`，非 UTF-8 locale 需 `PYTHONUTF8=1`。
+4. 历史 DCO 合规率仅 19/40（只影响新提交的自我要求）。
+5. `platforms/android/skills/using-android/SKILL.md` 的 "30 tools" 是 core 口径（运行时 31，含 `list_capabilities`）。
+6. README 状态表的 Version 列（`0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`）是「各桥首次发布版本」，与当前统一版本串 `0.8.13a1` 不同口径——**要不要改成发布线，需负责人拍板**。
 
 ---
 
@@ -130,7 +142,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 7. **CLI 必须在仓库根内运行**（`platforms/` 不进 wheel），且 wizard **不写任何 agent 配置**（frameworks 只渲染片段）；真正改文件的是 `scripts/install-agent-side.py`（且不含 `ios-device`）。
 8. **不要用 `--write` 之外的想像修 README 数字**：`gen_docs.py --write` 只重写 `docs/architecture.md` 的端口表区段；README 里的数字要人改，改完再 `--check`。
 9. **`docs/internal/` 不是整体只读**：`design/plans/specs` 冻结，但 `blueprint/{MAP,INTERFACE}.md` 必须随代码再生。
-10. **别信版本号**：README / 引导脚本 / `cli/pyproject.toml` 都停在 `v0.8.4-alpha` / `0.8.4a1`，实际最新 tag 是 `v0.8.13-alpha`，main 又领先 9 个 commit（未发版）。
+10. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.13a1`——**今后每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
 
 ---
 
@@ -148,7 +160,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 
 - 挂载的 live 设备：`win-device` → `test-win11:8766`，`win-device-qjl` → `win-personal-qjl:8766`（都是本项目产物，跑着操作员的真账号任务）。
 - 真机操作优先 `element-first`（`tap_element` / `find_elements` / `human_dom_locate`），坐标点击只作兜底；不可逆动作前用 `hover_preview` 验证落点。
-- 本机没有 bash / pwsh 7，**任何脚本类门禁都不能在本机下结论**；需要时明说「已交 CI 验证」。
+- 本机有 Git Bash（`E:\Program Files\Git\bin\bash.exe`，可跑蓝图三件套与 `bash -n`）但没有 `pwsh` 7：PS 语法门禁只能用 PS 5.1 解析器近似验证，正式门禁交 CI。
 
 ---
 

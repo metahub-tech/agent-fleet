@@ -52,7 +52,7 @@ agent-fleet/
   print(sorted(extract_mcp_tools("platforms/windows/server/win_device_mcp.py")))
   PY
   ```
-- 工具总数口径（重要）：`server 的 @mcp.tool` **不含** `list_capabilities`（它由框架统一注册，每个平台运行时都额外有这 1 个）；win/mac 还额外有可选 browser 能力，**android/ios 当前只有 `list_capabilities`、无可选能力**。当前总数：**win 71 / mac 70 / android 26 / ios 27**。改 README 工具数后跑 `python3 scripts/gen_docs.py --check`（drift 会让它非零退出）。
+- 工具总数口径（重要）：`server 的 @mcp.tool` **不含** `list_capabilities`（它由框架统一注册，每个平台运行时都额外有这 1 个）；win/mac 还额外有可选 browser 能力，**android/ios 当前只有 `list_capabilities`、无可选能力**。当前总数（默认满配：core + `list_capabilities` + 非 opt-in 可选能力）：**win 75 / mac 74 / android 31 / ios 30**。win/mac 的 `human_dom` 是 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5（win 80 / mac 79），不计入默认数。改 README 工具数后跑 `python3 scripts/gen_docs.py --check`（drift 会让它非零退出）。
 
 ---
 
