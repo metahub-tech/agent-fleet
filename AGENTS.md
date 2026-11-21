@@ -49,7 +49,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 | `platforms/common/capabilities/` | core / agent_browser / human_browser / human_dom / vision | 同上；改完要同步 `platform.toml` 与 `list_capabilities` 分桶 |
 | `platforms/<p>/scripts/` | 设备端安装 / 启动 / 排错脚本 | 安装脚本（高敏感） |
 | `platforms/<p>/skills/using-*/SKILL.md` | **给调用方 agent 用的**平台操作规范（产品资产） | 文档可改，但属产品契约 |
-| `cli/src/fleet/` | `agent-fleet setup` 向导（installers / frameworks / guidance） | 代码；改完跑 `cli/tests` |
+| `cli/src/fleet/` | `agent-fleet setup` 向导（installers / frameworks / guidance；收尾会调 `install_skills.py` 装技能） | 代码；改完跑 `cli/tests` |
 | `scripts/` | 生成器与门禁（`gen_docs.py` 是活的，`gen-docs.py` 是 shim） | 蓝图脚本被 CODEOWNERS 钉住 |
 | `scripts/install_skills.py` | 把 `using-*` skill 装进 agent 自己的技能目录（跨平台、幂等、**不写任何 config**） | 代码；改动跑 `scripts/tests` |
 | `docs/install-for-agents.md` | **面向 agent 的安装 playbook**：装 MCP → 装 skill → human_dom provisioning → 只把 4 件人类步骤交还 | 文档，随安装链路更新 |

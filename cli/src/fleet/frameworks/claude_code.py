@@ -8,6 +8,7 @@ class ClaudeCodeConfig(BaseFrameworkConfig):
     display_name = "Claude Code"
     config_format = "json"
     config_path_template = "~/.claude.json"
+    skills_dir = "~/.claude/skills"
 
     def render_entry(self, role: ServerRole) -> dict:
         return {"type": "http", "url": role.url}

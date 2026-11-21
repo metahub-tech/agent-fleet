@@ -47,6 +47,8 @@ The wizard will guide you through:
 
 `setup` accepts `--dry-run` to preview actions without writing anything.
 
+It also installs the device skills by default: after the server is verified, the wizard asks whether to run `scripts/install_skills.py` against the selected client's skill directory (Claude Code → `~/.claude/skills`). Pass `--no-skills` to skip that step. Clients without an on-disk skill directory (Cursor, Cline, …) get the manual command printed instead.
+
 ## Development / running tests
 
 ```bash

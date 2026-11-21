@@ -92,7 +92,7 @@ trap 'rm -f "${TMP}"' EXIT
   done
   echo "- \`docs/platforms/\` _(各平台 setup guide)_"
   echo ""
-} > "${TMP}"
+} | tr -d '\r' > "${TMP}"
 
 if [ "${CHECK}" = "1" ]; then
   if ! diff -q "${OUT}" "${TMP}" >/dev/null 2>&1; then

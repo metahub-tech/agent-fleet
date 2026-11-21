@@ -52,6 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **`agent-fleet setup` 收尾自动装 skill（补齐「交给 agent 就装好」的最后一公里）**：向导在生成配置片段前，对**支持磁盘技能目录**的客户端（当前 Claude Code → `~/.claude/skills`）询问并调用 `scripts/install_skills.py`，把该角色的 `using-<device>` 与 `using-human-browser` / `using-human-dom` / `using-vision` 装进客户端技能目录。
+  - 新增 `cli/src/fleet/skills.py`：复用仓库里的 `scripts/install_skills.py`（不复制 skill 布局规则），逐角色调用、返回 `(role, rc, output)`；`skills_dir` 由框架声明，没有技能目录的客户端（Cursor / Cline / OpenClaw / Antigravity / Hermes）不写文件、只打印手动命令。
+  - `frameworks/base.py` 新增 `skills_dir` 声明，`frameworks/claude_code.py` 设为 `~/.claude/skills`。
+  - `agent-fleet setup` 新增 `--no-skills`（跳过技能安装）；`--dry-run` 只打印计划、不提问不写盘。
+  - `scripts/install-agent-side.py` 补上 `ios-device`（此前 iOS 那行被注释掉，agent 端装不了 iOS 技能）。
+  - 文档同步：`docs/install-for-agents.md` S3、`docs/install-pattern.md` §3、`cli/README.md`。
+
 - **面向 agent 的安装链路：agent 自己装 MCP + 装 skill + 打通 human_browser 的 DOM 层**
   - 新增 [`docs/install-for-agents.md`](docs/install-for-agents.md)：确定性执行手册，S0 探测 → S1 装设备桥（四平台，含非交互开关）→ S2 自检（端口 / `/health` / `list_capabilities`）→ S3 装 skill → S4 human_dom provisioning → S5 只交还人类必做的 4 件（macOS TCC / ADB 授权 / iOS 签名 / Tailscale 登录）→ S6 交接话术。
   - 新增 [`scripts/install_skills.py`](scripts/install_skills.py)：**skill-only** 安装器（不写任何 agent config，因此对 Claude Code / DeepSeek Harness 都适用）。按平台装 `using-win|mac|android|ios` +（win/mac）`using-human-browser` / `using-human-dom` / `using-vision`，`--with-agent-browser` 可选装 Playwright 那套；幂等、符号链接失败自动降级为复制、支持 `--list` / `--dry-run` / `--target` / `--mode`。
