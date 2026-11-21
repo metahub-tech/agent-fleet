@@ -58,6 +58,14 @@ def _manifests():
 CAP_DIR = REPO_ROOT / "platforms" / "common" / "capabilities"
 FRAMEWORK_TOOLS = ["list_capabilities"]
 
+# Capabilities that are opt-in at runtime: their tools are registered only when
+# the host opt-in marker exists (human_dom: ~/.fleet/human-dom-ready + per-profile
+# extension). list_capabilities() reports them as unavailable (0 tools) until
+# then, so counting them here would overstate what a default install exposes.
+# Runtime truth stays list_capabilities(); this constant only fixes the doc
+# contract (README numbers describe the default install).
+OPT_IN_CAPABILITIES = {"human_dom"}
+
 
 def _count_list_literal(path: Path, name: str) -> int:
     """Count elements of a module-level `name = [...]` list literal via AST."""
@@ -82,16 +90,25 @@ def capability_tool_count(cap_id: str) -> int:
         return len(extract_mcp_tools(CAP_DIR / "browser" / "_human_browser.py"))
     if cap_id == "vision":
         return len(extract_mcp_tools(CAP_DIR / "vision" / "_vision.py"))
+    if cap_id == "human_dom":
+        # Registered inside HumanDomCapability.register(); ast.walk still finds them.
+        return len(extract_mcp_tools(CAP_DIR / "human_dom" / "_human_dom.py"))
     return 0
 
 
 def tool_count(m) -> int:
-    """Total tools a platform exposes at runtime — mirrors list_capabilities():
-    inline core (@mcp.tool in the server) + framework discovery tool(s) + every
-    enabled optional capability's tools."""
+    """Total tools a platform exposes on a DEFAULT install — mirrors
+    list_capabilities() with every dependency present: inline core (@mcp.tool in
+    the server) + framework discovery tool(s) + every enabled, non-opt-in
+    optional capability's tools. Opt-in capabilities (OPT_IN_CAPABILITIES) are
+    excluded on purpose: they add tools only after the host marker exists."""
     core = len(extract_mcp_tools(m.server_path))
     enabled = list((getattr(m, "capabilities", None) or {}).get("enabled") or ["core"])
-    optional = sum(capability_tool_count(c) for c in enabled if c != "core")
+    optional = sum(
+        capability_tool_count(c)
+        for c in enabled
+        if c != "core" and c not in OPT_IN_CAPABILITIES
+    )
     return core + len(FRAMEWORK_TOOLS) + optional
 
 

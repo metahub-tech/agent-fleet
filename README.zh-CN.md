@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.13-alpha)
 
 [English](README.md) · **简体中文** · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > 通过 MCP 把真实的 Windows / macOS / Android / iOS 硬件接进 LLM agent，让 agent 像人一样操作它们。一行命令安装：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 是什么
@@ -42,8 +42,8 @@
 
 | 组件 | 版本 | 状态 |
 |---|---|---|
-| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，74 工具，streamable-http）|
-| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，73 工具，GUI 权限流程）|
+| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，75 工具，streamable-http）|
+| macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，74 工具，GUI 权限流程）|
 | Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**31 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|
 | 角色改名 → `<os>-device` + macOS 权限引导 | `0.6.0-alpha` | ✅ 已发布 |
@@ -70,10 +70,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-或，如果已经有 uv（v0.8.4-alpha 阶段从 git 拉，未上 PyPI）：
+或，如果已经有 uv（v0.8.13-alpha 阶段从 git 拉，未上 PyPI）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 用户首次跑前需 `brew install coreutils`（uv 的 wrapper 用到 `realpath`，macOS 12 默认不带；见 [#2](https://github.com/metahub-tech/agent-fleet/issues/2)）。

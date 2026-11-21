@@ -356,7 +356,7 @@ Agent A: release(holder_name="...")      # 显式释放
 
 `mac-device` MCP（监听 `0.0.0.0:8767/mcp`）暴露的工具：
 
-### 附录 A · core 工具（41 个）
+### 附录 A · core 工具（42 个）
 
 server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
 
@@ -366,6 +366,7 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 设备路由 | `list_devices`, `get_default_device`, `set_default_device` |
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 鼠标 | `tap`, `move_mouse`, `swipe` |
+| 指针验证 | `hover_preview`（把真鼠标移到 (x,y) 但不点 + 截图 + 在 (x,y) 画确定性十字，供上层验证「这一点会不会落在目标上」；R5 起） |
 | 键盘 | `type_text`, `paste_text`, `press_key` (cmd/option/shift/ctrl) |
 | UI 内省 | `current_app`（当前前台应用）, `dump_ui`（最前台应用 UI 树）, `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台）, `list_ui_elements`（指定 app 的辅助功能全树，macOS 扩展） |
 | 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
@@ -378,7 +379,7 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 41 个 core 工具外，mac-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块**（与 Windows win-device 同款）。算上它们，mac-device 满配运行时共暴露 **70 个工具**（41 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser）。
+除上面 42 个 core 工具外，mac-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**（与 Windows win-device 同款）。依赖齐全时，mac-device 满配运行时共暴露 **74 个工具**（42 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5 → **79 个**。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 

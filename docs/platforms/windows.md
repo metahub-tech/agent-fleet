@@ -227,7 +227,7 @@ Agent B: get_status()                              # 查谁在用
 
 `win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：
 
-### 附录 A · core 工具（42 个）
+### 附录 A · core 工具（43 个）
 
 server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
 
@@ -238,6 +238,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 窗口 / UI 内省 | `list_windows`, `focus_window`, `current_app`（当前前台应用）, `dump_ui`（前台窗口 UI 树）, `inspect_window`（更丰富的窗口内省，平台扩展） |
 | 鼠标 | `tap`, `move_mouse`, `swipe` |
+| 指针验证 | `hover_preview`（把真鼠标移到 (x,y) 但不点 + 截图 + 在 (x,y) 画确定性十字，供上层验证「这一点会不会落在目标上」；R5 起） |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
 | 元素操作 | `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台） |
 | 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
@@ -250,7 +251,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 42 个 core 工具外，win-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块**。算上它们，win-device 满配运行时共暴露 **71 个工具**（42 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser）。
+除上面 43 个 core 工具外，win-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时，win-device 满配运行时共暴露 **75 个工具**（43 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5 → **80 个**。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 

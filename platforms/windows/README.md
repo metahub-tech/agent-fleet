@@ -38,7 +38,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 `win-device` MCP server（FastMCP，原生多客户端）通过 streamable-http 监听 `0.0.0.0:8766/mcp`：
 
-### core 工具（42 个）
+### core 工具（43 个）
 
 | 类别 | 工具 |
 |---|---|
@@ -47,6 +47,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 屏幕 | `get_screen_size`, `take_screenshot` |
 | 窗口 / UI 内省 | `list_windows`, `focus_window`, `current_app`（当前前台应用）, `dump_ui`（前台窗口 UI 树）, `inspect_window`（更丰富的窗口内省，平台扩展） |
 | 鼠标 | `tap`, `move_mouse`, `swipe` |
+| 指针验证 | `hover_preview`（把真鼠标移到 (x,y) 但不点 + 截图 + 在 (x,y) 画确定性十字，供上层验证「这一点会不会落在目标上」；R5 起） |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
 | 元素操作 | `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台） |
 | 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
@@ -57,7 +58,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 ### 浏览器能力（可选）
 
-除上面 42 个 core 工具外，win-device 运行时还由能力框架额外暴露 1 个发现工具 `list_capabilities`（all-platform always-on）+ 两个可选浏览器能力：`agent_browser`（嫁接 Playwright MCP，有头 Chrome / CDP，带自动化痕迹，27 个工具，依赖 Chrome + Node/npx，skill `using-fleet-browser`）与 `human_browser`（驱动真人日常 Chrome，零自动化痕迹，1 个工具 `human_browser_open`，依赖 Chrome，skill `using-human-browser`）。满配运行时共 **71 个工具**（42 + 1 + 27 + 1）。能力按"依赖齐全才暴露"渐进披露，调 `list_capabilities` 查本机实际可用的能力与工具。详见 [`../../docs/platforms/windows.md` 附录 B · 浏览器能力](../../docs/platforms/windows.md#附录-b--浏览器能力可选)。
+除上面 43 个 core 工具外，win-device 运行时还由能力框架额外暴露 1 个发现工具 `list_capabilities`（all-platform always-on）+ 两个可选浏览器能力：`agent_browser`（嫁接 Playwright MCP，有头 Chrome / CDP，带自动化痕迹，27 个工具，依赖 Chrome + Node/npx，skill `using-fleet-browser`）与 `human_browser`（驱动真人日常 Chrome，零自动化痕迹，1 个工具 `human_browser_open`，依赖 Chrome，skill `using-human-browser`）。依赖齐全时满配 **75 个工具**（43 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 **opt-in**（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 **+5 → 80 个**。能力按"依赖齐全才暴露"渐进披露，调 `list_capabilities` 查本机实际可用的能力与工具。详见 [`../../docs/platforms/windows.md` 附录 B · 浏览器能力](../../docs/platforms/windows.md#附录-b--浏览器能力可选)。
 
 > **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `win-device`。`setup-windows.ps1` 会自动清理老版本残留。
 

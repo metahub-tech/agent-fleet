@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 变更
 
+- **对外文档与 v0.8.13-alpha 发布对齐（2026-11-21；版本元数据 + 文档，不改运行行为）**：把「文档说的 / 安装脚本装的 / 代码实际有的」三者拉齐到同一个事实基线。
+  - **版本串修正**：`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 `platforms/*/server/pyproject.toml` 与 `cli/tests/test_smoke.py` 统一为 **`0.8.13a1`**。历史真相：v0.8.5–v0.8.13 共 9 个 tag 当时都没 bump `__version__`，那 9 个 release 的 `agent-fleet --version` 全部自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明；今后发 tag 必须同步 bump 这 6 处 + 测试断言）。
+  - **安装入口对齐**：`install.sh` / `install.ps1` 默认目标版本与 9 语 README 的 badge、`uvx --from …@v0.8.13-alpha` 命令从 `v0.8.4-alpha` 更新到 **`v0.8.13-alpha`**——此前按 README 一键安装会装到 2026-06 的 v0.8.4 树，缺 `human_dom` 整套能力、缺 win/mac 受管拉起（`--host/--port/--token` + `/health`）、缺 `hover_preview` 与 9 个修复。
+  - **工具数按「默认满配」统一口径**：core + `list_capabilities` + 非 opt-in 可选能力 → **win 75 / mac 74 / android 31 / ios 30**（原 README 的 74 / 73 正是 v0.8.4 的真实值）。`human_dom` 明确为 opt-in（需 `~/.fleet/human-dom-ready` + 扩展就绪），启用后 win/mac 各 +5（→ 80 / 79）。同步范围：`README*.md`（9 语）、`platforms/{windows,macos}/README.md`、`docs/platforms/{windows,macos}.md` 附录 A/B、`ONBOARDING.md`。
+  - **`hover_preview` 补进文档面**：该 core 工具自 #75（v0.8.12）起就存在但从未进任何工具表；本次进 `INTERFACE.md`（由生成器重生成，win/mac 各 +1 条签名）、两平台 README / setup guide 工具表、`docs/architecture.md` 桌面专属工具表、`SNAPSHOT.md`。
+  - **`docs/architecture.md` 安全模型**：Auth 从「规划中，当前未实现」改为「已实现（win/mac `--token` / `FLEET_AUTH_TOKEN`，纯 ASGI 网关，`/health` 豁免；android/ios 暂无）」，与实际代码一致。
+  - **生成器**：`scripts/gen_docs.py` 新增 `OPT_IN_CAPABILITIES = {"human_dom"}` 与 `human_dom` 计数分支——把原来「human_dom 恒算 0 且无注释」的静默行为改成显式策略（默认总数不含 opt-in；运行时真值仍以 `list_capabilities()` 为准）。`docs/roadmap.md` 补齐 0.8.3–0.8.13 共 11 行状态；`SNAPSHOT.md` 回填 `base_commit` / 修订日期 / 待补清单。
+  - **校验**：`python3 scripts/gen_docs.py --check`、`./scripts/gen-blueprint-map.sh --check`、`./scripts/gen-blueprint-interface.sh --check`、`./scripts/check-blueprint-refs.sh` 全部通过；`platforms/tests` 28 passed。
+
 - **human_dom 改为按 profile 维度路由**（不再全局猜 active tab）。桥从「全局对当前 active tab 操作」改成「调用方传 `profile`、桥路由到该 profile 那张 tab」，**多 profile 并行操作不再串线**（告别「最小化别的窗口」那类规避 active-tab 串扰的 hack）。
   - **`human_dom_locate` / `human_dom_tap` / `human_dom_fill` 新增 `profile=""` 参数**：操作哪个 profile 就传哪个，**与 `human_browser_open(profile=...)`、装扩展时的 PROFILE 必须同一串**（三处同串铁律）；不传 = 操作默认日常 Chrome（profile_id="default"）。
   - **新增 `human_dom_status()` 工具**：列每个 profile 的 `{profile_id, installed, bridge_port, connected}`（只列归本 server 桥端口的），排错时一眼看出该 profile 装没装 / 连没连。
