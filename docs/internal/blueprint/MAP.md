@@ -88,10 +88,10 @@ agent-fleet CLI
 **仓库级运维脚本**：
 - `scripts/check-blueprint-refs.sh` — check-blueprint-refs.sh
 - `scripts/check-ps-syntax.sh` — Validate PowerShell script syntax across the repo via AST parse.
+- `scripts/gen_docs.py`
 - `scripts/gen-blueprint-interface.sh` — gen-blueprint-interface.sh
 - `scripts/gen-blueprint-map.sh` — gen-blueprint-map.sh
 - `scripts/gen-docs.py`
-- `scripts/gen_docs.py`
 - `scripts/install-agent-side.py`
 
 ## docs/
@@ -103,6 +103,7 @@ agent-fleet CLI
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
 - `docs/install-pattern.md`
+- `docs/project-map.md`
 - `docs/roadmap.md`
 - `docs/platforms/` _(各平台 setup guide)_
 

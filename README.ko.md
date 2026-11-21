@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.13-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **한국어** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > 실제 Windows / macOS / Android / iOS 하드웨어를 MCP로 LLM 에이전트에 연결해 사람처럼 조작하게 합니다. 설치는 명령어 한 줄:
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## 무엇인가요
@@ -42,8 +42,8 @@
 
 | 구성요소 | 버전 | 상태 |
 |---|---|---|
-| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 74개 도구, streamable-http) |
-| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 73개 도구, GUI 권한 플로우) |
+| Windows 10/11 브리지 | `0.2.0` | ✅ 릴리스됨 (win-device, 75개 도구, streamable-http) |
+| macOS 12+ 브리지 | `0.3.0` | ✅ 릴리스됨 (mac-device, launchd, 74개 도구, GUI 권한 플로우) |
 | Android 브리지 | `0.7.0-alpha` | ✅ 릴리스됨 (android-device, **31개 도구**, 멀티 디바이스 + USB + 무선 + 하이브리드 ADB) |
 | agent-fleet CLI 마법사 | `0.5.0-alpha` | ✅ 릴리스됨 (`uvx agent-fleet setup` 원샷 설치; 6개 프레임워크 설정 생성) |
 | 역할 이름 변경 → `<os>-device` + macOS 권한 안내 | `0.6.0-alpha` | ✅ 릴리스됨 |
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-또는 이미 uv가 있다면 (v0.8.4-alpha 단계에서는 PyPI가 아니라 git에서 가져옵니다):
+또는 이미 uv가 있다면 (v0.8.13-alpha 단계에서는 PyPI가 아니라 git에서 가져옵니다):
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 사용자는 먼저 `brew install coreutils`가 필요합니다 (uv 래퍼가 `realpath`를 쓰는데 macOS 12에는 기본 포함되지 않음; [#2](https://github.com/metahub-tech/agent-fleet/issues/2) 참조).

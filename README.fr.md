@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.13-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md) · **Français** · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > Connectez du matériel réel Windows / macOS / Android / iOS à votre agent LLM via MCP pour qu'il les pilote comme un humain. Installation en une seule commande :
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## Qu'est-ce que c'est
@@ -42,8 +42,8 @@ C'est une infrastructure pour les **tests logiciels pilotés par agent et la vé
 
 | Composant | Version | État |
 |---|---|---|
-| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 74 outils, streamable-http) |
-| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 73 outils, flux de permissions GUI) |
+| Pont Windows 10/11 | `0.2.0` | ✅ Publié (win-device, 75 outils, streamable-http) |
+| Pont macOS 12+ | `0.3.0` | ✅ Publié (mac-device, launchd, 74 outils, flux de permissions GUI) |
 | Pont Android | `0.7.0-alpha` | ✅ Publié (android-device, **31 outils**, multi-appareils + USB + sans fil + ADB hybride) |
 | Assistant CLI agent-fleet | `0.5.0-alpha` | ✅ Publié (`uvx agent-fleet setup` installation en une fois ; configs pour 6 frameworks) |
 | Renommage de rôle → `<os>-device` + guide de permissions macOS | `0.6.0-alpha` | ✅ Publié |
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-Ou, si vous avez déjà uv (durant la phase v0.8.4-alpha, il est récupéré depuis git, pas encore sur PyPI) :
+Ou, si vous avez déjà uv (durant la phase v0.8.13-alpha, il est récupéré depuis git, pas encore sur PyPI) :
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > Les utilisateurs de macOS 12 doivent d'abord exécuter `brew install coreutils` (le wrapper d'uv utilise `realpath`, absent par défaut sur macOS 12 ; voir [#2](https://github.com/metahub-tech/agent-fleet/issues/2)).

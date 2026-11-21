@@ -2,7 +2,7 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-05-21*
+*Last updated: 2026-11-21*
 
 | Version | Theme | Status |
 |---|---|---|
@@ -26,12 +26,25 @@
 | **0.7.0-alpha** | **Android multi-device: alias map, 25 tools, per-device holder, MCP instructions/resource** | ✅ Released |
 | **0.8.0-alpha** | **iOS / iPadOS bridge: ios-device, 26 tools, WebDriverAgent + pymobiledevice3, iPad real-device verified** | ✅ Released |
 | **0.8.2-alpha** | **iOS WDA daemon (boot-survival + keep-alive) · README i18n (9 langs) + demo · architecture diagram** | ✅ Released |
+| **0.8.3-alpha** | 版本号 bump（cli + 4 servers 0.8.2a1 → 0.8.3a1） | ✅ Released |
+| **0.8.4-alpha** | vision 能力模块（OCR/模板像素定位）+ agent→设备文件上传（android/iOS `POST /upload`） | ✅ Released |
+| **0.8.5-alpha** | human_dom per-profile 路由 + 桥端口可配 + 首启弹窗抑制 + human_dom 扩展 auto-bake | ✅ Released |
+| **0.8.6-alpha** | 确定性零 GUI 装 human_dom 扩展（CDP `Load-unpacked`）+ status 双维度 + DPI/IME 修复 | ✅ Released |
+| **0.8.7-alpha** | 修 human_dom 桥注册阻断（关 LNA/PNA 检查）+ status 改盘扫描 | ✅ Released |
+| **0.8.8-alpha** | 抑制 Chrome 异常退出后的崩溃恢复气泡 | ✅ Released |
+| **0.8.9-alpha** | 起窗后 Win32 强制最大化（`--start-maximized` 被 profile 恢复覆盖） | ✅ Released |
+| **0.8.10-alpha** | ProseMirror 标题 locate 读 `data-placeholder` + fill 回读校验 | ✅ Released |
+| **0.8.11-alpha** | `human_browser_open` 幂等复用（同 profile 已开：不重启 / 不重装扩展 / 不新开标签） | ✅ Released |
+| **0.8.12-alpha** | 设备操作定点精度 R1+R4+R5（坐标系硬化 / human_dom 扩覆盖 / `hover_preview` + `ocr_conf`） | ✅ Released |
+| **0.8.13-alpha** | human_dom 省略 profile 解析硬化（修 P6 `no_tab_for_profile`）+ fill 失败重试 | ✅ Released |
 | **0.9.0** | **HarmonyOS (鸿蒙) bridge** — 5th platform (hdc + uitest) | 📋 Planned |
 | 0.10.0 | Cross-device coordination | 🔭 Future |
 | 0.11.0+ | Expanded device coverage (Android TV · Linux desktop · Wear OS · 车机/AAOS · …) — see [Future device coverage](#future-device-coverage) | 📋 Planned |
 | 1.0.0 | Public open-source stable | 🔭 Future |
 
 Legend: ✅ released · 🚧 in progress · 📋 planned · 🔭 future
+
+> **版本串说明（2026-11-21 修正）**：v0.8.5–v0.8.13 共 9 个 tag 当时没有同步 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（历史事实，tag 不可改写）。main 已修正为 `0.8.13a1`；**今后每次发 tag 必须同时 bump `cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 `platforms/*/server/pyproject.toml` 与 `cli/tests/test_smoke.py` 的断言**。
 
 ---
 

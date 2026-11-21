@@ -1,7 +1,7 @@
 # agent-fleet
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.8.4--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.4-alpha)
+[![Status](https://img.shields.io/badge/status-v0.8.13--alpha-blue.svg)](https://github.com/metahub-tech/agent-fleet/releases/tag/v0.8.13-alpha)
 
 [English](README.md) · [简体中文](README.zh-CN.md) · **日本語** · [한국어](README.ko.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português (BR)](README.pt-BR.md) · [Русский](README.ru.md)
 
@@ -14,7 +14,7 @@
 > 実機の Windows / macOS / Android / iOS ハードウェアを MCP 経由で LLM エージェントに接続し、人間のように操作させます。インストールはコマンド一発：
 >
 > ```bash
-> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+> uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
 
 ## これは何か
@@ -42,8 +42,8 @@
 
 | コンポーネント | バージョン | ステータス |
 |---|---|---|
-| Windows 10/11 ブリッジ | `0.2.0` | ✅ リリース済（win-device、74 ツール、streamable-http）|
-| macOS 12+ ブリッジ | `0.3.0` | ✅ リリース済（mac-device、launchd、73 ツール、GUI 権限フロー）|
+| Windows 10/11 ブリッジ | `0.2.0` | ✅ リリース済（win-device、75 ツール、streamable-http）|
+| macOS 12+ ブリッジ | `0.3.0` | ✅ リリース済（mac-device、launchd、74 ツール、GUI 権限フロー）|
 | Android ブリッジ | `0.7.0-alpha` | ✅ リリース済（android-device、**31 ツール**、マルチデバイス + USB + 無線 + ハイブリッド ADB）|
 | agent-fleet CLI ウィザード | `0.5.0-alpha` | ✅ リリース済（`uvx agent-fleet setup` ワンショットインストール；6 フレームワーク分の設定生成）|
 | ロール改名 → `<os>-device` + macOS 権限ガイド | `0.6.0-alpha` | ✅ リリース済 |
@@ -71,10 +71,10 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/metahub-tech/agent-fleet
 powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/metahub-tech/agent-fleet/main/install.ps1 | iex"
 ```
 
-すでに uv をお持ちの場合（v0.8.4-alpha の段階では PyPI ではなく git から取得します）：
+すでに uv をお持ちの場合（v0.8.13-alpha の段階では PyPI ではなく git から取得します）：
 
 ```bash
-uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.4-alpha#subdirectory=cli" agent-fleet setup
+uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 ```
 
 > macOS 12 のユーザーは最初に `brew install coreutils` が必要です（uv のラッパーが `realpath` を使用し、macOS 12 には標準で含まれません。[#2](https://github.com/metahub-tech/agent-fleet/issues/2) 参照）。

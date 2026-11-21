@@ -2,10 +2,10 @@
 
 > 给任何 agent 装载用——读完这一份就拿到 agent-fleet 当下的鸟瞰全貌。
 >
-> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-05-26** 修订（Phase 1 工程地基落地 + blueprint-drift 一次修订）。
+> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-11-21** 修订（文档与 v0.8.13-alpha 发布对齐：版本串 / 工具数 / 安装命令 / 蓝图重生成）。
 
-**base_commit**: `448e957af93ca91ab899c3a026a9e19bdaaa9db7`
-（将来由 gen-blueprint-snapshot.sh（待建）自动注入；当前手工填——Iris 装载时按这个 SHA 校验，比日期更可靠。）
+**base_commit**: `aa6628b4611279db055523a9dcb51558506a173a`（本次对齐前的 main 基线）
+（`gen-blueprint-snapshot.sh` 仍未实现，本次为人工回填；装载时请用 `git log -1` 比对，若 HEAD 已远离该 SHA，则以 `MAP.md` + 代码为准。）
 
 ## 项目一句话
 
@@ -37,6 +37,9 @@ agent-fleet 是一套**让 LLM agent 操作真实物理设备的 MCP 基座**—
 | input (mobile-only) | `long_press` | 仅 Android / iOS；桌面平台暂未对齐（可用 `tap` + sleep 间接） |
 | app | `launch_app` / `terminate_app` / `current_app` | 应用生命周期 |
 | ui-tree | `dump_ui` / `find_elements` / `tap_element` | 无障碍树（OS 级 UI 探查） |
+| pointer-verify | `hover_preview` | 移真鼠标到 (x,y) 不点 + 截图 + 画确定性十字（R5，desktop only） |
+
+**默认满配工具数**（core + `list_capabilities` + 非 opt-in 可选能力）：win 75 / mac 74 / android 31 / ios 30。`human_dom` 是 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后 win/mac 各 +5（→ 80 / 79）。
 
 平台特定扩展（如 macOS / Win 的 `browser_*` 系列 + `human_browser_open`）由**能力框架运行时动态注入**——它们不是 `@mcp.tool` 静态装饰函数，因此**不在 `INTERFACE.md` 静态清单内**。取真实运行时清单的两条路：
 1. 装载时调 `list_capabilities()`（框架统一注入，每平台都有）
@@ -66,9 +69,12 @@ _暂无（项目早期 alpha，0 外部 contributor）。当有真实进展时�
 ## 待补 / 已知漂移
 
 - iOS WDA 客户端实现细节未进 ADR
-- `platforms/common/` 共享代码作用范围未文档化
-- `human_browser` 能力仅 win / mac 实现，android / iOS 无可对应能力（运行时通过 `list_capabilities` 自报，文档侧待统一注明）
-- gen-blueprint-snapshot.sh 尚未实现——SNAPSHOT 周更目前手工跑（见 BLUEPRINT-SPEC §二.5、blueprint-maintenance SOP §Step 5）；该脚本到位后 `base_commit:` 行将由它自动写入
+- `human_browser` / `human_dom` 能力仅 win / mac 实现，android / iOS 无可对应能力（运行时通过 `list_capabilities` 自报）
+- gen-blueprint-snapshot.sh 尚未实现——SNAPSHOT 周更目前手工跑；该脚本到位后 `base_commit:` 行将由它自动写入
+- **CHANGELOG 缺 v0.8.5–v0.8.13 的版本段**：这 21 个 commit 的条目仍堆在 `[Unreleased]`（当时未切段），重切版本段属编辑性工作，需单独处理
+- `gen-blueprint-*.sh` 的内嵌 Python 未显式指定 `encoding="utf-8"`，在非 UTF-8 locale 的 Windows 上会 `UnicodeDecodeError`（需 `PYTHONUTF8=1` 才能本地跑）
+
+_已修复（2026-11-21 对齐）：版本串钉死 v0.8.4 / 0.8.4a1、README 工具数（win 74 / mac 73）、`INTERFACE.md` 缺 `hover_preview`、`docs/architecture.md` 的 Auth「未实现」表述、`ONBOARDING.md` 四个工具数。_
 
 ---
 
