@@ -2,6 +2,8 @@
 
 新接手仓库的人**先读这一页**，搞清楚装什么、装到哪、为什么这么分。再去看任何 platform-specific 的文档前，掌握这个心智模型能避开 90% 的混乱。
 
+> **如果你是一个 agent（或要把安装交给 agent）**：读 [`install-for-agents.md`](install-for-agents.md)。那份手册把下面这些步骤变成可执行序列（含 skill 安装与 human_dom 扩展 provisioning），本页退化为人类参考与原理说明。
+
 ---
 
 ## 1. 一个项目，两个角色，两条安装路径

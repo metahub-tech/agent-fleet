@@ -51,6 +51,8 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 | `platforms/<p>/skills/using-*/SKILL.md` | **给调用方 agent 用的**平台操作规范（产品资产） | 文档可改，但属产品契约 |
 | `cli/src/fleet/` | `agent-fleet setup` 向导（installers / frameworks / guidance） | 代码；改完跑 `cli/tests` |
 | `scripts/` | 生成器与门禁（`gen_docs.py` 是活的，`gen-docs.py` 是 shim） | 蓝图脚本被 CODEOWNERS 钉住 |
+| `scripts/install_skills.py` | 把 `using-*` skill 装进 agent 自己的技能目录（跨平台、幂等、**不写任何 config**） | 代码；改动跑 `scripts/tests` |
+| `docs/install-for-agents.md` | **面向 agent 的安装 playbook**：装 MCP → 装 skill → human_dom provisioning → 只把 4 件人类步骤交还 | 文档，随安装链路更新 |
 | `docs/internal/blueprint/` | `MAP.md`/`INTERFACE.md`（**自动生成，必须随代码再生**）+ ADR + GLOSSARY + SNAPSHOT | **不是只读留档**，是 CI 门禁对象 |
 | `docs/internal/{design,plans,specs}/`、`docs/superpowers/` | 历史设计/计划留档（两代，各自冻结） | 只读，不追现状 |
 | `docs/project-map.md` | 操作层地图（本文件的展开） | 手写，随事实更新 |
@@ -100,6 +102,8 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 | 加/改某平台工具 | `docs/architecture.md` Universal Tool Set + 平台 `README.md` | `platforms/tests`、`gen-blueprint-interface.sh`、`gen_docs.py --check` |
 | 改可选能力（browser/vision/human_dom） | `platforms/common/capabilities/_base.py` + 该能力目录 | `platforms/common/tests`、`gen-blueprint-*` |
 | 改安装脚本 / CLI | `docs/install-pattern.md`、`cli/README.md` | `check-ps-syntax.sh`、`cd cli && pytest`、`CHANGELOG` |
+| 把项目装到一台机器 / 交给别的 agent 装 | `docs/install-for-agents.md` | `python3 scripts/install_skills.py --list`、`scripts/tests`、`CHANGELOG` |
+| 让 human_browser 拿到 DOM 精度 | `platforms/common/skills/using-human-dom/SKILL.md`（两层启用模型） | 建 marker → 重启 → `human_browser_open(profile=专用)` → `human_dom_status` |
 | 改用户文档 | `ONBOARDING.md`、`docs.md` 模板 | `gen_docs.py --check`、9 语同步、`CHANGELOG` |
 | 排查真机连不上 | `docs/agent-host-setup.md` §4 | — |
 | 想知道「这台设备现在能干什么」 | 别读文档，调 `list_capabilities()` | — |

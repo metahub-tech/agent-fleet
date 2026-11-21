@@ -93,6 +93,7 @@ agent-fleet CLI
 - `scripts/gen-docs.py`
 - `scripts/gen_docs.py`
 - `scripts/install-agent-side.py`
+- `scripts/install_skills.py`
 
 ## docs/
 
@@ -102,6 +103,7 @@ agent-fleet CLI
 - `docs/2026-06-21-requirements-from-agenthub-device-op.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
+- `docs/install-for-agents.md`
 - `docs/install-pattern.md`
 - `docs/project-map.md`
 - `docs/roadmap.md`
