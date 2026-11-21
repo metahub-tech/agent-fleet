@@ -99,7 +99,7 @@ if not tools:
 PYEOF
     echo ""
   done
-} > "${TMP}"
+} | tr -d '\r' > "${TMP}"
 
 if [ "${CHECK}" = "1" ]; then
   if ! diff -q "${OUT}" "${TMP}" >/dev/null 2>&1; then
