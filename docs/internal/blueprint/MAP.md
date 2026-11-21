@@ -103,6 +103,7 @@ agent-fleet CLI
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
 - `docs/install-pattern.md`
+- `docs/project-map.md`
 - `docs/roadmap.md`
 - `docs/platforms/` _(各平台 setup guide)_
 

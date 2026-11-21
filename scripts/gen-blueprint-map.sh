@@ -28,7 +28,7 @@ trap 'rm -f "${TMP}"' EXIT
 
   echo "## platforms/"
   echo ""
-  for d in $(ls -d platforms/*/ 2>/dev/null | sort); do
+  for d in $(ls -d platforms/*/ 2>/dev/null | LC_ALL=C sort); do
     p="$(basename "${d}")"
     case "${p}" in
       common|tests) continue ;;
@@ -45,11 +45,11 @@ trap 'rm -f "${TMP}"' EXIT
     for f in "${d}platform.toml" "${d}README.md"; do
       [ -f "${f}" ] && echo "- \`${f}\`"
     done
-    for f in $(ls "${d}server/"*_mcp.py 2>/dev/null | sort); do
+    for f in $(ls "${d}server/"*_mcp.py 2>/dev/null | LC_ALL=C sort); do
       echo "- \`${f}\` _(MCP server 主入口)_"
     done
     if [ -d "${d}skills" ]; then
-      for sd in $(ls -d "${d}skills/"*/ 2>/dev/null | sort); do
+      for sd in $(ls -d "${d}skills/"*/ 2>/dev/null | LC_ALL=C sort); do
         echo "- \`${sd}\` _(skill 文档)_"
       done
     fi
@@ -63,13 +63,13 @@ trap 'rm -f "${TMP}"' EXIT
     echo ""
   fi
   echo "**关键模块**："
-  for f in $(find cli/src -name '*.py' ! -name '__init__.py' 2>/dev/null | sort); do
+  for f in $(find cli/src -name '*.py' ! -name '__init__.py' 2>/dev/null | LC_ALL=C sort); do
     echo "- \`${f}\`"
   done
   echo ""
   if ls cli/src/fleet/guidance/*.yaml >/dev/null 2>&1; then
     echo "**Guidance 资产（CLI 安装向导用的剧本 yaml）**："
-    for f in $(ls cli/src/fleet/guidance/*.yaml 2>/dev/null | sort); do
+    for f in $(ls cli/src/fleet/guidance/*.yaml 2>/dev/null | LC_ALL=C sort); do
       echo "- \`${f}\`"
     done
     echo ""
@@ -78,7 +78,7 @@ trap 'rm -f "${TMP}"' EXIT
   echo "## scripts/"
   echo ""
   echo "**仓库级运维脚本**："
-  for f in $(find scripts -maxdepth 1 \( -name '*.sh' -o -name '*.py' \) 2>/dev/null | sort); do
+  for f in $(find scripts -maxdepth 1 \( -name '*.sh' -o -name '*.py' \) 2>/dev/null | LC_ALL=C sort); do
     desc=$(head -3 "${f}" | grep -m1 '^#[^!]' | sed 's/^#[[:space:]]*//' || true)
     echo "- \`${f}\`${desc:+ — ${desc}}"
   done
@@ -87,7 +87,7 @@ trap 'rm -f "${TMP}"' EXIT
   echo "## docs/"
   echo ""
   echo "**共享设计/上手文档**："
-  for f in $(find docs -maxdepth 1 -name '*.md' 2>/dev/null | sort); do
+  for f in $(find docs -maxdepth 1 -name '*.md' 2>/dev/null | LC_ALL=C sort); do
     echo "- \`${f}\`"
   done
   echo "- \`docs/platforms/\` _(各平台 setup guide)_"
