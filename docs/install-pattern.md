@@ -39,14 +39,14 @@
 | Windows | `powershell -ExecutionPolicy Bypass -File platforms\windows\scripts\setup-windows.ps1` |
 | macOS | `bash platforms/macos/scripts/setup-macos.sh` |
 | Android | `bash platforms/android/scripts/setup-android.sh` |
-| iOS (v0.7 计划) | TBD（host 必须是 macOS）|
+| iOS / iPadOS | `bash platforms/ios/scripts/setup-ios.sh`（host 必须是 macOS）|
 
 setup 脚本做的事大同小异：
 
 1. 检查 / 安装 Tailscale
 2. 检查 / 安装 Python（macOS 通过 brew，Windows 通过 winget）
 3. 在 `platforms/<name>/server/.venv` 建虚拟环境装依赖
-4. 注册自启服务（Windows Task Scheduler / macOS launchd LaunchAgent）
+4. 注册自启服务（Windows Task Scheduler / macOS launchd LaunchAgent / Linux systemd user unit）
 5. 验证端口监听 + 打印**操作员需要在系统设置里点的权限清单**（macOS GUI 测试机绕不过这一步）
 
 详细每平台的细则见 [`docs/platforms/<name>.md`](platforms/)。
@@ -101,27 +101,31 @@ python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
 
 ```
 platforms/<name>/
+├── platform.toml                      # manifest：id / port / host_os / [capabilities].enabled
 ├── README.md                          # 平台速览：差异、工具表、目录布局
 ├── server/
-│   ├── <name>_gui_mcp.py              # MCP server 主文件（FastMCP-based）
-│   ├── requirements.txt               # Python 依赖
+│   ├── <name>_device_mcp.py           # MCP server 主文件（FastMCP-based；如 win_device_mcp.py）
+│   ├── requirements.txt               # Python 依赖（iOS 只留 pyproject.toml，其余平台双声明）
 │   └── pyproject.toml                 # 包元信息
 ├── scripts/
 │   ├── setup-<name>.{sh,ps1}          # 设备端一键安装
-│   ├── _launch-<name>-gui.{sh,ps1}    # 自启脚本（被 launchd / Task Scheduler 调用）
-│   └── diagnose.{sh,ps1}              # 排错脚本（可选；Windows 有，macOS v0.3 暂未补）
+│   ├── _launch-<name>-device.{sh,ps1} # 自启脚本（被 launchd / Task Scheduler 调用；实际名按平台略异）
+│   └── diagnose.ps1                   # 排错脚本（当前仅 Windows 有）
 ├── skills/
-│   └── using-<shortname>/
+│   └── using-<name>/
 │       └── SKILL.md                   # Agent 调用规范（坐标系、权限、长任务、failure 表）
 └── examples/
     └── claude-settings.json           # MCP 客户端配置片段
+
+> 跨平台共享代码在 `platforms/common/`（server 运行时、设备租约、能力框架、上传通道）。
+> 四个平台都实现 **Universal Tool Set**，可选能力（browser / vision / human_dom）由能力框架运行时注入，不在 server 的静态 `@mcp.tool` 里。
 ```
 
 **强约束**：
 
 - 所有平台的工具命名共享 [Universal Tool Set](architecture.md) 公约：`take_screenshot`、`click`、`run_shell` 等同名跨平台
 - 通用 `run_shell` 四平台同名，底层实现按平台不同（Windows 走 PowerShell / macOS 走 zsh / Android 走 adb shell）；平台扩展工具仍保留平台原生名，如 macOS 的 `run_applescript`
-- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-<surface>`：`win-device`、`mac-device`、`android`、`iphone`
+- Agent 操作员 `~/.claude.json` 里的 server 名约定为 `<role>-device`：`win-device`、`mac-device`、`android-device`、`ios-device`
 
 ---
 
@@ -130,7 +134,7 @@ platforms/<name>/
 按这八步从零起手一个新平台桥（以未来要加的 `linux-device` 为虚构示例）：
 
 1. **建骨架**：`mkdir -p platforms/linux/{server,scripts,skills/using-linuxbox,examples}`
-2. **port server**：从最近的平台（macOS 最近）port `<name>_gui_mcp.py`，把平台特定 API 替换掉（pyautogui 在 X11 也能用；`run_shell` 沿用同名，底层由 zsh 改 bash；`run_applescript` 替换为 `run_dbus` / 删除）
+2. **port server**：从最近的平台（macOS 最近）port `<name>_device_mcp.py`（并同步 `platform.toml` 的 id/port/host_os/能力段），把平台特定 API 替换掉（pyautogui 在 X11 也能用；`run_shell` 沿用同名，底层由 zsh 改 bash；`run_applescript` 替换为 `run_dbus` / 删除）
 3. **port setup script**：从 setup-macos.sh 改造，brew 改 apt，launchd 改 systemd
 4. **port skill**：从 using-mac 复制，把 macOS 特定坑（TCC 双 entry / FDA / `osascript` 责任链）替换为 Linux 等价物（X11 vs Wayland 的差异）
 5. **port examples**：claude-settings.json 改 hostname + 端口
