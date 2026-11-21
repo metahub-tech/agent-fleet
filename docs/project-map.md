@@ -208,19 +208,20 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 7 | `docs/architecture.md` Auth「规划中，当前未实现」 | 改为「已实现，默认关闭」（win/mac `--token` / `FLEET_AUTH_TOKEN`，ASGI 网关，`/health` 豁免；android/ios 暂无） |
 | 8 | `docs/roadmap.md` 停在 2026-05-21、只到 0.8.2 | 补齐 **0.8.3–0.8.13 共 11 行** + 版本串说明（v0.8.5–v0.8.13 未 bump `__version__` 的历史事实） |
 | 9 | `README.md:4` / 安装脚本 / 4 个 `pyproject.toml` / `test_smoke` 停在 `v0.8.4-alpha` / `0.8.4a1` | 安装默认目标与 badge 更新到 **`v0.8.13-alpha`**；版本串统一 **`0.8.13a1`**；并写明「每次发 tag 必须 bump 这 6 处 + 测试断言」 |
+| 10 | `docs/install-pattern.md:42,103-118,124` | 旧命名 `*_gui_mcp.py` / `_launch-*-gui`、server 名 `android`/`iphone`、"iOS v0.7 计划 TBD" | 按现行 6 件套重写（`platform.toml` + `*_device_mcp.py` + `_launch-*-device`）、补 `platforms/common/` 与能力框架说明、iOS 改为已发布的 `setup-ios.sh`、server 名统一 `<role>-device` |
 
 ### 9.2 仍待处理
 
 | # | 位置 | 它现在说 | 实际（证据） | 建议 |
 |---|---|---|---|---|
-| 1 | `docs/install-pattern.md:42,106-124` | `*_gui_mcp.py`、server 名 `android`/`iphone`、"iOS v0.7 计划 TBD" | 实际是 `*_device_mcp.py`、`android-device`/`ios-device`、iOS 已发布（0.8.0 起） | 文档 PR：按现行命名重写目录契约与安装表 |
-| 2 | `docs/internal/README.md:11-15` | 内部文档索引只列 `design/ plans/ specs/` | 漏 `blueprint/`；`docs/superpowers/**` 从未被任何索引承认 | 文档 PR：补索引 + 标注两代边界 |
-| 3 | `CHANGELOG.md` | 无 v0.8.5–v0.8.13 的版本段 | 这 21 个 commit 的条目仍堆在 `[Unreleased]`（当时未切段；tag 消息是唯一准的发布说明） | 编辑性 PR：按 tag/PR 号把条目归位，`[Unreleased]` 只留未发版内容 |
-| 4 | `scripts/gen-blueprint-*.sh` | 内嵌 Python 直接 `open()` | 本机 GBK 默认编码下 `UnicodeDecodeError`；需 `PYTHONUTF8=1` 才能跑 | 代码 PR：给 `open()` 显式 `encoding="utf-8"`（CODEOWNERS 钉住这两脚本） |
-| 5 | `CONTRIBUTING.md:113-127` | 每个 commit 必须 `Signed-off-by:` | 最近 40 个 commit 只有 **19** 个带（历史存量） | 纪律：新提交自己 `git commit -s`；不必回改历史 |
-| 6 | `platforms/android/skills/using-android/SKILL.md:8,233` | "30 tools across 10 categories" | 运行时 31（core 30 + `list_capabilities`） | 下次改该 skill 时顺手统一口径（属产品文档，非本 PR） |
+| 1 | `docs/internal/README.md:11-15` | 内部文档索引只列 `design/ plans/ specs/` | 漏 `blueprint/`；`docs/superpowers/**` 从未被任何索引承认 | 文档 PR：补索引 + 标注两代边界 |
+| 2 | `CHANGELOG.md` | 无 v0.8.5–v0.8.13 的版本段 | 这 21 个 commit 的条目仍堆在 `[Unreleased]`（当时未切段；tag 消息是唯一准的发布说明） | 编辑性 PR：按 tag/PR 号把条目归位，`[Unreleased]` 只留未发版内容 |
+| 3 | `scripts/gen-blueprint-*.sh` | 内嵌 Python 直接 `open()` | 本机 GBK 默认编码下 `UnicodeDecodeError`；需 `PYTHONUTF8=1` 才能跑 | 代码 PR：给 `open()` 显式 `encoding="utf-8"`（CODEOWNERS 钉住这两脚本） |
+| 4 | `CONTRIBUTING.md:113-127` | 每个 commit 必须 `Signed-off-by:` | 最近 40 个 commit 只有 **19** 个带（历史存量） | 纪律：新提交自己 `git commit -s`；不必回改历史 |
+| 5 | `platforms/android/skills/using-android/SKILL.md:8,233` | "30 tools across 10 categories" | 运行时 31（core 30 + `list_capabilities`） | 下次改该 skill 时顺手统一口径（属产品文档，非本 PR） |
+| 6 | `README*.md` 状态表 Version 列（9 语） | 各桥写 `0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`（首次发布版本） | 代码/`pyproject.toml` 已统一为 `0.8.13a1` | **需拍板**：改成发布线（9 语同时改）还是保留“首次发布版本”并加一句说明 |
 
-**处置原则**：9.2 的 1/2/3 是文档 → `docs/` 分支 + docs PR 模板，一处一 PR；4 是代码（且被 CODEOWNERS 钉住）→ code PR；5 只影响新提交；6 随下次产品文档改动处理。
+**处置原则**：9.2 的 1/2 是文档 → `docs/` 分支 + docs PR 模板，一处一 PR；3 是代码（且被 CODEOWNERS 钉住）→ code PR；4 只影响新提交；5 随下次产品文档改动处理；6 是口径决策，先问负责人再动 9 个文件。
 
 
 ---

@@ -118,15 +118,16 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 4. `docs/architecture.md` 的 Auth 表述改为「已实现，默认关闭」（win/mac `--token`）。
 5. `gen_docs.py` 增加 `OPT_IN_CAPABILITIES` 与 `human_dom` 计数分支：默认总数不含 opt-in，运行时以 `list_capabilities()` 为准。
 6. `docs/roadmap.md` 补齐 0.8.3–0.8.13；`SNAPSHOT.md` 回填 `base_commit` / 日期。
+7. `docs/install-pattern.md` 的旧命名（`*_gui_mcp.py`、`android`/`iphone`）与「iOS v0.7 计划 TBD」按现行目录契约重写，并补上 `platform.toml` 与 `platforms/common/` 说明。
 
 **仍待处理**（不要顺手改，按 project-map §9.2 分流）：
 
-1. `docs/install-pattern.md` 仍用旧命名（`*_gui_mcp.py`、`android`/`iphone`、"iOS v0.7 TBD"）。
-2. `docs/internal/README.md` 索引缺 `blueprint/`，也没承认 `docs/superpowers/`。
-3. `CHANGELOG.md` 缺 v0.8.5–v0.8.13 版本段（21 个 commit 仍堆在 `[Unreleased]`）。
-4. `scripts/gen-blueprint-*.sh` 内嵌 Python 未显式 `encoding="utf-8"`，非 UTF-8 locale 需 `PYTHONUTF8=1`。
-5. 历史 DCO 合规率仅 19/40（只影响新提交的自我要求）。
-6. `platforms/android/skills/using-android/SKILL.md` 的 "30 tools" 是 core 口径（运行时 31，含 `list_capabilities`）。
+1. `docs/internal/README.md` 索引缺 `blueprint/`，也没承认 `docs/superpowers/`。
+2. `CHANGELOG.md` 缺 v0.8.5–v0.8.13 版本段（21 个 commit 仍堆在 `[Unreleased]`）。
+3. `scripts/gen-blueprint-*.sh` 内嵌 Python 未显式 `encoding="utf-8"`，非 UTF-8 locale 需 `PYTHONUTF8=1`。
+4. 历史 DCO 合规率仅 19/40（只影响新提交的自我要求）。
+5. `platforms/android/skills/using-android/SKILL.md` 的 "30 tools" 是 core 口径（运行时 31，含 `list_capabilities`）。
+6. README 状态表的 Version 列（`0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`）是「各桥首次发布版本」，与当前统一版本串 `0.8.13a1` 不同口径——**要不要改成发布线，需负责人拍板**。
 
 ---
 
