@@ -16,6 +16,8 @@
 > ```bash
 > uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup
 > ```
+>
+> **Handing this to an agent instead of doing it yourself?** Give it [`docs/install-for-agents.md`](docs/install-for-agents.md) — a deterministic playbook that installs the MCP server, links the skills (`using-win` / `using-human-dom` / …) into the agent's own skill directory, provisions the human-browser DOM extension, and hands back only the four steps a human must do (OS permissions, ADB authorization, iOS signing, Tailscale login).
 
 ## What is it
 

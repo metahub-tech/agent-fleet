@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
+- **面向 agent 的安装链路：agent 自己装 MCP + 装 skill + 打通 human_browser 的 DOM 层**
+  - 新增 [`docs/install-for-agents.md`](docs/install-for-agents.md)：确定性执行手册，S0 探测 → S1 装设备桥（四平台，含非交互开关）→ S2 自检（端口 / `/health` / `list_capabilities`）→ S3 装 skill → S4 human_dom provisioning → S5 只交还人类必做的 4 件（macOS TCC / ADB 授权 / iOS 签名 / Tailscale 登录）→ S6 交接话术。
+  - 新增 [`scripts/install_skills.py`](scripts/install_skills.py)：**skill-only** 安装器（不写任何 agent config，因此对 Claude Code / DeepSeek Harness 都适用）。按平台装 `using-win|mac|android|ios` +（win/mac）`using-human-browser` / `using-human-dom` / `using-vision`，`--with-agent-browser` 可选装 Playwright 那套；幂等、符号链接失败自动降级为复制、支持 `--list` / `--dry-run` / `--target` / `--mode`。
+  - 把 human_dom 的真实启用链路固化成文档事实：**① host 级 marker（`~/.fleet/human-dom-ready`）决定 `human_dom_*` 注不注册 → ② `human_browser_open(profile=专用 profile)` 一步 auto-bake 副本 + CDP `Extensions.loadUnpacked` 自动装扩展**；同时写明两个反直觉点——**空 profile（日常默认 Chrome）不会自动装扩展**（只能人工 Load unpacked），**新专用 profile 首次可能弹一次「本地网络访问」需点允许**。
+  - `README.md`（en）与 `README.zh-CN.md` 增加「交给 agent 装」入口；`docs/install-pattern.md` 顶部标注「agent 读 install-for-agents.md」。其余 7 语 README 待同步（本 PR 显式列出：de / es / fr / ja / ko / pt-BR / ru）。
+
 - **项目初始化资产（纯文档，不改代码/契约）**：新增根 [`AGENTS.md`](AGENTS.md)（agent 常驻指令：事实真源顺序 / 12 条硬约束 / 验证矩阵 / 已知漂移 / 10 个高频坑 / 本会话 live 设备约束）、[`docs/project-map.md`](docs/project-map.md)（操作层地图：运行时拓扑与端口 · 代码地图 · 能力框架与工具计数口径 · 三条关键数据流 · 三条安装路径 · 本机可跑的验证矩阵 · 文档生成与 CI 门禁 · 13 条漂移登记 · 任务配方）、`.dsh/skills/project-init/SKILL.md`（DSH 项目级技能：按「文件 → 生成物 → 运行时」重建认知并出报告，可重复执行）。
   - 三份资产同源于对 `aa6628b` 的实测核对，并把核对结论固化成「漂移登记」：`python3 scripts/gen_docs.py --check` 在 main 上 exit 1（README win 74 / mac 73 vs AST 75 / 74）；`hover_preview` 自 #75 起从未进入任何工具表（含 `INTERFACE.md`，故 `blueprint-check` 第二步应红）；`gen_docs.py` 的 `capability_tool_count()` 缺 `human_dom` 分支（恒算 0）；`ONBOARDING.md` 四个工具数全错（android 26 / ios 27 硬错）；`SNAPSHOT.base_commit` 落后 35 个 commit。
   - 定位说明：`AGENTS.md` 只放跨任务稳定的约束与指针，结构性内容仍由 `MAP.md` / `INTERFACE.md` 生成器维护，避免再造一份会漂移的手写全貌文档。
