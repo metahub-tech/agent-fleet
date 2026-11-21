@@ -14,7 +14,7 @@ from .detect import detect_os, detect_tailscale, detect_uv
 from .frameworks import FRAMEWORK_REGISTRY
 from .frameworks.base import ServerRoleEntry
 from .installers import filter_for_os
-from .skills import install_skills, skill_targets
+from .skills import install_to, plan_skills, write_handoff
 from .types import ServerRole
 from .wizard import build_install_context, render_install_summary
 
@@ -103,37 +103,60 @@ def _print_framework_snippets(frameworks, server_roles):
             console.print(f"[cyan]CLI alternative:[/cyan]\n{fw.cli_alternative()}\n")
 
 
-def _maybe_install_skills(frameworks, server_roles, ctx, dry_run: bool) -> None:
-    """Install the device/browser skills into the selected client's skill directory.
+def _skills_step(server_roles, ctx, args) -> None:
+    """Hand the resolved skills off to the agent, or place them where told.
 
-    Skipped silently when no selected client loads skills from disk; failed
-    verifications never reach here (their roles are excluded from `deployed`).
+    The wizard does not enumerate agent frameworks: it writes
+    ``~/.fleet/skills-handoff.{md,json}`` describing *what* to make available and
+    lets the agent place them according to its own harness. ``--skills-target``
+    asks the wizard to place them itself.
     """
-    targets = skill_targets(frameworks)
+    if getattr(args, "no_skills", False):
+        return
     platform_ids = [r.role_id for r in server_roles]
-    if not targets:
-        if frameworks:
-            console.print(
-                "\n[dim]The selected client(s) have no skill directory. If your agent loads skills "
-                "from disk, run: python3 scripts/install_skills.py --platform <role> --target <dir>[/dim]"
-            )
-        return
     if not platform_ids:
-        console.print("\n[dim]No verified role — skipping skill install.[/dim]")
         return
-    for target in targets:
-        if dry_run:
+
+    plan = plan_skills(ctx.repo_root, platform_ids)
+    if plan.get("error"):
+        # e.g. the wizard was started outside a repo checkout, or the script was
+        # removed — never write a handoff we cannot back with real source paths.
+        console.print(f"\n[yellow]Skills plan unavailable ({plan['error']}); skipping handoff.[/yellow]")
+        return
+    if not plan.get("skills"):
+        return
+
+    target = getattr(args, "skills_target", None)
+    if target:
+        if getattr(args, "dry_run", False):
             console.print(
-                f"[dim]↪ would install skills for {', '.join(platform_ids)} into {target} (dry-run)[/dim]"
+                f"[dim]↪ would place {len(plan.get('skills', []))} skill(s) into {target} (dry-run)[/dim]"
             )
-            continue
-        if not questionary.confirm(f"Install agent-fleet skills into {target}?", default=True).ask():
-            continue
-        for platform_id, rc, output in install_skills(ctx.repo_root, platform_ids, target):
-            if rc == 0:
-                console.print(f"  [green]✓[/green] skills for {platform_id} → {target}")
-            else:
-                console.print(f"  [red]✗[/red] skills for {platform_id} failed (exit {rc}):\n{output}")
+        else:
+            for platform_id, rc, output in install_to(
+                ctx.repo_root, platform_ids, target, dry_run=False
+            ):
+                if rc == 0:
+                    console.print(f"  [green]✓[/green] skills for {platform_id} → {target}")
+                else:
+                    console.print(f"  [red]✗[/red] skills for {platform_id} failed (exit {rc}):\n{output}")
+
+    if getattr(args, "dry_run", False):
+        console.print("[dim]↪ would write ~/.fleet/skills-handoff.md + .json (dry-run)[/dim]")
+        return
+
+    md_path, json_path = write_handoff(plan)
+    names = ", ".join(s["name"] for s in plan.get("skills", [])) or "(none)"
+    console.print(
+        Panel(
+            "把下列 skill 放进**你自己加载技能的位置**，然后重启会话（agent-fleet 不枚举 harness，放哪儿按你的约定）：\n"
+            f"[bold]{names}[/bold]\n\n"
+            f"详细交接（含每个 skill 的绝对路径）：{md_path}\n"
+            f"机器可读：{json_path}",
+            title="🧠 Skills handoff → 交给你的 agent",
+            border_style="cyan",
+        )
+    )
 
 
 def _run_install(roles, ctx):
@@ -355,8 +378,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
             _run_smoke_tests(deployed_installers, "127.0.0.1")
 
     frameworks = _select_frameworks()
-    if frameworks and not args.no_skills:
-        _maybe_install_skills(frameworks, deployed, ctx, args.dry_run)
+    _skills_step(deployed, ctx, args)
     if frameworks:
         _print_framework_snippets(frameworks, deployed)
     else:
@@ -378,9 +400,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_setup = sub.add_parser("setup", help="Run the interactive setup wizard")
     p_setup.add_argument("--dry-run", action="store_true", help="Show actions without writing")
     p_setup.add_argument(
+        "--skills-target",
+        metavar="DIR",
+        help="Place the device skills into DIR yourself (skipped: the wizard only writes the handoff)",
+    )
+    p_setup.add_argument(
         "--no-skills",
         action="store_true",
-        help="Do not install agent-fleet skills into the selected client's skill directory",
+        help="Do not resolve skills or write the ~/.fleet/skills-handoff.* files",
     )
     p_setup.set_defaults(func=cmd_setup)
     return parser

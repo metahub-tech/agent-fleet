@@ -17,10 +17,6 @@ class BaseFrameworkConfig(ABC):
     display_name: str = ""
     config_format: Literal["json", "yaml"] = "json"
     config_path_template: str = ""   # ~/.foo/bar.json
-    # Directory this client loads agent skills from, when it supports on-disk
-    # skills (Claude Code, DeepSeek Harness, ...). None = no skill directory:
-    # the wizard then prints the manual `scripts/install_skills.py` command.
-    skills_dir: Optional[str] = None
 
     @abstractmethod
     def render_entry(self, role: ServerRole) -> dict:

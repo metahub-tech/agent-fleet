@@ -28,6 +28,7 @@ real copy (re-run with --force after pulling to refresh a copy).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -120,6 +121,8 @@ def main() -> int:
                     help="also install using-fleet-browser (Playwright-backed, automation traces)")
     ap.add_argument("--list", action="store_true", help="print the install plan and exit")
     ap.add_argument("--dry-run", action="store_true", help="print what would change without writing")
+    ap.add_argument("--json", action="store_true",
+                    help="print the resolved plan as JSON (no writes); for tooling such as the setup wizard")
     args = ap.parse_args()
 
     if args.list:
@@ -135,14 +138,24 @@ def main() -> int:
     target = Path(args.target).expanduser() if args.target else default_target()
     items = plan(args.platform, args.with_agent_browser)
 
-    print(f"platform : {args.platform}")
-    print(f"target   : {target}")
-    print(f"mode     : {args.mode}{' (dry-run)' if args.dry_run else ''}")
-
     missing = [name for name, src in items if not src.is_dir()]
     if missing:
         print(f"ERROR: missing skill source(s): {', '.join(missing)}", file=sys.stderr)
         return 2
+
+    if args.json:
+        print(json.dumps({
+            "platform": args.platform,
+            "repo_root": str(REPO_ROOT),
+            "target": str(target),
+            "mode": args.mode,
+            "skills": [{"name": name, "source": str(src)} for name, src in items],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"platform : {args.platform}")
+    print(f"target   : {target}")
+    print(f"mode     : {args.mode}{' (dry-run)' if args.dry_run else ''}")
 
     if args.dry_run:
         for name, src in items:

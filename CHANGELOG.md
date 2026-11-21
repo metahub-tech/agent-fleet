@@ -52,12 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 新增
 
-- **`agent-fleet setup` 收尾自动装 skill（补齐「交给 agent 就装好」的最后一公里）**：向导在生成配置片段前，对**支持磁盘技能目录**的客户端（当前 Claude Code → `~/.claude/skills`）询问并调用 `scripts/install_skills.py`，把该角色的 `using-<device>` 与 `using-human-browser` / `using-human-dom` / `using-vision` 装进客户端技能目录。
-  - 新增 `cli/src/fleet/skills.py`：复用仓库里的 `scripts/install_skills.py`（不复制 skill 布局规则），逐角色调用、返回 `(role, rc, output)`；`skills_dir` 由框架声明，没有技能目录的客户端（Cursor / Cline / OpenClaw / Antigravity / Hermes）不写文件、只打印手动命令。
-  - `frameworks/base.py` 新增 `skills_dir` 声明，`frameworks/claude_code.py` 设为 `~/.claude/skills`。
-  - `agent-fleet setup` 新增 `--no-skills`（跳过技能安装）；`--dry-run` 只打印计划、不提问不写盘。
+- **`agent-fleet setup` 收尾交接 skill（不枚举客户端）**：harness 及其技能目录是**穷举不完**的，向导不再猜「你用的是哪个框架、技能放哪」，而是在生成配置片段前产出一份**交接物**：`~/.fleet/skills-handoff.md` / `.json`，说明该角色的 skill 清单、每个的**绝对源路径**，以及落地指令「放进**你自己**加载技能的位置，然后重启会话」。放哪儿由 agent 按自己的 harness 约定完成（Claude Code `~/.claude/skills/`、DeepSeek Harness `~/.dsh/skills/`，其它按各自文档或直接读 `SKILL.md`）。
+  - 新增 `cli/src/fleet/skills.py`：`plan_skills()` 通过 `scripts/install_skills.py --json`（新增的只读计划输出）解析每个角色的 skill 集并跨角色合并；`handoff_markdown()` / `write_handoff()` 生成人读 + 机器读两份交接；`install_to()` 仅在显式 `--skills-target` 时代为放置。
+  - `agent-fleet setup` 新增 `--skills-target <dir>`（代放）与 `--no-skills`（跳过交接）；`--dry-run` 只打印计划、不写盘。
+  - `scripts/install_skills.py` 新增 `--json`（只读计划，供向导与其他工具消费）。
   - `scripts/install-agent-side.py` 补上 `ios-device`（此前 iOS 那行被注释掉，agent 端装不了 iOS 技能）。
-  - 文档同步：`docs/install-for-agents.md` S3、`docs/install-pattern.md` §3、`cli/README.md`。
+  - 文档同步：`docs/install-for-agents.md` S3、`docs/install-pattern.md` §3、`cli/README.md`、`AGENTS.md`、`docs/project-map.md`。
 
 - **面向 agent 的安装链路：agent 自己装 MCP + 装 skill + 打通 human_browser 的 DOM 层**
   - 新增 [`docs/install-for-agents.md`](docs/install-for-agents.md)：确定性执行手册，S0 探测 → S1 装设备桥（四平台，含非交互开关）→ S2 自检（端口 / `/health` / `list_capabilities`）→ S3 装 skill → S4 human_dom provisioning → S5 只交还人类必做的 4 件（macOS TCC / ADB 授权 / iOS 签名 / Tailscale 登录）→ S6 交接话术。
