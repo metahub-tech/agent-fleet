@@ -39,8 +39,7 @@ PLATFORMS = {
     "win-device":   {"dir": "windows", "skill": "using-win",   "port": 8766},
     "mac-device":  {"dir": "macos",   "skill": "using-mac",  "port": 8767},
     "android-device": {"dir": "android", "skill": "using-android", "port": 8768},
-    # Future entries land here as platforms ship.
-    # "iphone":   {"dir": "ios",     "skill": "using-iphone",  "port": 8769},
+    "ios-device":   {"dir": "ios",     "skill": "using-ios",   "port": 8769},
 }
 
 

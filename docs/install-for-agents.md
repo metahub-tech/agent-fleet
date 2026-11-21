@@ -165,7 +165,9 @@ list_capabilities()  → {"capabilities":[{id:"core", status:"enabled", tools:[.
 
 ## S3 · 装 skill（让未来的你会用这台设备）
 
-**一条命令**（跨平台、幂等；`--platform` 决定装哪一套）：
+**如果你走的是 `agent-fleet setup` 向导**：装完 server、验完工具后，它会问一句「把 skill 装进 `<客户端自己的技能目录>`？」，默认 Yes，直接调用下面的脚本；不想装就加 `--no-skills`，只想看计划就用 `--dry-run`。只有**支持磁盘技能目录**的客户端会被问（Claude Code → `~/.claude/skills`）；Cursor / Cline 这类没有技能目录的客户端会打印手动命令。
+
+**手动或 agent 自主安装**（跨平台、幂等；`--platform` 决定装哪一套）：
 
 ```bash
 python3 scripts/install_skills.py --platform win-device     # 或 mac-device / android-device / ios-device

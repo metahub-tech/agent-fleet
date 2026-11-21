@@ -67,6 +67,7 @@ agent-fleet CLI
 - `cli/src/fleet/installers/_manifest_installer.py`
 - `cli/src/fleet/installers/base.py`
 - `cli/src/fleet/macos_perm.py`
+- `cli/src/fleet/skills.py`
 - `cli/src/fleet/smoke.py`
 - `cli/src/fleet/types.py`
 - `cli/src/fleet/verify.py`
