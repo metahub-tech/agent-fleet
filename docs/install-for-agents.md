@@ -165,7 +165,12 @@ list_capabilities()  → {"capabilities":[{id:"core", status:"enabled", tools:[.
 
 ## S3 · 装 skill（让未来的你会用这台设备）
 
-**如果你走的是 `agent-fleet setup` 向导**：装完 server、验完工具后，它会问一句「把 skill 装进 `<客户端自己的技能目录>`？」，默认 Yes，直接调用下面的脚本；不想装就加 `--no-skills`，只想看计划就用 `--dry-run`。只有**支持磁盘技能目录**的客户端会被问（Claude Code → `~/.claude/skills`）；Cursor / Cline 这类没有技能目录的客户端会打印手动命令。
+**如果你走的是 `agent-fleet setup` 向导**：装完 server、验完工具后，它**不猜你用的是哪个客户端**（harness 枚举不完），而是写一份交接物并在屏幕上提示：
+
+- `~/.fleet/skills-handoff.md` / `.json`：列清要哪些 skill、每个的**绝对源路径**，以及一句指令 —— 「放进**你自己**加载技能的位置，然后重启会话」。落地由 agent 按自己的 harness 约定完成（Claude Code `~/.claude/skills/`、DeepSeek Harness `~/.dsh/skills/`，其它按各自文档或直接读 `SKILL.md`）。
+- 想让它**代劳**：`agent-fleet setup --skills-target <dir>`。
+- 不想生成交接物：`--no-skills`；只想看计划不写盘：`--dry-run`。
+
 
 **手动或 agent 自主安装**（跨平台、幂等；`--platform` 决定装哪一套）：
 

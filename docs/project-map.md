@@ -70,7 +70,7 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 | `platforms/common/capabilities/` | **能力模块框架**（core / agent_browser / human_browser / human_dom / vision） | `_base.py` 定义注册与启用优先级；`setup()` 先激活模块再注册 `list_capabilities()` |
 | `platforms/<name>/scripts/` | 设备端安装/启动/排错脚本 | `setup-*.{ps1,sh}`、`_launch-*`、`diagnose.ps1`（仅 Windows） |
 | `platforms/<name>/skills/using-*/SKILL.md` | **给调用方 agent 用的**平台操作规范 | 这些是产品资产，不是 DSH 会话技能；措辞/坐标/失败表都在这里 |
-| `cli/src/fleet/` | `agent-fleet setup` 向导 | `wizard.py` 流程、`installers/`（按 manifest 装）、`frameworks/`（6 种 agent 配置输出 + `skills_dir` 声明）、`guidance/*.yaml`（权限引导剧本）、`skills.py`（收尾调用 `scripts/install_skills.py`）、`verify.py`/`smoke.py` |
+| `cli/src/fleet/` | `agent-fleet setup` 向导 | `wizard.py` 流程、`installers/`（按 manifest 装）、`frameworks/`（6 种 agent 配置输出 + `skills_dir` 声明）、`guidance/*.yaml`（权限引导剧本）、`skills.py`（收尾生成 skills 交接物 + 可选 `--skills-target` 代放）、`verify.py`/`smoke.py` |
 | `scripts/` | 仓库级生成器与门禁 | `gen_docs.py`（活的，`--check`/`--write`）、`gen-docs.py`（同名旧物，别动）、`gen-blueprint-{map,interface}.sh`、`check-blueprint-refs.sh`、`check-ps-syntax.sh`、`install-agent-side.py`（老的 agent 端安装路径）、`install_skills.py`（只装 skill，不碰 config） |
 | `docs/internal/blueprint/` | 自动生成 + ADR 的全貌册 | **只读**；改动由生成器和人共同维护，CODEOWNERS 钉住 |
 | `docs/internal/{design,plans,specs}/` | 内部设计留档 | append-only 历史，**不做同步维护**，与新代码不一致属正常 |

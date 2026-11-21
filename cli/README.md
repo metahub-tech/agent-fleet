@@ -47,7 +47,7 @@ The wizard will guide you through:
 
 `setup` accepts `--dry-run` to preview actions without writing anything.
 
-It also installs the device skills by default: after the server is verified, the wizard asks whether to run `scripts/install_skills.py` against the selected client's skill directory (Claude Code → `~/.claude/skills`). Pass `--no-skills` to skip that step. Clients without an on-disk skill directory (Cursor, Cline, …) get the manual command printed instead.
+It also resolves the device skills and hands them off instead of guessing your client: after the server is verified, the wizard writes `~/.fleet/skills-handoff.md` / `.json` (which skills, absolute source paths, and the instruction "place these where your agent loads skills from, then restart the session"). Pass `--skills-target <dir>` to have the wizard place them itself, or `--no-skills` to skip the handoff entirely.
 
 ## Development / running tests
 

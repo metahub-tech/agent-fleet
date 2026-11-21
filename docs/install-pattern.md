@@ -67,7 +67,7 @@ cd ~/code/agent-fleet    # 或你 clone 的位置
 python3 scripts/install-agent-side.py --platform mac-device --hostname mac-test
 ```
 
-脚本会原子地做三件事（**2026-11 起 `agent-fleet setup` 也会在收尾时自动装 skill**：对支持磁盘技能目录的客户端询问后调用 `scripts/install_skills.py`，`--no-skills` 可跳过；本脚本的软链行为保留，并已补上 `ios-device`）：
+脚本会原子地做三件事（**2026-11 起 `agent-fleet setup` 会在收尾写一份 skills 交接物**：`~/.fleet/skills-handoff.md` / `.json`，说明要哪些 skill、源路径在哪、由 agent 按自己的 harness 放置；`--skills-target` 可让它代劳，`--no-skills` 可跳过。本脚本的软链行为保留，并已补上 `ios-device`）：
 
 1. **备份** `~/.claude.json` → `~/.claude.json.bak-<timestamp>`
 2. **merge MCP 条目**到 `mcpServers` 段（不影响其他已存在的 MCP server）：
