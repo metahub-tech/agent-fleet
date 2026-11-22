@@ -203,6 +203,10 @@ class DeviceStateRegistry:
                     name=existing.name,
                     acquired_at=existing.acquired_at,
                     last_used_at=self._now(),
+                    # MUST preserve the binding: win/mac wrap every tool with @with_touch,
+                    # and dropping session_id here demoted the lease to "sessionless"
+                    # -> the gate then failed open for other sessions (found on canary).
+                    session_id=existing.session_id,
                 )
 
     def status(self, serial: str) -> dict:
