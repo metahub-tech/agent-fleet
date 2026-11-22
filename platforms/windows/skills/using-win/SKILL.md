@@ -81,9 +81,9 @@ list_sessions()                                          # see all started_proce
 
 Don't use `start_search` to look up content of a single known file -- use `read_file` directly.
 
-### Multi-agent coordination (advisory)
+### Multi-agent coordination (enforced, session-bound)
 
-Tools work for everyone regardless of who claims the device, but `get_status` reports the current holder. In shared setups, follow this etiquette:
+The lease is **enforced and bound to your MCP session**: once a session holds the device, other sessions' device calls are refused with `{ok: false, reason: "device_leased", current_holder, auto_release_in_seconds}`. `acquire` / `release` / `get_status` / discovery tools stay callable by anyone. In shared setups, follow this etiquette:
 
 ```
 get_status                                          # see who has it
@@ -92,7 +92,7 @@ acquire(holder_name="agent-A")                      # claim
 release(holder_name="agent-A")                      # explicit release
 ```
 
-Holder auto-clears after **10 minutes** of no tool activity. Skip acquire/release for one-off single-tool calls (overhead not worth it for a single screenshot).
+Holder auto-clears after **10 minutes** of no device activity; every allowed device call (including browser / vision / human_dom) renews it. Reconnected with a new MCP session? Re-run `acquire` with the same `holder_name` to re-bind. When nobody holds the device you can call tools without acquiring; acquire before a multi-step session so others back off.
 
 ## Common failures and recovery
 

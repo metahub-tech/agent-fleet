@@ -121,7 +121,7 @@ win-device  [http]  connected
 | Android v0.7+ | `acquire` | `release` | `get_status` |
 | iOS v0.8+ | `acquire` | `release` | `get_status` |
 
-10 分钟无活动会自动 release。详见各平台 setup 文档的状态管理章节。
+租约是**强制**的，并绑定到 MCP session：有持有者时只有持有它的 session 能操作设备，其它 session 会收到 `{ok: false, reason: "device_leased", auto_release_in_seconds, ...}`；每次设备调用自动续租，**10 分钟无任何设备调用**才自动 release。详见各平台 setup 文档的状态管理章节。
 
 ### 3.4 一行命令装 MCP + skill
 

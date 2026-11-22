@@ -206,6 +206,6 @@ python3 scripts/install-agent-side.py --platform linux-device --hostname linux-t
 | `/mcp` 显示 connected 但调工具 hang | 设备端权限没批（macOS 辅助功能 / 屏幕录制；Windows 桌面会话锁屏）|
 | Tool 返回 "schema not loaded" | 重启 Claude Code；新加的 MCP server 必须在启动时被加载 |
 | Tool 都好，agent 不知道怎么用 | skill 没装上；运行 `ls -la ~/.claude/skills/`，应看到 `using-<name>` 软链 |
-| 看不到当前 holder 是谁 | `acquire_<role>(holder_name="...")` 是 advisory 模型，工具仍能调用；用 `get_<role>_status` 查谁占着 |
+| 工具被拒 `device_leased` | 设备租约是**强制**的（绑定 MCP session）：用 `get_<role>_status` 查持有者，等 `auto_release_in_seconds` 或让对方 release；自己重连后用同 `holder_name` 再 `acquire` 重绑 |
 
 平台特定排错见对应 `docs/platforms/<name>.md § 7`。

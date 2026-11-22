@@ -118,7 +118,7 @@ acquire(holder_name="agent-A")               # claim
 release(holder_name="agent-A")               # explicit release
 ```
 
-10-minute idle auto-release. Advisory only — tools still work for others.
+10-minute idle auto-release. The lease is **enforced and bound to your MCP session**: other sessions' device calls are refused with `device_leased`; every device call auto-renews it.
 
 ### Multi-device: device param
 
@@ -136,7 +136,7 @@ Aliases are auto-derived from Apple's `ProductType` (e.g. `iPad15,7` → `apple-
 
 | Category | Tools | Notes |
 |---|---|---|
-| Device / session state | `acquire` / `release` / `get_status` | Per-device advisory holder lock |
+| Device / session state | `acquire` / `release` / `get_status` | Per-device enforced holder lock (session-bound) |
 | Session default | `set_default_device` / `get_default_device` | MCP session-scoped sticky default |
 | Device list | `list_devices` | udid, alias, model, OS version, in_use |
 | Screen | `take_screenshot` / `get_screen_size` | Points (WDA coordinate space), PNG |

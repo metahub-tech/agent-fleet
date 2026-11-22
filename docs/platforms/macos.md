@@ -348,7 +348,7 @@ Agent A: ... 干活 ...
 Agent A: release(holder_name="...")      # 显式释放
 ```
 
-10 分钟无活动自动 release。
+10 分钟无活动自动 release。租约是**强制**的：有持有者时只有持有它的 MCP session 能调用设备工具，其它 session 收到 `device_leased` 拒绝；每次设备调用（含 browser / vision / human_dom）都会自动续租。
 
 ---
 
