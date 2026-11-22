@@ -94,9 +94,13 @@ def _denial_result(payload: dict):
     text = json.dumps(payload, ensure_ascii=False)
     if ToolResult is None or TextContent is None:  # pragma: no cover - stripped test env
         raise RuntimeError(text)
-    # NOTE: fastmcp 3.2.x ToolResult has no `is_error` kwarg (3.4.x has it, default False).
-    # Omitting it keeps the denial a normal (non-error) result on both.
-    return ToolResult(content=[TextContent(type="text", text=text)])
+    # - structured_content: FastMCP validates tool output against the tool's declared
+    #   outputSchema (these tools return dict), so a text-only result is rejected with
+    #   "outputSchema defined but no structured output returned".
+    # - no `is_error` kwarg: fastmcp 3.2.x does not accept it (3.4.x defaults it False).
+    # Never raise from this helper: an exception inside on_call_tool makes FastMCP
+    # FAIL OPEN and run the tool (observed on the canary build).
+    return ToolResult(content=[TextContent(type="text", text=text)], structured_content=payload)
 
 
 class LeaseGate(Middleware):
