@@ -58,6 +58,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common")
 
 from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
 from _device_state import DeviceStateRegistry
+from _lease_gate import LeaseGate, ctx_session_id
 from _manifest import load_manifest
 from capabilities import (
     CapabilityRegistry,
@@ -431,9 +432,9 @@ def acquire(
     ] = "anonymous",
     ctx: Context = None,
 ) -> dict:
-    """Claim exclusive use of an Android device. Advisory only — tools still work for others."""
+    """Claim exclusive use of an Android device. Enforced per MCP session: only the acquiring session may use the device; your calls auto-renew it. Re-acquire to re-bind after a reconnect."""
     serial = _resolve_device(device, _get_session_default(ctx))
-    result = _state_registry.acquire(serial, holder_name)
+    result = _state_registry.acquire(serial, holder_name, ctx_session_id(ctx))
     result["device"] = serial
     return result
 
@@ -452,7 +453,7 @@ def release(
 ) -> dict:
     """Release the exclusive-use claim. Only the current holder can release."""
     serial = _resolve_device(device, _get_session_default(ctx))
-    result = _state_registry.release(serial, holder_name)
+    result = _state_registry.release(serial, holder_name, ctx_session_id(ctx))
     result["device"] = serial
     return result
 
@@ -1519,6 +1520,18 @@ _cap_registry.setup(mcp, _enabled_caps)
 #                       ENTRY POINT
 # ============================================================
 
+def _lease_serial_for(mw_context, arguments: dict) -> Optional[str]:
+    """Resolve which device a tool call targets, for the lease gate (None = unknown)."""
+    try:
+        return _resolve_device(
+            (arguments or {}).get("device"),
+            _get_session_default(getattr(mw_context, "fastmcp_context", None)),
+        )
+    except Exception:
+        # ambiguous / not detected: let the tool itself report the precise error
+        return None
+
+
 if __name__ == "__main__":
     # Line-buffer stdout/stderr so startup banner + status lines flush into
     # redirected log files in real time (block-buffered default would only
@@ -1552,4 +1565,5 @@ if __name__ == "__main__":
     print(f"  transport = http (streamable) on 0.0.0.0:8768/mcp")
     # 清掉上次残留的后台上传子进程 + 暂存临时文件（孤儿清场）
     up.reap_orphans()
+    mcp.add_middleware(LeaseGate(_state_registry, serial_for=_lease_serial_for))
     mcp.run(transport="http", host="0.0.0.0", port=8768)

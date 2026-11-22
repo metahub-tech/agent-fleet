@@ -146,9 +146,9 @@ run_applescript("tell application \"System Events\" to get name of every window 
 
 If the app is unsigned and HAS a quarantine xattr, `open` will be blocked by Gatekeeper. Either remove the xattr (above) or `spctl --add /path/to/Foo.app`. For repeat-use test machines, removing quarantine once is fine; for prod-user simulation, leave it on to verify the dialog works.
 
-### Multi-agent coordination (advisory)
+### Multi-agent coordination (enforced, session-bound)
 
-Tools work for everyone regardless of who claims the device, but `get_status` reports the current holder:
+The lease is **enforced and bound to your MCP session**: once a session holds the device, other sessions' device calls are refused with `{ok: false, reason: "device_leased", current_holder, auto_release_in_seconds}`. `acquire` / `release` / `get_status` / discovery tools stay callable by anyone.
 
 ```
 get_status                                          # see who has it
@@ -157,7 +157,7 @@ acquire(holder_name="agent-A")                      # claim
 release(holder_name="agent-A")                      # explicit release
 ```
 
-Holder auto-clears after 10 minutes of no tool activity. Skip acquire/release for one-off single-tool calls.
+Holder auto-clears after **10 minutes** of no device activity; every allowed device call (including browser / vision / human_dom) renews it. Reconnected with a new MCP session? Re-run `acquire` with the same `holder_name` to re-bind. When nobody holds the device you can call tools without acquiring; acquire before a multi-step session so others back off.
 
 ## macOS-specific failures and recovery
 

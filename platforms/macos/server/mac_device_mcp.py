@@ -45,7 +45,7 @@ import pyperclip
 from PIL import ImageGrab
 from pydantic import Field
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
@@ -55,6 +55,7 @@ import _server_runtime
 from _capture_geom import resize_to_tap_space  # 截图→tap 空间归一(单一实现, spec §4.2)
 from mac_dpi import read_scale_factor          # 主屏 backingScaleFactor(仅自检/上报)
 from _device_state import DeviceStateRegistry
+from _lease_gate import LeaseGate, ctx_session_id
 from _manifest import load_manifest
 from capabilities import (
     AgentBrowserCapability,
@@ -112,14 +113,17 @@ def acquire(
         str,
         Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')"),
     ] = "anonymous",
+    ctx: Context = None,
 ) -> dict:
     """Claim exclusive use of this Mac test machine.
 
-    Advisory: tools still work for everyone, but get_status will show
-    your name as the active holder. Use as a polite signal in multi-agent
-    setups so others know the box is busy.
+    Enforced: once you hold the lease, **only your MCP session** may use this
+    machine. Other sessions receive ``{ok: false, reason: "device_leased"}``
+    until you release it or 10 idle minutes pass. Your own calls auto-renew the
+    lease (including browser / vision / human_dom tools). Re-acquiring with the
+    same holder_name re-binds the lease after a reconnect.
     """
-    return _state_registry.acquire(_SERIAL, holder_name)
+    return _state_registry.acquire(_SERIAL, holder_name, ctx_session_id(ctx))
 
 
 @mcp.tool
@@ -128,9 +132,10 @@ def release(
         str,
         Field(description="Must match the holder_name used in acquire"),
     ] = "anonymous",
+    ctx: Context = None,
 ) -> dict:
-    """Release the exclusive-use claim. Only the current holder can release."""
-    return _state_registry.release(_SERIAL, holder_name)
+    """Release the exclusive-use claim. Only the holder's session can release."""
+    return _state_registry.release(_SERIAL, holder_name, ctx_session_id(ctx))
 
 
 @mcp.tool
@@ -1186,6 +1191,7 @@ def main() -> None:
     # token="")在 LAN 上裸奔。MCP server 仍按 --host 绑（默认 0.0.0.0）。
     run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=_bridge_port)
     print(f"[human_dom] bridge on 127.0.0.1:{_bridge_port}", file=sys.stderr)
+    mcp.add_middleware(LeaseGate(_state_registry, serial_for=lambda _ctx, _args: _SERIAL))
     _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767, args=_server_args)
 
 

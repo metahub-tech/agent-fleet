@@ -1,4 +1,14 @@
-"""Per-device advisory holder registry — thread-safe, no IO."""
+"""Per-device holder registry with session-bound, enforced leases — thread-safe, no IO.
+
+Semantics (enforced by `_lease_gate.LeaseGate` on every device-touching tool):
+
+* a device with **no holder** is free — any session may use it;
+* once a session acquires a lease, **only that session** may use the device;
+  other sessions get a structured denial instead of silently sharing the mouse;
+* every allowed call refreshes ``last_used_at`` (**auto-renew**), including
+  capability tools such as browser / human_dom / vision;
+* 10 idle minutes release the lease lazily (no background thread).
+"""
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -12,6 +22,7 @@ class Holder:
     name: str
     acquired_at: datetime
     last_used_at: datetime
+    session_id: Optional[str] = None   # MCP session that acquired it (enforcement key)
 
 
 def _default_clock() -> datetime:
@@ -62,8 +73,13 @@ class DeviceStateRegistry:
     # Public API
     # ------------------------------------------------------------------
 
-    def acquire(self, serial: str, holder_name: str) -> dict:
-        """Try to claim `serial` for `holder_name`."""
+    def acquire(self, serial: str, holder_name: str, session_id: Optional[str] = None) -> dict:
+        """Try to claim `serial` for `holder_name` (bound to `session_id` when given).
+
+        Re-acquiring with the same holder name is idempotent and **re-binds** the
+        lease to the caller's session, so an agent that reconnected (new MCP
+        session) recovers its own lease instead of being locked out.
+        """
         if not serial:
             raise ValueError("serial must not be empty")
         with self._lock:
@@ -75,6 +91,7 @@ class DeviceStateRegistry:
                     name=holder_name,
                     acquired_at=now,
                     last_used_at=now,
+                    session_id=session_id,
                 )
                 return {"acquired": True, "holder": holder_name}
             if existing.name == holder_name:
@@ -83,6 +100,7 @@ class DeviceStateRegistry:
                     name=existing.name,
                     acquired_at=existing.acquired_at,
                     last_used_at=now,
+                    session_id=session_id if session_id is not None else existing.session_id,
                 )
                 return {"acquired": True, "holder": holder_name, "note": "already yours"}
             idle = int((now - existing.last_used_at).total_seconds())
@@ -96,8 +114,12 @@ class DeviceStateRegistry:
                 ),
             }
 
-    def release(self, serial: str, holder_name: str) -> dict:
-        """Release the claim if held by `holder_name`."""
+    def release(self, serial: str, holder_name: str, session_id: Optional[str] = None) -> dict:
+        """Release the claim if held by `holder_name`.
+
+        When the lease is session-bound, a release from a **different** session is
+        refused (re-acquiring with the same name re-binds it first).
+        """
         if not serial:
             raise ValueError("serial must not be empty")
         with self._lock:
@@ -111,9 +133,56 @@ class DeviceStateRegistry:
                     "you_provided": holder_name,
                     "note": "holder_name mismatch -- only the holder can release",
                 }
+            if (
+                session_id is not None
+                and existing.session_id is not None
+                and existing.session_id != session_id
+            ):
+                return {
+                    "released": False,
+                    "reason": "session_mismatch",
+                    "holder": existing.name,
+                    "note": "lease is bound to another session -- call acquire again to re-bind, then release",
+                }
             held = int((self._now() - existing.acquired_at).total_seconds())
             del self._holders[serial]
             return {"released": True, "held_for_seconds": held}
+
+    def guard(self, serial: str, session_id: Optional[str]) -> dict:
+        """Enforced access check + auto-renew, called before every device-touching tool.
+
+        Returns ``{"ok": True, ...}`` and refreshes ``last_used_at`` when the call
+        may proceed. Returns ``{"ok": False, ...}`` with the back-off information
+        when another session holds the lease. A free (or idle-expired) device is
+        allowed but is **not** auto-acquired: claiming stays explicit.
+        """
+        if not serial:
+            raise ValueError("serial must not be empty")
+        with self._lock:
+            self._maybe_expire_locked(serial)
+            existing = self._holders.get(serial)
+            if existing is None:
+                return {"ok": True, "leased": False}
+            bound = existing.session_id
+            if bound is None or session_id is None or bound == session_id:
+                # legacy/unbound lease, or a session-less client: allow + renew
+                self._holders[serial] = Holder(
+                    name=existing.name,
+                    acquired_at=existing.acquired_at,
+                    last_used_at=self._now(),
+                    session_id=bound,
+                )
+                return {"ok": True, "leased": True, "holder": existing.name, "renewed": True}
+            idle = int((self._now() - existing.last_used_at).total_seconds())
+            return {
+                "ok": False,
+                "leased": True,
+                "current_holder": existing.name,
+                "idle_seconds": idle,
+                "auto_release_in_seconds": max(
+                    0, int(self._idle_timeout.total_seconds()) - idle
+                ),
+            }
 
     def touch(self, serial: str) -> None:
         """Refresh last_used_at if `serial` is held."""

@@ -103,6 +103,7 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 
 `client → POST http://<host>:8766/mcp（streamable-http）→（可选）Bearer gate → FastMCP 路由 → core 内联工具 or 能力模块工具 → 平台原生驱动（pywinauto/UIA · AppleScript · adb · WDA）→ 结构化返回`
 
+- **设备租约闸门（强制）**：`platforms/common/_lease_gate.py` 是 FastMCP `on_call_tool` 中间件，在每个工具调用入口判定；`acquire` / `release` / `get_status` / `list_devices` / `get_default_device` / `set_default_device` / `list_capabilities` 豁免。有持有者时只有持有它的 MCP session 放行，其它 session 收到 `{ok:false, reason:"device_leased"}`；**放行即自动续租**（含 browser / vision / human_dom 等能力工具），10 分钟无设备调用才释放。
 - **只有 win/mac 走 `platforms/common/_server_runtime.py`**：`--host`（默认 `0.0.0.0`，可退 `127.0.0.1` 免防火墙）、`--port`、`--token`、`--dom-bridge-port`，环境变量 `FLEET_HOST` / `FLEET_PORT` / `FLEET_AUTH_TOKEN`，健康探针 `GET /health`（免鉴权）。
 - **android / ios 是裸 `mcp.run(host="0.0.0.0", port=<字面量>)`**（`android_device_mcp.py:1555`、`ios_device_mcp.py:1132`）：没有 `/health`、没有 bearer、端口不能从命令行改（改端口要改 `__main__` + `platform.toml`）。给这两家加参数能力属于代码改动，别只改 toml。
 - Bearer gate 是**纯 ASGI 中间件**（不用 `BaseHTTPMiddleware`，避免缓冲 body 破坏流式长任务），`hmac.compare_digest` 常量时间比较；token 为空即完全不鉴权。

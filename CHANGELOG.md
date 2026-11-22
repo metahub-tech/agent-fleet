@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 变更
 
+- **设备租约从 advisory 改为强制（MCP session 绑定）+ 全能力自动续租（行为变更）**：此前 `acquire/release/get_status` 只是礼貌信号——持有者存在时其它 agent 仍能操作设备，而且 browser / vision / human_dom 这些能力工具**不刷新**租约，长任务会「人在用、租约已过期」。
+  - 新增 `platforms/common/_lease_gate.py`：FastMCP `on_call_tool` 中间件，在**工具调用入口**统一判定，不改任何工具签名；`acquire` / `release` / `get_status` / `list_devices` / `get_default_device` / `set_default_device` / `list_capabilities` 豁免。
+  - 判定规则：**无持有者** → 任何 session 可用（不自动加锁，`acquire` 仍是显式动作）；**有持有者** → 只有持有它的 MCP session 放行；其它 session 返回结构化拒绝 `{ok:false, reason:"device_leased", current_holder, auto_release_in_seconds, next_step}`（非 isError，便于 agent 判分支）。
+  - **自动续租**：任何放行的设备调用（含 `browser_*` / `vision_*` / `human_dom_*` / `human_browser_open`）都会刷新 `last_used_at`；10 分钟无设备调用才释放（惰性，无后台线程、无持久化）。
+  - **session 绑定与重连**：`Holder` 增记 `session_id`；同 `holder_name` 再 `acquire` 会重绑到新 session（断线恢复）；`release` 只接受持有者 session（跨 session 释放返回 `session_mismatch`）。
+  - 四端接线：win/mac 在 `main()` 里 `mcp.add_middleware(...)`（单设备 `serial="host"`）；android/ios 在 `__main__` 里加中间件，并用各自的 `_resolve_device(device, session_default)` 解析本次调用目标设备（解析不出则跳过闸门，让工具本身报精确错误）。
+  - 文档同步：`docs/platforms/{windows,macos}.md`、四份产品 skill（`using-win/mac/android/ios`）、`docs/agent-host-setup.md`、`docs/install-pattern.md`、`docs/install-for-agents.md`、`docs/project-map.md`、`AGENTS.md`、`platforms/macos/README.md`。
+  - 测试：`platforms/common/tests/test_lease_enforcement.py`（24 例：session 绑定、拒绝不续租、过期释放、重绑、跨 session 释放、闸门豁免/拒绝载荷/能力工具续租/中间件放行）。
+
 - **对外文档与 v0.8.13-alpha 发布对齐（2026-11-21；版本元数据 + 文档，不改运行行为）**：把「文档说的 / 安装脚本装的 / 代码实际有的」三者拉齐到同一个事实基线。
   - **版本串修正**：`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 `platforms/*/server/pyproject.toml` 与 `cli/tests/test_smoke.py` 统一为 **`0.8.13a1`**。历史真相：v0.8.5–v0.8.13 共 9 个 tag 当时都没 bump `__version__`，那 9 个 release 的 `agent-fleet --version` 全部自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明；今后发 tag 必须同步 bump 这 6 处 + 测试断言）。
   - **安装入口对齐**：`install.sh` / `install.ps1` 默认目标版本与 9 语 README 的 badge、`uvx --from …@v0.8.13-alpha` 命令从 `v0.8.4-alpha` 更新到 **`v0.8.13-alpha`**——此前按 README 一键安装会装到 2026-06 的 v0.8.4 树，缺 `human_dom` 整套能力、缺 win/mac 受管拉起（`--host/--port/--token` + `/health`）、缺 `hover_preview` 与 9 个修复。

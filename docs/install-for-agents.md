@@ -163,6 +163,16 @@ list_capabilities()  → {"capabilities":[{id:"core", status:"enabled", tools:[.
 
 ---
 
+### 共享设备：租约是强制的
+
+- 多 agent 共用一台设备时，先 `acquire(holder_name="<你的名字>")`；租约**绑定你的 MCP session**。
+- 拿不到就说明别人持有：返回 `{ok:false, reason:"device_leased", current_holder, auto_release_in_seconds}` —— 等它过期、或让对方 `release`、或换一台设备。
+- 每次设备调用（**包括 browser / vision / human_dom**）都会自动续租；**10 分钟无设备调用**才释放。
+- 断线重连后 session 变了：用同一个 `holder_name` 再 `acquire` 一次即可重绑。
+- 没人持有时谁都能用（不会自动加锁）；`get_status` / `list_devices` / `list_capabilities` 永远可调用。
+
+---
+
 ## S3 · 装 skill（让未来的你会用这台设备）
 
 **如果你走的是 `agent-fleet setup` 向导**：装完 server、验完工具后，它**不猜你用的是哪个客户端**（harness 枚举不完），而是写一份交接物并在屏幕上提示：

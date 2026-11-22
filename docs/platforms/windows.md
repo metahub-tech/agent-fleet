@@ -204,22 +204,26 @@ Start-ScheduledTask -TaskName MCP-WinDevice
 
 win-device 是 FastMCP streamable-http，**支持多客户端并发连接**——所以多个 agent 同时连不会互相挤掉（这是相比 v0.1 的 winpc-shell 大的改进）。
 
-但 GUI 操作（鼠标、键盘、截屏）有共享物理资源的风险——agent A 在打字时 agent B 抢着点鼠标会互相干扰。所以 win-device 引入了**advisory 单持有者**模式：
+但 GUI 操作（鼠标、键盘、截屏）有共享物理资源的风险——agent A 在打字时 agent B 抢着点鼠标会互相干扰。所以 win-device 引入了**强制单持有者（绑定 MCP session）**：
 
 ```
-Agent A: acquire(holder_name="agent-A")           # 声明独占
-Agent A: take_screenshot()                         # 干活
+Agent A: acquire(holder_name="agent-A")           # 声明独占（绑定 A 的 MCP session）
+Agent A: take_screenshot()                         # 干活（每次设备调用自动续租）
 Agent A: type_text(...)
 Agent A: release(holder_name="agent-A")           # 显式释放
 
-Agent B: get_status()                              # 查谁在用
+Agent B: get_status()                              # 查谁在用（不受限）
   → {"in_use": true, "holder": "agent-A", "idle_seconds": 3, ...}
+Agent B: tap(...)                                  # 被拒
+  → {"ok": false, "reason": "device_leased", "current_holder": "agent-A",
+     "auto_release_in_seconds": 597, "next_step": "..."}
 ```
 
-- **advisory**：工具不强制阻止——anyone can call tools。但 `get_status` 显示当前持有者，agent 应该礼貌等待
-- **idle 超时 10 分钟**自动释放（防止 holder 忘了 release 锁住设备）
-- 持有者每次调用工具都会刷新 last_used_at
-- 未来版本计划加入强制模式（rejected if not holder）
+- **强制**：设备有持有者时，只有**持有它的那个 MCP session** 能调用设备工具；其它 session 拿到结构化拒绝，不会静默抢鼠标
+- **无主时谁都能用**：没人持有时不自动加锁（`acquire` 仍是显式动作）
+- **自动续租**：持有者每次设备调用都会刷新 `last_used_at`，**包括 browser / vision / human_dom 这些能力工具**
+- **10 分钟无任何设备调用**才释放（惰性清理，无后台线程）
+- **重连续租**：用同一个 `holder_name` 再 `acquire` 会重绑到新 session（断线重连后先 acquire 一次）
 
 ---
 

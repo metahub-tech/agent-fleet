@@ -62,9 +62,12 @@ uninstall_app(target="com.example.foo")
 
 Mixing these is the #1 mistake. `run_shell` always means "on the phone".
 
-### Multi-agent coordination (advisory)
+### Multi-agent coordination (enforced, session-bound)
 
-Tools work for everyone regardless of who claims the device:
+The lease is **enforced and bound to your MCP session**: while a session holds the device, other sessions' device
+calls are refused with `{ok: false, reason: "device_leased", current_holder, auto_release_in_seconds}`.
+`acquire` / `release` / `get_status` / discovery stay callable by anyone; every device call auto-renews the lease
+(10 idle minutes release it).
 
 ```
 get_status                             # see who has it
