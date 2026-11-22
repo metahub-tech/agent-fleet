@@ -94,7 +94,9 @@ def _denial_result(payload: dict):
     text = json.dumps(payload, ensure_ascii=False)
     if ToolResult is None or TextContent is None:  # pragma: no cover - stripped test env
         raise RuntimeError(text)
-    return ToolResult(content=[TextContent(type="text", text=text)], is_error=False)
+    # NOTE: fastmcp 3.2.x ToolResult has no `is_error` kwarg (3.4.x has it, default False).
+    # Omitting it keeps the denial a normal (non-error) result on both.
+    return ToolResult(content=[TextContent(type="text", text=text)])
 
 
 class LeaseGate(Middleware):

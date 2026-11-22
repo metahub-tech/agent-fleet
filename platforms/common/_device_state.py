@@ -9,6 +9,8 @@ Semantics (enforced by `_lease_gate.LeaseGate` on every device-touching tool):
   capability tools such as browser / human_dom / vision;
 * 10 idle minutes release the lease lazily (no background thread).
 """
+import os
+import sys
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -161,6 +163,11 @@ class DeviceStateRegistry:
         with self._lock:
             self._maybe_expire_locked(serial)
             existing = self._holders.get(serial)
+            if os.environ.get("FLEET_LEASE_DEBUG") == "1":
+                holder = existing.name if existing else None
+                bound = existing.session_id if existing else None
+                print(f"[lease] guard serial={serial} session={session_id} holder={holder} bound={bound}",
+                      file=sys.stderr, flush=True)
             if existing is None:
                 return {"ok": True, "leased": False}
             bound = existing.session_id
