@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 修复
 
+- **租约闸门的三个真机 canary 修复（test-win11 双 session 12/12 通过）**：
+  - **拒绝体类型**：改用 FastMCP 自己的 `ToolResult` 并带 `structured_content`（此前用 `mcp.types.CallToolResult` → `'CallToolResult' object has no attribute 'to_mcp_result'`；补 `structured_content` 前还会被工具 `outputSchema` 校验拒绝）。
+  - **fail-open**：中间件里**不能抛异常**——实测构造拒绝体失败时 FastMCP 会继续执行工具（能力工具尤其明显）。拒绝路径现在只返回结果、不 raise。
+  - **`touch()` 丢 session 绑定**：win/mac 的 `@with_touch` 在每个工具体前调用 `touch()`，而 `touch()` 重写 `Holder` 时没带 `session_id` → 租约退化为 sessionless，其它 session 直接被放行（真机日志 `bound=None`）。已改为保留绑定，并加回归测试 `test_touch_preserves_session_binding`。
+  - 新增诊断开关 `FLEET_LEASE_DEBUG=1`：把每次闸门判定（tool / device / session / holder / bound / ALLOW|DENY）打到 stderr，Windows launcher 会落进 `platforms/windows/logs/win-device.log`。
+
 - **human_dom 省略 profile 解析硬化（AgentHub #100 E2E P6 真机根因）**：`human_dom_locate/tap/fill` **省略 profile 时不再硬默认 "default"**，而是解析到桥当前活跃的 operator profile。取证四次反转后锁定真根因：#100 十轮 E2E 的 P6 轮发布员 108 turns 填不进公众号标题→request_help，**不是** data-placeholder locate 盲区（早在 59fe476 实现、P1-P10 标题都填过）、**不是** fill 落字问题，而是 `human_browser_open(profile=op-...)` 带对了、但随后 `human_dom_fill` **没带 profile** → `human_dom_profile_id("")` 硬返回 "default" → 桥严格路由找不到 default tab（operator tab 注册 `op-...`）→ `no_tab_for_profile`，死在解析步没到 DOM。
   - **主项**：`DomBridge.active_operator_profile()`（连接客户端注册表=当前真活跃证据，最近活跃优先 + `last_active_ts`，锁内 copy 消脏读）+ `resolve_profile_id(bridge, profile)`（**显式 profile 一行不变**、省略→活跃 operator、无 operator 连桥→回退 "default"）；三工具响应带 **`resolved_profile`** 可观测（catch 静默误落 default）。
   - **有意语义收紧**：operator tab 与日常 default Chrome 同时连桥时，「省略 profile」从「default」改指「operator」（治 P6）；「零回归」仅限无 operator 连桥；要精确打日常 default 用显式 profile（逃生口）。
