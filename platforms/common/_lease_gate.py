@@ -16,18 +16,30 @@ change (and capability modules are covered automatically).
 from __future__ import annotations
 
 import json
+import os
+import sys
 from typing import Any, Callable, FrozenSet, Optional
 
 try:  # the pure-logic tests run without fastmcp installed
     from fastmcp.server.middleware import Middleware, MiddlewareContext  # noqa: F401
-    from mcp.types import CallToolResult, TextContent
+    from fastmcp.tools.base import ToolResult
+    from mcp.types import TextContent
 except Exception:  # pragma: no cover - exercised only in stripped test envs
     class Middleware:  # type: ignore[no-redef]
         """Stand-in base class when fastmcp is unavailable (tests)."""
 
     MiddlewareContext = Any  # type: ignore[assignment,misc]
-    CallToolResult = None  # type: ignore[assignment]
+    ToolResult = None  # type: ignore[assignment]
     TextContent = None  # type: ignore[assignment]
+
+#: Set FLEET_LEASE_DEBUG=1 to log every gated call (tool / device / session / decision)
+#: to stderr — which the Windows launcher appends to platforms/windows/logs/win-device.log.
+_DEBUG = os.environ.get("FLEET_LEASE_DEBUG") == "1"
+
+
+def _log(message: str) -> None:
+    if _DEBUG:
+        print(f"[lease] {message}", file=sys.stderr, flush=True)
 
 
 #: Tools that never touch the device and must stay callable by anyone:
@@ -73,13 +85,22 @@ def deny_payload(decision: dict, *, tool: str, device: str) -> dict:
 
 
 def _denial_result(payload: dict):
-    """Wrap the payload as a normal (non-isError) tool result carrying JSON text."""
-    if CallToolResult is None or TextContent is None:  # pragma: no cover
-        raise RuntimeError(json.dumps(payload, ensure_ascii=False))
-    return CallToolResult(
-        content=[TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))],
-        isError=False,
-    )
+    """Wrap the payload as a normal (non-error) tool result carrying JSON text.
+
+    Must be FastMCP's own ``ToolResult`` (it knows how to convert itself into an
+    MCP wire result); a raw ``mcp.types.CallToolResult`` breaks serialization with
+    "'CallToolResult' object has no attribute 'to_mcp_result'".
+    """
+    text = json.dumps(payload, ensure_ascii=False)
+    if ToolResult is None or TextContent is None:  # pragma: no cover - stripped test env
+        raise RuntimeError(text)
+    # - structured_content: FastMCP validates tool output against the tool's declared
+    #   outputSchema (these tools return dict), so a text-only result is rejected with
+    #   "outputSchema defined but no structured output returned".
+    # - no `is_error` kwarg: fastmcp 3.2.x does not accept it (3.4.x defaults it False).
+    # Never raise from this helper: an exception inside on_call_tool makes FastMCP
+    # FAIL OPEN and run the tool (observed on the canary build).
+    return ToolResult(content=[TextContent(type="text", text=text)], structured_content=payload)
 
 
 class LeaseGate(Middleware):
@@ -126,7 +147,9 @@ class LeaseGate(Middleware):
         if serial is None:
             return await call_next(context)
 
-        denial = self.check(name, serial, ctx_session_id(getattr(context, "fastmcp_context", None)))
+        session_id = ctx_session_id(getattr(context, "fastmcp_context", None))
+        denial = self.check(name, serial, session_id)
+        _log(f"tool={name} device={serial} session={session_id} -> {'DENY' if denial else 'ALLOW'}")
         if denial is None:
             return await call_next(context)
         return _denial_result(denial)

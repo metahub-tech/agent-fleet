@@ -112,6 +112,17 @@ def test_release_from_holder_session_succeeds():
     assert reg.status("serial-1")["in_use"] is False
 
 
+def test_touch_preserves_session_binding():
+    """`@with_touch` runs before every win/mac tool body; it must not unbind the lease."""
+    reg = _registry()
+    reg.acquire("serial-1", "alice", session_id="session-A")
+
+    reg.touch("serial-1")  # what the with_touch decorator does before the tool body
+
+    assert reg.guard("serial-1", "session-B")["ok"] is False
+    assert reg.guard("serial-1", "session-A")["ok"] is True
+
+
 def test_sessionless_clients_are_treated_as_legacy_and_allowed():
     reg = _registry()
     reg.acquire("serial-1", "alice", session_id=None)
