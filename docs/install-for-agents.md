@@ -156,6 +156,15 @@ GET http://127.0.0.1:8766/health      → {"status":"ok"}
 list_capabilities()  → {"capabilities":[{id:"core", status:"enabled", tools:[...]}, ...]}
 ```
 
+**4) 租约隔离验收（多 agent 场景必做，只读、12 项断言）**
+
+```bash
+python scripts/smoke_lease.py --url http://host:8766/mcp      # 或 --host host --port 8766
+```
+
+它开两个独立 MCP session 验证：B 抢不到租约 / B 的 core 工具被拒 / A 调用自动续租 / **B 的能力工具（human_dom_status 等）也被拒** / release 后 B 立即可用。
+需要带 MCP client SDK 的解释器（server venv 或 `pip install mcp`）。
+
 判据：
 
 - `core` 的 `tools` 数量应为 **win 44 / mac 43 / android 31 / ios 30**（含 `list_capabilities` 自身）。对不上说明 venv 装错或跑的是旧代码。

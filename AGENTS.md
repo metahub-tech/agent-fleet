@@ -105,6 +105,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 | 把项目装到一台机器 / 交给别的 agent 装 | `docs/install-for-agents.md` | `python3 scripts/install_skills.py --list`、`scripts/tests`、`CHANGELOG` |
 | 让 human_browser 拿到 DOM 精度 | `platforms/common/skills/using-human-dom/SKILL.md`（两层启用模型） | 建 marker → 重启 → `human_browser_open(profile=专用)` → `human_dom_status` |
 | 改用户文档 | `ONBOARDING.md`、`docs.md` 模板 | `gen_docs.py --check`、9 语同步、`CHANGELOG` |
+| 验证租约隔离（多 agent） | `scripts/smoke_lease.py` 的 docstring | `python scripts/smoke_lease.py --url http://<host>:<port>/mcp`（只读，12 项） |
 | 排查真机连不上 | `docs/agent-host-setup.md` §4 | — |
 | 想知道「这台设备现在能干什么」 | 别读文档，调 `list_capabilities()` | — |
 

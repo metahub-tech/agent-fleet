@@ -95,6 +95,7 @@ agent-fleet CLI
 - `scripts/gen_docs.py`
 - `scripts/install-agent-side.py`
 - `scripts/install_skills.py`
+- `scripts/smoke_lease.py`
 
 ## docs/
 
