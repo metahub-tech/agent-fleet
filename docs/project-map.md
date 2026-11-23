@@ -16,7 +16,7 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 | 事实 | 值 | 证据 |
 |---|---|---|
 | 最新 tag | `v0.8.14-alpha`（2026-11-23，指向 `e0815b9`，Pre-release） | `git tag -l --sort=-v:refname`、`git show -s v0.8.14-alpha` |
-| main 相对 tag | **0 个 commit**（tag 打在 main 上），最后一次提交 `e0815b9`（2026-11-23） | `git rev-list --left-right --count main...v0.8.14-alpha`、`git log -1` |
+| main 相对 tag | **领先 1 个 commit**（发布后的事实回填 docs），tag 提交为 `e0815b9`（2026-11-23） | `git rev-list --left-right --count main...v0.8.14-alpha`、`git log -1` |
 | 代码自称版本 | **`0.8.14a1`**（`agent-fleet --version` / 5 个 `pyproject.toml`） | `cli/src/fleet/__init__.py:3` |
 | 版本线性质 | alpha，接口未冻结，允许破坏性变更 | `README.md:4`、`CHANGELOG.md:58` |
 | 平台 | Windows 10/11 · macOS 12+ · Android · iOS/iPadOS | `platforms/*/platform.toml` |
