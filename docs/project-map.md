@@ -15,9 +15,9 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 
 | 事实 | 值 | 证据 |
 |---|---|---|
-| 最新 tag | `v0.8.13-alpha`（2026-07-07，指向 `52b23ba`） | `git tag -l --sort=-v:refname`、`git show -s v0.8.13-alpha` |
-| main 相对 tag | **领先 9 个 commit**，最后一次提交 `aa6628b`（2026-08-01），此后未发版 | `git rev-list --left-right --count main...v0.8.13-alpha`、`git log -1` |
-| 代码自称版本 | **`0.8.13a1`**（`agent-fleet --version` / 5 个 `pyproject.toml`） | `cli/src/fleet/__init__.py:3` |
+| 最新 tag | `v0.8.14-alpha`（2026-11-23，指向 `e0815b9`，Pre-release） | `git tag -l --sort=-v:refname`、`git show -s v0.8.14-alpha` |
+| main 相对 tag | **0 个 commit**（tag 打在 main 上），最后一次提交 `e0815b9`（2026-11-23） | `git rev-list --left-right --count main...v0.8.14-alpha`、`git log -1` |
+| 代码自称版本 | **`0.8.14a1`**（`agent-fleet --version` / 5 个 `pyproject.toml`） | `cli/src/fleet/__init__.py:3` |
 | 版本线性质 | alpha，接口未冻结，允许破坏性变更 | `README.md:4`、`CHANGELOG.md:58` |
 | 平台 | Windows 10/11 · macOS 12+ · Android · iOS/iPadOS | `platforms/*/platform.toml` |
 | 下一个版本节点 | `0.9.0` HarmonyOS（规划中，端口预留 8770） | `docs/roadmap.md:29`、`scripts/gen_docs.py:37-39` |
@@ -132,7 +132,7 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 场景 | 命令 | 产物 |
 |---|---|---|
 | 设备端（把一台机器变成设备桥） | `powershell -ExecutionPolicy Bypass -File platforms\windows\scripts\setup-windows.ps1`（或 `bash platforms/<p>/scripts/setup-<p>.sh`） | `platforms/<p>/server/.venv` + 自启服务 + 端口监听 |
-| 一键向导（推荐新用户） | `uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.13-alpha#subdirectory=cli" agent-fleet setup` | 同上，外加权限引导 + 健康检查 + 6 框架配置片段 |
+| 一键向导（推荐新用户） | `uvx --from "git+https://github.com/metahub-tech/agent-fleet@v0.8.14-alpha#subdirectory=cli" agent-fleet setup` | 同上，外加权限引导 + 健康检查 + skills 交接物（不枚举客户端） |
 | Agent 端（把设备挂到 agent） | `python3 scripts/install-agent-side.py --platform mac-device --hostname <host>`（老路径）或手工写 `~/.claude.json` 的 `mcpServers` | `mcpServers[<role>-device] = {type:http, url:…/mcp}` + `skills/using-*` 软链 |
 
 **反模式**（`docs/install-pattern.md:168-178`）：改 `~/.claude/settings.json` 期望 MCP 生效、把 skill 拷进 `~/.claude/skills`（要软链）、多平台共用端口、用 SSE 跑长任务（v0.6.0 起一律 streamable-http）。
@@ -217,13 +217,14 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | # | 位置 | 它现在说 | 实际（证据） | 建议 |
 |---|---|---|---|---|
 | 1 | `docs/internal/README.md:11-15` | 内部文档索引只列 `design/ plans/ specs/` | 漏 `blueprint/`；`docs/superpowers/**` 从未被任何索引承认 | 文档 PR：补索引 + 标注两代边界 |
-| 2 | `CHANGELOG.md` | 无 v0.8.5–v0.8.13 的版本段 | 这 21 个 commit 的条目仍堆在 `[Unreleased]`（当时未切段；tag 消息是唯一准的发布说明） | 编辑性 PR：按 tag/PR 号把条目归位，`[Unreleased]` 只留未发版内容 |
-| 3 | `scripts/gen-blueprint-*.sh` | 内嵌 Python 直接 `open()` | 本机 GBK 默认编码下 `UnicodeDecodeError`；需 `PYTHONUTF8=1` 才能跑 | 代码 PR：给 `open()` 显式 `encoding="utf-8"`（CODEOWNERS 钉住这两脚本） |
-| 4 | `CONTRIBUTING.md:113-127` | 每个 commit 必须 `Signed-off-by:` | 最近 40 个 commit 只有 **19** 个带（历史存量） | 纪律：新提交自己 `git commit -s`；不必回改历史 |
-| 5 | `platforms/android/skills/using-android/SKILL.md:8,233` | "30 tools across 10 categories" | 运行时 31（core 30 + `list_capabilities`） | 下次改该 skill 时顺手统一口径（属产品文档，非本 PR） |
-| 6 | `README*.md` 状态表 Version 列（9 语） | 各桥写 `0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`（首次发布版本） | 代码/`pyproject.toml` 已统一为 `0.8.13a1` | **需拍板**：改成发布线（9 语同时改）还是保留“首次发布版本”并加一句说明 |
+| 2 | `scripts/gen-blueprint-*.sh` | 内嵌 Python 直接 `open()` | 本机 GBK 默认编码下 `UnicodeDecodeError`；需 `PYTHONUTF8=1` 才能跑 | 代码 PR：给 `open()` 显式 `encoding="utf-8"`（CODEOWNERS 钉住这两脚本） |
+| 3 | `CONTRIBUTING.md:113-127` | 每个 commit 必须 `Signed-off-by:` | 最近 40 个 commit 只有 **19** 个带（历史存量） | 纪律：新提交自己 `git commit -s`；不必回改历史 |
+| 4 | `platforms/android/skills/using-android/SKILL.md:8,233` | "30 tools across 10 categories" | 运行时 31（core 30 + `list_capabilities`） | 下次改该 skill 时顺手统一口径（属产品文档，非本 PR） |
+| 5 | `README*.md` 状态表 Version 列（9 语） | 各桥写 `0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`（首次发布版本） | 代码/`pyproject.toml` 已统一为 `0.8.14a1` | **需拍板**：改成发布线（9 语同时改）还是保留“首次发布版本”并加一句说明 |
 
-**处置原则**：9.2 的 1/2 是文档 → `docs/` 分支 + docs PR 模板，一处一 PR；3 是代码（且被 CODEOWNERS 钉住）→ code PR；4 只影响新提交；5 随下次产品文档改动处理；6 是口径决策，先问负责人再动 9 个文件。
+> 已解决（2026-11-23，`v0.8.14-alpha`）：版本串 / badge / 安装默认目标统一到 `v0.8.14-alpha` / `0.8.14a1`；`CHANGELOG` 的 v0.8.5–v0.8.13 历史债已随 `[0.8.14-alpha]` 段归档。
+
+**处置原则**：9.2 的 1 是文档 → `docs/` 分支 + docs PR 模板；2 是代码（且被 CODEOWNERS 钉住）→ code PR；3 只影响新提交；4 随下次产品文档改动处理；5 是口径决策，先问负责人再动 9 个文件。
 
 
 ---

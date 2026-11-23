@@ -11,8 +11,8 @@
 
 ```powershell
 # 1) 我现在在哪、仓库什么状态
-git log -1 --format="%h %ad %s" --date=short   # main 最后一次提交 2026-08-01 aa6628b
-git tag -l --sort=-v:refname | Select-Object -First 3   # 最新 tag v0.8.13-alpha
+git log -1 --format="%h %ad %s" --date=short   # main 最后一次提交 2026-11-23 e0815b9
+git tag -l --sort=-v:refname | Select-Object -First 3   # 最新 tag v0.8.14-alpha
 
 # 2) 改东西前先跑「现状体检」（2026-11-21 对齐后已转绿；再变红说明文档又落后于代码）
 python3 scripts/gen_docs.py --check
@@ -113,7 +113,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 
 ---
 
-## 6. 对齐状态（2026-11-21 已修一轮；明细见 project-map §9）
+## 6. 对齐状态（2026-11-21 修一轮，2026-11-23 发布 v0.8.14-alpha；明细见 project-map §9）
 
 **已修复**（`gen_docs.py --check`、三个蓝图 `--check`、`platforms/tests` 均绿）：
 
@@ -128,11 +128,10 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 **仍待处理**（不要顺手改，按 project-map §9.2 分流）：
 
 1. `docs/internal/README.md` 索引缺 `blueprint/`，也没承认 `docs/superpowers/`。
-2. `CHANGELOG.md` 缺 v0.8.5–v0.8.13 版本段（21 个 commit 仍堆在 `[Unreleased]`）。
-3. `scripts/gen-blueprint-*.sh` 内嵌 Python 未显式 `encoding="utf-8"`，非 UTF-8 locale 需 `PYTHONUTF8=1`。
-4. 历史 DCO 合规率仅 19/40（只影响新提交的自我要求）。
-5. `platforms/android/skills/using-android/SKILL.md` 的 "30 tools" 是 core 口径（运行时 31，含 `list_capabilities`）。
-6. README 状态表的 Version 列（`0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`）是「各桥首次发布版本」，与当前统一版本串 `0.8.13a1` 不同口径——**要不要改成发布线，需负责人拍板**。
+2. `scripts/gen-blueprint-*.sh` 内嵌 Python 未显式 `encoding="utf-8"`，非 UTF-8 locale 需 `PYTHONUTF8=1`。
+3. 历史 DCO 合规率仅 19/40（只影响新提交的自我要求）。
+4. `platforms/android/skills/using-android/SKILL.md` 的 "30 tools" 是 core 口径（运行时 31，含 `list_capabilities`）。
+5. README 状态表的 Version 列（`0.2.0` / `0.3.0` / `0.7.0-alpha` / `0.8.0-alpha`）是「各桥首次发布版本」，与当前统一版本串 `0.8.14a1` 不同口径——**要不要改成发布线，需负责人拍板**。
 
 ---
 
@@ -148,7 +147,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 8. **不要用 `--write` 之外的想像修 README 数字**：`gen_docs.py --write` 只重写 `docs/architecture.md` 的端口表区段；README 里的数字要人改，改完再 `--check`。
 9. **`docs/internal/` 不是整体只读**：`design/plans/specs` 冻结，但 `blueprint/{MAP,INTERFACE}.md` 必须随代码再生。
 10. **设备租约是强制的（绑定 MCP session）**：`acquire` 后只有**该 session** 能调用设备工具；其它 session 拿到 `{ok:false, reason:"device_leased", current_holder, auto_release_in_seconds}`。任何设备调用（含 browser / vision / human_dom）自动续租，**10 分钟无设备调用**才释放；断线重连后用同一个 `holder_name` 再 `acquire` 重绑。无主时谁都能用（不会自动加锁）。
-11. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.13a1`——**今后每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
+11. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.14a1`（v0.8.14-alpha 起每次 tag 同步 bump）——**每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
 
 ---
 
