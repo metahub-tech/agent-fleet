@@ -156,6 +156,7 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | CLI 单元测试 | `cd cli && PYTHONPATH=src python3 -m pytest`（PowerShell: `$env:PYTHONPATH="src"; python3 -m pytest`） | ⚠️ 需先装依赖（`uv sync` 或 `pip install -e ".[dev]"`）；裸跑会因缺 `questionary` / `mcp` 有 2 个 collection error，且必须在 `cli/` 下跑（无 `conftest.py`，`testpaths=["tests"]`） |
 | 平台共享层测试 | `python3 -m pytest platforms/common/tests -q --basetemp=<仓库外目录>` | ✅ 可跑但**预期约 10 个 Windows 环境性失败**（bash 硬编码、`read_text()` 无 encoding 撞 GBK、路径进 regex）；`--basetemp` 必带，否则 `tmp_path` 撞 `%TEMP%` 权限 |
 | 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 快（实测 28 passed）；改 `platform.toml` / 工具名后必跑 |
+| 租约隔离（双 session） | `python scripts/smoke_lease.py --url http://<host>:<port>/mcp` | ✅ 只需本机有 `mcp` client SDK；只读，不点击/输入 |
 | 单平台 server 冒烟 | `platforms\windows\server\.venv\Scripts\python.exe -m pytest platforms/windows/server/tests -q` | ⚠️ 必须用该平台自己的 venv（server 会 import pyautogui/psutil 等）；iOS 只在 macOS 上跑 |
 | 蓝图三步 | `& 'E:\Program Files\Git\bin\bash.exe' -lc "cd /e/workspace/.../agent-fleet && PYTHONUTF8=1 ./scripts/gen-blueprint-map.sh --check"`（interface / refs 同理） | ✅ **Git Bash + `PYTHONUTF8=1`**（脚本内嵌 Python 未显式指定 encoding，缺 `PYTHONUTF8` 会 GBK 解码失败） |
 | PS 语法门禁 | `./scripts/check-ps-syntax.sh`（需 pwsh 7+） | ❌ 本机无 pwsh 7；替代：`[System.Management.Automation.Language.Parser]::ParseFile(...)`（PS 5.1 解析器，近似） |

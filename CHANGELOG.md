@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 新增
+
+- **租约隔离验收脚本 `scripts/smoke_lease.py`**：对任意运行中的设备桥开**两个独立 MCP session**，只读地验证强制租约的 12 项行为——B 抢不到租约、B 的 core 工具被拒、A 调用自动续租、**B 的能力工具（`human_dom_status` / `browser_status`，自动探测）同样被拒**、release 后 B 立即可用。支持 `--url` / `--host --port` / `--device`（多设备）/ `--json`；退出码 0/1/2（通过/失败/连不上）。附 10 个纯逻辑测试（`scripts/tests/test_smoke_lease.py`，含「强制退化」反向用例）。已写入 `docs/install-for-agents.md` S2 作为多 agent 场景的必做验收。
+
 ### 修复
 
 - **租约闸门的三个真机 canary 修复（test-win11 双 session 12/12 通过）**：
