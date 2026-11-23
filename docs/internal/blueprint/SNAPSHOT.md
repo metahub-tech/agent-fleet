@@ -2,9 +2,9 @@
 
 > 给任何 agent 装载用——读完这一份就拿到 agent-fleet 当下的鸟瞰全貌。
 >
-> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-11-21** 修订（文档与 v0.8.13-alpha 发布对齐：版本串 / 工具数 / 安装命令 / 蓝图重生成）。
+> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-11-21** 修订（v0.8.14-alpha 发布：租约强制化 + 双 session 验收脚本 + 面向 agent 的安装链路）。
 
-**base_commit**: `aa6628b4611279db055523a9dcb51558506a173a`（本次对齐前的 main 基线）
+**base_commit**: `8a57dcc`（v0.8.14-alpha 发布前的 main 基线）
 （`gen-blueprint-snapshot.sh` 仍未实现，本次为人工回填；装载时请用 `git log -1` 比对，若 HEAD 已远离该 SHA，则以 `MAP.md` + 代码为准。）
 
 ## 项目一句话

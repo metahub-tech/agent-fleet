@@ -2,7 +2,7 @@
 
 ## Status Snapshot
 
-*Last updated: 2026-11-21*
+*Last updated: 2026-11-23*
 
 | Version | Theme | Status |
 |---|---|---|
@@ -37,6 +37,7 @@
 | **0.8.11-alpha** | `human_browser_open` 幂等复用（同 profile 已开：不重启 / 不重装扩展 / 不新开标签） | ✅ Released |
 | **0.8.12-alpha** | 设备操作定点精度 R1+R4+R5（坐标系硬化 / human_dom 扩覆盖 / `hover_preview` + `ocr_conf`） | ✅ Released |
 | **0.8.13-alpha** | human_dom 省略 profile 解析硬化（修 P6 `no_tab_for_profile`）+ fill 失败重试 | ✅ Released |
+| **0.8.14-alpha** | 设备租约强制化（MCP session 绑定 + 全能力自动续租）· `scripts/smoke_lease.py` 双 session 验收 · 面向 agent 的安装链路（skill handoff） | ✅ Released |
 | **0.9.0** | **HarmonyOS (鸿蒙) bridge** — 5th platform (hdc + uitest) | 📋 Planned |
 | 0.10.0 | Cross-device coordination | 🔭 Future |
 | 0.11.0+ | Expanded device coverage (Android TV · Linux desktop · Wear OS · 车机/AAOS · …) — see [Future device coverage](#future-device-coverage) | 📋 Planned |
