@@ -2,9 +2,9 @@
 
 > 给任何 agent 装载用——读完这一份就拿到 agent-fleet 当下的鸟瞰全貌。
 >
-> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-11-21** 修订（v0.8.14-alpha 发布：租约强制化 + 双 session 验收脚本 + 面向 agent 的安装链路）。
+> **每周一由 Atlas 更新一次**（人工或 cron）；当前是 **2026-11-23** 修订（v0.8.14-alpha 发布：租约强制化 + 双 session 验收脚本 + 面向 agent 的安装链路）。
 
-**base_commit**: `8a57dcc`（v0.8.14-alpha 发布前的 main 基线）
+**base_commit**: `e0815b9`（v0.8.14-alpha 发布提交）
 （`gen-blueprint-snapshot.sh` 仍未实现，本次为人工回填；装载时请用 `git log -1` 比对，若 HEAD 已远离该 SHA，则以 `MAP.md` + 代码为准。）
 
 ## 项目一句话
@@ -71,7 +71,7 @@ _暂无（项目早期 alpha，0 外部 contributor）。当有真实进展时�
 - iOS WDA 客户端实现细节未进 ADR
 - `human_browser` / `human_dom` 能力仅 win / mac 实现，android / iOS 无可对应能力（运行时通过 `list_capabilities` 自报）
 - gen-blueprint-snapshot.sh 尚未实现——SNAPSHOT 周更目前手工跑；该脚本到位后 `base_commit:` 行将由它自动写入
-- **CHANGELOG 缺 v0.8.5–v0.8.13 的版本段**：这 21 个 commit 的条目仍堆在 `[Unreleased]`（当时未切段），重切版本段属编辑性工作，需单独处理
+- ~~CHANGELOG 缺 v0.8.5–v0.8.13 的版本段~~：已在 `v0.8.14-alpha` 归档（`[0.8.14-alpha]` 段注明涵盖 v0.8.5–v0.8.13）
 - `gen-blueprint-*.sh` 的内嵌 Python 未显式指定 `encoding="utf-8"`，在非 UTF-8 locale 的 Windows 上会 `UnicodeDecodeError`（需 `PYTHONUTF8=1` 才能本地跑）
 
 _已修复（2026-11-21 对齐）：版本串钉死 v0.8.4 / 0.8.4a1、README 工具数（win 74 / mac 73）、`INTERFACE.md` 缺 `hover_preview`、`docs/architecture.md` 的 Auth「未实现」表述、`ONBOARDING.md` 四个工具数。_
