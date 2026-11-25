@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _（v0.8.14-alpha 之后暂无未发布变更）_
 
+### 修复
+
+- **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
+  - 任务计划带 **每 5 分钟重复触发器**，而 launcher 启动即 `kill-stale` → 新实例杀旧 python、旧 launcher 再拉起、抢 8766 连崩退出、任务计划再拉（实测 70 秒 3 个 launcher）。触发器改为 **6 小时兜底**，launcher 增加 **单实例命名互斥体**（重复实例直接退出，不碰运行中的 python）。
+  - `ExecutionTimeLimit=PT72H` 会让健康服务每 72 小时被强杀一次 → 改为 **`PT0S`（不限时）**。
+- **新增会话审计日志** `platforms/common/_session_audit.py`（win/mac 默认开启）：每条 `/mcp` 请求写一行 JSONL 到 `~/.agent-fleet/session-audit.log`（时间 / 方法 / 客户端 IP / session 前 8 位 / 状态码 / 事件），事件分类为 `created` / `reused` / `expired_or_unknown` / `init_failed` / `bad_request` / `stream_*` / `terminated`。有了它，「某 agent 是重连了还是沿用了旧 session」可以直接从日志回答，不必再打断业务。5MB 轮转一份备份，写失败静默（审计不影响工具调用）。
+
 ## [0.8.14-alpha] - 2026-11-23
 
 > **本段同时涵盖 v0.8.5–v0.8.13 的变更**：那 9 个 tag 当时没有切版本段（历史债），条目一直累积在 `[Unreleased]`。本版把累积内容与 v0.8.14 的变更一起归档。
@@ -18,6 +25,11 @@ _（v0.8.14-alpha 之后暂无未发布变更）_
 - **租约隔离验收脚本 `scripts/smoke_lease.py`**：对任意运行中的设备桥开**两个独立 MCP session**，只读地验证强制租约的 12 项行为——B 抢不到租约、B 的 core 工具被拒、A 调用自动续租、**B 的能力工具（`human_dom_status` / `browser_status`，自动探测）同样被拒**、release 后 B 立即可用。支持 `--url` / `--host --port` / `--device`（多设备）/ `--json`；退出码 0/1/2（通过/失败/连不上）。附 10 个纯逻辑测试（`scripts/tests/test_smoke_lease.py`，含「强制退化」反向用例）。已写入 `docs/install-for-agents.md` S2 作为多 agent 场景的必做验收。
 
 ### 修复
+
+- **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
+  - 任务计划带 **每 5 分钟重复触发器**，而 launcher 启动即 `kill-stale` → 新实例杀旧 python、旧 launcher 再拉起、抢 8766 连崩退出、任务计划再拉（实测 70 秒 3 个 launcher）。触发器改为 **6 小时兜底**，launcher 增加 **单实例命名互斥体**（重复实例直接退出，不碰运行中的 python）。
+  - `ExecutionTimeLimit=PT72H` 会让健康服务每 72 小时被强杀一次 → 改为 **`PT0S`（不限时）**。
+- **新增会话审计日志** `platforms/common/_session_audit.py`（win/mac 默认开启）：每条 `/mcp` 请求写一行 JSONL 到 `~/.agent-fleet/session-audit.log`（时间 / 方法 / 客户端 IP / session 前 8 位 / 状态码 / 事件），事件分类为 `created` / `reused` / `expired_or_unknown` / `init_failed` / `bad_request` / `stream_*` / `terminated`。有了它，「某 agent 是重连了还是沿用了旧 session」可以直接从日志回答，不必再打断业务。5MB 轮转一份备份，写失败静默（审计不影响工具调用）。
 
 - **租约闸门的三个真机 canary 修复（test-win11 双 session 12/12 通过）**：
   - **拒绝体类型**：改用 FastMCP 自己的 `ToolResult` 并带 `structured_content`（此前用 `mcp.types.CallToolResult` → `'CallToolResult' object has no attribute 'to_mcp_result'`；补 `structured_content` 前还会被工具 `outputSchema` 校验拒绝）。

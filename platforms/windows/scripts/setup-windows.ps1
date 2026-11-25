@@ -232,6 +232,7 @@ if (-not (Test-Path $GuiLauncher)) {
 }
 
 $commonSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
     -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries `
     -MultipleInstances IgnoreNew
 
@@ -258,12 +259,21 @@ if ($legacyTask) {
 }
 
 try {
-    # 登录自启 + 每 5 分钟 self-heal 兜底（锁屏/休眠/注销后整条 launcher 死掉时，
-    # AtLogOn 不重触发；周期触发器在 ~5min 内重新拉起，配合 launcher kill-stale 避端口冲突）。
+    # AtLogOn is the primary trigger. The repetition is only a *safety net* for the
+    # case where the whole launcher dies without a logon (sleep/lock/logoff edge
+    # cases that AtLogOn does not re-fire on).
+    #
+    # It used to repeat every 5 minutes, which caused a launcher storm: a second
+    # instance started, its kill-stale tore down the live python (wiping every MCP
+    # session), the two launchers then fought over port 8766 and the scheduler kept
+    # restarting the loser. test-win11 showed three launchers in 70 seconds.
+    # Now: 6-hour repetition + a single-instance mutex in the launcher, and
+    # ExecutionTimeLimit=0 (unlimited; PT72H used to kill a healthy server every
+    # 72 hours and the repetition restarted it, again wiping sessions).
     $winTriggers = @(
         (New-ScheduledTaskTrigger -AtLogOn -User $RunUser),
         (New-ScheduledTaskTrigger -Once -At (Get-Date) `
-            -RepetitionInterval (New-TimeSpan -Minutes 5))  # 省略 Duration = 无限重复（MaxValue 超出 XML 合法范围）
+            -RepetitionInterval (New-TimeSpan -Hours 6))  # omit Duration = repeat indefinitely
     )
     Register-ScheduledTask -TaskName "MCP-WinDevice" -Action $guiAction `
         -Trigger $winTriggers `
