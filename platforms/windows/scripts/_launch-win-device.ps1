@@ -48,8 +48,11 @@ $Log    = Join-Path $LogsDir "win-device.log"
 # WITHOUT touching the running python.
 $script:LauncherMutex = New-Object System.Threading.Mutex($false, "Local\agent-fleet-win-device-launcher")
 if (-not $script:LauncherMutex.WaitOne(0)) {
-    "$(Get-Date -Format o) launcher already running (mutex held) -- exiting duplicate pid=$PID" |
-        Out-File -FilePath $Log -Append -Encoding utf8
+    # Separate file on purpose: the running launcher pipes python's output through
+    # Out-File -Append on win-device.log, which locks that file; writing the
+    # duplicate notice there fails with "used by another process".
+    "$(Get-Date -Format o) duplicate launcher pid=$PID -- mutex held, exiting" |
+        Out-File -FilePath (Join-Path $LogsDir "launcher-duplicates.log") -Append -Encoding utf8 -ErrorAction SilentlyContinue
     exit 0
 }
 
