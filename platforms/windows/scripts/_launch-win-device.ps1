@@ -38,6 +38,21 @@ $Python = Join-Path $ServerDir ".venv\Scripts\python.exe"
 $Server = Join-Path $ServerDir "win_device_mcp.py"
 $Log    = Join-Path $LogsDir "win-device.log"
 
+# ---------- single-instance guard ----------
+# Task Scheduler may start a second instance (periodic trigger, restart-on-failure,
+# a human clicking Run). Without this guard the newcomer's kill-stale step tears
+# down the live server -- wiping every MCP session -- and the two launchers then
+# fight over port 8766 (each respawn loses the bind, rapid-fails, exits, and the
+# scheduler starts another one). Observed on test-win11: three launchers in 70s.
+# The mutex is held for the process lifetime; a duplicate exits immediately
+# WITHOUT touching the running python.
+$script:LauncherMutex = New-Object System.Threading.Mutex($false, "Local\agent-fleet-win-device-launcher")
+if (-not $script:LauncherMutex.WaitOne(0)) {
+    "$(Get-Date -Format o) launcher already running (mutex held) -- exiting duplicate pid=$PID" |
+        Out-File -FilePath $Log -Append -Encoding utf8
+    exit 0
+}
+
 "=== $(Get-Date -Format o) launcher starting (pid=$PID) ===" | Out-File -FilePath $Log -Append -Encoding utf8
 "  python = $Python"  | Out-File -FilePath $Log -Append -Encoding utf8
 "  server = $Server"  | Out-File -FilePath $Log -Append -Encoding utf8

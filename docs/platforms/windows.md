@@ -227,6 +227,35 @@ Agent B: tap(...)                                  # 被拒
 
 ---
 
+### 7.6 服务稳定性：任务计划 / launcher / 会话审计
+
+MCP 的 session 只活在**服务进程内存**里：进程一换，所有客户端的 `Mcp-Session-Id` 立即失效（再请求就是 404）。所以「用一会就掉线」通常不是租约，而是**进程被换掉**。2026-11-25 在 test-win11 上定位到两条互相叠加的原因：
+
+| 原因 | 现象 | 修复 |
+|---|---|---|
+| 任务计划带 **每 5 分钟重复触发器**，且 launcher 每次启动都 `kill-stale` | 第二个 launcher 杀掉在跑的 python → 起新的；旧 launcher 又拉起 python → 抢 8766 → 连崩退出 → 任务计划再拉（实测 70 秒内 3 个 launcher） | 触发器改为 **6 小时**兜底；launcher 加**单实例命名互斥体**（`Local\agent-fleet-win-device-launcher`），重复实例直接退出、不碰 python |
+| `ExecutionTimeLimit=PT72H` | 健康服务每 72 小时被任务计划强杀一次，随后被触发器拉起 | 设为 **`PT0S`（不限时）** |
+
+**会话审计日志**（`platforms/common/_session_audit.py`，win/mac 默认开启）：
+
+```
+%USERPROFILE%\.agent-fleet\session-audit.log     # 每行一条 JSON，对应一次 /mcp 请求
+{"ts":"…","method":"POST","client":"100.79.163.65","session":"a1b2c3d4","status":404,"event":"expired_or_unknown"}
+```
+
+`event` 取值：`created` / `reused` / `expired_or_unknown` / `init_failed` / `bad_request` / `stream_open` / `stream_fail` / `terminated`。
+
+判读：
+
+```powershell
+Get-Content "$env:USERPROFILE\.agent-fleet\session-audit.log" -Tail 20
+# created × N        = 客户端每个任务都重新 initialize（能连，但可复用）
+# expired_or_unknown = 客户端拿旧 session 打过来（需要客户端 404 重连）
+# bad_request       = 带了 session 但请求被拒（400），或没带 session 却发非 initialize
+```
+
+---
+
 ## 附录 · 工具列表
 
 `win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：

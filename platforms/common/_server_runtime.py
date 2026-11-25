@@ -155,6 +155,21 @@ def auth_middleware(token: str) -> "list[Middleware]":
     return [Middleware(BearerAuthMiddleware, token=token)]
 
 
+def middleware_stack(token: str) -> "list[Middleware]":
+    """Bearer gate (when configured) + always-on session audit.
+
+    The audit middleware writes one JSONL line per ``/mcp`` request
+    (``~/.agent-fleet/session-audit.log``) so "did this client reconnect or
+    reuse an expired session?" is answerable after the fact. It only reads
+    headers/status and never changes the response.
+    """
+    from _session_audit import SessionAuditMiddleware
+
+    stack = auth_middleware(token)
+    stack.append(Middleware(SessionAuditMiddleware))
+    return stack
+
+
 def register_health_route(mcp) -> None:
     """Register an unauthenticated ``GET /health`` so a parent process can probe
     liveness before routing MCP traffic. Must be called before the app is built
@@ -216,18 +231,16 @@ def serve(
             "transport": "http",
             "host": args.host,
             "port": args.port,
+            "middleware": middleware_stack(args.token),
         }
-        gate = auth_middleware(args.token)
-        if gate:
-            run_kwargs["middleware"] = gate
         mcp.run(**run_kwargs)
         return
 
     # Extra-routes path: build the Starlette app ourselves so we can attach WS
     # routes (e.g. the /dom-bridge Chrome-extension channel) that FastMCP's
     # mcp.run() has no API for.
-    gate = auth_middleware(args.token)
-    app = mcp.http_app(transport="http", middleware=gate or None)
+    gate = middleware_stack(args.token)
+    app = mcp.http_app(transport="http", middleware=gate)
     for path, handler in extra_routes:
         app.router.add_websocket_route(path, handler)
     _run_app(app, args.host, args.port)

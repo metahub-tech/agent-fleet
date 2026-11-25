@@ -147,7 +147,8 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 8. **不要用 `--write` 之外的想像修 README 数字**：`gen_docs.py --write` 只重写 `docs/architecture.md` 的端口表区段；README 里的数字要人改，改完再 `--check`。
 9. **`docs/internal/` 不是整体只读**：`design/plans/specs` 冻结，但 `blueprint/{MAP,INTERFACE}.md` 必须随代码再生。
 10. **设备租约是强制的（绑定 MCP session）**：`acquire` 后只有**该 session** 能调用设备工具；其它 session 拿到 `{ok:false, reason:"device_leased", current_holder, auto_release_in_seconds}`。任何设备调用（含 browser / vision / human_dom）自动续租，**10 分钟无设备调用**才释放；断线重连后用同一个 `holder_name` 再 `acquire` 重绑。无主时谁都能用（不会自动加锁）。
-11. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.14a1`（v0.8.14-alpha 起每次 tag 同步 bump）——**每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
+11. **MCP session 只活在服务进程内存里**：进程一换，所有客户端 404（`Invalid or expired session ID`），与 `acquire`/租约无关。设备端稳定性三件套：任务计划 `ExecutionTimeLimit=PT0S`、重复触发器只做 6 小时兜底、launcher 单实例互斥（`Local\agent-fleet-win-device-launcher`）。排查用 `~/.agent-fleet/session-audit.log`（`created/reused/expired_or_unknown/bad_request`）。
+12. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.14a1`（v0.8.14-alpha 起每次 tag 同步 bump）——**每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
 
 ---
 
