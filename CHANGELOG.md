@@ -74,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`frozen_background_tab` 只在"真超时"时推断**：此前只要 `reason=="cdp_timeout"` 且未激活就归为"标签冻结"，于是 socket 坏掉（`recv failed`）也会被报成冻结——调用方会去等解冻而不是修连接。现在要求 `message` 是 `… timed out` 才推断冻结，其余仍归 `cdp_timeout`。
 
+- **重试与"冻结"推断共用同一条超时判据**：`should_retry_activation` 此前对"空 message"也会重试（只要不是 send/recv 失败），与 `classify_eval_error` 的判据不一致。现在两者都要求 `message` 形如 `… timed out`；空 message 一律不重试、不推断冻结。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

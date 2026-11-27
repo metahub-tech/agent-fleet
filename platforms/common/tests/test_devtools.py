@@ -373,7 +373,7 @@ def test_activate_with_retry_succeeds_on_second_attempt():
     def fake_call(sock, cid, method, params, timeout=None):
         calls.append((cid, method))
         if len(calls) == 1:
-            return None, {"reason": "cdp_timeout"}
+            return None, {"reason": "cdp_timeout", "message": "Target.activateTarget timed out"}
         return {"ok": True}, None
 
     msg, err = dv.activate_with_retry(object(), "T1", call=fake_call, sleep=lambda s: None)
@@ -432,6 +432,8 @@ def test_should_retry_activation_matrix():
         {"reason": "cdp_timeout", "message": "recv failed: [Errno 9]"}) is False
     assert dv.should_retry_activation(
         {"reason": "cdp_timeout", "message": "send failed: broken pipe"}) is False
+    # 空 message（调用方没填）不重试：宁可少试一次，也不要为坏连接白等
+    assert dv.should_retry_activation({"reason": "cdp_timeout"}) is False
 
 
 def test_activate_with_retry_does_not_retry_on_broken_socket():

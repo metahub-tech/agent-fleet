@@ -72,12 +72,11 @@ def should_retry_activation(error: Optional[dict]) -> bool:
     ``"… timed out"`` 是真超时，``"send failed: …"`` / ``"recv failed: …"`` 是链路坏了。
     另外 CDP 层明确拒答（``cdp_error``）也不重试——重试同样会被拒。
     """
-    if not error:
+    if not error or error.get("reason") != "cdp_timeout":
         return False
-    if error.get("reason") != "cdp_timeout":
-        return False
-    message = str(error.get("message") or "")
-    return not (message.startswith("send failed") or message.startswith("recv failed"))
+    # 与 `classify_eval_error` 使用**同一条判据**：只有 `… timed out` 才算真超时。
+    # 空 message（比如某些调用方没填）一律不重试——宁可少试一次，也不要为坏连接白等。
+    return str(error.get("message") or "").endswith("timed out")
 
 
 def activate_with_retry(sock, target_id: str, *,
