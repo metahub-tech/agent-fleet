@@ -138,15 +138,14 @@ class ClipboardApi:
 # 策略层（可注入 api，Linux 可测）
 # ---------------------------------------------------------------------------
 
-def _classify(api: Any, exc_reason: str, kind: str) -> str:
-    """内部把"这一步失败"归成调用方能分支的 reason。"""
-    if kind == "open":
-        return "clipboard_busy"
-    if kind == "alloc":
-        return "clipboard_alloc_failed"
-    if kind == "lock":
-        return "clipboard_lock_failed"
-    return "clipboard_write_failed"
+#: 失败步骤 → 调用方能分支的 reason。
+_REASON_BY_KIND = {
+    "open": "clipboard_busy",
+    "empty": "clipboard_write_failed",
+    "alloc": "clipboard_alloc_failed",
+    "lock": "clipboard_lock_failed",
+    "set": "clipboard_write_failed",
+}
 
 
 def set_clipboard_html(
@@ -176,11 +175,9 @@ def set_clipboard_html(
         opened = False
         handle = 0
         transferred = False
-        fail_kind = ""
         try:
             if not backend.open_clipboard():
-                fail_kind = "open"
-                last_reason = _classify(backend, "clipboard_busy", "open")
+                last_reason = _REASON_BY_KIND["open"]
                 detail.append({"n": attempt, "reason": last_reason,
                                "winerror": backend.last_error(),
                                "t_ms": int((time.monotonic() - started) * 1000)})
@@ -188,8 +185,7 @@ def set_clipboard_html(
 
             opened = True
             if not backend.empty_clipboard():
-                fail_kind = "write"
-                last_reason = "clipboard_write_failed"
+                last_reason = _REASON_BY_KIND["empty"]
                 detail.append({"n": attempt, "reason": last_reason,
                                "winerror": backend.last_error(),
                                "t_ms": int((time.monotonic() - started) * 1000)})
@@ -197,8 +193,7 @@ def set_clipboard_html(
 
             handle = int(backend.global_alloc(len(payload)))
             if not handle:
-                fail_kind = "alloc"
-                last_reason = _classify(backend, "", "alloc")
+                last_reason = _REASON_BY_KIND["alloc"]
                 detail.append({"n": attempt, "reason": last_reason,
                                "winerror": backend.last_error(),
                                "t_ms": int((time.monotonic() - started) * 1000)})
@@ -206,8 +201,7 @@ def set_clipboard_html(
 
             ptr = int(backend.global_lock(handle))
             if not ptr:
-                fail_kind = "lock"
-                last_reason = _classify(backend, "", "lock")
+                last_reason = _REASON_BY_KIND["lock"]
                 detail.append({"n": attempt, "reason": last_reason,
                                "winerror": backend.last_error(),
                                "t_ms": int((time.monotonic() - started) * 1000)})
@@ -217,8 +211,7 @@ def set_clipboard_html(
             backend.global_unlock(handle)
 
             if not backend.set_clipboard_data(fmt, handle):
-                fail_kind = "write"
-                last_reason = "clipboard_write_failed"
+                last_reason = _REASON_BY_KIND["set"]
                 detail.append({"n": attempt, "reason": last_reason,
                                "winerror": backend.last_error(),
                                "t_ms": int((time.monotonic() - started) * 1000)})
