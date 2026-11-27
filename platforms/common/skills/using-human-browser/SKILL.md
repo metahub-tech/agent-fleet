@@ -52,7 +52,7 @@ whenever you need to **read or evaluate** page state. It talks CDP directly, so 
 | Tool | Use it for | Must-know |
 |---|---|---|
 | `cdp_port(profile)` | get the debug port / liveness before anything else | the port **changes on every Chrome restart — never cache it**; `alive=false` is not an error, read `reason` (`port_file_missing` → open the browser first; `version_probe_failed` → stale file or still starting; `handshake_timeout` → wait). It **never restarts the browser** for you |
-| `list_tabs(profile)` | enumerate pages | `visibility ∈ visible\|hidden\|unknown`. `unknown` means the probe ran out of budget (frozen/background tab) — **call `activate_tab` before `eval_in_profile`**, don't retry in a loop |
+| `list_tabs(profile)` | enumerate pages (each tab is `{target_id,url,title,visibility}` — **not** `/json`'s `id`) | `visibility ∈ visible\|hidden\|unknown`. `unknown` means the probe ran out of budget (frozen/background tab) — **call `activate_tab` before `eval_in_profile`**, don't retry in a loop |
 | `activate_tab(profile, url_part)` | bring a specific page to the front | substring match; multiple matches → `PAGE_AMBIGUOUS` + candidates (never guesses). Verify with `list_tabs` afterwards |
 | `eval_in_profile(profile, js, frame?, activate=True, url_part?, target_id?)` | read structured data (counts, text, JSON) or run a small script | **real profiles have dozens of tabs** — pass `url_part` (substring from `list_tabs`) or `target_id`, otherwise `page_ambiguous` (it refuses to guess). Activates the target by default; `activate=False` on a background tab returns `frozen_background_tab` (by design). Oversized results → `result_too_large` (**never truncated**), unserializable → `not_serializable`, JS throw → `js_exception` |
 

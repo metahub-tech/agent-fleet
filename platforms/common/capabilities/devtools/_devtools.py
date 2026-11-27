@@ -40,7 +40,17 @@ def resolve_udd(profile: str) -> str:
 
 
 def normalize_tab(target: dict) -> dict:
-    """`/json` 的目标 → 工具契约里的 tab（url 完整不截断）。"""
+    """`/json` 的目标 → 工具契约里的 tab（url 完整不截断）。
+
+    ⚠️ **两套词表，别混用**：
+
+    * CDP `/json` 的原始页对象用 ``id``（还会带 ``webSocketDebuggerUrl``）；
+    * 本函数产出的**工具契约**用 ``target_id``（外加 url/title/visibility）。
+
+    真出过一次事故：`smoke_devtools.choose_target()` 的回退分支读 ``tab["id"]``，
+    而它拿到的是本函数产出的 tab ⇒ 永远空串、回退分支成了死代码。新增读取 tab 字段的
+    代码时，请以这里的返回键为准。
+    """
     return {
         "target_id": str(target.get("id") or ""),
         "url": str(target.get("url") or ""),
