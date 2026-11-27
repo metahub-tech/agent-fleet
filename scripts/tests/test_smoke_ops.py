@@ -253,3 +253,10 @@ def test_list_windows_wrapped_shape_counts_as_ok():
     """真机回执：list[dict] 会被 FastMCP 包成 {"result": [...]}，必须判 PASS。"""
     ok, detail = so.check_uia_latency("list_windows", {"result": [{"title": "a"}, {"title": "b"}]}, 562)
     assert ok is True and "2 item" in detail and "562ms" in detail
+
+
+def test_exit_code_precedence_missing_tools_is_3(capsys):
+    """缺必需工具时必须 exit 3（"设备跑的不是这批代码"），不能被通用的 1 覆掉。"""
+    results = [{"check": "required tools registered (unknown)", "ok": False, "detail": "missing"}]
+    assert so._finish("http://x/mcp", results, as_json=True, code=3) == 3
+    assert so._finish("http://x/mcp", results, as_json=True) == 1

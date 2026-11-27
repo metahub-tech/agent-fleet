@@ -266,13 +266,33 @@ def _url(args: argparse.Namespace) -> str:
     return f"http://{args.host}:{args.port}/mcp"
 
 
-async def _run(url: str, args: argparse.Namespace) -> int:
+def _load_transport():
+    """返回 streamable-http 连接器；兼容 MCP SDK 1.x 与 2.x 的导出名。
+
+    1.x: ``mcp.client.streamable_http.streamablehttp_client``
+    2.x: ``mcp.client.streamable_http.streamable_http_client``（带下划线）
+    两者都接同一个 URL，返回的上下文管理器都是 (read, write, ...) 元组。
+    """
     try:
-        from mcp import ClientSession
-        from mcp.client.streamable_http import streamablehttp_client
-    except Exception as exc:  # pragma: no cover - environment dependent
-        print(f"ERROR: MCP client SDK not available ({exc}).", file=sys.stderr)
+        from mcp.client.streamable_http import streamablehttp_client as _t   # 1.x
+        return _t
+    except Exception:
+        pass
+    try:
+        from mcp.client.streamable_http import streamable_http_client as _t  # 2.x
+        return _t
+    except Exception as exc:
+        print(f"ERROR: MCP client SDK not available ({exc}). "
+              'Use the server venv, or `uv run --with "mcp<2" python <script>`.',
+              file=sys.stderr)
+        return None
+
+
+async def _run(url: str, args: argparse.Namespace) -> int:
+    transport = _load_transport()
+    if transport is None:
         return 2
+    from mcp import ClientSession
 
     results: list[dict] = []
 
@@ -280,7 +300,8 @@ async def _run(url: str, args: argparse.Namespace) -> int:
         results.append({"check": check, "ok": bool(ok), "detail": detail})
 
     try:
-        async with streamablehttp_client(url) as (read, write, _):
+        async with transport(url) as _streams:
+            read, write = _streams[0], _streams[1]
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
@@ -386,7 +407,7 @@ def _finish(url: str, results: list[dict], as_json: bool, code: int = 0) -> int:
         print(f"\nSUMMARY: {len(results) - len(failed)}/{len(results)} passed  ({url})")
     if failed:
         print("FAILED: " + ", ".join(r["check"] for r in failed), file=sys.stderr)
-        return 1
+        return code if code else 1
     return code
 
 
