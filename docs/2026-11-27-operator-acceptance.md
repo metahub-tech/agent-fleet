@@ -874,10 +874,51 @@ activate_tab → 172ms 成功（紧接着下一条命令）
 >
 > 不会红的那条，就是"判据与实现同源"——今天这三种 bug 属于同一类。
 
-本 PR 里已经据此做过变异验证的条目（改坏即红，已记录在提交信息中）：
-`merge_text_runs` 合并阈值、`run_steps` 短路、`cf_html` 偏移宽度、`probe_visibilities` 合法性守卫、
-`set_clipboard_html` 重试间隔、`wait_for` 双保护、`activate_with_retry` 判据、`frozen` 推理、
-`choose_target` 字段名、`dump_ui` 留痕与预算、四端 conformance、`payload_of` 契约等。
+**两档分开写**（"有测试"不等于"判据有效"——变异验证的动作是：把实现改错 → 跑 → 看它红 → 改回来）：
+
+### 第一档：**真做过变异验证**（改坏 → 红 → 改回，提交信息里有记录）
+
+共 **28 个提交**在做修复/加测试时做过反向验证，每条都在提交信息里写了
+"把 X 改成 Y → 只红对应那条 → 恢复后全绿"。按 commit 列表（`git log --grep=反向验证`）：
+
+| commit | 内容（截断） |
+|---|---|
+| `219f4e9` | test(lease): 进程内断言「设备调用会刷新 last_used_at」 |
+| `9b17f34` | feat(smoke): --freeze-check 把 B1 的冻结分支变成可自动验的一项 |
+| `ae52270` | test: 把 wait_for / run_actions 纳入 canonical 公约（conformance 才 |
+| `efbc277` | chore(test): 自定义豁免标记不再伪装成 ruff 的 noqa 指令 |
+| `5bcc907` | test(devtools): 钉住 activate_tab(PAGE_AMBIGUOUS) 与 eval_in_pr |
+| `4c7a20b` | test: 新增"夹具保真度"元测试（CDP 错误必须带 message） |
+| `ec52ca0` | fix(devtools): frozen_background_tab 不再把"链路故障"误判成"标签冻结" |
+| `a6fb2ef` | fix(devtools): 激活重试只在真超时时发生，连接坏了不重试 |
+| `2f0ae40` | test(devtools): 把 tab 的键集合钉成契约（防字段漂移静默 None） |
+| `2b52c89` | fix(smoke): choose_target 回退分支读错字段（target_id vs id），等于死代码 |
+| `f486f20` | test: wait_for 的三种结果在协议层如实（timeout / probe_failed / *_gone） |
+| `7ea8b7b` | test: run_actions 走完整 MCP 往返（顺序执行 + 白名单拒绝） |
+| `d7f25d3` | test: 集成测试补两条真实 MCP 往返（发现接口 / 结构化错误不死） |
+| `bf617d5` | test(win): 真跑验证 dump_ui 的「超时即返回 + 留痕」两个性质 |
+| `ee403bf` | test: 运行时 core 工具数契约扩到四平台（win 49 / mac 45 / android 33 / ios |
+| `eb78cff` | test: 四平台运行时都包含 Universal Tool Set（架构文档的"✓ all"第一次被验证） |
+| `4c3fbfb` | test(win): 用桩模块在 Linux 上真跑 Windows server 的判定逻辑 |
+| `ce70273` | test: 用运行时 `list_capabilities` 核对移动端工具数（android 33 / ios 32） |
+| `693a47d` | fix(cdp): connect_browser 的预算没传给 probe 与握手（可能多花 5s） |
+| `0495ac4` | fix(cdp): call() 的超时没落到 socket 上，可能阻塞满 5s 甚至永久 |
+| `4905ed7` | feat(win): list_windows 慢调用留痕，让 11984ms 这类现象可归因 |
+| `706ff71` | test(mobile): android/ios 静态契约——ctx 注入 / *_gone / 批量白名单 |
+| `e2265da` | test(mac): 给 mac server 的兜底接线加静态契约（AX 预算 / *_gone / 批量白名单） |
+| `de4ed60` | test(win): 给"Linux 上跑不了"的 Windows 兜底逻辑加静态接线测试 |
+| `09e6964` | test(docs): CHANGELOG 结构门禁（[Unreleased] 下同类小节只能一个） |
+| `3792706` | test(docs): 工具数门禁扩到平台 README 与 setup guide |
+| `aedb6fa` | fix(clipboard,file_put): 重试间隔真的生效 + base64 容忍折行 |
+| `d6a5fdb` | fix(win,mac): 补 DevtoolsCapability 导入 + 加能力接线门禁 |
+
+### 第二档：**仅有针对性单测**（断言存在、逻辑上覆盖该分支，但**没有**真把实现改错过）
+
+例如 `payload_of` 的四条归一化契约、`probe_multi` 的 CLI 校验、`pick_target_id`、
+`fixture` 元测试自身的豁免标记等。它们的价值是"锁住当前行为"，**不能**声称"判据已被证明有效"。
+
+> 写 PR 时的用词：第一档可以写"已做变异验证"；第二档只能写"有针对性单测"；
+> 两档都不能写"已验证实现正确"——那只由真机读数（L1–L3）承担。
 
 **尚未做变异验证的条目**（写 PR 时不要声称"已验证"）：
 - `frozen_background_tab` 的 L1 野外观测（无法按需触发，故无从"改错"）；
