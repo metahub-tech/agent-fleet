@@ -22,6 +22,9 @@ CORE: dict[str, list[str]] = {
     "acquire": ["holder_name?"],
     "release": [],
     "get_status": [],
+    # 编排原语（2026-11 起四平台同语义）：硬超时/重试之外，这两条也要按公约被 conformance 覆盖
+    "wait_for": ["kind", "target", "timeout_ms?"],
+    "run_actions": ["steps", "stop_on_error?", "delay_ms?"],
 }
 
 OPTIONAL: dict[str, list[str]] = {

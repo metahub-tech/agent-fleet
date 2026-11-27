@@ -11,6 +11,7 @@ def test_core_has_expected_tools():
         "press_key", "dump_ui", "current_app", "terminate_app",
         "list_devices", "set_default_device", "get_default_device",
         "acquire", "release", "get_status",
+        "wait_for", "run_actions",
     }
 
 

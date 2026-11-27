@@ -80,6 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **架构文档新增「设计参考」段**：写明本批原语借鉴了哪些成熟设备操作 MCP（Windows-MCP 的 UIA 超时与「一字一节点」合并、mobile-mcp 的批量命令、CDP 直连取结构化数据、WDA 定位策略），以及我们各自改了什么、为什么**不采纳** Playwright 系作为真账号通道。附四条共同取舍（预算必须落到真正阻塞处、失败结构化、不猜、超限不截断）。
 
+- **`_canonical_tools` 收录 `wait_for` / `run_actions`**：这两个 2026-11 新增的编排原语此前不在 canonical 公约里，因此跨平台 conformance 覆盖不到它们——某个平台漏实现也不会红。现在补进 `CORE`（`wait_for: kind + target`、`run_actions: steps`），四端 conformance 一并覆盖。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
