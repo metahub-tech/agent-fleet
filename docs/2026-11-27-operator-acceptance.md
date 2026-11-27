@@ -67,6 +67,30 @@ list_capabilities()   → core.tools 里应包含：
 | ☐ | server 已重启 | `list_capabilities()` 的 `core.tools` 含上述 3 个新工具名 |
 | ☐ | 版本一致 | 设备上的 checkout 是 `integ/operator-p0-p1`（`git -C <repo> log -1 --format=%h`） |
 | ☐ | skill 是**拷贝**模式（Windows 常态）时，pull 后要重装 | `python3 scripts/install_skills.py --platform win-device --target <你的技能目录> --force`；否则 agent 读到的仍是旧 SOP（符号链接模式会自动跟随，无需重装） |
+### 重启前必须做：确认端口上没有**陈旧监听进程**
+
+真机撞到过（2026-11-27）：父 wrapper 被 kill 后，**子 python 仍占着端口**，新实例启动直接
+`OSError: [Errno 10048]`（bind failed）——而看父进程会觉得"起不来"，白排查半小时。
+
+```powershell
+# 端口归属：拿到 OwningProcess，再核对它是不是你以为的那个进程
+Get-NetTCPConnection -LocalPort 8766 -State Listen | Select-Object LocalAddress,LocalPort,OwningProcess
+Get-CimInstance Win32_Process -Filter "ProcessId=<上面的PID>" | Select-Object ProcessId,Name,CommandLine
+```
+
+判据与处置：
+
+| 看到什么 | 含义 | 怎么做 |
+|---|---|---|
+| 没有监听 | 端口空着 | 正常启动 |
+| 监听 PID = 你刚起的那个 | 正常 | 等它开始服务 |
+| 监听 PID 是**另一个** python（命令行指向旧 checkout） | 陈旧监听抢占 | 先 `Stop-Process -Id <PID>`（确认不是别人的会话），再起 |
+| 启动日志有 `Errno 10048` | 端口被占 | 同上；**别**反复重启（会一直失败） |
+
+另一条现场事实：这台机器上**新实例可能要 2–4 分钟才开始监听**（python 被其它工作饿着），
+跑一次 smoke 只要 5 秒。所以"3 分钟没响应"不等于起不来；判断"真的挂了"应当看进程是否存活
++ 日志有无异常，而不是等端口。
+
 
 ---
 
