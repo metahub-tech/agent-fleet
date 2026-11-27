@@ -51,6 +51,7 @@ from fastmcp.utilities.types import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
+from _uia_bounds import UiaTimeout, run_with_timeout  # 与 Windows 同一套遍历预算原语
 import _server_runtime
 from _capture_geom import resize_to_tap_space  # 截图→tap 空间归一(单一实现, spec §4.2)
 from mac_dpi import read_scale_factor          # 主屏 backingScaleFactor(仅自检/上报)
@@ -803,6 +804,33 @@ def _ax_element_dict(elem, depth: int) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# AX 遍历预算（与 Windows 的 UIA 预算同一思路）
+#   `_ax_walk` 对每个节点都要发多次 AX 调用（title/label/role/position/size…）。
+#   目标应用卡住（Electron a11y 阻塞、主线程死锁）时，整个 MCP 请求线程会被拖住，
+#   工具调用永不返回。给一次遍历加硬预算：超时就返回结构化 reason，让调用方降级。
+#   FLEET_AX_TIMEOUT 可调（秒），默认 8。
+# ---------------------------------------------------------------------------
+AX_TIMEOUT_S = float(os.environ.get("FLEET_AX_TIMEOUT", "8") or 8)
+
+
+def _ax_timeout_hint(what: str) -> str:
+    return (
+        f"{what} exceeded the AX budget ({AX_TIMEOUT_S:g}s) and was abandoned. "
+        "The target app's accessibility tree is probably blocked (Electron with "
+        "a11y issues, a busy main thread, or a huge tree). Try a smaller "
+        "max_depth, scope with app=..., or fall back to take_screenshot + tap."
+    )
+
+
+def _ax_walk_budgeted(elem, max_depth: int) -> list:
+    """在预算内走 AX 树。超时抛 :class:`UiaTimeout`，由调用方转成结构化错误。"""
+    collected: list = []
+    run_with_timeout(lambda: _ax_walk(elem, 0, max_depth, collected),
+                     AX_TIMEOUT_S, "ax_walk")
+    return collected
+
+
 def _ax_walk(elem, depth: int, max_depth: int, out: list):
     """Walk AX tree breadth-first, append element dicts to out (depth ≤ max_depth)."""
     if depth > max_depth:
@@ -843,9 +871,13 @@ def list_ui_elements(
     except ImportError as e:
         return {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
 
-    elements: list[dict] = []
-    _ax_walk(app_elem, 0, max_depth, elements)
-    return {"ok": True, "app": app, "pid": pid, "count": len(elements), "elements": elements}
+    try:
+        elements = _ax_walk_budgeted(app_elem, max_depth)
+    except UiaTimeout:
+        return {"ok": False, "reason": "uia_timeout", "error": _ax_timeout_hint("list_ui_elements"),
+                "hint": "smaller max_depth / take_screenshot", "ax_budget_s": AX_TIMEOUT_S}
+    return {"ok": True, "app": app, "pid": pid, "count": len(elements), "elements": elements,
+            "ax_budget_s": AX_TIMEOUT_S}
 
 
 @mcp.tool
@@ -891,9 +923,14 @@ def dump_ui(
     except ImportError as e:
         return {"ok": False, "error": f"pyobjc-framework-ApplicationServices not installed: {e}"}
 
-    elements: list[dict] = []
-    _ax_walk(app_elem, 0, depth, elements)
-    return {"ok": True, "app": app_label, "pid": pid, "count": len(elements), "elements": elements}
+    try:
+        elements = _ax_walk_budgeted(app_elem, depth)
+    except UiaTimeout:
+        return {"ok": False, "reason": "uia_timeout", "error": _ax_timeout_hint("dump_ui"),
+                "hint": "smaller max_depth / list_ui_elements(app=...) / take_screenshot",
+                "ax_budget_s": AX_TIMEOUT_S}
+    return {"ok": True, "app": app_label, "pid": pid, "count": len(elements), "elements": elements,
+            "ax_budget_s": AX_TIMEOUT_S}
 
 
 @mcp.tool
@@ -1019,8 +1056,12 @@ def _mac_find_elements(query, app, include_disabled, max_results, max_depth):
     app_elem, pid, app_label, err = _ax_scope(app)
     if err:
         return err
-    raw: list = []
-    _ax_walk(app_elem, 0, max_depth, raw)
+    try:
+        raw = _ax_walk_budgeted(app_elem, max_depth)
+    except UiaTimeout:
+        return {"ok": False, "reason": "uia_timeout", "error": _ax_timeout_hint("find_elements"),
+                "hint": "smaller max_depth, scope with app=..., or take_screenshot + tap",
+                "ax_budget_s": AX_TIMEOUT_S}
     sw, sh = pyautogui.size()
     matched = []
     for el in raw:

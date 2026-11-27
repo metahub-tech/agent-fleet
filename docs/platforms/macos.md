@@ -352,6 +352,20 @@ Agent A: release(holder_name="...")      # 显式释放
 
 ---
 
+## 排错 · AX 遍历卡死（`reason:"uia_timeout"`）
+
+`dump_ui` / `list_ui_elements` / `find_elements` 会走目标应用的 AX（accessibility）树，每个节点要发多次
+AX 调用。目标应用卡住时（Electron a11y 阻塞、主线程死锁、或树特别大）整条请求会被拖住，工具调用
+**永不返回**。现在一次遍历有硬预算（默认 8s）：
+
+- 超时返回 `{ok:false, reason:"uia_timeout", hint:…}`，调用方直接降级（`take_screenshot` + `tap`）；
+- 目标勾住的那个线程仍在后台（Python 无法强杀），但不会再拖住其它请求；
+- `FLEET_AX_TIMEOUT`（秒，默认 `8`）可放宽——**只在确知单次遍历本来就慢时才调大**。
+
+降级顺序：缩小 `max_depth` → 用 `app=` 限定到具体应用 → `take_screenshot` + `tap`。
+
+---
+
 ## 附录 · 工具列表
 
 `mac-device` MCP（监听 `0.0.0.0:8767/mcp`）暴露的工具：
