@@ -193,3 +193,48 @@ def test_timeout_terminates_on_quantized_clock():
     assert out["ok"] is False and out["reason"] == "timeout"
     assert calls["n"] <= 10, f"probed {calls['n']} times — busy loop"
     assert clock.sleeps <= 10, f"slept {clock.sleeps} times — busy loop"
+
+
+# --- timeout vs probe_failed（真机教训：探测超预算会被误读成"条件不成立"）---
+
+def test_all_probes_failing_reports_probe_failed():
+    clock = FakeClock()
+
+    def probe():
+        raise RuntimeError("uia_timeout")
+
+    out = wait_until(probe, timeout_s=0.3, interval_s=0.1, clock=clock, sleep=clock.sleep)
+    assert out["ok"] is False
+    assert out["reason"] == "probe_failed"
+    assert out["failed_probes"] == out["attempts"]
+    assert "hint" in out and "uia_timeout" in out["last_error"]
+
+
+def test_any_successful_probe_keeps_timeout_reason():
+    clock = FakeClock()
+    calls = {"n": 0}
+
+    def probe():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("transient")
+        return (False, None)          # 探成了，但条件不成立
+
+    out = wait_until(probe, timeout_s=0.3, interval_s=0.1, clock=clock, sleep=clock.sleep)
+    assert out["reason"] == "timeout"
+    assert out["failed_probes"] == 1
+    assert out["attempts"] > 1
+
+
+def test_success_after_transient_failure():
+    clock = FakeClock()
+    calls = {"n": 0}
+
+    def probe():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("not ready")
+        return (True, {"ok": 1})
+
+    out = wait_until(probe, timeout_s=2.0, interval_s=0.1, clock=clock, sleep=clock.sleep)
+    assert out["ok"] is True and out["attempts"] == 3

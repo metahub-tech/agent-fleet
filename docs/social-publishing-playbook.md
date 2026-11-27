@@ -140,6 +140,7 @@ run_actions(steps=[
 | `clipboard_set_html` `readback_failed` | 剪贴板内容没保住 | **不要粘**；重试一次；再降级 `human_dom_fill` |
 | `eval_in_profile` `frozen_background_tab` | 后台 tab 冻结 | `activate_tab` 后重试 |
 | `eval_in_profile` `page_ambiguous` | 多 tab 且未指定目标页 | 从 `list_tabs` 取目标页 url 子串，带 `url_part=` 重试 |
+| `wait_for` `probe_failed` | **一次都没探成**（探测本身报错，条件从未被评估） | 调大探测预算（`FLEET_WAIT_PROBE_BUDGET`）或看 `last_error`；**别**当成"条件不成立"去重试 |
 | `wait_for` `timeout` | 条件没在预算内成立 | 截图看实际状态；别原地重试超过 2 次。**注意**：`text` 探测若单次超预算（默认 4s，`FLEET_WAIT_PROBE_BUDGET`）也会表现为 timeout —— 重窗口可先把预算调大再等，或改用 `kind="window"` |
 | `device_leased` | 别的 session 持有设备 | 等 `auto_release_in_seconds` 或找持有者释放 |
 | 平台风控/验证码 | — | **停手**，交人（`team block --kind human_decision`） |

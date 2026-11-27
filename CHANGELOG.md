@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`wait_for(kind="text")` 的单次探测改用更小预算（默认 4s，`FLEET_WAIT_PROBE_BUDGET`）**：此前每次探测都吃满 8s 的 UIA 预算，导致 10s 的等待只能采样 1–2 次——与"轮询"的意图相反。现在单次探测预算独立可调，同一个总预算里能采到更多样本。
 
+- **`wait_for` 区分 `timeout` 与 `probe_failed`**：此前探测本身一直报错（如 UIA 单次超预算）也会以 `reason:"timeout"` 收场，读起来像"条件不成立"，实际是"条件从未被评估"。现在若**每次**探测都抛异常 → `reason:"probe_failed"` + `failed_probes` + `hint`；只要有一次探成过就仍是 `timeout`。四平台共用 `_wait`，一处改动全部受益。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

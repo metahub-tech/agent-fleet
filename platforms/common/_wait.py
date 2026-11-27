@@ -47,7 +47,8 @@ def wait_until(
 
     返回 ``{ok, matched, elapsed_ms, attempts, detail?}``：
 
-    * ``ok=True`` 表示**在预算内命中**；``ok=False`` 表示超时（``reason:"timeout"``）；
+    * ``ok=True`` 表示**在预算内命中**；``ok=False`` 时 ``reason`` 为 ``"timeout"``（探到了但
+      条件没成立）或 ``"probe_failed"``（**一次都没探成**，条件从未被真正评估）；
     * ``probe`` 抛异常不视为致命：记一次 ``attempts`` 并继续轮询（探测本身可能因为
       窗口正在重建而失败），最后一次异常放进 ``last_error`` 供排查；
     * 至少探测 **1 次**（``timeout_s=0`` 时也立即探一次，避免"零预算"变成假超时）。
@@ -58,6 +59,7 @@ def wait_until(
     attempts = 0
     last_error: Optional[str] = None
     last_detail: Any = None
+    failed_probes = 0
 
     while True:
         attempts += 1
@@ -73,21 +75,29 @@ def wait_until(
                     "detail": detail,
                 }
         except Exception as exc:  # noqa: BLE001 - 探测失败不等于超时
+            failed_probes += 1
             last_error = f"{type(exc).__name__}: {exc}"
         elapsed = clock() - started
         # 浮点护栏：budget 可能是 0.3，而 3×0.1 累加得到 0.29999999999995 —— 不吸收这点误差会
         # 在最后一步 sleep(~1e-14)、永远跨不过预算，变成忙等死循环（本单测抓到的真实缺陷）。
         if elapsed + _EPSILON >= budget:
+            # "条件没成立"与"一次都没探成"是两件事，混成一个 reason 会让人误判
+            # （例如 UIA 探测单次超预算时，wait_for 会稳定报 timeout，看起来像条件不成立）。
+            all_failed = failed_probes == attempts
             payload = {
                 "ok": False,
                 "matched": False,
-                "reason": "timeout",
+                "reason": "probe_failed" if all_failed else "timeout",
                 "elapsed_ms": int(elapsed * 1000),
                 "attempts": attempts,
+                "failed_probes": failed_probes,
                 "timeout_ms": int(budget * 1000),
                 "detail": last_detail,
             }
             if last_error:
                 payload["last_error"] = last_error
+            if all_failed:
+                payload["hint"] = ("every probe raised — the condition was never actually evaluated; "
+                                   "raise the probe budget or check the probe's own error")
             return payload
         sleep(min(interval, max(MIN_INTERVAL_S, budget - elapsed)))
