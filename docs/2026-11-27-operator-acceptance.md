@@ -586,6 +586,32 @@ activate_tab        → ok 297ms
 - `border-left` 保真与字数比：需"带 style 的稿源 + 空草稿"，对方已同意下次一并量；
 - B4（中文逐字节点）：设备无微信 PC 端，N/A。
 
+## 合并前合规自查（可复跑，30 秒）
+
+```bash
+# 1) DCO：分支内每个提交都要有 Signed-off-by（CONTRIBUTING.md 硬约束）
+base=origin/main; total=0; bad=0
+for c in $(git rev-list "$base"..HEAD); do
+  total=$((total+1))
+  git log -1 --format=%B "$c" | grep -q "^Signed-off-by: " \
+    || { bad=$((bad+1)); echo "missing: $(git log -1 --format='%h %s' "$c")"; }
+done
+echo "commits=$total missing_dco=$bad"
+
+# 2) 与 main 的关系（0 behind 才没有冲突风险）
+git fetch origin --quiet && git rev-list --left-right --count origin/main...HEAD
+
+# 3) 三道文档/蓝图门禁
+python3 scripts/gen_docs.py --check
+./scripts/gen-blueprint-map.sh --check
+./scripts/gen-blueprint-interface.sh --check && ./scripts/check-blueprint-refs.sh --check
+```
+
+**2026-11-27 末实测**：`commits=124 missing_dco=0`；`0 124`（main 仍 `386814c`，无冲突）；
+三道门禁全绿。CI 里 `python-tests` 是 `continue-on-error`、`gen_docs` 与 `platforms/**` 测试
+**不进 CI**，所以这三项必须本地跑。
+
+
 ## 验证覆盖矩阵（2026-11-27 末，四平台可执行测试落地后）
 
 > 这张表回答一个很实际的问题：**"这条逻辑到底被什么验证过？"**
