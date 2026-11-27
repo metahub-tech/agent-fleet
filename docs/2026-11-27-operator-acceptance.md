@@ -85,6 +85,18 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fle
 
 ---
 
+## D2. 批量动作（`run_actions`）
+
+| 勾 | 步骤 | 判据 |
+|---|---|---|
+| ☐ | 三段串：`clipboard_set_html` → `press_key ctrl+v` → `sleep_ms 300` | `ok=true`，`completed=3`，每步 `status:"ok"` 且带 `elapsed_ms` |
+| ☐ | 故意在第 2 步写个非法工具名 | 返回 `ok=false, reason="invalid_steps"`，**第 1 步也没执行**（剪贴板/页面没变化）——这是"整体校验"的判据 |
+| ☐ | 第 1 步放一个必然 `ok:false` 的调用（如 `tap_element` 查不存在的文字），`stop_on_error=true` | `failed_at=0`，第 2/3 步 `status:"skipped"`，且确实没执行 |
+| ☐ | 同样场景传 `stop_on_error=false` | 后续步照常执行，各自有自己的 `status` |
+| ☐ | 步间间隔 | 传 `delay_ms=200`，三步总耗时 ≥ 400ms |
+
+> 证据：把 `steps[]` 数组原样贴出（含 `status`/`elapsed_ms`/`reason`）。
+
 ## E. 回归底线（确认没把老功能弄坏）
 
 | 勾 | 项 | 判据 |
