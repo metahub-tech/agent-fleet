@@ -65,8 +65,14 @@ def test_classify_eval_error():
     assert dv.classify_eval_error({"reason": "cdp_error", "message": "Object couldn't be returned by value"},
                                   activated=True) == "not_serializable"
     # 未激活时的超时 → 冻结后台标签（调用方该先 activate）
-    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "x"}, activated=False) == "frozen_background_tab"
-    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "x"}, activated=True) == "cdp_timeout"
+    # 用真实的超时文案（`_cdp.call` 生成的是 f"{method} timed out"）
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "Runtime.evaluate timed out"},
+                                  activated=False) == "frozen_background_tab"
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "Runtime.evaluate timed out"},
+                                  activated=True) == "cdp_timeout"
+    # 不带超时文案的模糊错误：不猜冻结
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "x"},
+                                  activated=False) == "cdp_timeout"
 
 
 def test_find_frame_id_matches_id_and_url_recursively():
@@ -451,3 +457,13 @@ def test_activate_with_retry_uses_sequential_ids():
 
     dv.activate_with_retry(object(), "T", call=flaky, sleep=lambda s: None)
     assert ids == [1, 2], ids
+
+
+def test_frozen_reason_requires_a_real_timeout():
+    """链路故障不能被判成"标签冻结"——那会让调用方去等解冻而不是修连接。"""
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "Runtime.evaluate timed out"},
+                                  activated=False) == "frozen_background_tab"
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "recv failed: [Errno 104]"},
+                                  activated=False) == "cdp_timeout"
+    assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "send failed: broken pipe"},
+                                  activated=False) == "cdp_timeout"

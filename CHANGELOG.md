@@ -72,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **激活重试只在"真超时"时发生**：`_cdp.call` 把超时与链路故障都归到 `cdp_timeout`，但后者重试只是再白等一个超时。新增 `should_retry_activation()`：只有 `message` 为 `… timed out` 才重试；`send failed` / `recv failed` / `cdp_error` 一律不重试。重试的请求 id 也改为顺序（1→2），避免与其它调用混淆。
 
+- **`frozen_background_tab` 只在"真超时"时推断**：此前只要 `reason=="cdp_timeout"` 且未激活就归为"标签冻结"，于是 socket 坏掉（`recv failed`）也会被报成冻结——调用方会去等解冻而不是修连接。现在要求 `message` 是 `… timed out` 才推断冻结，其余仍归 `cdp_timeout`。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

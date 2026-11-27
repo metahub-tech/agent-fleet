@@ -227,7 +227,11 @@ def classify_eval_error(error: dict, *, activated: bool) -> str:
     message = str((error or {}).get("message") or "")
     if "couldn't be returned by value" in message or "not serializable" in message.lower():
         return "not_serializable"
-    if (error or {}).get("reason") == "cdp_timeout" and not activated:
+    # 只有"真超时"才能推断是冻结；链路故障（send/recv 失败）归 cdp_timeout，
+    # 否则调用方会去"等它解冻"而不是修连接——与 should_retry_activation 同一判据。
+    # `_cdp.call` 对真超时给的文案是 `f"{method} timed out"`；send/recv 失败另有前缀。
+    # 没有这个文案就不猜"冻结"——宁可归 cdp_timeout，也不把连接故障伪装成冻结。
+    if (error or {}).get("reason") == "cdp_timeout" and not activated and message.endswith("timed out"):
         return "frozen_background_tab"
     return "cdp_timeout"
 
