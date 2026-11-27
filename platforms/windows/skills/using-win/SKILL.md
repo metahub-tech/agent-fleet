@@ -78,6 +78,7 @@ list_sessions()                                          # see all started_proce
 | Tree of directory | `list_directory(path, depth)` | depth=1 for immediate children |
 | Find-and-replace inside file | `edit_block(path, old, new, replace_all)` | fails if `old` not unique unless `replace_all=True` |
 | Write or append text | `write_file(path, content, mode)` | `mode="append"` for log-like usage |
+| Paste **rich HTML** into an editor (headings, spacing, styles) | `clipboard_set_html(content)` then `press_key("ctrl+v")` | writes only the `HTML Format` entry; default read-back must pass or it returns `ok=false` (do not paste a failed write); clipboard is global — do not run it concurrently with `paste_text` |
 | Push/pull **binary** bytes (image, HTML, zip) | `file_put(path, content_b64)` / `file_get(path)` | base64 in/out; **4 MiB** raw limit, over = `file_too_large` (never truncated); returns `sha256` so you can reconcile instead of re-downloading; refuses symlink/junction parents (`symlink_not_allowed`) unless `follow_symlinks=True` |
 
 Don't use `start_search` to look up content of a single known file -- use `read_file` directly.

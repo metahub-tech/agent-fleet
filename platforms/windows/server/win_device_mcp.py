@@ -55,6 +55,7 @@ from win_input import _send_unicode, foreground_chrome_window_for_udd, read_scal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 import _fsops, _proc, _search
+import _cf_html, _clipboard
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 import _server_runtime
 from _device_state import DeviceStateRegistry
@@ -831,6 +832,64 @@ def write_file(
 ) -> dict:
     """Write or append text to a file. Creates parent directories if needed."""
     return _fsops.write_file(path, content, mode, encoding)
+
+
+@mcp.tool
+@with_touch
+def clipboard_set_html(
+    content: Annotated[str, Field(description="HTML fragment to put on the clipboard (rich text, keeps headings/spacing)")],
+    source_url: Annotated[str, Field(description="Optional SourceURL recorded in the CF_HTML header")] = "",
+    attempts: Annotated[int, Field(ge=1, le=5, description="Retry rounds when the clipboard is held by another process")] = 1,
+    verify: Annotated[bool, Field(description="Read the clipboard back and require it to match before reporting ok")] = True,
+) -> dict:
+    """Put **rich HTML** on the clipboard as the single `HTML Format` entry.
+
+    Pasting HTML (not plain text) is what keeps heading `border-left`, paragraph
+    spacing and inline styles alive in rich editors (e.g. the WeChat article
+    editor). Only the `HTML Format` entry is written — adding CF_TEXT makes some
+    editors fall back to the plain-text branch, which is the failure mode this
+    tool exists to avoid.
+
+    `verify=True` (default) reads the clipboard back and compares: byte-equal →
+    fragment-equal → invariants (markers present, CJK preserved, no U+FFFD).
+    **A failed read-back returns ok=false** — better to fail than to leave a bad
+    clipboard behind. The response carries `formats` (what actually landed) and
+    `readback` (which comparison passed).
+
+    The clipboard is a global singleton: two agents writing at once will fight.
+    Treat it as exclusive while you write and paste; do not call `paste_text`
+    concurrently.
+    """
+    payload = _cf_html.build_cf_html(content, source_url)
+    written = _clipboard.set_clipboard_html(payload, attempts=attempts)
+    if not written.get("ok"):
+        return {"ok": False, "reason": written.get("reason"),
+                "attempts": written.get("attempts", 0),
+                "attempts_detail": written.get("attempts_detail", []),
+                "bytes": len(payload)}
+    result = {"ok": True, "bytes": len(payload), "attempts": written.get("attempts", 1)}
+    if not verify:
+        result["verified"] = False
+        return result
+    read = _clipboard.read_clipboard_html()
+    if not read.get("ok"):
+        return {"ok": False, "reason": "readback_unavailable",
+                "readback_reason": read.get("reason"),
+                "bytes": len(payload), "formats": read.get("formats", [])}
+    matched, how = _cf_html.readback_ok(payload, read.get("data") or b"")
+    formats = read.get("formats", [])
+    result.update({
+        "verified": matched,
+        "readback": how,
+        "formats": formats,
+        "only_html_format": formats == [_cf_html.CLIPBOARD_FORMAT],
+    })
+    if not matched:
+        result["ok"] = False
+        result["reason"] = "readback_failed"
+        result["hint"] = ("clipboard content did not survive the round trip; "
+                          "do not paste it — retry once, then fall back to human_dom_fill")
+    return result
 
 
 @mcp.tool

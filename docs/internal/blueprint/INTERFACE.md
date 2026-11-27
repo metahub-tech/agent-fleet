@@ -126,6 +126,7 @@ _由 `scripts/gen-blueprint-interface.sh` 从代码自动生成。各平台 MCP 
 源：`platforms/windows/server/win_device_mcp.py`
 
 - `acquire(holder_name: Annotated[str, Field(description="Human-readable identifier (e.g. 'agent-A', 'qjl-laptop')")]) -> dict`
+- `clipboard_set_html(content: Annotated[str, Field(description='HTML fragment to put on the clipboard (rich text, keeps headings/spacing)')], source_url: Annotated[str, Field(description='Optional SourceURL recorded in the CF_HTML header')], attempts: Annotated[int, Field(ge=1, le=5, description='Retry rounds when the clipboard is held by another process')], verify: Annotated[bool, Field(description='Read the clipboard back and require it to match before reporting ok')]) -> dict`
 - `create_directory(path: Annotated[str, Field(description='Absolute directory path')]) -> dict`
 - `current_app() -> dict`
 - `dump_ui(max_depth: Annotated[Optional[int], Field(description='UI tree max depth (1-10). Defaults to 4 if not specified.', ge=1, le=10)]) -> dict`
