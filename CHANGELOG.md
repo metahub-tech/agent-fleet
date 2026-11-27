@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`wait_for` 区分 `timeout` 与 `probe_failed`**：此前探测本身一直报错（如 UIA 单次超预算）也会以 `reason:"timeout"` 收场，读起来像"条件不成立"，实际是"条件从未被评估"。现在若**每次**探测都抛异常 → `reason:"probe_failed"` + `failed_probes` + `hint`；只要有一次探成过就仍是 `timeout`。四平台共用 `_wait`，一处改动全部受益。
 
+- **`_cdp.call()` 的超时真正落到 socket 上**：此前只在外层循环判 deadline，而 `recv` 用的是 socket 自身超时（`ws_connect` 设的 5s），于是 `call(timeout=0.2)` 实际会阻塞到 5s；若 socket 没设超时（裸 socketpair / 其他调用方）则**永久阻塞**。现在每轮接收前把 socket 超时设为剩余预算，结束后恢复原值，并有 3 条 socketpair 用例（乱序响应 / CDP 错误 / 超时且耗时 < 1s）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

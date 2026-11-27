@@ -240,27 +240,49 @@ def call(sock, cid: int, method: str, params: Optional[dict] = None,
 
     ``error`` = ``{"reason": "cdp_timeout" | "cdp_error", "message": str}``；
     CDP 层的拒答（例如 returnByValue 序列化失败）会带原始 message，供上层细分。
+
+    **超时必须落到 socket 上**：只在外层循环判 deadline 是不够的——``recv`` 用的是
+    socket 自己的超时（``ws_connect`` 设的那个，通常 5s），于是 ``call(timeout=0.2)``
+    实际会阻塞到 5s；若 socket 没有设超时（测试里的裸 socketpair、或别的调用方），
+    会**永久阻塞**。所以每轮接收前把 socket 超时设为"剩余预算"，结束后恢复原值。
     """
     try:
         ws_send(sock, {"id": cid, "method": method, "params": params or {}})
     except Exception as exc:  # 连接已坏
         return None, {"reason": "cdp_timeout", "message": f"send failed: {exc}"}
 
+    try:
+        previous = sock.gettimeout()
+    except Exception:                       # 非 socket 对象（测试替身）
+        previous = None
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                sock.settimeout(remaining)
+            except Exception:
+                pass
+            try:
+                msg = ws_recv_text(sock)
+            except socket.timeout:
+                return None, {"reason": "cdp_timeout", "message": f"{method} timed out"}
+            except Exception as exc:
+                return None, {"reason": "cdp_timeout", "message": f"recv failed: {exc}"}
+            if msg.get("id") == cid:
+                if "error" in msg:
+                    err = msg.get("error") or {}
+                    return None, {"reason": "cdp_error",
+                                  "message": str(err.get("message") or err)}
+                return msg, None
+            # 其它消息（事件 / 别的命令的响应）跳过
+    finally:
         try:
-            msg = ws_recv_text(sock)
-        except socket.timeout:
-            return None, {"reason": "cdp_timeout", "message": f"{method} timed out"}
-        except Exception as exc:
-            return None, {"reason": "cdp_timeout", "message": f"recv failed: {exc}"}
-        if msg.get("id") == cid:
-            if "error" in msg:
-                err = msg.get("error") or {}
-                return None, {"reason": "cdp_error",
-                              "message": str(err.get("message") or err)}
-            return msg, None
-        # 其它消息（事件 / 别的命令的响应）跳过
+            sock.settimeout(previous)
+        except Exception:
+            pass
     return None, {"reason": "cdp_timeout", "message": f"{method} timed out"}
 
 

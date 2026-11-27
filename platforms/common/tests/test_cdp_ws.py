@@ -92,3 +92,51 @@ def test_utf8_payload_is_decoded(pair):
     client, server = pair
     _feed(server, _frame(json.dumps({"标题": "公众号"}, ensure_ascii=False).encode()))
     assert ws_recv_text(client) == {"标题": "公众号"}
+
+
+# --- _cdp.call：乱序/错误/正常（真机 bug 常常死在"读到了别人的响应"）--------
+
+def test_call_skips_unrelated_responses(pair):
+    """同一个 browser socket 上会有别的命令的响应/事件；必须跳过，不能当成自己的。"""
+    import _cdp
+
+    client, server = pair
+    _feed(server, _frame(json.dumps({"id": 99, "result": {"other": True}}).encode())
+          + _frame(json.dumps({"method": "Page.loadEventFired", "params": {}}).encode())
+          + _frame(json.dumps({"id": 7, "result": {"value": 42}}).encode()))
+    msg, err = _cdp.call(client, 7, "Runtime.evaluate", {"expression": "1"}, timeout=2.0)
+    assert err is None, err
+    assert msg["result"] == {"value": 42}
+
+
+def test_call_surfaces_cdp_error(pair):
+    import _cdp
+
+    client, server = pair
+    payload = {"id": 3, "error": {"code": -32000, "message": "Object couldn't be returned by value"}}
+    _feed(server, _frame(json.dumps(payload).encode()))
+    msg, err = _cdp.call(client, 3, "Runtime.evaluate", {}, timeout=2.0)
+    assert msg is None
+    assert err["reason"] == "cdp_error"
+    assert "couldn't be returned by value" in err["message"]
+
+
+def test_call_times_out_without_response(pair):
+    """`call(timeout=…)` 必须真的按自己的预算返回。
+
+    这里给 socket 设 2s 默认超时：如果 `call` 只在外层判 deadline、不把剩余预算落到
+    socket 上，它就会阻塞到 2s —— 用例以"耗时 < 1s"快速失败（而不是把整个套件挂死）。
+    """
+    import time as _time
+
+    import _cdp
+
+    client, _server = pair          # 对端什么都不发
+    client.settimeout(2.0)
+    started = _time.monotonic()
+    msg, err = _cdp.call(client, 5, "Runtime.evaluate", {}, timeout=0.2)
+    elapsed = _time.monotonic() - started
+    assert msg is None
+    assert err["reason"] == "cdp_timeout"
+    assert elapsed < 1.0, f"call() blocked {elapsed:.2f}s despite timeout=0.2 — budget not applied to the socket"
+    assert client.gettimeout() == 2.0, "原始 socket 超时没有被恢复"
