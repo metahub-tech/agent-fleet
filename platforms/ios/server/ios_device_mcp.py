@@ -1115,8 +1115,12 @@ def wait_for(
     so branch on `ok` and pick a fallback instead of retrying blindly.
     """
     kind_norm = (kind or "").strip().lower()
-    if kind_norm not in ("text", "app"):
-        return {"ok": False, "reason": "invalid_kind", "allowed_kinds": ["text", "app"]}
+    want_gone = kind_norm.endswith("_gone")
+    base_kind = kind_norm[:-5] if want_gone else kind_norm
+    allowed = ("text", "app")
+    if base_kind not in allowed:
+        return {"ok": False, "reason": "invalid_kind",
+                "allowed_kinds": list(allowed) + [f"{k}_gone" for k in allowed]}
     needle = (target or "").strip()
     if not needle:
         return {"ok": False, "reason": "missing_target", "hint": "pass the query in `target`"}
@@ -1139,7 +1143,9 @@ def wait_for(
         text = f"{info.get('bundleId') or ''} {info.get('name') or ''}" if isinstance(info, dict) else ""
         return needle.lower() in text.lower(), info
 
-    probe = {"text": _probe_text, "app": _probe_app}[kind_norm]
+    probe = {"text": _probe_text, "app": _probe_app}[base_kind]
+    if want_gone:
+        probe = _wait.negate_probe(probe)
     result = _wait.wait_until(probe, timeout_s=timeout_ms / 1000.0, interval_s=interval_ms / 1000.0)
     result["kind"] = kind_norm
     result["target"] = needle

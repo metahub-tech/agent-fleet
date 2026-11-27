@@ -1323,6 +1323,10 @@ def wait_for(
       * ``text``       — a UIA element matching `target` exists (optionally scoped by
         `window_title`); this walks the accessibility tree, so keep the budget sane.
 
+    Any kind also accepts a ``_gone`` suffix (``window_gone`` / ``foreground_gone`` /
+    ``text_gone``) meaning "wait until it disappears" — e.g. confirming a file dialog
+    closed before the next action.
+
     Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success and
     ``{ok:false, reason:"timeout", elapsed_ms, attempts, timeout_ms}`` on expiry —
     a timeout is a **normal answer**, not an error: branch on `ok` and pick a fallback.
@@ -1330,8 +1334,12 @@ def wait_for(
     is reported as `last_error`.
     """
     kind_norm = (kind or "").strip().lower()
-    if kind_norm not in ("window", "text", "foreground"):
-        return {"ok": False, "reason": "invalid_kind", "allowed_kinds": ["window", "text", "foreground"]}
+    want_gone = kind_norm.endswith("_gone")
+    base_kind = kind_norm[:-5] if want_gone else kind_norm
+    allowed = ("window", "text", "foreground")
+    if base_kind not in allowed:
+        return {"ok": False, "reason": "invalid_kind",
+                "allowed_kinds": list(allowed) + [f"{k}_gone" for k in allowed]}
     needle = (target or "").strip()
     if not needle:
         return {"ok": False, "reason": "missing_target", "hint": "pass the title substring / element query in `target`"}
@@ -1367,7 +1375,9 @@ def wait_for(
         count = int(res.get("total_matched") or 0)
         return count > 0, {"count": count, "elements": (res.get("elements") or [])[:3]}
 
-    probe = {"window": _probe_window, "foreground": _probe_foreground, "text": _probe_text}[kind_norm]
+    probe = {"window": _probe_window, "foreground": _probe_foreground, "text": _probe_text}[base_kind]
+    if want_gone:                     # 等它消失（例如文件对话框用完要确认已关闭）
+        probe = _wait.negate_probe(probe)
     result = _wait.wait_until(probe, timeout_s=timeout_ms / 1000.0, interval_s=interval_ms / 1000.0)
     result["kind"] = kind_norm
     result["target"] = needle

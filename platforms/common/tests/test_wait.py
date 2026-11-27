@@ -94,3 +94,31 @@ def test_interval_floor_and_budget_cap():
     # 预算被压到 MAX_TIMEOUT_S；单次间隔不低于 0.02s
     assert clock.now - 1000.0 >= MAX_TIMEOUT_S - 1e-6
     assert min(slept) >= 0.02
+
+
+# --- negate_probe：等条件消失（对话框关闭等）------------------------------
+
+def test_negate_probe_inverts_match_and_keeps_detail():
+    from _wait import negate_probe
+
+    probe = negate_probe(lambda: (True, {"title": "打开"}))
+    matched, detail = probe()
+    assert matched is False and detail == {"title": "打开"}
+
+    probe2 = negate_probe(lambda: (False, None))
+    assert probe2()[0] is True
+
+
+def test_negate_probe_works_with_wait_until():
+    from _wait import negate_probe
+
+    clock = FakeClock()
+    state = {"n": 0}
+
+    def exists():
+        state["n"] += 1
+        return (state["n"] < 3, {"n": state["n"]})   # 前两次还在，第三次消失
+
+    out = wait_until(negate_probe(exists), timeout_s=5, interval_s=0.1,
+                     clock=clock, sleep=clock.sleep)
+    assert out["ok"] is True and out["attempts"] == 3

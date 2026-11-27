@@ -91,7 +91,8 @@ run_actions(steps=[
   {"tool": "tap_element", "args": {"query": "上传", "window_title": "公众号"}},
   {"tool": "wait_for", "args": {"kind": "window", "target": "打开", "timeout_ms": 5000}},
   {"tool": "type_text", "args": {"text": "C:\\fleet\\cover.png"}, "sleep_ms": 150},
-  {"tool": "press_key", "args": {"keys": "enter"}, "sleep_ms": 300},
+  {"tool": "press_key", "args": {"keys": "enter"}},
+  {"tool": "wait_for", "args": {"kind": "window_gone", "target": "打开", "timeout_ms": 5000}},
   {"tool": "wait_for", "args": {"kind": "text", "target": "封面", "timeout_ms": 10000}}
 ])
 ```
@@ -101,7 +102,8 @@ run_actions(steps=[
 - 对话框标题随语言不同（中文「打开」/ 英文 "Open"）；先用 `wait_for(kind="window", target="打开")` 确认它真的起来了，再输入。
 - **路径必须完整**（含盘符）；部分对话框不接受纯文件名。
 - 中文路径建议用 `paste_text` 而不是 `type_text`（避免输入法/编码问题）。
-- 输入后按 `enter`；若对话框要求「打开」，先确认文件名框有焦点（`foreground` 探一下）。
+- 输入后按 `enter`，然后**必须**用 `wait_for(kind="window_gone", target="打开")` 确认对话框真的关掉——
+  没关就去点下一步，点击会打在对话框上（`*_gone` 变体在四个平台都支持）。
 - 上传后**必须**用 `wait_for(kind="text", …)` 或 `eval_in_profile` 确认缩略图出现，别只看「操作成功」。
 
 ---

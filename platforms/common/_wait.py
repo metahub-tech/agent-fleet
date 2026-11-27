@@ -22,6 +22,19 @@ MIN_INTERVAL_S = 0.02
 _EPSILON = 1e-9
 
 
+def negate_probe(probe: Callable[[], Tuple[bool, Any]]) -> Callable[[], Tuple[bool, Any]]:
+    """把"条件成立"翻成"条件消失"（用于 `*_gone` 这类等待）。
+
+    典型场景：文件选择对话框用完要等它**关掉**再继续，否则后续点击会打到对话框上。
+    只翻转 matched，detail 原样带出（方便看到"最后一次仍看到什么"）。
+    """
+    def inverted() -> Tuple[bool, Any]:
+        matched, detail = probe()
+        return (not matched), detail
+
+    return inverted
+
+
 def wait_until(
     probe: Callable[[], Tuple[bool, Any]],
     *,
