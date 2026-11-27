@@ -444,6 +444,36 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 | `_wait.MAX_TIMEOUT_S` | 60s | `wait_for` 预算的硬上限（默认 10s） |
 | `_fsops.MAX_TRANSFER_BYTES` | 4 MiB | 原始字节上限（base64 后 ~5.6 MiB），超限 `file_too_large` |
 
+
+---
+
+## 验证覆盖矩阵（2026-11-27 末，四平台可执行测试落地后）
+
+> 这张表回答一个很实际的问题：**"这条逻辑到底被什么验证过？"**
+> 四端 server 现在都能在 Linux 上 import（Windows/macOS 用桩替换 OS 依赖、Android/iOS 用
+> 假 adb），所以"只有真机才知道"的范围已经明显缩小——但缩小不等于消除，见最后一列。
+
+| 平台 | 运行时行为测试 | 静态契约（AST） | 真机验证 |
+|---|---|---|---|
+| Windows | ✅ `test_win_server_runtime.py`（7 条） | ✅ `test_win_server_guards.py`（5 条） | ✅ **A 组 12/12 全绿**（34 标签运营 profile） |
+| macOS | ✅ `test_mac_server_runtime.py`（7 条） | ✅ `test_mac_server_guards.py`（7 条） | ❌ 无 |
+| Android | ✅ `test_android_runtime.py`（12 条） | ✅ `test_mobile_server_guards.py` | ❌ 无 |
+| iOS | ✅ 同上（2 条 iOS 专属） | ✅ 同上 | ❌ 无 |
+
+**跨平台契约**：`test_universal_tool_set.py`（21 个 universal 工具 × 4 平台 + 工具名唯一）、
+`test_tool_schema_contract.py`（描述/参数说明/编排原语参数 × 4 平台）、
+`test_runtime_tool_counts.py`（core 桶计数 × 4 平台）。
+
+**运行时测试能证明什么、不能证明什么**：
+
+- ✅ 能：判定逻辑（`timeout` vs `probe_failed`、`*_gone` 取反、批空白名单与短路）、
+  预算是否真被传下去、注册面是否完整且无重复、文档所述参数是否真的存在；
+- ❌ 不能：UIA/AX/WDA/adb 的真实行为、坐标正确性、真实窗口与 Electron 树的形态、
+  冻结语义、剪贴板在真实应用里的保真度。
+
+**因此仍未闭环的真机项**：B2 后半（粘贴保真）、B1 冻结分支（方法已给，需 `chrome://discards`
+或 CDP `Page.setWebLifecycleState`）、macOS/Android/iOS 的端到端首次验证。
+
 ## 失败归因速查（smoke 报了 FAIL 时先查这里）
 
 > 目的是把「FAIL」在三秒内分成三类：**判据 bug（我方脚本）／实现 bug（我方代码）／环境问题（设备侧）**。
