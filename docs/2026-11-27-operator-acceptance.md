@@ -530,7 +530,23 @@ activate_tab        → ok 297ms
 
 **跨平台契约**：`test_universal_tool_set.py`（21 个 universal 工具 × 4 平台 + 工具名唯一）、
 `test_tool_schema_contract.py`（描述/参数说明/编排原语参数 × 4 平台）、
-`test_runtime_tool_counts.py`（core 桶计数 × 4 平台）。
+`test_runtime_tool_counts.py`（core 桶计数 × 4 平台）、
+`test_devtools_doc_contract.py`（devtools 工具面 × 三处调用方文档）。
+
+**协议层集成测试**（`test_lease_integration.py`，本地真起一个 MCP server + 官方 client）：
+
+| 覆盖 | 断言要点 |
+|---|---|
+| 租约状态机 | A `acquire` → B 被拒（`current_holder=A`）→ B 调 core 工具得 `device_leased` → A 可用 → `release` 后新 session 立即可用 |
+| 发现接口 | `list_capabilities` 经协议往返后结构正确、core 含 `list_capabilities` / `wait_for` |
+| 结构化错误 | `wait_for(kind="bogus")` 返回 `invalid_kind`+`allowed_kinds`，**同一 session 后续调用仍正常** |
+| 批量动作 | 两步 `tap` 顺序执行（`completed=2`）；`file_get` 被白名单拒（`invalid_steps`） |
+| 等待语义 | `timeout`（`attempts≥2`）/ `probe_failed` / `text_gone` 三种 reason 在协议层如实 |
+
+> 这套测试的由来：租约、批量、等待语义此前**只有真机才知道**。用桩把 Windows server 的
+> OS 依赖替换后，可以在 CI 上真起 MCP server 验协议行为——它们不替代真机，但把
+> "只有真机才能发现"的范围又缩小了一块。顺带发现一个真坑：直接 `mcp.run()` 会绕过
+> `main()` 里挂的租约中间件（已记入 `AGENTS.md` §7 第 13 条）。
 
 **运行时测试能证明什么、不能证明什么**：
 
