@@ -127,6 +127,38 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 
 ---
 
+
+---
+
+## 首轮真机读数（2026-11-27，第一轮）
+
+> 出处：`agent:device-operator-lead` 在真机上跑的**第一轮**结果；基线 commit `31cd40e`，
+> 执行方式为 `git worktree` + 同码实例跑在 `127.0.0.1:8767`（8766 旧码未动）。
+> 以下是他回传的原始读数，未经我改写；标注「判据 bug」的两条已在 `6e01184` 修复。
+
+| 项 | 读数 | 结论 |
+|---|---|---|
+| 5 个新工具注册 | 全部在 `core.tools` | ✅ |
+| 二进制往返 | sha256 一致 | ✅ |
+| 76 列折行 base64 | 被接受 | ✅ |
+| 5 MiB 超限 | `file_too_large` 且未落盘 | ✅ |
+| 剪贴板 | `formats=["HTML Format"]`、回读通过、`attempts` 正确 | ✅ |
+| `wait_for` 预算 | 327ms（预算 300ms） | ✅ 预算被执行 |
+| `run_actions` | 顺序执行 + 非法整批预校验 | ✅ |
+| `dump_ui` | **6218ms** 返回 | ✅ 有界（预算 8s），未卡死 |
+| `find_elements` | 1483ms | ✅ |
+| `list_tabs` | 33 tabs / 313ms | ✅ |
+| `activate_tab` | 目标页变 visible | ✅ |
+| `list_windows` | 562ms 返回，被脚本判 FAIL | ❌ **判据 bug**（FastMCP 把 `list[dict]` 包成 `{"result":[…]}`），已修 |
+| `eval_in_profile` | `page_ambiguous`（该 profile 33 个标签页） | ❌ **设计缺口**，已加 `url_part`/`target_id` |
+| `--profile` 带引号 | `port_file_missing` | ❌ **文档 bug**（PowerShell 把引号传进路径），脚本已剥引号、文档已改 |
+
+**设备租约旁证**：同期 8766 被 `line-t1-779` 持有（idle 54s、auto_release ≈546s），
+他的设备调用被 `device_leased` 拒绝——这是强制租约的**预期行为**，不是缺陷。
+
+**尚未验证**：B 组（后台标签 `frozen_background_tab`、剪贴板粘贴保真、UIA 卡死回归、
+中文元素 `merged`/`clicked_text_span`）——它们需要输入类操作，必须等设备空闲。
+
 ## 报告模板（直接贴给 agent-fleet 侧）
 
 ```text
