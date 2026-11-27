@@ -3,15 +3,25 @@ from _wait import MAX_TIMEOUT_S, wait_until
 
 
 class FakeClock:
-    """可推进的单调时钟：sleep 推进时间，便于确定性地测预算。"""
+    """可推进的单调时钟：sleep 推进时间，便于确定性地测预算。
 
-    def __init__(self):
+    `max_sleeps` 是**忙等熔断**：一旦循环在预算边界上原地打转（sleep 不再推进有效时间），
+    从 sleep 抛 AssertionError，让测试**快速失败**而不是挂死——否则一个回归会让整个
+    测试套件卡住而不是变红。
+    """
+
+    def __init__(self, max_sleeps: int = 100_000):
         self.now = 1000.0
+        self._max_sleeps = max_sleeps
+        self.sleeps = 0
 
     def __call__(self):
         return self.now
 
     def sleep(self, seconds):
+        self.sleeps += 1
+        if self.sleeps > self._max_sleeps:
+            raise AssertionError(f"FakeClock.sleep 被调用 {self.sleeps} 次 —— 疑似忙等")
         self.now += seconds
 
 
@@ -125,22 +135,61 @@ def test_negate_probe_works_with_wait_until():
 
 
 def test_timeout_attempts_are_bounded():
-    """预算 0.3s / 间隔 0.1s 时，探测次数必须有界（正常路径 ~4 次）。
-
-    ⚠️ 诚实说明：这条**不能**复现历史上那个浮点忙等（`time.monotonic` 真时钟 + 4.5e-14
-    的 sleep 才会永不跨过预算）。FakeClock 的加法会因 ULP 舍入而前进，所以去掉
-    `_EPSILON` 护栏这条测试**仍然会绿**（已实测）。它守的是"次数不会失控"这一较弱性质；
-    屏障本身靠 `_EPSILON` 的代码注释说明，没有确定性回归用例。
-    """
+    """预算 0.3s / 间隔 0.1s 时，探测次数必须有界（正常路径 ~4 次）。"""
     clock = FakeClock()
     calls = {"n": 0}
 
     def probe():
         calls["n"] += 1
         if calls["n"] > 50:
-            raise AssertionError("wait_until 未在预算边界终止（浮点忙等回归）")
+            raise AssertionError("wait_until 未在预算边界终止（疑似忙等）")
         return (False, None)
 
     out = wait_until(probe, timeout_s=0.3, interval_s=0.1, clock=clock, sleep=clock.sleep)
     assert out["ok"] is False and out["reason"] == "timeout"
     assert calls["n"] <= 10, f"probed {calls['n']} times — looks like a busy loop"
+
+
+class QuantizedClock:
+    """模拟真实单调时钟：**读数有分辨率**，睡不足一个量化步长时读数不变。
+
+    这正是 `_EPSILON` 要防的场景：budget=0.3 与 3×0.1 累加得到 0.29999999999995，
+    剩余 4.5e-14 的 sleep 推不动微秒级读数 ⇒ 若没有护栏就会原地忙等（实测 83 万次）。
+    纯浮点 FakeClock 因为 ULP 舍入会前进，反而复现不出来。
+    """
+
+    def __init__(self, resolution_s: float = 1e-9, max_sleeps: int = 50):
+        self._now = 1000.0
+        self._resolution = resolution_s
+        self._max_sleeps = max_sleeps
+        self.sleeps = 0
+
+    def __call__(self):
+        return self._now
+
+    def sleep(self, seconds):
+        self.sleeps += 1
+        if self.sleeps > self._max_sleeps:
+            # 从 sleep 里抛：wait_until 的 try/except 只包 probe()，所以这里不会被吞，
+            # 让"忙等"以**快速失败**呈现，而不是把整个测试挂死。
+            raise AssertionError("wait_until 在浮点边界上忙等（护栏失效？）")
+        # 关键：小于时间源分辨率的睡眠**推不动时钟**（真 sleep(4.5e-14) 就是这样）
+        if seconds >= self._resolution:
+            self._now += seconds
+
+
+def test_timeout_terminates_on_quantized_clock():
+    """回归（确定性）：量化时钟下，浮点边界必须靠 `_EPSILON` 收敛，不能忙等。"""
+    clock = QuantizedClock()
+    calls = {"n": 0}
+
+    def probe():
+        calls["n"] += 1
+        if calls["n"] > 50:
+            raise AssertionError("wait_until 在浮点边界上忙等（_EPSILON 护栏失效？）")
+        return (False, None)
+
+    out = wait_until(probe, timeout_s=0.3, interval_s=0.1, clock=clock, sleep=clock.sleep)
+    assert out["ok"] is False and out["reason"] == "timeout"
+    assert calls["n"] <= 10, f"probed {calls['n']} times — busy loop"
+    assert clock.sleeps <= 10, f"slept {clock.sleeps} times — busy loop"
