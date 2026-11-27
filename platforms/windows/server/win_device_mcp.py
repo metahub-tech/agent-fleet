@@ -1394,9 +1394,11 @@ def wait_for(
 _BATCH_ALLOWLIST = (
     "tap", "swipe", "move_mouse", "type_text", "paste_text", "press_key",
     "tap_element", "find_elements", "focus_window", "launch_app",
-    "clipboard_set_html", "file_put", "file_get", "get_screen_size", "hover_preview",
+    "clipboard_set_html", "file_put", "get_screen_size", "hover_preview",
     "wait_for",
 )
+# 刻意不含 `file_get`：它会把最多 4 MiB 的 base64 塞进**一个**批量响应里，
+# 既撑爆上下文又掩盖其它步的结果 —— 取字节应当是一次单独、有意识的调用。
 
 
 def _batch_registry() -> dict:
@@ -1422,7 +1424,7 @@ def run_actions(
     Each step is `{"tool": "<name>", "args": {...}, "sleep_ms": 0}`. Only an explicit
     allowlist is accepted (`tap`, `tap_element`, `type_text`, `paste_text`, `press_key`,
     `swipe`, `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`,
-    `file_put`, `file_get`, `get_screen_size`, `hover_preview`, `find_elements`, `wait_for`) —
+    `file_put`, `get_screen_size`, `hover_preview`, `find_elements`, `wait_for`) —
     shell / process / terminate tools are intentionally **not** batchable.
     `run_actions` itself is not allowed (no recursion).
 

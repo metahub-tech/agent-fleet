@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`wait_for` 支持 `*_gone` 变体：等条件**消失**（四平台）**：文件选择对话框用完后必须确认它真的关了，否则下一步点击会打在对话框上——此前只能用固定 `sleep` 赌。现在 `window_gone` / `foreground_gone` / `text_gone`（mac: `app_gone` 等）把"等它消失"变成一次有预算的调用。实现只新增 `_wait.negate_probe()`（翻转 matched、保留 detail），**不新增工具**、工具数不变。
 
+- **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
+
 ### 修复
 
 - **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。

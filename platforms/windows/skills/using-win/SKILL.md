@@ -79,8 +79,9 @@ For a fixed sequence (e.g. clipboard write → `ctrl+v` → wait → click), sen
 round-trips and much less state drift between steps.
 
 - **Allowlist only**: `tap`, `tap_element`, `type_text`, `paste_text`, `press_key`, `swipe`,
-  `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`, `file_put`, `file_get`,
-  `get_screen_size`, `hover_preview`, `find_elements`. Shell/process/terminate are not batchable.
+  `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`, `file_put`,
+  `get_screen_size`, `hover_preview`, `find_elements`, `wait_for`. Shell/process/terminate are not
+  batchable — and neither is `file_get` (up to 4 MiB of base64 would swamp the batch response).
 - **All-or-nothing validation**: a typo in step 6 rejects the whole batch before anything runs.
 - `stop_on_error=True` (default) stops at the first failed/`ok:false` step and marks the rest
   `skipped`; a step that raises is reported as `status:"error"` without aborting the call.
