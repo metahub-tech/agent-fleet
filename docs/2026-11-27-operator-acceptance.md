@@ -24,7 +24,8 @@ unknown 在 28–36 之间浮动，与设计一致：**并发探测在 `probe_bu
 - 需要更准的可见性时，调大 `probe_budget_ms`（代价是总时长上升），或直接 `activate_tab` 后再 `list_tabs`；
 - 只有 0 tab / 报错 才说明真出问题。
 
-> 这条来自 `agent:device-operator-lead` 连续三次真机读数（2026-11-27），不是推断。
+> 这条来自 `agent:device-operator-lead` 连续**四次**真机读数（2026-11-27），不是推断；第四组（36/36/483ms）见「第六轮（v5）」——四组放在一起看，规律是
+**unknown 数与 duration_ms 正相关**，比单看比例更有解释力。
 
 ## 一页速览：真机验证到哪一步了
 
@@ -39,8 +40,8 @@ unknown 在 28–36 之间浮动，与设计一致：**并发探测在 `probe_bu
 | B3 UIA 卡死回归 | ✅ `dump_ui` 9797ms 有界返回 | 第三/四轮 |
 | B4 中文逐字节点 | ⚪ N/A（设备无微信 PC 端） | 第四节 |
 | `choose_target` 规则 1（唯一 url） | ✅ 真机验过 | 第五轮（v4） |
-| `choose_target` 规则 2（回退 target_id） | ⚠️ 代码已修（`2b52c89`），离线+单测双证，**未真机验** | 第五节 |
-| `eval_in_profile(target_id=…)` 管线 | ⏳ `--target-id-check` 已加（`96626b8`），待一次现场（约 5 秒） | 第六节 |
+| `eval_in_profile(target_id=…)` 管线 | ✅ **真机已验证**（v5，8/8） | 第六节 |
+| `choose_target` 规则 2（全重复时选中） | ⚠️ 代码已修（`2b52c89`）+ 离线构造数据覆盖，**未真机验**（可选加深项） | 第五节 |
 
 > 读法：✅ 真机跑过并通过；⚠️ 有代码/单测证据但**没有真机读数**；⏳ 待一次现场；⚪ 环境不具备。
 
@@ -688,6 +689,49 @@ git status --porcelain docs/            # 空 = 零漂移
 | 规则 2：所有 http url 都重复时回退 `target_id` | ⚠️ **未在真机验过**；且 `c7862fd` 上这条是**死代码**（读 `tab["id"]`，而契约是 `target_id`）——已在 `2b52c89` 修正，并有单测 + 对方离线构造数据双证（全重复 4 条 → 退回 target_id）。真机要验需构造"所有 URL 重复"的 profile，属可选加深项 |
 
 **对方主动撤回了自己上一轮的说法**（"`_v3_tabs.json` 会自动走 target_id"）——那份数据有大量唯一 url，根本到不了回退分支。这种自我纠正值得记下来：**只验了规则 1，就不要说规则 2 已验证**。
+
+
+---
+
+## 第六轮（v5）：`--target-id-check` 8/8 —— target_id 管线真机通过（2026-11-27，`96626b8`）
+
+> 出处：`agent:device-operator-lead`，36 标签运营 profile。新增的那一项：
+
+```
+PASS  eval_in_profile via target_id: target_id=8019134FCD10842B8F0866FCE62B6DE9 value=1 | target=id:8019134F…
+```
+
+**意义**：规则 2（全全重复时回退 `target_id`）的真正风险不在"能否选中"，而在**下游
+`target_id` 管线能否跑通**。现在真机直传 `target_id` 调 `eval_in_profile` 拿到 `value=1`，
+这条管线成立（不再只靠单测）。
+
+| 规则 / 管线 | 状态 |
+|---|---|
+| 规则 1：优先取唯一 url | ✅ 真机已验证（v4，7/7） |
+| **`target_id` 管线（下游）** | ✅ **真机已验证（v5，8/8）** |
+| 规则 2：全 url 重复时 `choose_target` 的返回 | ⚠️ 代码已修（`2b52c89`）+ 离线构造数据覆盖；**未真机验**（需构造全重 profile，属可选加深项） |
+
+### 附：`list_tabs` 四组读数与"unknown ∝ duration"规律
+
+| tabs | unknown | duration_ms | 备注 |
+|---|---|---|---|
+| 34 | 28 | 313 | 预算内多数探完 |
+| 36 | 36 | 391 | 预算打满 |
+| 36 | 33 | 328 | — |
+| 36 | 36 | 483 | 预算打满的一侧 |
+
+规律：**unknown 数与 `duration_ms` 正相关**——耗时越长说明探测越没赶上预算。
+这比单看"unknown 比例"更有解释力：`unknown 多 + duration ≈ probe_budget_ms` 就是"预算内没探完"，
+而不是"标签是坏的"。
+
+### 附：这台机器上 server 启动要 2–4 分钟（不是卡死）
+
+对方实测：8767 起服务约 **3 分钟**（python 被其它工作饿着），而跑一次 smoke 只要 5 秒。
+所以：
+
+- `git pull` 后重启 server 时，**别把"3 分钟没有响应"当成起不来**；
+- 现场排障请让 server 的 stdout/stderr **落盘**（他这轮起服务写了 `server_8767_v5.log`），
+  靠会话缓冲会丢日志。
 
 ## 验证覆盖矩阵（2026-11-27 末，四平台可执行测试落地后）
 
