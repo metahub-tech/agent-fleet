@@ -1424,6 +1424,9 @@ def run_actions(
     Returns `{ok, completed, total, steps:[{index, tool, status, elapsed_ms, result?}],
     failed_at?, failed_tool?}`. Binary results (screenshots) are summarised, never
     dumped into JSON.
+    **Timeouts inside a batch**: a `wait_for` timeout returns `ok:false`, which
+    `run_actions` treats as a failed step and short-circuits (per `stop_on_error`);
+    pass `stop_on_error=false` if later steps should still run.
     """
     registry = _batch_registry()
     try:

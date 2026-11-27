@@ -75,6 +75,8 @@ run_actions(steps=[
 ```
 
 > `run_actions` **整体校验**：任何一步拼错则一步都不跑；失败短路并把后续步标 `skipped`。
+> 注意：批量里的 `wait_for` 超时会返回 `ok:false`，按 `stop_on_error`（默认 true）**短路整批**；
+> 想让超时后继续跑后面的步，传 `stop_on_error=false`。
 
 ---
 

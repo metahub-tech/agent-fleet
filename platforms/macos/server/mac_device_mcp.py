@@ -1307,6 +1307,9 @@ def run_actions(
     anything runs. `stop_on_error=True` stops at the first failed step and marks the
     rest `skipped`; a step that raises is reported as `status:"error"` without
     aborting the call. Binary results are summarised, never dumped into JSON.
+    **Timeouts inside a batch**: a `wait_for` timeout returns `ok:false`, which
+    `run_actions` treats as a failed step and short-circuits (per `stop_on_error`);
+    pass `stop_on_error=false` if later steps should still run.
     """
     registry = _batch_registry()
     try:

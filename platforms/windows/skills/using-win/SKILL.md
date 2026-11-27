@@ -84,6 +84,8 @@ round-trips and much less state drift between steps.
 - **All-or-nothing validation**: a typo in step 6 rejects the whole batch before anything runs.
 - `stop_on_error=True` (default) stops at the first failed/`ok:false` step and marks the rest
   `skipped`; a step that raises is reported as `status:"error"` without aborting the call.
+- A `wait_for` **timeout** is `ok:false`, so inside a batch it short-circuits like any other
+  failure; pass `stop_on_error=false` when you want later steps to run anyway.
 - Max 25 steps; `sleep_ms` per step and `delay_ms` between steps (both capped at 5s).
 - Screenshot/binary results come back summarised — do not expect image bytes in the batch result.
 
