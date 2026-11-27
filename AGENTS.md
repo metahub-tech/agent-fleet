@@ -85,7 +85,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 | 门禁 | 命令 | 本机 |
 |---|---|---|
 | 文档漂移（工具数 + 端口表） | `python3 scripts/gen_docs.py --check` | ✅ **当前 exit 0**（2026-11-21 对齐后） |
-| 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 28 passed |
+| 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ **129 passed / 1 skipped**（2026-11-27 起含四平台运行时测试、协议层集成、schema/夹具保真契约；Linux 需 `fastmcp`+`psutil`+`pillow`+`mcp`，缺依赖时 conftest 会在顶部提示） |
 | 共享层单测 | `python3 -m pytest platforms/common/tests -q --basetemp=<仓库外目录>` | ⚠️ 约 10 个 Windows 环境性失败（bash 硬编码 / GBK 解码 / 路径进 regex），**不是回归** |
 | CLI 单测 | `cd cli; $env:PYTHONPATH="src"; python3 -m pytest` | ⚠️ 先 `uv sync`（或 `pip install -e ".[dev]"`），否则缺 `questionary`/`mcp` 直接 collection error |
 | 蓝图三步 | `& 'E:\Program Files\Git\bin\bash.exe' -lc "cd /e/workspace/.../agent-fleet && PYTHONUTF8=1 ./scripts/gen-blueprint-map.sh --check"`（interface / refs 同理） | ✅ 需 **Git Bash + `PYTHONUTF8=1`**（脚本内嵌 Python 未指定 encoding） |
