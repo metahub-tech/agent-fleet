@@ -300,3 +300,60 @@ def test_pick_page_falls_back_to_single_page_rule():
     assert reason is None and page["id"] == "T0"
     page, reason = dv.pick_page(_pages(3))
     assert page is None and reason == "page_ambiguous"
+
+
+# --- 并发 visibility 探测（真账号 profile 几十个标签页）-------------------
+
+def _pages_n(n=12):
+    return [{"id": f"T{i}", "url": f"https://e.com/{i}", "webSocketDebuggerUrl": f"ws://x/{i}"}
+            for i in range(n)]
+
+
+def test_probe_visibilities_covers_all_pages_concurrently():
+    pages = _pages_n(12)
+    seen = []
+
+    def probe(page, remaining):
+        seen.append(page["id"])
+        return "visible" if page["id"] == "T7" else "hidden"
+
+    out = dv.probe_visibilities(pages, probe, budget_s=1.0, max_workers=8)
+    assert len(out) == 12
+    assert out["T7"] == "visible"
+    assert out["T0"] == "hidden"
+
+
+def test_probe_visibilities_marks_unfinished_unknown_without_retry():
+    import threading as _t
+
+    pages = _pages_n(4)
+    release = _t.Event()
+
+    def probe(page, remaining):
+        release.wait(0.05)
+        return "visible"
+
+    out = dv.probe_visibilities(pages, probe, budget_s=0.01, max_workers=4)
+    # 预算极小 → 都应该是 unknown（不死等、不重试），且一个不少
+    assert set(out) == {p["id"] for p in pages}
+    assert all(v == "unknown" for v in out.values())
+
+
+def test_probe_visibilities_treats_exceptions_as_unknown():
+    pages = _pages_n(3)
+
+    def probe(page, remaining):
+        raise RuntimeError("ws dead")
+
+    out = dv.probe_visibilities(pages, probe, budget_s=1.0)
+    assert all(v == "unknown" for v in out.values())
+
+
+def test_probe_visibilities_empty_list():
+    assert dv.probe_visibilities([], lambda p, r: "visible", budget_s=1.0) == {}
+
+
+def test_probe_visibilities_invalid_value_becomes_unknown():
+    pages = _pages_n(2)
+    out = dv.probe_visibilities(pages, lambda p, r: "frozen", budget_s=1.0)
+    assert set(out.values()) == {"unknown"}

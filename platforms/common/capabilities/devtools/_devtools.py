@@ -13,8 +13,9 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import _cdp
 from _browser_lease import _resolve_profile
@@ -91,6 +92,60 @@ def match_pages(pages: list[dict], url_part: str) -> tuple[Optional[dict], list[
     if len(hits) == 1:
         return hits[0], hits
     return None, hits
+
+
+def probe_visibilities(
+    pages: list[dict],
+    probe: Callable[[dict, float], Optional[str]],
+    *,
+    budget_s: float,
+    max_workers: int = 8,
+    clock: Callable[[], float] = time.monotonic,
+) -> dict[str, str]:
+    """并发探测每个页面的 visibility，**总预算不变**。
+
+    为什么并发：真账号 profile 常有几十个标签页（实测 33 个）。串行探测在 300ms 预算里
+    只能轮到 1–2 个，其余全 `unknown`——而 unknown 恰恰是"不知道该先 activate 哪个"的来源。
+    并发把同样的预算摊给更多页；仍未完成的记 `unknown`，**不重试**（总延迟可控）。
+
+    返回 ``{target_id: "visible"|"hidden"|"unknown"}``；``probe(page, remaining_s)``
+    返回三态之一或抛异常（按 unknown 处理）。
+    """
+    deadline = clock() + max(0.0, float(budget_s))
+    results: dict[str, str] = {}
+    if not pages:
+        return results
+    lock = threading.Lock()
+    queue = list(pages)
+    queue_lock = threading.Lock()
+
+    def worker() -> None:
+        while True:
+            with queue_lock:
+                if not queue:
+                    return
+                page = queue.pop(0)
+            remaining = deadline - clock()
+            if remaining <= 0:
+                return
+            try:
+                value = probe(page, remaining)
+            except Exception:
+                value = None
+            visibility = value if value in ("visible", "hidden") else "unknown"
+            with lock:
+                results[str(page.get("id") or "")] = visibility
+
+    threads = [threading.Thread(target=worker, daemon=True)
+               for _ in range(max(1, min(max_workers, len(pages))))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(max(0.0, deadline - clock()))
+    # 没赶上的页一律 unknown（不重试）
+    for page in pages:
+        results.setdefault(str(page.get("id") or ""), "unknown")
+    return results
 
 
 def value_size_bytes(value: Any) -> int:
@@ -208,8 +263,9 @@ class DevtoolsCapability(CapabilityModule):
         def list_tabs(profile: str = "", probe_budget_ms: int = DEFAULT_PROBE_BUDGET_MS) -> dict:
             """列出该 profile 的页面标签：{ok, tabs:[{target_id,url,title,visibility}], probe_ms, duration_ms}。
 
-            `visibility ∈ visible | hidden | unknown`。探测超预算（默认 300ms）即记 `unknown`
-            且**不重试**（否则总延迟不可控）—— 拿到 unknown 时调用方应先 `activate_tab` 再 eval。
+            `visibility ∈ visible | hidden | unknown`。探测**并发**进行（有界并发 8），**总预算**默认 300ms；
+            没赶上的记 `unknown` 且**不重试**（总延迟可控）—— 拿到 unknown 时调用方应先 `activate_tab` 再 eval。
+            真账号 profile 常有几十个标签页，串行探测会让绝大多数变成 unknown，故采用并发。
             不给 `frozen` 布尔：探针本身会挂在冻结标签上，猜一个 false 比 unknown 更坏。
             `url` 完整不截断（截断会让调用方匹配误判）。
             """
@@ -230,30 +286,26 @@ class DevtoolsCapability(CapabilityModule):
                         "duration_ms": int((time.monotonic() - started) * 1000)}
             budget_s = max(0, int(probe_budget_ms)) / 1000.0
             probe_start = time.monotonic()
+
+            def _probe_one(page: dict, remaining: float) -> Optional[str]:
+                sock = None
+                try:
+                    sock = _cdp.ws_connect(page["webSocketDebuggerUrl"], timeout=remaining)
+                    msg, _err = _cdp.call(
+                        sock, 1, "Runtime.evaluate",
+                        {"expression": "document.visibilityState", "returnByValue": True},
+                        timeout=remaining,
+                    )
+                    return (((msg or {}).get("result") or {}).get("result") or {}).get("value")
+                finally:
+                    if sock is not None:
+                        _cdp.close_quietly(sock)
+
+            visibility = probe_visibilities(pages, _probe_one, budget_s=budget_s)
             tabs = []
             for page in pages:
                 tab = normalize_tab(page)
-                remaining = budget_s - (time.monotonic() - probe_start)
-                if remaining > 0.02:
-                    sock = None
-                    try:
-                        sock = _cdp.ws_connect(page["webSocketDebuggerUrl"], timeout=remaining)
-                        msg, _err = _cdp.call(
-                            sock, 1, "Runtime.evaluate",
-                            {"expression": "document.visibilityState", "returnByValue": True},
-                            timeout=remaining,
-                        )
-                        state = (((msg or {}).get("result") or {}).get("result") or {}).get("value")
-                        tab["visibility"] = (
-                            "visible" if state == "visible"
-                            else "hidden" if state == "hidden"
-                            else "unknown"
-                        )
-                    except Exception:
-                        tab["visibility"] = "unknown"
-                    finally:
-                        if sock is not None:
-                            _cdp.close_quietly(sock)
+                tab["visibility"] = visibility.get(str(page.get("id") or ""), "unknown")
                 tabs.append(tab)
             return {"ok": True, "tabs": tabs,
                     "probe_ms": int((time.monotonic() - probe_start) * 1000),

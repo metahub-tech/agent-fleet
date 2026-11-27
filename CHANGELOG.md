@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Android / iOS 对齐：`run_actions` / `wait_for`（四平台同名同语义）**：移动端此前只能用 `sleep` 猜时机、一步一步调用。现在两个原语在所有平台一致——`run_actions` 走各自平台的显式白名单（Android 11 个、iOS 12 个；`run_shell` / 安装 / 上传类刻意不可批处理）+ 整体校验 + 失败短路；`wait_for` 支持 `text`（UI 元素出现）与 `app`（前台包名/bundleId 匹配），超时是正常答案。共享逻辑 `_batch` / `_wait` 与桌面端完全同一份。工具数：android **31 → 33**、ios **30 → 32**。
 
+- **`list_tabs` 改并发探测 visibility（真机反馈：33 个标签页）**：串行探测在 300ms 预算内只能轮到 1–2 个页，其余全 `unknown`——而 unknown 正是"不知道该先 activate 哪个"的来源。改为**有界并发（8）**、**总预算不变**（默认 300ms），没赶上的仍记 `unknown` 且不重试；异常与非法值一律 unknown。5 条单测覆盖覆盖全量 / 预算极小 / 抛异常 / 空表 / 非法值。
+
 ### 修复
 
 - **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。
