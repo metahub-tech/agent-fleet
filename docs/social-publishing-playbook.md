@@ -173,11 +173,17 @@ run_actions(steps=[
   // 取**最后一个** `.ProseMirror`（或换成你自己确认过的正文根选择器）。
   const roots = [...document.querySelectorAll('.ProseMirror')];
   const body = roots.length ? roots[roots.length - 1] : null;
+  const text = (body?.innerText || '');
+  const h2 = body ? body.querySelector('h2') : null;
   return ({
-  chars: (body?.innerText || '').trim().length,
+  // chars 含块间换行/空白（真机实测：raw=1346 / trim=1343 / nonblank=1240）
+  // ⇒ **判据用 charsNonBlank**，chars 只用于显示与前后差值。
+  chars: text.trim().length,
+  charsNonBlank: text.replace(/\s/g, '').length,
   h2Count: body ? body.querySelectorAll('h2').length : 0,
   imgCount: body ? body.querySelectorAll('img').length : 0,
-  h2BorderLeft: body ? (body.querySelector('h2')?.style.borderLeftWidth || '') : '',
+  // 用 computed 而不是 .style：编辑器若把 border 挪进 class，.style 会是空串而 computed 仍有值
+  h2BorderLeft: h2 ? getComputedStyle(h2).borderLeftWidth : '',
   gaps: (() => {
     const ps = body ? [...body.querySelectorAll('p')] : [];
     return ps.slice(1).map((p, i) =>
@@ -190,10 +196,22 @@ run_actions(steps=[
 })()
 ```
 
-判据（与对方基线一致）：`chars` 与稿源一致、`h2Count` 匹配、`imgCount` 匹配、`markers.mojibake=false`。
+判据（与对方基线一致）：
+
+| 字段 | 判据 | 注意 |
+|---|---|---|
+| **`charsNonBlank`** | 与稿源的**非空白字符数**一致 | 夹具是 22；**不要**用 `chars`（含块间换行，夹具会给 27） |
+| `chars` | 只用于显示与"粘前/粘后差值" | 真机实测同一稿：raw 1346 / trim 1343 / nonblank 1240 |
+| `h2Count` / `imgCount` | 与稿源匹配 | ✅ |
+| `h2BorderLeft` | 期望 `4px` | 用 `getComputedStyle` 取（内联或 class 都成立） |
+| `markers.mojibake` | `false` | ✅ |
+| `gaps` | **仅 B2 夹具**可用 20–34px | 真实稿子里见过 78（标题后/大段间）与 12（列表项间）——对任意草稿应"与稿源结构逐段比对"或只看"`>0` 且稳定" |
+
+> 这套 JS 已在真机 1343 字草稿上原样跑过：`chars=1343, h2Count=7, imgCount=2, h2BorderLeft=4px, mojibake=false`
+> —— **取最后一个 `.ProseMirror` 这条修复真机成立**（标题是 20 字，没被误读）。
 
 > **别拿页面底部的「正文字数」计数器当判据**：它是编辑器自己的统计口径，与 `innerText` 长度
-> 不一致（真机见过 15 vs 20）。用**粘前/粘后的 `chars` 差值**。
+> 不一致（真机见过 15 vs 20）。用**粘前/粘后的 `charsNonBlank` 差值**。
 **样式三项**（`h2[].borderLeft`、段间距、封面 `background-image`）只用于 diff，不进工具契约。
 
 ---
