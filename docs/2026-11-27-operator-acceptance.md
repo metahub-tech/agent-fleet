@@ -334,6 +334,42 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 
 ---
 
+
+---
+
+## 性能基线（2026-11-27，`test-win11`，散落各轮回执的读数汇总）
+
+> ⚠️ 这不是 benchmark harness 的产物：每条都是**一次**真机调用的观测，机器同时有别的
+> agent 在用（租约频繁易手）。用途只有一个——以后有人说"变慢了"，能拿这张表对照，
+> 而不是凭感觉。数值随机器负载、前台窗口类型、profile 标签数变化。
+
+| 原语 | 读数 | 当时条件 | 出处 |
+|---|---|---|---|
+| `dump_ui` | **3609ms** | StarBeam(Electron) 前台，`max_depth=4`，`uia_budget_s=8.0` | 第二轮 B3 |
+| `dump_ui` | 6218ms | 第一轮，前台应用未记录 | 首轮读数 |
+| `find_elements` | **1483ms** | 第一轮，token 查询 | 首轮读数 |
+| `list_windows` | **389ms** | 15 个可见窗口 | 第三轮 smoke_ops |
+| `list_windows` | 562ms | 同批另一次 | 首轮读数 |
+| `list_tabs` | **313ms** | 33 个标签页（并发探测，总预算 300ms） | 首轮读数 |
+| `eval_in_profile(activate=False)` | **62ms** | 34 标签 profile，`url_part` 命中唯一页 | 第三轮 B1a |
+| `eval_in_profile(activate=True)` | 9265ms | 同上页面；**单次观测**，疑似激活阶段慢（已加 `timings` 分解） | 第三轮 B1b |
+| `clipboard_set_html` | 一次成功 | 303 字节，`attempts=1`，回读字节相等 | 第二轮 B2 |
+| `wait_for(kind=text)` | 327ms | 预算 300ms，条件很快成立 | 首轮读数 |
+| `activate_tab` | 一次成功 | 34 标签下按 `url_part` 命中 | 第三轮 |
+
+**阈值速查**（这些是代码里真实存在的可调项，不是随口写的）：
+
+| 环境变量 / 常量 | 默认 | 作用 |
+|---|---|---|
+| `FLEET_UIA_TIMEOUT` / `UIA_TIMEOUT_S` | 8s | Windows UIA 遍历/枚举的硬预算；超时返回已收集部分 |
+| `FLEET_UIA_SLOW_LOG` / `UIA_SLOW_LOG_S` | 5s | 超过即打印"完成了但很慢"，用于区分服务端慢与客户端开销 |
+| `FLEET_AX_TIMEOUT` / `AX_TIMEOUT_S` | 8s | macOS AX 遍历预算 |
+| `ACTIVATE_TIMEOUT` | 3s | CDP `Target.activateTarget` 单项超时 |
+| `EVAL_TIMEOUT` | 见代码 | `Runtime.evaluate` 单项超时 |
+| `_batch.MAX_STEPS` | 25 | 单批步数上限 |
+| `_wait.MAX_TIMEOUT_S` | 60s | `wait_for` 预算的硬上限（默认 10s） |
+| `_fsops.MAX_TRANSFER_BYTES` | 4 MiB | 原始字节上限（base64 后 ~5.6 MiB），超限 `file_too_large` |
+
 ## 失败归因速查（smoke 报了 FAIL 时先查这里）
 
 > 目的是把「FAIL」在三秒内分成三类：**判据 bug（我方脚本）／实现 bug（我方代码）／环境问题（设备侧）**。
