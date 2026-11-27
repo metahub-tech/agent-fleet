@@ -78,6 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增"夹具保真度"元测试**：`test_fixture_fidelity.py` 扫描全部测试，禁止构造只有 `reason` 没有 `message` 的 CDP 错误。原因是实现靠 `message` 区分「真超时」与「链路故障」，夹具一旦省掉它，错误实现会被验成对的——同一个坑在本分支里踩过三次。确需构造极端输入时加 `# noqa: fixture-no-message` 并写明原因。
 
+- **架构文档新增「设计参考」段**：写明本批原语借鉴了哪些成熟设备操作 MCP（Windows-MCP 的 UIA 超时与「一字一节点」合并、mobile-mcp 的批量命令、CDP 直连取结构化数据、WDA 定位策略），以及我们各自改了什么、为什么**不采纳** Playwright 系作为真账号通道。附四条共同取舍（预算必须落到真正阻塞处、失败结构化、不猜、超限不截断）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

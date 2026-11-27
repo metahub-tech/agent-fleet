@@ -69,6 +69,28 @@ flowchart LR
 
 另：`8765` 是 desktop-commander（社区通用 shell/file MCP）的端口，所有平台都可复用。
 
+
+## 设计参考（借鉴了哪些成熟设备操作 MCP，改了什么）
+
+> 本节的用途：reviewer 想知道"这些原语是拍脑袋想的还是抄来的、抄的时候改了哪里"。
+> 只列**实际采纳**的设计；未采纳的也写一句原因，避免后来者重复调研。
+
+| 上游项目 | 采纳的设计 | 我们的改动 / 不采纳的理由 |
+|---|---|---|
+| **Windows-MCP** | ① UIA 遍历加硬超时（原项目在连接/等待上有超时意识）；② 把 Chromium/Electron 的「一字一节点」文本叶子**按词合并**再用；③ `WaitFor` 式"设备侧条件等待" | ① 我们做成 `run_with_timeout`（daemon 线程 + Event），超时**返回已收集部分**而不是丢弃；② 合并阈值/节点数做成环境变量（`FLEET_UIA_GLYPH_*`），默认只合并真正的单字节点，避免误合并；③ `wait_for` 超时是**正常答案**，并区分 `timeout` / `probe_failed` 两种 reason |
+| **mobile-mcp** | `batch_commands` 式批量执行 | 我们改成**显式白名单 + 整批预校验 + 失败短路**（`_batch`），并把 `file_get` 这类会灌爆响应的工具排除在外 |
+| **Chrome DevTools MCP** | 用 CDP 直连浏览器取结构化数据（比截图+OCR 便宜得多） | 我们不托管浏览器：只连**已运行的** profile（`DevToolsActivePort` 探活），因此不重启、不新增自动化痕迹；多标签**不猜**前台页，要求 `url_part`/`target_id` |
+| Playwright / Puppeteer 系 | — | **不采纳**作为真账号发布通道：会引入 `navigator.webdriver` 等自动化痕迹，改用宿主真实 Chrome（`human_browser`） |
+| Appium / WebDriverAgent | iOS 端复用 WDA 作为设备通道 | 沿用其定位策略（class chain / predicate），新增 `wait_for` 与批量，并给 AX 遍历加预算 |
+
+**共同的设计取舍**（这些是我们在上游基础上加的，不是抄的）：
+
+1. **一切慢操作都要有预算**，且预算必须落到真正阻塞的地方（socket/recv、AX 遍历、adb dump）；
+2. **失败要结构化**：`reason` 枚举 + `hint`，不要抛裸异常（真机上 `There are N elements that match the criteria` 这种文案对 agent 毫无用处）；
+3. **不猜**：多标签、多窗口、未知状态一律返回候选让调用方决定；
+4. **超限不截断**（`result_too_large` / `file_too_large`），宁可失败也不要静默给半份数据。
+
+
 ## 工具公约 (Universal Tool Set)
 
 每个平台桥**必须实现下面的通用工具集**，工具名与语义保持一致。这样 Agent 切换设备时几乎不用换思维方式——只在 `~/.claude.json` 里换 server URL。
