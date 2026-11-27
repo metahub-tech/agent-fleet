@@ -398,3 +398,18 @@ def test_activate_with_retry_no_retry_when_successful():
 
     msg, err = dv.activate_with_retry(object(), "T", call=ok, sleep=lambda s: None)
     assert err is None and len(calls) == 1
+
+
+# --- tab 契约：键集合固定（/json 用 id，工具契约用 target_id）------------
+
+def test_normalize_tab_exposes_the_documented_keys():
+    """tab 的键是**契约**：调用方按它读字段。少一个键不会报错，只会静默拿到 None。
+
+    真出过一次事故：`smoke_devtools.choose_target()` 的回退分支读 `tab["id"]`，
+    而这里产出的键是 `target_id` ⇒ 回退分支成了死代码。
+    """
+    tab = dv.normalize_tab({"id": "X1", "url": "https://a/b", "title": "标题"})
+    assert set(tab) == {"target_id", "url", "title", "visibility"}, tab
+    assert tab["target_id"] == "X1"
+    assert "id" not in tab, "不要把 /json 的 `id` 混进工具契约"
+    assert tab["visibility"] == "unknown"
