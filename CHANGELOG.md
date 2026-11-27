@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`connect_browser` 把预算传进 probe 与握手**：此前 `connect_browser(udd, 3.0)` 内部的 `/json/version` 探测用固定 3s、ws 握手用默认 5s，实际耗时可达 8s —— 与真机"`eval_in_profile` 偶发 9265ms"的读数吻合（3s 连接 + 5s 握手 + 激活）。现在每轮都按剩余预算裁剪，端口一直探不通也会在预算内返回 `(None, None)`。
 
+- **macOS `wait_for(text)` 的探测预算与 Windows 对齐（默认 4s，`FLEET_WAIT_PROBE_BUDGET`）**：mac 端同样是"每次探测走完整 AX 遍历、吃满 8s 预算"，导致等待退化成 1–2 次采样。`_ax_walk_budgeted` / `_mac_find_elements` 增加可选 `budget_s`，等待场景按 4s 探测；其余调用点预算不变。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

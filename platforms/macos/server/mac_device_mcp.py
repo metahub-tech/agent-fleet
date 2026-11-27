@@ -812,6 +812,10 @@ def _ax_element_dict(elem, depth: int) -> dict:
 #   FLEET_AX_TIMEOUT 可调（秒），默认 8。
 # ---------------------------------------------------------------------------
 AX_TIMEOUT_S = float(os.environ.get("FLEET_AX_TIMEOUT", "8") or 8)
+#: `wait_for(kind="text")` 单次探测的预算：等待应当"多次采样"，而不是一次
+#: AX 遍历吃掉整个等待预算（默认取 4s，理由同 Windows：实测 find_elements
+#: ~1.5s、树导出 ~3.6s，2s 会让重窗口每次都超时 → 假阴性）。
+WAIT_PROBE_BUDGET_S = float(os.environ.get("FLEET_WAIT_PROBE_BUDGET", "4") or 4)
 
 
 def _ax_timeout_hint(what: str) -> str:
@@ -823,11 +827,16 @@ def _ax_timeout_hint(what: str) -> str:
     )
 
 
-def _ax_walk_budgeted(elem, max_depth: int) -> list:
-    """在预算内走 AX 树。超时抛 :class:`UiaTimeout`，由调用方转成结构化错误。"""
+def _ax_walk_budgeted(elem, max_depth: int, budget_s=None) -> list:
+    """在预算内走 AX 树。超时抛 :class:`UiaTimeout`，由调用方转成结构化错误。
+
+    ``budget_s`` 让等待类调用方用更小的单次预算（见 ``WAIT_PROBE_BUDGET_S``），
+    否则一次探测就吃掉整段等待预算，轮询退化成"两次赌"。
+    """
     collected: list = []
     run_with_timeout(lambda: _ax_walk(elem, 0, max_depth, collected),
-                     AX_TIMEOUT_S, "ax_walk")
+                     AX_TIMEOUT_S if budget_s is None else float(budget_s),
+                     "ax_walk")
     return collected
 
 
@@ -1051,13 +1060,13 @@ def _ax_scope(app):
         return None, None, None, {"ok": False, "error": f"AX init failed: {type(e).__name__}: {e}"}
 
 
-def _mac_find_elements(query, app, include_disabled, max_results, max_depth):
+def _mac_find_elements(query, app, include_disabled, max_results, max_depth, budget_s=None):
     """Core AX element search shared by find_elements + tap_element."""
     app_elem, pid, app_label, err = _ax_scope(app)
     if err:
         return err
     try:
-        raw = _ax_walk_budgeted(app_elem, max_depth)
+        raw = _ax_walk_budgeted(app_elem, max_depth, budget_s)
     except UiaTimeout:
         return {"ok": False, "reason": "uia_timeout", "error": _ax_timeout_hint("find_elements"),
                 "hint": "smaller max_depth, scope with app=..., or take_screenshot + tap",
@@ -1263,7 +1272,8 @@ def wait_for(
         return matched, {"app": name, "bundle_id": bundle, "pid": int(app_obj.processIdentifier())}
 
     def _probe_text():
-        res = _mac_find_elements(needle, app, False, 5, 8)
+        res = _mac_find_elements(needle, app, False, 5, 8,
+                                 budget_s=min(AX_TIMEOUT_S, WAIT_PROBE_BUDGET_S))
         if not res.get("ok"):
             raise RuntimeError(f"find_elements failed: {res.get('reason') or res.get('error')}")
         count = int(res.get("total_matched") or 0)

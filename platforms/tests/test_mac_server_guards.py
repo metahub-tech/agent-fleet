@@ -75,3 +75,17 @@ def test_run_actions_excludes_install_and_upload():
     assert allowlist, "_MAC_BATCH_ALLOWLIST 不存在"
     forbidden = {"install_app", "uninstall_app", "upload_to_photos", "upload_to_app"}
     assert not (set(allowlist) & forbidden), f"白名单混入了不该批处理的能力: {set(allowlist) & forbidden}"
+
+
+def test_wait_for_text_probe_uses_shorter_ax_budget(tree):
+    """等待场景的 AX 探测不能吃满整段预算（否则 10s 等待只采样 1-2 次）。"""
+    func = _func(tree, "wait_for")
+    source = ast.unparse(func)
+    assert "WAIT_PROBE_BUDGET_S" in source, "wait_for 的 text 探测又用回整段 AX 预算"
+    assert "budget_s=" in source, "find_elements 调用没有传 budget_s"
+
+
+def test_ax_walk_accepts_optional_budget(tree):
+    func = _func(tree, "_ax_walk_budgeted")
+    args = [a.arg for a in func.args.args]
+    assert "budget_s" in args, "_ax_walk_budgeted 不再接受 budget_s，等待场景无法缩短探测"
