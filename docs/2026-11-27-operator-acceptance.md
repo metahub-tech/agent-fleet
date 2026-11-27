@@ -162,7 +162,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 
 | 勾 | 项 | 判据 |
 |---|---|---|
-| ☐ | 租约 | `python3 scripts/smoke_lease.py --url http://<host>:8766/mcp` 12/12 通过 |
+| ☐ | 租约 | `python3 scripts/smoke_lease.py --url http://<host>:8766/mcp` 应 12/12。**实测最好成绩 11/12**（2026-11-27，唯一 FAIL 是续租判据用 `idle==0`，已在 `b3770a9` 改成比较 `last_used_at`；修后**尚未重跑**到 12/12） |
 | ☐ | 截图/点击 | `take_screenshot` + `tap_element(query=…)` 正常 |
 | ☐ | human_dom | `human_dom_status()` 正常返回；`human_dom_fill` 一次成功（带 profile） |
 | ☐ | 会话稳定 | 连续操作 10 分钟后 `get_status()` 仍可调，`~/.agent-fleet/session-audit.log` 无异常增长 |
