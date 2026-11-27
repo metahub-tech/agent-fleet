@@ -181,3 +181,41 @@ def test_attempts_out_of_range():
 def test_attempts_reports_failure():
     ok, detail = so.check_attempts_reported({"ok": False, "reason": "clipboard_busy"}, 2)
     assert ok is False and "clipboard_busy" in detail
+
+
+# --- UIA 稳定性（预算内必须返回） -----------------------------------------
+
+def test_uia_ok_payload_is_fine():
+    ok, detail = so.check_uia_latency("dump_ui", {"ok": True, "elements": []}, 1200)
+    assert ok is True and "1200ms" in detail
+
+
+def test_uia_timeout_reason_counts_as_bounded():
+    # 超时本身是"有界"的答案，不是失败
+    ok, detail = so.check_uia_latency("dump_ui", {"ok": False, "reason": "uia_timeout"}, 8100)
+    assert ok is True and "uia_timeout" in detail
+
+
+def test_uia_console_window_is_bounded():
+    ok, _ = so.check_uia_latency("dump_ui", {"ok": False, "reason": "console_window"}, 30)
+    assert ok is True
+
+
+def test_uia_too_slow_is_failure():
+    ok, detail = so.check_uia_latency("dump_ui", {"ok": True}, 20000)
+    assert ok is False and "not bounded" in detail
+
+
+def test_list_windows_returns_list():
+    ok, detail = so.check_uia_latency("list_windows", [{"title": "a"}], 300)
+    assert ok is True and "1 item" in detail
+
+
+def test_uia_unexpected_failure_is_reported():
+    ok, detail = so.check_uia_latency("find_elements", {"ok": False, "reason": "boom"}, 100)
+    assert ok is False and "unexpectedly" in detail
+
+
+def test_uia_no_foreground_special_case():
+    ok, _ = so.check_uia_latency("dump_ui", {"ok": False, "error": "No foreground window detected"}, 5)
+    assert ok is True

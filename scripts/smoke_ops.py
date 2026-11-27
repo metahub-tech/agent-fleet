@@ -34,6 +34,7 @@ import base64
 import hashlib
 import json
 import sys
+import time
 from typing import Any, Optional
 
 REQUIRED_TOOLS = ("file_put", "file_get", "clipboard_set_html", "wait_for", "run_actions")
@@ -166,6 +167,34 @@ def check_batch_ok(payload: dict) -> tuple[bool, str]:
     return True, f"{len(statuses)} steps ok"
 
 
+UIA_BUDGET_MS = 8000        # 与 server 默认 FLEET_UIA_TIMEOUT 一致
+UIA_SLACK_MS = 2500         # 调度/测量抖动余量
+
+
+def check_uia_latency(kind: str, payload: dict, elapsed_ms: int,
+                      budget_ms: int = UIA_BUDGET_MS) -> tuple[bool, str]:
+    """UIA 调用必须在预算 + 余量内**返回**（返回什么都行，就是不能挂住）。
+
+    这是"卡死修复"的真机判据：旧实现在 Electron/控制台窗口上会永不返回；
+    新实现要么给结果，要么给结构化 `uia_timeout` / `console_window`。
+    """
+    limit = budget_ms + UIA_SLACK_MS
+    if elapsed_ms > limit:
+        return False, f"{kind} took {elapsed_ms}ms (> {limit}ms) — traversal is not bounded"
+    if isinstance(payload, list):
+        return True, f"{kind} returned {len(payload)} item(s) in {elapsed_ms}ms"
+    if not isinstance(payload, dict):
+        return False, f"{kind} returned a non-dict/non-list payload: {type(payload).__name__}"
+    ok = payload.get("ok")
+    reason = payload.get("reason")
+    if ok is True:
+        return True, f"{kind} ok in {elapsed_ms}ms"
+    allowed = {"uia_timeout", "console_window", "not_found", "no foreground window detected"}
+    if reason in allowed or str(payload.get("error") or "").lower().startswith("no foreground"):
+        return True, f"{kind} answered in {elapsed_ms}ms with reason={reason!r} (bounded, not hung)"
+    return False, f"{kind} failed unexpectedly in {elapsed_ms}ms: {payload}"
+
+
 def check_batch_rejected(payload: dict) -> tuple[bool, str]:
     if payload.get("ok") is not False or payload.get("reason") != "invalid_steps":
         return False, f"invalid batch was not rejected up-front: {payload.get('reason')!r}"
@@ -274,6 +303,25 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                 ])
                 ok, detail = check_batch_rejected(bad)
                 add("run_actions rejects whole batch up-front", ok, detail)
+
+                # --- UIA 稳定性：必须在预算内**返回**（旧实现会挂住） ---
+                t0 = time.monotonic()
+                dumped = await call("dump_ui")
+                dump_ms = int((time.monotonic() - t0) * 1000)
+                ok, detail = check_uia_latency("dump_ui", dumped, dump_ms)
+                add("dump_ui returns within budget", ok, detail)
+
+                t0 = time.monotonic()
+                windows = await call("list_windows")
+                windows_ms = int((time.monotonic() - t0) * 1000)
+                ok, detail = check_uia_latency("list_windows", windows, windows_ms)
+                add("list_windows returns within budget", ok, detail)
+
+                t0 = time.monotonic()
+                searched = await call("find_elements", query="__fleet_smoke_impossible__")
+                search_ms = int((time.monotonic() - t0) * 1000)
+                ok, detail = check_uia_latency("find_elements", searched, search_ms)
+                add("find_elements returns within budget", ok, detail)
     except Exception as exc:
         print(f"ERROR: cannot run ops smoke against {url}: {type(exc).__name__}: {exc}",
               file=sys.stderr)
