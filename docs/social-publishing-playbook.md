@@ -64,7 +64,7 @@ human_browser_open(profile=P, activate=True)
 human_browser_open(url="https://mp.weixin.qq.com/…", profile=P, activate=True)
 devtools.cdp_port(profile=P)        → ok=true / reason 分支（别缓存端口）
 devtools.list_tabs(profile=P)       → 目标 tab 的 visibility
-devtools.activate_tab(profile=P, url_part="…")   → 多命中会报 PAGE_AMBIGUOUS，别硬选
+devtools.activate_tab(profile=P, url_part="…")   → 多命中报 PAGE_AMBIGUOUS（注意：activate_tab 用大写，eval_in_profile 用小写 page_ambiguous），别硬选
 ```
 
 - `visibility == "unknown"` 不代表冻结，只代表探针超预算；**先 activate 再 eval**。
