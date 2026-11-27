@@ -28,6 +28,10 @@ import argparse
 import asyncio
 import json
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _mcp_probe import load_transport as _shared_load_transport
 import uuid
 from typing import Any, Awaitable, Callable, Optional
 
@@ -225,21 +229,12 @@ async def _run(url: str, args: argparse.Namespace) -> int:
 
 
 def _load_transport():
-    """返回 streamable-http 连接器；兼容 MCP SDK 1.x 与 2.x 的导出名。
+    """返回 streamable-http 连接器（兼容 MCP SDK 1.x/2.x）。
 
-    1.x: ``streamablehttp_client``；2.x: ``streamable_http_client``（带下划线）。
-    两者都接同一个 URL，返回的上下文管理器都是 (read, write, ...) 元组。
+    实现在 `scripts/_mcp_probe.py`——三个验收脚本共用同一份，避免各自实现导致
+    同一台设备被不同脚本判成不同结果。
     """
-    try:
-        from mcp.client.streamable_http import streamablehttp_client as _t   # 1.x
-        return _t
-    except Exception:
-        pass
-    try:
-        from mcp.client.streamable_http import streamable_http_client as _t  # 2.x
-        return _t
-    except Exception:
-        return None
+    return _shared_load_transport()
 
 
 def main(argv: Optional[list[str]] = None) -> int:

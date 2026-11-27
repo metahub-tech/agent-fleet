@@ -103,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **验收文档改用「证据强度四档」（L0–L3）**：这轮反复出现"这条算不算验过"的争论，二值（验过/没验过）会把 L1 读成 L2、L0 读成 L3。改为：**L0** 只有代码/推断、**L1** 野外观测（抓到原始返回但不能按需复现）、**L2** 脚本可复现（一条命令重复跑出同一判据）、**L3** 多轮稳定（不同现场状态重复通过）。逐项标注并给出"引用规则"：L2 说"脚本可复现"、L3 才说"多轮稳定"、L1 只能写"野外观测到"、L0 不进"已验证"叙述。
 
+- **新增 `scripts/probe_multi.py`（定位工具）与 `scripts/_mcp_probe.py`（公共实现）**：`probe_multi` 在**一个** MCP 会话里按顺序打 N 个工具调用，把原始 payload 原样吐出——不断言、不判分、不设退出码分级，专用于"这个工具在现场到底返回什么形状"。与验收脚本**不是二选一**：验收用 `smoke_ops`/`smoke_devtools`，定位用 `probe_multi`。同时把三个验收脚本里重复的 payload 归一化与 SDK 连接器加载收敛到 `_mcp_probe`（此前三份实现容易对同一设备给出不同读数），并保留各脚本原有契约（非 dict 包 `_value`、纯文本包 `_raw`）。出处：由 `device-operator-lead` 在 labs §15 首实现，此处零依赖化 + 补 CLI（`--sample` / `--timeout` / `--json` / `--out`）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
