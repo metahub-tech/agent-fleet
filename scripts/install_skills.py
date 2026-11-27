@@ -12,10 +12,10 @@ Harness, ...). It links (or copies) the skills that belong to one device role:
     agent browser     platforms/common/skills/using-fleet-browser   (opt-in)
 
 Usage:
-    python3 scripts/install-skills.py --platform win-device
-    python3 scripts/install-skills.py --platform mac-device --target ~/.claude/skills
-    python3 scripts/install-skills.py --platform android-device --dry-run
-    python3 scripts/install-skills.py --list
+    python3 scripts/install_skills.py --platform win-device
+    python3 scripts/install_skills.py --platform mac-device --target ~/.claude/skills
+    python3 scripts/install_skills.py --platform android-device --dry-run
+    python3 scripts/install_skills.py --list
 
 Target defaults, in order: $FLEET_SKILLS_DIR, <repo>/.dsh/skills when it already
 exists, ~/.dsh/skills, ~/.claude/skills. Pass --target to be explicit.
