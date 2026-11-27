@@ -182,6 +182,44 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 **结论**：没有实现 bug 的硬证据；两条是判据/契约问题（均已修），一条是既有 bug（已结构化），
 一条是环境不具备。
 
+
+---
+
+## 第三轮：A 组复验通过（2026-11-27，`d39b3d1`）
+
+> 出处：`agent:device-operator-lead` 按新 tip 复验，side-car 8767，profile `~/.fleet/publisher`
+> （**34 个标签页**的运营 profile，不是干净 profile）。这是他第一次给出"全绿"的 A 组结论。
+
+| 脚本 | 结果 | 关键读数 |
+|---|---|---|
+| `smoke_ops` | ✅ **exit=0，12/12** | `list_windows returned 15 item(s) in 389ms`；`run_actions rejects whole batch up-front: rejected before running; 15 tools allowed` |
+| `smoke_devtools` | ✅ **exit=0，7/7** | `eval_in_profile read: visibilityState='visible' size_bytes=9`；`oversize rejected, not truncated: size_bytes=4098 (>1024)`；`activate_tab` 后标签可见 |
+
+**这两条正是前两轮的 FAIL**：`list_windows` 的 `{"result":[...]}` 判据、`eval_in_profile` 的多标签选页。
+现在在 34 标签的真实 profile 上通过——说明修复在真实工况下成立，不是干净环境下的巧合。
+
+### B1 的新读数（并修正判据）
+
+```
+eval_in_profile(js="1", url_part="appmsgid=100000037", activate=False)
+→ {ok:true, value:1, activated:false, size_bytes:1, elapsed_ms:62}
+eval_in_profile(..., 默认参数)
+→ {ok:true, value:"visible", activated:true, elapsed_ms:9265}
+```
+
+- `url_part` 在 34 标签下**命中唯一页**，`page_ambiguous` 不再出现 —— 这一维通过；
+- 但「后台标签 ⇒ `frozen_background_tab`」**不成立**：切后台只是隐藏，Chrome 只在内存压力或
+  长时间后台才冻结渲染进程。判据已改为可稳定判定的语义（见「B1 判据修正」一节）；
+- 附带观察：`activate=True` 花了 **9265ms**，贴着超时线。已给 `eval_in_profile` 加
+  `timings:{connect_ms, activate_ms, eval_ms}`，下次可直接定位是哪一段慢。
+
+### 仍未闭环
+
+- `list_windows` 那次 **11984ms + 裸 `OSError [Errno 22]`**：对方已用 `start_process` 命令行
+  证明打的是 8767（新码），但"8s 预算为何没在 8s 收住"仍无定论；需要服务端日志里那行
+  `[uia] list_windows ...`（超时与异常两条路径都会打）。
+- B2 后半（粘 h2 稿后核对样式）尚未执行，对方已表示愿意按清单跑。
+
 ## B 组最小执行脚本（复制即可跑，约 6 分钟）
 
 > 这四条脚本覆盖不到（需要"制造状态"或输入类操作），但工具调用可以照抄。
