@@ -245,6 +245,8 @@ MCP 的 session 只活在**服务进程内存**里：进程一换，所有客户
 
 `event` 取值：`created` / `reused` / `expired_or_unknown` / `init_failed` / `bad_request` / `stream_open` / `stream_fail` / `terminated`。
 
+日志路径可用 `FLEET_SESSION_AUDIT=<path>` 覆盖（默认 `%USERPROFILE%\.agent-fleet\session-audit.log`）。
+
 判读：
 
 ```powershell
