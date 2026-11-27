@@ -67,8 +67,13 @@ devtools.list_tabs(profile=P)       → 目标 tab 的 visibility
 devtools.activate_tab(profile=P, url_part="…")   → 多命中报 PAGE_AMBIGUOUS（注意：activate_tab 用大写，eval_in_profile 用小写 page_ambiguous），别硬选
 ```
 
-- `visibility == "unknown"` 不代表冻结，只代表探针超预算；**先 activate 再 eval**。
-- 页面内容不在 UIA 树里 → `find_elements` 找不到网页元素是正常的，走 human_dom / devtools。
+- `visibility == "unknown"` 不代表冻结，只代表探针超预算。
+- **只读断言先 `activate=False`**（`eval_in_profile(js=…, activate=False, url_part=…)`）：
+  真机实测浏览器忙时 `activate_tab` 会双次超时 6703ms，而同 profile 的
+  `eval(activate=False)` **47–108ms** 就返回了。**只有"要往页面里输入/点击"时才需要 activate。**
+- 激活失败按「可以继续但没焦点」降级（见 §6），不要重试到超时再判死整条链路。
+- 页面内容不在 UIA 树里 → `find_elements` / `tap_element` 找不到**网页元素**是正常的，
+  必须走 human_dom / devtools / vision；UIA 只在**系统对话框**（如文件选择框）那一段有用。
 
 ---
 
@@ -80,10 +85,23 @@ devtools.activate_tab(profile=P, url_part="…")   → 多命中报 PAGE_AMBIGUO
 **正文（富文本，必须保样式）**：
 
 ```text
+# 0) 先确认焦点在**正文**（填完标题后焦点还在标题框，直接 ctrl+v 会把 h2 粘进标题！）
+devtools.eval_in_profile(profile=P, url_part=…, activate=False,
+                         js="document.activeElement?.className || ''")   → 应为正文编辑器
+#    不是的话：human_dom_tap(正文区域) 或 tap 坐标，再复查一次
+
 clipboard_set_html(content=html)     → ok=true 且 readback 通过；formats 应只有 ["HTML Format"]
 press_key("ctrl+v")                  → 或放进 run_actions
-wait_for(kind="text", target="<正文首段的一小段文字>", timeout_ms=8000)
+# 粘完用 eval 读 innerText 验证（**不要**用 wait_for(kind="text")，见下）
+devtools.eval_in_profile(profile=P, url_part=…, js="…正文根节点.innerText.length…")
 ```
+
+> ⚠️ **网页编辑器上 `wait_for(kind="text")` 永远不会命中**：它走 UIA，而 Chrome 的网页内容
+> 不在 UIA 树里（工具 docstring 已写明，真机实测 `find_elements` 对 Chrome 任何文本都返回
+> `count=0`）。粘完正文那句 `wait_for` 必然等到 8s 超时；而 `run_actions` 默认
+> `stop_on_error=true`，会把**已经粘成功**的批次判成失败。
+> ⇒ 正文确认一律用 `eval_in_profile` 读 `innerText`；若仍想留在批量里，把该步的
+> `stop_on_error` 设为 `false`。
 
 - **不要**用 `type_text` 粘长正文：纯文本会丢 `border-left`、段间距、内联样式。
 - `clipboard_set_html` 是**全局剪贴板**：写完到粘贴之间别让别的 agent 写剪贴板；也别同时 `paste_text`。
@@ -94,9 +112,9 @@ wait_for(kind="text", target="<正文首段的一小段文字>", timeout_ms=8000
 ```json
 run_actions(steps=[
   {"tool": "clipboard_set_html", "args": {"content": "<html>"}},
-  {"tool": "press_key", "args": {"keys": "ctrl+v"}, "sleep_ms": 300},
-  {"tool": "wait_for", "args": {"kind": "text", "target": "正文首段片段", "timeout_ms": 8000}}
+  {"tool": "press_key", "args": {"keys": "ctrl+v"}, "sleep_ms": 300}
 ], stop_on_error=true)
+# 粘完单独调 devtools.eval_in_profile 读 innerText 校验（UIA 在网页上等不到文本）
 ```
 
 > `run_actions` **整体校验**：任何一步拼错则一步都不跑；失败短路并把后续步标 `skipped`。
@@ -113,23 +131,28 @@ run_actions(steps=[
 ```json
 run_actions(steps=[
   {"tool": "file_put", "args": {"path": "C:\\fleet\\cover.png", "content_b64": "<b64>"}},
-  {"tool": "tap_element", "args": {"query": "上传", "window_title": "公众号"}},
+  {"tool": "human_dom_tap", "args": {"query": "上传", "profile": "<同一个 P>"}},
   {"tool": "wait_for", "args": {"kind": "window", "target": "打开", "timeout_ms": 5000}},
   {"tool": "type_text", "args": {"text": "C:\\fleet\\cover.png"}, "sleep_ms": 150},
   {"tool": "press_key", "args": {"keys": "enter"}},
   {"tool": "wait_for", "args": {"kind": "window_gone", "target": "打开", "timeout_ms": 5000}},
-  {"tool": "wait_for", "args": {"kind": "text", "target": "封面", "timeout_ms": 10000}}
+  {"tool": "wait_for", "args": {"kind": "window_gone", "target": "打开", "timeout_ms": 5000}}
+# 缩略图另用 devtools.eval_in_profile 读（见下）
 ])
 ```
 
 要点与坑：
 
+- **「上传」按钮是网页元素，`tap_element`/`find_elements` 找不到它**（UIA 只看得见 Chrome 窗口，
+  看不见网页 DOM）。用 `human_dom_tap(query=…)`、`vision_tap` 或坐标；UIA 只在**系统文件对话框**
+  那一段才生效（所以下面 `wait_for(kind="window", target="打开")` 是对的）。
 - 对话框标题随语言不同（中文「打开」/ 英文 "Open"）；先用 `wait_for(kind="window", target="打开")` 确认它真的起来了，再输入。
 - **路径必须完整**（含盘符）；部分对话框不接受纯文件名。
 - 中文路径建议用 `paste_text` 而不是 `type_text`（避免输入法/编码问题）。
 - 输入后按 `enter`，然后**必须**用 `wait_for(kind="window_gone", target="打开")` 确认对话框真的关掉——
   没关就去点下一步，点击会打在对话框上（`*_gone` 变体在四个平台都支持）。
-- 上传后**必须**用 `wait_for(kind="text", …)` 或 `eval_in_profile` 确认缩略图出现，别只看「操作成功」。
+- 上传后**必须**用 `eval_in_profile`（读 `img` 数量或 `background-image`）确认缩略图出现——
+  网页内容上 `wait_for(kind="text")` 等不到（同 §3）。
 
 ---
 
@@ -141,17 +164,36 @@ run_actions(steps=[
 > 或 `target_id=`，否则返回 `page_ambiguous`——这是刻意不猜，不是故障。
 
 ```javascript
-(() => ({
-  chars: document.querySelector('[contenteditable]')?.innerText.trim().length ?? 0,
-  h2Count: document.querySelectorAll('[contenteditable] h2').length,
-  imgCount: document.querySelectorAll('[contenteditable] img').length,
+(() => {
+  // ⚠️ 公众号编辑页有 **3 个 contenteditable**（实测）：
+  //   [0] .ProseMirror len=20   ← 装的是**标题**（与 #title 的值一致）
+  //   [1] original_primary_tips_inp len=0
+  //   [2] .ProseMirror len=1343 ← 这才是**正文**
+  // `querySelector('[contenteditable]')` 返回第一个 ⇒ 会把标题长度当正文字数。
+  // 取**最后一个** `.ProseMirror`（或换成你自己确认过的正文根选择器）。
+  const roots = [...document.querySelectorAll('.ProseMirror')];
+  const body = roots.length ? roots[roots.length - 1] : null;
+  return ({
+  chars: (body?.innerText || '').trim().length,
+  h2Count: body ? body.querySelectorAll('h2').length : 0,
+  imgCount: body ? body.querySelectorAll('img').length : 0,
+  h2BorderLeft: body ? (body.querySelector('h2')?.style.borderLeftWidth || '') : '',
+  gaps: (() => {
+    const ps = body ? [...body.querySelectorAll('p')] : [];
+    return ps.slice(1).map((p, i) =>
+      Math.round(p.getBoundingClientRect().top - ps[i].getBoundingClientRect().bottom));
+  })(),
   markers: {
     mojibake: /\uFFFD/.test(document.body.innerText),
   },
-}))()
+  });
+})()
 ```
 
 判据（与对方基线一致）：`chars` 与稿源一致、`h2Count` 匹配、`imgCount` 匹配、`markers.mojibake=false`。
+
+> **别拿页面底部的「正文字数」计数器当判据**：它是编辑器自己的统计口径，与 `innerText` 长度
+> 不一致（真机见过 15 vs 20）。用**粘前/粘后的 `chars` 差值**。
 **样式三项**（`h2[].borderLeft`、段间距、封面 `background-image`）只用于 diff，不进工具契约。
 
 ---

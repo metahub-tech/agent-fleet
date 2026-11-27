@@ -92,6 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_devtools --freeze-check`：把「冻结分支」变成可自动验的一项**：此前 B1 的负向判据只能手工（`chrome://discards`）。新增开关：**只找 `about:blank`** 标签，用 CDP `Page.setWebLifecycleState` 冻结 → 让 `eval_in_profile(activate=False, target_id=…)` 断言 `frozen_background_tab` → `finally` 里必解冻。没有 `about:blank` 时明确记 skipped（不碰任何业务标签）。若页面仍能求值则判**失败**（说明冻结没生效），不接受"切后台"冒充。
 
+- **playbook §2–§5 修正四处真机踩坑（operator 从操作台角度审阅）**：① §5 的验证 JS 用 `querySelector('[contenteditable]')` 会读到**标题**（公众号编辑页有 3 个 contenteditable，[0] 是标题 20 字、[2] 才是正文 1343 字），改为取最后一个 `.ProseMirror`；② 网页编辑器上 `wait_for(kind="text")` 走 UIA **永远等不到**（Chrome 网页不在 UIA 树），正文确认改用 `eval_in_profile` 读 `innerText`，批量里的该步若保留须 `stop_on_error=false`；③「上传」按钮是网页元素，`tap_element` 找不到，改用 `human_dom_tap`/`vision_tap`；④ 只读断言应先 `activate=false`（真机：`activate_tab` 忙时 6703ms 双次超时，而 `eval(activate=False)` 47–108ms）。另补两条：页面底部的字数计数器 ≠ `innerText` 长度（见过 15 vs 20）；粘正文前必须确认焦点在正文（填完标题后焦点还在标题框）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
