@@ -4,6 +4,8 @@ server imports pyautogui/pywinauto). Importing the module is itself the floor ch
 single-device tools without GUI side effects (no swipe/current_app here — those move
 the cursor / query the desktop and are covered by the MCP smoke test)."""
 import os
+
+import pytest
 import sys
 import tempfile
 from pathlib import Path
@@ -90,6 +92,7 @@ def test_match_query_ranking():
     assert mq("a", {}) == (False, "", False)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="needs PowerShell (Windows-only)")
 def test_proc_delegation_runs_a_command():
     # default shell is powershell; echo round-trips through _proc + the win ShellSpec.
     import time
@@ -128,6 +131,7 @@ def test_take_screenshot_delegates_to_single_primitive(monkeypatch):
     assert called["n"] == 1
 
 
+@pytest.mark.skipif(os.name != "nt", reason="DPI awareness needs Windows + win32 API")
 def test_dpi_aware_and_scale_factor_exposed():
     # 正向锚点: Win10 1703+ 上 awareness 应成功; scale_factor 仅自检不进坐标
     ss = _fn(srv.get_screen_size)()

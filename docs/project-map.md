@@ -164,7 +164,7 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 
 | 版本身份（零副作用） | `python3 scripts/smoke_ops.py --url http://<host>:<port>/mcp --probe` | ✅ 只读；exit 0=这批代码 / 3=不是 / 2=连不上 |
 | 能力原语验收 | `python3 scripts/smoke_ops.py --url …`、`python3 scripts/smoke_devtools.py --url … --profile …` | ✅ 前者会写 %TEMP% 与剪贴板，后者只读；两者均带整体超时 |
-| 单平台 server 自带测试 | `platforms/<p>/server/tests/`（Linux 上：Android/iOS 直接跑、macOS 由 `conftest.py` 装桩） | ✅ 实测 android **63**、ios **13**、macos **9 passed/1 skipped**（该 skip 依赖 `/bin/zsh`） |
+| 单平台 server 自带测试 | `platforms/<p>/server/tests/`（Linux 上：Android/iOS 直接跑；Windows/macOS 由各自 `tests/conftest.py` 装桩，真机上不覆盖真实包） | ✅ 实测 **windows 13+2 skipped**（PowerShell/DPI 两条平台专属）、**macos 9+1 skipped**（/bin/zsh）、**android 63**、**ios 13** |
 | 蓝图三步 | `& 'E:\Program Files\Git\bin\bash.exe' -lc "cd /e/workspace/.../agent-fleet && PYTHONUTF8=1 ./scripts/gen-blueprint-map.sh --check"`（interface / refs 同理） | ✅ **Git Bash + `PYTHONUTF8=1`**（脚本内嵌 Python 未显式指定 encoding，缺 `PYTHONUTF8` 会 GBK 解码失败） |
 | PS 语法门禁 | `./scripts/check-ps-syntax.sh`（需 pwsh 7+） | ❌ 本机无 pwsh 7；替代：`[System.Management.Automation.Language.Parser]::ParseFile(...)`（PS 5.1 解析器，近似） |
 | shell 语法门禁 | `bash -n <file>` / `find … -exec bash -n {} \;` | ✅ 通过 Git Bash 跑 |
