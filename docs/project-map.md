@@ -157,12 +157,16 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 平台共享层测试 | `python3 -m pytest platforms/common/tests -q --basetemp=<仓库外目录>` | ✅ 可跑但**预期约 10 个 Windows 环境性失败**（bash 硬编码、`read_text()` 无 encoding 撞 GBK、路径进 regex）；`--basetemp` 必带，否则 `tmp_path` 撞 `%TEMP%` 权限 |
 | 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 快（实测 28 passed）；改 `platform.toml` / 工具名后必跑 |
 | 租约隔离（双 session） | `python scripts/smoke_lease.py --url http://<host>:<port>/mcp` | ✅ 只需本机有 `mcp` client SDK；只读，不点击/输入 |
+| MCP SDK 版本差异 | 见下：`streamablehttp_client`(1.x) vs `streamable_http_client`(2.x) | ✅ 已在 `smoke_*.py` 与 `fleet/_mcp_transport.py` 统一兼容 |
+
 | 版本身份（零副作用） | `python3 scripts/smoke_ops.py --url http://<host>:<port>/mcp --probe` | ✅ 只读；exit 0=这批代码 / 3=不是 / 2=连不上 |
 | 能力原语验收 | `python3 scripts/smoke_ops.py --url …`、`python3 scripts/smoke_devtools.py --url … --profile …` | ✅ 前者会写 %TEMP% 与剪贴板，后者只读；两者均带整体超时 |
 | 单平台 server 冒烟 | `platforms\windows\server\.venv\Scripts\python.exe -m pytest platforms/windows/server/tests -q` | ⚠️ 必须用该平台自己的 venv（server 会 import pyautogui/psutil 等）；iOS 只在 macOS 上跑 |
 | 蓝图三步 | `& 'E:\Program Files\Git\bin\bash.exe' -lc "cd /e/workspace/.../agent-fleet && PYTHONUTF8=1 ./scripts/gen-blueprint-map.sh --check"`（interface / refs 同理） | ✅ **Git Bash + `PYTHONUTF8=1`**（脚本内嵌 Python 未显式指定 encoding，缺 `PYTHONUTF8` 会 GBK 解码失败） |
 | PS 语法门禁 | `./scripts/check-ps-syntax.sh`（需 pwsh 7+） | ❌ 本机无 pwsh 7；替代：`[System.Management.Automation.Language.Parser]::ParseFile(...)`（PS 5.1 解析器，近似） |
 | shell 语法门禁 | `bash -n <file>` / `find … -exec bash -n {} \;` | ✅ 通过 Git Bash 跑 |
+
+> **MCP client SDK 两代导出名**：1.x 是 `mcp.client.streamable_http.streamablehttp_client`，2.x 改成 `streamable_http_client`（带下划线），且连接器返回值都是 `(read, write, ...)` 元组。仓库里需要连 server 的入口（`scripts/smoke_ops.py` / `smoke_devtools.py` / `smoke_lease.py`、`cli/src/fleet/{verify,smoke}.py`）都通过 loader 同时尝试两个名字——**新增这类脚本请复用同一模式**，否则在只装了 2.x 的环境里会直接报 "MCP client SDK not available"。
 
 > 结论：**Python 侧 + 蓝图三步 + shell 语法本机都能跑**；唯一跑不了的是 PowerShell-7 语法门禁（`check-ps-syntax.sh` 需要 `pwsh`），只能靠 CI。改 `.ps1` 后请在 PR 里说明「PS 5.1 解析通过，pwsh 7 门禁交 CI」。
 
