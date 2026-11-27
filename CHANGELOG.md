@@ -18,11 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Windows core 工具 `wait_for`：设备侧条件等待（借鉴 Windows-MCP `WaitFor`）**：把「睡一会儿再看」从调用方挪到设备侧——`kind` 支持 `window`（标题子串，走 Win32 EnumWindows，不走 UIA，开销小）/ `foreground`（确认刚抢到前台）/ `text`（UIA 元素出现，可 `window_title` 限定范围）。命中返回 `{ok:true, elapsed_ms, attempts, detail}`；**超时是正常答案** `{ok:false, reason:"timeout", timeout_ms}`，调用方直接分支降级，而不是盲目重试。探测抛异常（窗口正在重建）不算失败、继续轮询，最后一次错误进 `last_error`；预算封顶 60s、间隔下限 20ms，并可与 `run_actions` 组合。纯逻辑在 `platforms/common/_wait.py`（7 条单测）。**单测抓到一个真实缺陷**：`budget=0.3` 与 `3×0.1` 的浮点累加差 1e-14 会让循环在最后一步 `sleep(~1e-14)`、永远跨不过预算 → 变成忙等死循环；已加 `_EPSILON` 护栏。win 固定工具数 **56 → 57**（core 47 → 48）。
 
-### 新增
 
 - **`scripts/smoke_ops.py`：新原语的重复性真机验收**：一条命令覆盖工具注册、二进制往返 sha（含 base64 解回再校验）、超限不落盘、富文本剪贴板（`formats == ["HTML Format"]` + 回读通过）、`wait_for` **预算是否真的被执行**（防"假超时"）、`run_actions` 顺序执行与**整批预校验**（拒绝时不得有任何步执行）。20 条纯判据单测，含四个假绿陷阱：sha 漂移、只用字段不看内容、"超时"但 3ms 就返回、拒绝批次却跑过步。副作用已在 docstring 与验收清单里写明（覆盖剪贴板、写一个临时文件）。
 
-- **macOS：AX 遍历加硬预算（与 Windows 的 UIA 预算对齐）**：`dump_ui` / `list_ui_elements` / `find_elements` / `tap_element` 的 AX 遍历此前**没有任何超时**——目标应用卡住（Electron a11y 阻塞、主线程死锁、超大树）时会把 MCP 请求线程拖住，工具调用永不返回。现在复用 `platforms/common/_uia_bounds.py` 的 `run_with_timeout`（与 Windows 同一套原语），超时返回 `{ok:false, reason:"uia_timeout", hint:…}` 并附 `ax_budget_s`，调用方直接降级到截图+坐标。`FLEET_AX_TIMEOUT`（默认 8s）可调。
 
 - **macOS 对齐：`run_actions` / `wait_for`（与 Windows 同名同语义）**：mac 之前没有批量与条件等待，调用方只能一步一步来、用 `sleep` 猜时机。现在两个原语在 mac 上也可用——`run_actions` 走显式白名单（13 个安全工具；`run_shell` / AppleScript / 进程类不可批处理）+ 整体校验 + 失败短路；`wait_for` 支持 `app`（NSWorkspace 运行中应用，便宜）/ `foreground`（前台应用）/ `text`（AX 元素出现，受 AX 预算保护）。共享逻辑（`_batch` / `_wait`）与 Windows 完全同一份，单测已覆盖。mac 固定工具数 **51 → 53**（core 42 → 44）。
 
@@ -32,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`wait_for` 支持 `*_gone` 变体：等条件**消失**（四平台）**：文件选择对话框用完后必须确认它真的关了，否则下一步点击会打在对话框上——此前只能用固定 `sleep` 赌。现在 `window_gone` / `foreground_gone` / `text_gone`（mac: `app_gone` 等）把"等它消失"变成一次有预算的调用。实现只新增 `_wait.negate_probe()`（翻转 matched、保留 detail），**不新增工具**、工具数不变。
 
-- **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
 
 - **两个验收脚本加整体超时（默认 180s，下限 5s）**：设备或某个工具调用卡住时，脚本不再把对方的 shell 挂住，而是打印明确的超时原因并以 `exit 2` 退出。已用"只接受不回包"的黑洞服务端到端验证：预算 4s（被抬到 5s）→ 5.8s 内返回 `run exceeded the overall budget (5s)` + exit 2。
 
@@ -40,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 修复
 
+- **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
+- **macOS：AX 遍历加硬预算（与 Windows 的 UIA 预算对齐）**：`dump_ui` / `list_ui_elements` / `find_elements` / `tap_element` 的 AX 遍历此前**没有任何超时**——目标应用卡住（Electron a11y 阻塞、主线程死锁、超大树）时会把 MCP 请求线程拖住，工具调用永不返回。现在复用 `platforms/common/_uia_bounds.py` 的 `run_with_timeout`（与 Windows 同一套原语），超时返回 `{ok:false, reason:"uia_timeout", hint:…}` 并附 `ax_budget_s`，调用方直接降级到截图+坐标。`FLEET_AX_TIMEOUT`（默认 8s）可调。
 - **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。
 - **验收脚本两处判据修正（同一次真机验收）**：① `smoke_ops` 的 UIA 延迟检查不认 FastMCP 对 `-> list[dict]` 的包装 `{"result": [...]}`，把 562ms 正常返回误判成失败；② `smoke_devtools` 现在**剥掉 `--profile` 两端的引号**（PowerShell 里 `--profile "..."` 会连引号一起传进去，导致 `port_file_missing`），并自动用 `list_tabs` 里第一个 http 页的 URL 作为 `url_part`。
 
