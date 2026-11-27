@@ -311,7 +311,7 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
   `port_file_age_ms`（设备侧算，`<5s` 多半在启动、`>60s` 多半是陈旧文件；这是**代理指标**，
   带 `note:"clock_skew"` 时表示 mtime 不可信）；
 - `handshake_timeout` —— 端点活着但拿不到可连的 ws 地址；
-- `frozen_background_tab` —— `activate=False` 时目标没响应（后台冻结），先 `activate_tab` 再 eval；
+- `frozen_background_tab` —— `activate=False` 时目标没响应。**真实触发条件是「后台停留足够久 / 内存压力」，不是「切到后台」这个动作**：真机实测刚切后台仍可求值（返回 value），而在后台待久了的标签会返回该 reason（2026-11-27 野外观测：读一个长期后台的草稿箱标签 → `{ok:false, activated:false, reason:"frozen_background_tab", error:"Runtime.evaluate timed out"}`，`activate=True` 后恢复）。处置：`activate_tab` 后重试；
 - `result_too_large` / `not_serializable` / `js_exception` / `frame_not_found` / `page_ambiguous` / `no_target`。
 
 **默认开启**：`devtools` 已写进 win/mac 的 `platform.toml` `[capabilities].enabled`，

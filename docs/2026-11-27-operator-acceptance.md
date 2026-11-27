@@ -34,7 +34,7 @@ unknown 在 28–36 之间浮动，与设计一致：**并发探测在 `probe_bu
 | `smoke_ops` | ✅ **12/12** | 三轮（`d39b3d1`，34 标签 profile） |
 | `smoke_devtools` | ✅ **7/7** | 五轮（`c7862fd`，36 标签 profile） |
 | B1 选页维度 | ✅ `url_part` 命中唯一页、62ms | 第三轮 |
-| B1 冻结分支 | ⏳ **可选加深项**（不影响验收）；`--freeze-check`（`9b17f34`）可自动验，只碰 `about:blank` | 第三轮 + 第七节 |
+| B1 冻结分支 | ⚠️ **有野外观测**（长期后台标签返回该 reason，`activate=True` 恢复）；脚本化 `--freeze-check` 未跑成 | 第八节 |
 | B2 富文本（四项） | ✅ h2/bl=4px/pCount=2/gaps 24/ufffd=0/字数 22/22 | 第七轮（v6） |
 
 | B3 UIA 卡死回归 | ✅ `dump_ui` 9797ms 有界返回 | 第三/四轮 |
@@ -805,6 +805,28 @@ activate_tab → 172ms 成功（紧接着下一条命令）
 ⇒ 重试覆盖的是**短时抖动**；对"浏览器忙几秒"这种窗口，调用方的最佳处置仍是**降级成
 `activate=false` 只读**，而不是等它成功。对方当天两次都是这么绕过去的（先只读拿到状态，
 等窗口出现再动 UI）。这条与 playbook 里「激活失败 = 可以继续但没焦点」的写法一致。
+
+## 冻结分支（`frozen_background_tab`）：已有野外观测，但仍非脚本强制触发
+
+2026-11-27 对方在跑头条轮询时**意外**拿到了这个 reason：
+
+```
+{"ok": false, "activated": false, "reason": "frozen_background_tab",
+ "error": "Runtime.evaluate timed out"}
+```
+
+场景：读取一个**长期待在后台**的草稿箱标签（不是刚切后台的），`activate=True` 后恢复正常。
+
+⇒ 这条把 `frozen_background_tab` 从"代码里有"变成"**野外观测到**"，并澄清了触发条件：
+
+| 说法 | 对不对 |
+|---|---|
+| 切到后台 ⇒ 冻结 | ❌ 刚切后台仍可求值（真机多次实测） |
+| 后台停留足够久 / 内存压力 ⇒ 冻结 | ✅ 这次的野外观测 |
+
+**但它仍是"意外拿到"而不是"我们能按需复现"**：脚本化的 `--freeze-check`（`Page.setWebLifecycleState`）
+因该 profile 无 `about:blank` 未跑成。所以 B1 冻结分支的状态是：
+**有野外观测证据、无脚本复现**——比"未验证"强，比"已验证可复现"弱，按这个口径引用。
 
 ## 引用注意事项（给写 PR / 读证据的人）
 
