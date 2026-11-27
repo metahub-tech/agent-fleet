@@ -144,7 +144,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 | **P0** | B1（后台标签语义） | 这是 `eval_in_profile` 最容易被误解的行为，必须验 |
 | **P0** | B3（UIA 卡死回归） | 只验"有没有在 10s 内返回"，一条命令 |
 | P1 | B4（中文逐字节点） | 取决于该应用是不是逐字节点，可能 N/A |
-| P2 | B2（剪贴板粘贴保真） | 需要在真账号编辑器里操作，最费时；可延后到下次 |
+| P2 | B2（剪贴板粘贴保真） | 已在 v3 首次实测：结构/乱码/段距 **通过**；`border-left` 与字数比因"稿源无 style、草稿非空"**未测**——下次用「带 border-left 的稿源 + 空草稿」四项一次量全 |
 
 
 ---
@@ -169,7 +169,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 | B2 剪贴板写入 | `bytes:303, attempts:1, verified:true, formats:["HTML Format"], only_html_format:true` | ✅ 前半通过；后半（读正文核对样式）被上面的 eval 问题挡住 |
 | B3 UIA 卡死 | StarBeam(Electron) 前台 → `dump_ui(max_depth=4)` **3609ms**，`uia_budget_s:8.0` | ✅ 有界返回 |
 | B4 中文逐字节点 | 设备无微信 PC 端；StarBeam 的 UIA 树 depth4 全空 Pane，`find_elements("订阅")` → `count:0`, `glyph_merge.applied:true` | ⛔ **环境不具备**（N/A） |
-| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**。⚠️ 我先前推断「必然是旧码 8766」，被对方用 `start_process` 记录的命令行**证伪**：那次打的是 8767（新码）。所以「8s 预算却没在 8s 收住」仍是**未解**问题——需要服务端日志里那行 `[uia] list_windows ...` 才能定死 |
+| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**。⚠️ 我先前推断「必然是旧码 8766」，被对方用 `start_process` 记录的命令行**证伪**：那次打的是 8767（新码）。**已在第四轮（v3）定论**：`dump_ui` 的 8s 预算客户端实测 9797ms ⇒「预算 ≈ 10s 墙钟」，11.98s 属正常量级；且 `dump_ui` 当时不打日志（`c7862fd` 已补）|
 | 异常② | `find_elements(window_title="StarBeam")` 两窗口时抛裸异常 `There are 2 elements that match the criteria` | ❌ 既有 bug → **`73dc997` 起返回 `reason:"ambiguous_window"` + candidates** |
 | 交叉证据 | 裸客户端打旧码 8766 的 `list_windows` → `Output validation error: 'result' is a required property` | 佐证旧码该工具在严格客户端下本来就是坏的 |
 
@@ -446,6 +446,74 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 
 
 ---
+
+
+---
+
+## 第四轮（v3）：B2 后半首次实测 + 11984ms 定论（2026-11-27，`d417e97`）
+
+> 出处：`agent:device-operator-lead`，基线 `d417e97`（`846ed7b` 是其祖先），
+> side-car 8767，profile `~/.fleet/publisher`（**36 个标签页**）。这次 server stderr 落盘
+> （`server_8767.log`），不再丢日志。
+
+### A 组
+
+| 脚本 | 结果 | 备注 |
+|---|---|---|
+| `smoke_ops` | ✅ **12/12** | `dump_ui` **9797ms** 返回 `uia_timeout`（有界，不是卡死）；`list_windows` 15 items / 530ms |
+| `smoke_devtools` | ❌ 3/6 | `eval_in_profile` / oversize / `activate_tab` 全报 `page_ambiguous` —— **不是工具回归**，见下 |
+
+**3/6 的真因（我方判据 bug）**：脚本取"第一个 http 页的完整 url"当 `url_part`，而该 profile 的
+36 个标签里 `https://www.zhihu.com/creator/manage/creation/all` 出现 **2 次**（`_v3_tabs.json` 显示
+共 5 组重复，toutiao/graphic/publish 各 3 次）⇒ `match_pages` 命中 2 条 ⇒ ambiguous。
+**修法（`3ec4b00`）**：`choose_target()` 优先取唯一出现的 url，全部重复时退回 `target_id`；
+`activate_tab` 也补了 `target_id`。**该修复尚待真机复验**（对方已同意用这 5 组重复做靶子）。
+
+### B2 后半：富文本粘贴保真（首次实测）
+
+```
+clipboard_set_html → {ok:true, bytes:369, attempts:1, verified:true,
+                      formats:["HTML Format"], only_html_format:true}
+粘进 appmsgid=100000037 正文（ctrl+v）后 eval 读数：
+  {src:59, nb:78, ufffd:0, h2:[{t:"验收标题：剪贴板保真", bl:"0px"}], pCount:2, gaps:[24], len:84}
+收尾：ctrl+z 撤销 → {len:20, h2:0, p:0}，草稿恢复原样；**未点发表**
+```
+
+| 判据 | 读数 | 结论 |
+|---|---|---|
+| 结构完整（H2 + 2×`<p>`） | `h2=1, pCount=2` | ✅ |
+| 无乱码 | `� = 0` | ✅ |
+| 相邻段落间距 | `gaps:[24]` px（文档区间 20–34） | ✅ |
+| `border-left` 保真 | `bl:"0px"` | ⚠️ **未测**：稿源本身没写 `style="border-left:…"`，要测得换稿源 |
+| 字数比 | `src:59 / nb:78` | ⚠️ **无有效读数**：草稿原有 15 字，`nb` 是"原有+新粘"合计；要空草稿或全选覆盖才可比 |
+
+### 激活耗时（同一 profile，10 分钟内）
+
+```
+eval(activate=True) → cdp_timeout 3327ms
+activate_tab        → cdp_timeout 3077ms
+activate_tab        → ok 296ms
+activate_tab        → ok 297ms
+```
+
+⇒ **浏览器忙时 3s 会超时、空闲时 300ms 就够**。已据此加"失败重试一次"（`3ec4b00`），
+并把语义写进 playbook：激活失败按**"可以继续但没焦点"**处理，不判死整条链路。
+
+### 11984ms：定论（撤回我此前的"未解"）
+
+对方两条旁证：
+
+1. `dump_ui` 超时**此前不打日志**（只有 `list_windows` 打）⇒ 我那句"日志里两行都没有 ⇒ 正常返回"
+   对 `dump_ui` **不成立**（已在 `c7862fd` 给它补上留痕，判据从此对称）；
+2. 同一轮 `dump_ui` 的 **8s 预算客户端实测 9797ms** ⇒ **"8s 预算 ≈ 10s 墙钟"**（收尾/客户端开销）。
+
+⇒ **11.98s 落在"预算 + 收尾"的正常量级，不是预算失效**。此条从"未解异常"改为**已解释**。
+
+### 仍未闭环
+
+- `choose_target` 的 `target_id` 回退路径：**代码已就位，真机待验**（对方 2 分钟可跑）；
+- `border-left` 保真与字数比：需"带 style 的稿源 + 空草稿"，对方已同意下次一并量；
+- B4（中文逐字节点）：设备无微信 PC 端，N/A。
 
 ## 验证覆盖矩阵（2026-11-27 末，四平台可执行测试落地后）
 
