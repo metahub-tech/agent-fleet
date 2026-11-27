@@ -150,3 +150,35 @@ def test_lease_is_enforced_across_sessions(server_url):
     assert out["a_release"].get("released") is True, out["a_release"]
     assert out["c_acquire"].get("acquired") is True, out["c_acquire"]
     assert "width" in out["c_call"] and "height" in out["c_call"], out["c_call"]
+
+
+def test_discovery_and_structured_errors_over_mcp(server_url):
+    """再验两条"通过真实 MCP 往返"的性质：
+
+    1. `list_capabilities` 可调用且结构正确（这是"这台设备能干什么"的唯一运行时口径）；
+    2. 非法参数返回**结构化**结果而不是把连接打挂（`wait_for(kind="bogus")`）。
+    """
+    async def flow(url):
+        from mcp import ClientSession
+
+        transport = _transport()
+        async with transport(url) as streams:
+            async with ClientSession(streams[0], streams[1]) as s:
+                await s.initialize()
+                caps = _payload(await s.call_tool("list_capabilities", {}))
+                bad = _payload(await s.call_tool("wait_for", {"kind": "bogus", "target": "x"}))
+                screens = _payload(await s.call_tool("get_screen_size", {}))
+                return caps, bad, screens
+
+    caps, bad, screens = asyncio.run(asyncio.wait_for(flow(server_url), timeout=60))
+
+    assert isinstance(caps.get("capabilities"), list) and caps["capabilities"], caps
+    core = next(c for c in caps["capabilities"] if c["id"] == "core")
+    assert "list_capabilities" in core["tools"]
+    assert "wait_for" in core["tools"]
+
+    assert bad.get("ok") is False and bad.get("reason") == "invalid_kind", bad
+    assert "allowed_kinds" in bad
+
+    # 服务仍然健康（错误没有把连接/进程打挂）
+    assert "width" in screens and "height" in screens, screens
