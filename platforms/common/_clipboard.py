@@ -91,6 +91,12 @@ class ClipboardApi:
         return int(self.user32.RegisterClipboardFormatW(name))
 
     def format_names(self) -> list[str]:
+        """当前剪贴板上的格式名清单。
+
+        `GetClipboardFormatNameW` 只用于"看得懂的名字"，**任何一步失败都不该让整个回读失败**
+        —— 否则 `clipboard_set_html` 会一直返回 `readback_unavailable`，把"名字读不出"
+        误诊成"剪贴板坏了"。失败时退回 `#<id>` 仍能表达"有哪些格式、是不是只有一个"。
+        """
         names: list[str] = []
         fmt = 0
         while True:
@@ -100,9 +106,12 @@ class ClipboardApi:
             if fmt in _BUILTIN_FORMATS:
                 names.append(_BUILTIN_FORMATS[fmt])
                 continue
-            buf = ctypes.create_unicode_buffer(256)
-            n = int(self.user32.GetClipboardFormatNameW(fmt, buf, 256))
-            names.append(buf.value if n > 0 else f"#{fmt}")
+            try:
+                buf = ctypes.create_unicode_buffer(256)
+                n = int(self.user32.GetClipboardFormatNameW(fmt, buf, 256))
+                names.append(buf.value if n > 0 else f"#{fmt}")
+            except Exception:
+                names.append(f"#{fmt}")
         return names
 
     # -- memory ------------------------------------------------------------

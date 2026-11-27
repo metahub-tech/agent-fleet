@@ -1411,7 +1411,7 @@ def run_actions(
     Each step is `{"tool": "<name>", "args": {...}, "sleep_ms": 0}`. Only an explicit
     allowlist is accepted (`tap`, `tap_element`, `type_text`, `paste_text`, `press_key`,
     `swipe`, `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`,
-    `file_put`, `file_get`, `get_screen_size`, `hover_preview`, `find_elements`) —
+    `file_put`, `file_get`, `get_screen_size`, `hover_preview`, `find_elements`, `wait_for`) —
     shell / process / terminate tools are intentionally **not** batchable.
     `run_actions` itself is not allowed (no recursion).
 

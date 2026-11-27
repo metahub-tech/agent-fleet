@@ -178,10 +178,29 @@ def ws_send(sock, obj: dict) -> None:
     sock.sendall(bytes(hdr))
 
 
-def ws_recv_text(sock) -> dict:
-    """读一帧 server → client（不掩码），跳过控制帧，返回 JSON。
+def _read_frame(sock, rd) -> tuple[bool, int, bytes]:
+    """读一帧：返回 (fin, opcode, payload)。server → client 的帧不掩码。"""
+    b0, b1 = rd(2)
+    fin = bool(b0 & 0x80)
+    opcode = b0 & 0x0F
+    length = b1 & 0x7F
+    if length == 126:
+        length = struct.unpack(">H", rd(2))[0]
+    elif length == 127:
+        length = struct.unpack(">Q", rd(8))[0]
+    payload = rd(length) if length else b""
+    return fin, opcode, payload
 
-    CDP 命令的响应体不大，这里只取单帧 payload（与既有 human_dom 实现一致）。
+
+def ws_recv_text(sock) -> dict:
+    """读一条完整消息（server → client），**支持分片**，跳过控制帧，返回 JSON。
+
+    为什么要处理分片：CDP 的大返回（`Runtime.evaluate` 取 2 MiB 数据）Chrome 可能拆成
+    FIN=0 的 continuation 帧；只读第一帧会得到半截 JSON → 解析失败 → 被上层当成
+    `not_serializable`，把一个"结果太大"的问题误诊成序列化问题。
+
+    协议要点：`opcode 0x1` = 文本帧，`0x0` = continuation（承接上一帧），
+    `0x8/0x9/0xA` = close/ping/pong（可插在分片中间，直接跳过）。
     """
     def rd(k: int) -> bytes:
         buf = b""
@@ -192,20 +211,16 @@ def ws_recv_text(sock) -> dict:
             buf += chunk
         return buf
 
+    chunks: list[bytes] = []
     while True:
-        b0, b1 = rd(2)
-        opcode = b0 & 0x0F
-        length = b1 & 0x7F
-        if length == 126:
-            length = struct.unpack(">H", rd(2))[0]
-        elif length == 127:
-            length = struct.unpack(">Q", rd(8))[0]
-        payload = rd(length)
-        if opcode in (0x8, 0x9, 0xA):  # close / ping / pong
-            if opcode == 0x8:
-                raise ConnectionError("ws: 收到 close")
+        fin, opcode, payload = _read_frame(sock, rd)
+        if opcode == 0x8:
+            raise ConnectionError("ws: 收到 close")
+        if opcode in (0x9, 0xA):      # ping/pong 不参与消息体
             continue
-        return json.loads(payload.decode("utf-8"))
+        chunks.append(payload)
+        if fin:
+            return json.loads(b"".join(chunks).decode("utf-8"))
 
 
 def cdp_call(sock, cid: int, method: str, params: Optional[dict] = None,
