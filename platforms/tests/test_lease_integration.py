@@ -182,3 +182,46 @@ def test_discovery_and_structured_errors_over_mcp(server_url):
 
     # 服务仍然健康（错误没有把连接/进程打挂）
     assert "width" in screens and "height" in screens, screens
+
+
+def test_run_actions_over_mcp(server_url, monkeypatch):
+    """批量动作走完整 MCP 往返：参数校验收、顺序执行、失败短路。
+
+    server 与测试在**同一进程**，所以可以直接替换工具函数来观察调用顺序
+    （不必真去点鼠标）。
+    """
+    from _win_stubs import load_win_server
+
+    win = load_win_server()
+    calls = []
+
+    def fake_tap(x=None, y=None, **kwargs):
+        calls.append((x, y))
+        return {"ok": True}
+
+    monkeypatch.setattr(win, "tap", fake_tap)
+
+    async def flow(url):
+        from mcp import ClientSession
+
+        transport = _transport()
+        async with transport(url) as streams:
+            async with ClientSession(streams[0], streams[1]) as s:
+                await s.initialize()
+                ok_batch = _payload(await s.call_tool("run_actions", {"steps": [
+                    {"tool": "tap", "args": {"x": 11, "y": 22}},
+                    {"tool": "tap", "args": {"x": 33, "y": 44}},
+                ]}))
+                bad_batch = _payload(await s.call_tool("run_actions", {"steps": [
+                    {"tool": "file_get", "args": {"path": "x"}},
+                ]}))
+                return ok_batch, bad_batch
+
+    ok_batch, bad_batch = asyncio.run(asyncio.wait_for(flow(server_url), timeout=60))
+
+    assert ok_batch.get("ok") is True and ok_batch.get("completed") == 2, ok_batch
+    assert calls == [(11, 22), (33, 44)], calls
+
+    # `file_get` 被刻意排除在白名单外（4 MiB base64 会灌爆批量响应）
+    assert bad_batch.get("ok") is False and bad_batch.get("reason") == "invalid_steps", bad_batch
+    assert "file_get" not in bad_batch.get("allowed_tools", [])
