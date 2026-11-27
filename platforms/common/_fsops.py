@@ -12,10 +12,14 @@ it — that latent bug is corrected here.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import os
 import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 def read_file(
@@ -186,3 +190,125 @@ def get_file_info(
         }
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
+
+
+# ---------------------------------------------------------------------------
+# 二进制收发（file_put / file_get）
+#
+# 为什么需要：``write_file`` / ``read_file`` 只走 UTF-8 文本（按行），推图片/HTML
+# 这类字节只能靠临时 http.server + curl 绕一圈。这里给一对**字节级**原语：
+# 原子写、回 sha256 供对账、超限报错**绝不截断**。
+# ---------------------------------------------------------------------------
+
+MAX_TRANSFER_BYTES = 4 * 1024 * 1024   # 单文件上限（base64 后 ~5.6 MiB，留 MCP 余量）
+
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400  # Windows: FILE_ATTRIBUTE_REPARSE_POINT
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _is_reparse(path: Path, st: os.stat_result) -> bool:
+    """该路径本身是否符号链接 / junction（Windows 的 junction 在 3.10/3.11 上
+    ``islink()`` 返回 False，必须看 st_file_attributes 或用 3.12 的 ``isjunction``）。"""
+    try:
+        if os.path.islink(path):
+            return True
+    except OSError:
+        pass
+    isjunction = getattr(os.path, "isjunction", None)
+    if isjunction is not None:
+        try:
+            if isjunction(path):
+                return True
+        except OSError:
+            pass
+    return bool(getattr(st, "st_file_attributes", 0) & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def first_reparse_component(path: str) -> Optional[str]:
+    r"""从盘符/根开始**逐段**检查，返回第一个 reparse point 的绝对路径；没有则 None。
+
+    为什么不直接比较 ``realpath == abspath``：Windows 的 8.3 短路径、盘符/目录大小写、
+    结尾分隔符都会让字符串比较假红。逐段判断不依赖字符串相等，且**不会**把
+    ``C:\Users\All Users`` 这类系统自带的 junction 误判成用户路径问题。
+    """
+    p = Path(path).expanduser()
+    parts = p.parts
+    if not parts:
+        return None
+    current = Path(parts[0])
+    for part in parts[1:]:
+        current = current / part
+        try:
+            st = os.lstat(current)
+        except OSError:
+            continue          # 尚不存在（写新文件的正常情况）→ 继续往下看
+        if _is_reparse(current, st):
+            return str(current)
+    return None
+
+
+def put_bytes(path: str, data: bytes, follow_symlinks: bool = False) -> dict:
+    """把字节**原子**写到 ``path``（临时文件 + ``os.replace``）。
+
+    返回 ``{ok, path, bytes, sha256}``；失败带 `reason`：
+    ``file_too_large`` / ``symlink_not_allowed`` / ``write_failed``。
+    回 sha256 是硬要求：否则"推上去的那份"没法对账，只能拉回来比。
+    """
+    p = Path(path).expanduser()
+    size = len(data)
+    if size > MAX_TRANSFER_BYTES:
+        return {"ok": False, "reason": "file_too_large", "bytes": size,
+                "max_bytes": MAX_TRANSFER_BYTES}
+    if not follow_symlinks:
+        hit = first_reparse_component(str(p))
+        if hit:
+            return {"ok": False, "reason": "symlink_not_allowed",
+                    "real_path": hit, "hint": "pass follow_symlinks=True if this is intended"}
+    tmp: Optional[Path] = None
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_name(f".{p.name}.part-{os.getpid()}-{uuid.uuid4().hex[:8]}")
+        with tmp.open("wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, p)
+    except Exception as exc:
+        if tmp is not None:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        return {"ok": False, "reason": "write_failed", "error": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True, "path": str(p), "bytes": size, "sha256": sha256_bytes(data)}
+
+
+def get_bytes(path: str) -> dict:
+    """读回一个文件的原始字节（base64）+ 元数据；超限报错，**不截断**。"""
+    p = Path(path).expanduser()
+    try:
+        st = p.stat()
+    except FileNotFoundError:
+        return {"ok": False, "reason": "not_found", "path": str(p)}
+    except Exception as exc:
+        return {"ok": False, "reason": "stat_failed", "error": f"{type(exc).__name__}: {exc}"}
+    if p.is_dir():
+        return {"ok": False, "reason": "is_directory", "path": str(p)}
+    if st.st_size > MAX_TRANSFER_BYTES:
+        return {"ok": False, "reason": "file_too_large", "bytes": st.st_size,
+                "max_bytes": MAX_TRANSFER_BYTES}
+    try:
+        data = p.read_bytes()
+    except Exception as exc:
+        return {"ok": False, "reason": "read_failed", "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        "ok": True,
+        "path": str(p),
+        "bytes": len(data),
+        "sha256": sha256_bytes(data),
+        "mtime": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+        "content_b64": base64.b64encode(data).decode("ascii"),
+    }

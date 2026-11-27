@@ -260,7 +260,7 @@ Get-Content "$env:USERPROFILE\.agent-fleet\session-audit.log" -Tail 20
 
 `win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：
 
-### 附录 A · core 工具（43 个）
+### 附录 A · core 工具（45 个）
 
 server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
 
@@ -276,7 +276,8 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 元素操作 | `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台） |
 | 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
-| 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
+| 文件系统（文本） | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
+| 文件系统（字节） | `file_put`（base64 原子写，回 sha256，4 MiB 上限，拒绝 symlink/junction）, `file_get`（读回 base64 + sha256 + mtime，超限不截断） |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_shell`（底层 PowerShell） |
 
@@ -284,7 +285,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 43 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 48**（43 core + 1 `list_capabilities` + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
+除上面 45 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 50**（45 core + 1 `list_capabilities` + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 

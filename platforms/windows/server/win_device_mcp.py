@@ -835,6 +835,46 @@ def write_file(
 
 @mcp.tool
 @with_touch
+def file_put(
+    path: Annotated[str, Field(description="Absolute path to write (parent dirs are created)")],
+    content_b64: Annotated[str, Field(description="File bytes, base64-encoded (max 4 MiB raw)")],
+    follow_symlinks: Annotated[bool, Field(description="Allow writing through a symlink/junction (default: refuse)")] = False,
+) -> dict:
+    """Write **binary** bytes atomically and return sha256 for reconciliation.
+
+    Text goes through `write_file`; this is for images / HTML / any payload that
+    must not be re-encoded. Limit is 4 MiB of raw bytes — over that it fails with
+    `file_too_large` instead of truncating. Refuses to write through symlinks or
+    Windows junctions unless `follow_symlinks=True` (reason
+    `symlink_not_allowed` + the offending component in `real_path`).
+    Returns {ok, path, bytes, sha256}.
+    """
+    import base64 as _b64
+    try:
+        data = _b64.b64decode(content_b64 or "", validate=True)
+    except Exception:
+        return {"ok": False, "reason": "invalid_base64",
+                "hint": "content_b64 must be standard base64 (padding included)"}
+    return _fsops.put_bytes(path, data, follow_symlinks=follow_symlinks)
+
+
+@mcp.tool
+@with_touch
+def file_get(
+    path: Annotated[str, Field(description="Absolute path to read")],
+) -> dict:
+    """Read **binary** bytes back as base64, with sha256 + mtime for reconciliation.
+
+    Returns {ok, path, bytes, sha256, mtime, content_b64}. Over 4 MiB it fails with
+    `file_too_large` (never returns truncated data). A directory gives
+    `is_directory`, a missing path gives `not_found` — different reasons so the
+    caller can branch instead of guessing.
+    """
+    return _fsops.get_bytes(path)
+
+
+@mcp.tool
+@with_touch
 def edit_block(
     path: Annotated[str, Field(description="Absolute path to the file")],
     old_string: Annotated[str, Field(description="Exact text to find")],

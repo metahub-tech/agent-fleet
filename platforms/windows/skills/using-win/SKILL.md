@@ -77,7 +77,8 @@ list_sessions()                                          # see all started_proce
 | Find string across many files | `start_search(path, pattern)` then `get_more_search_results(search_id)` | regex; returns matches as `{file, line, text}` |
 | Tree of directory | `list_directory(path, depth)` | depth=1 for immediate children |
 | Find-and-replace inside file | `edit_block(path, old, new, replace_all)` | fails if `old` not unique unless `replace_all=True` |
-| Write or append | `write_file(path, content, mode)` | `mode="append"` for log-like usage |
+| Write or append text | `write_file(path, content, mode)` | `mode="append"` for log-like usage |
+| Push/pull **binary** bytes (image, HTML, zip) | `file_put(path, content_b64)` / `file_get(path)` | base64 in/out; **4 MiB** raw limit, over = `file_too_large` (never truncated); returns `sha256` so you can reconcile instead of re-downloading; refuses symlink/junction parents (`symlink_not_allowed`) unless `follow_symlinks=True` |
 
 Don't use `start_search` to look up content of a single known file -- use `read_file` directly.
 

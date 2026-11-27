@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 新增
+
+- **Windows core 工具 `file_put` / `file_get`：二进制收发（device-operator P1）**：此前只有按行读写的文本工具（`read_file` / `write_file`），推图片/HTML 这类字节只能外挂 `http.server` + `curl`。新工具走 `platforms/common/_fsops.py` 的字节原语：`file_put(path, content_b64)` **原子写**（临时文件 + `os.replace`）并回 `sha256`/`bytes` 供对账；`file_get(path)` 回 base64 + `sha256` + `mtime`。单文件上限 **4 MiB 原始字节**，超限报 `file_too_large` **绝不截断**；symlink / Windows junction 逐段检测并默认拒绝（`symlink_not_allowed` + `real_path`），不依赖 `realpath==abspath` 的字符串比较（8.3 短路径/大小写会假红）。win 固定工具数 **48 → 50**（core 43 → 45）。10 条跨平台单测覆盖原子替换、sha 对账、超限、符号链接与目录/不存在。
+
 ### 修复
 
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
