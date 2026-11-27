@@ -42,6 +42,28 @@ There is **no `browser_snapshot` / ref model here** — that is agent_browser. W
 
 To navigate by address bar without `human_browser_open`: `press_key("cmd+l")` (mac) / `press_key("ctrl+l")` (win) → `type_text("https://...")` → `press_key("enter")`.
 
+## Optional: `devtools` primitives (read/eval without screenshots)
+
+If the device has the **opt-in `devtools` capability** enabled (check `list_capabilities()`; it is
+`disabled` unless `[capabilities].enabled` contains `"devtools"`), prefer it over screenshot+coords
+whenever you need to **read or evaluate** page state. It talks CDP directly, so it is cheap
+(no image tokens) and scriptable.
+
+| Tool | Use it for | Must-know |
+|---|---|---|
+| `cdp_port(profile)` | get the debug port / liveness before anything else | the port **changes on every Chrome restart — never cache it**; `alive=false` is not an error, read `reason` (`port_file_missing` → open the browser first; `version_probe_failed` → stale file or still starting; `handshake_timeout` → wait). It **never restarts the browser** for you |
+| `list_tabs(profile)` | enumerate pages | `visibility ∈ visible\|hidden\|unknown`. `unknown` means the probe ran out of budget (frozen/background tab) — **call `activate_tab` before `eval_in_profile`**, don't retry in a loop |
+| `activate_tab(profile, url_part)` | bring a specific page to the front | substring match; multiple matches → `PAGE_AMBIGUOUS` + candidates (never guesses). Verify with `list_tabs` afterwards |
+| `eval_in_profile(profile, js, frame?, activate=True)` | read structured data (counts, text, JSON) or run a small script | activates the target by default; `activate=False` on a background tab returns `frozen_background_tab` (by design). Oversized results → `result_too_large` (**never truncated**), unserializable → `not_serializable`, JS throw → `js_exception` |
+
+Rules of thumb:
+
+- All four use the **same `profile` string** as `human_browser_open` → same user-data-dir → same login.
+- They are **read/eval primitives**. For actions that must look human (clicks, typing), still use OS input
+  (`tap` / `type_text`) or `human_dom`; `eval` is for reading and for driving page-internal JS APIs.
+- If `devtools` is not enabled, do not try to work around it with coordinates: ask for the capability or
+  fall back to `human_dom` → `take_screenshot` + `tap`.
+
 ## What to know
 
 - **Real identity / profile**: this is the human's actual Chrome (real cookies, logins, extensions). Acting here acts as the person — only do so on the user's own device with their own/authorized accounts, for legitimate purposes.
