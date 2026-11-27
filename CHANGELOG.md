@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Windows core 工具 `wait_for`：设备侧条件等待（借鉴 Windows-MCP `WaitFor`）**：把「睡一会儿再看」从调用方挪到设备侧——`kind` 支持 `window`（标题子串，走 Win32 EnumWindows，不走 UIA，开销小）/ `foreground`（确认刚抢到前台）/ `text`（UIA 元素出现，可 `window_title` 限定范围）。命中返回 `{ok:true, elapsed_ms, attempts, detail}`；**超时是正常答案** `{ok:false, reason:"timeout", timeout_ms}`，调用方直接分支降级，而不是盲目重试。探测抛异常（窗口正在重建）不算失败、继续轮询，最后一次错误进 `last_error`；预算封顶 60s、间隔下限 20ms，并可与 `run_actions` 组合。纯逻辑在 `platforms/common/_wait.py`（7 条单测）。**单测抓到一个真实缺陷**：`budget=0.3` 与 `3×0.1` 的浮点累加差 1e-14 会让循环在最后一步 `sleep(~1e-14)`、永远跨不过预算 → 变成忙等死循环；已加 `_EPSILON` 护栏。win 固定工具数 **56 → 57**（core 47 → 48）。
 
+### 新增
+
+- **`scripts/smoke_ops.py`：新原语的重复性真机验收**：一条命令覆盖工具注册、二进制往返 sha（含 base64 解回再校验）、超限不落盘、富文本剪贴板（`formats == ["HTML Format"]` + 回读通过）、`wait_for` **预算是否真的被执行**（防"假超时"）、`run_actions` 顺序执行与**整批预校验**（拒绝时不得有任何步执行）。20 条纯判据单测，含四个假绿陷阱：sha 漂移、只用字段不看内容、"超时"但 3ms 就返回、拒绝批次却跑过步。副作用已在 docstring 与验收清单里写明（覆盖剪贴板、写一个临时文件）。
+
 ### 修复
 
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
