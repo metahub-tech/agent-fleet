@@ -51,6 +51,7 @@ Windows Platform Bridge
 agent-fleet CLI
 
 **关键模块**：
+- `cli/src/fleet/_mcp_transport.py`
 - `cli/src/fleet/cli.py`
 - `cli/src/fleet/detect.py`
 - `cli/src/fleet/frameworks/antigravity.py`
