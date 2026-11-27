@@ -3,6 +3,8 @@ imports pyautogui/pyobjc). Importing the module is the floor check (deps + the
 `common` shared modules resolve); the rest exercise the delegation + single-device
 tools without GUI side effects (no swipe/current_app — covered by the MCP smoke test)."""
 import os
+
+import pytest
 import sys
 import tempfile
 from pathlib import Path
@@ -70,6 +72,8 @@ def test_file_delegation_roundtrip():
         assert "hello mac" in _content(_fn(srv.read_file)(p))
 
 
+@pytest.mark.skipif(not Path("/bin/zsh").exists(),
+                    reason="mac shell spec assumes /bin/zsh (absent on Linux CI)")
 def test_proc_delegation_runs_a_command():
     # default shell is zsh; echo round-trips through _proc + the mac ShellSpec.
     import time
