@@ -86,6 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **human_dom skill 补「开销与轮询建议」**：真机实测 `human_dom_status()` 在 34 个 profile 时单次约 **4 秒**（逐个 `focus_state` + 全量盘扫描）。写明轮询时不要用它、改用 `human_dom_focused(profile=…)` 或直接试操作；`status` 只在首次排障用。
 
+- **human_dom 状态扫描不再泄漏文件句柄**：`compute_status` / `_installed_on_disk` 用 `json.load(open(...))` 读 `meta.json` / `loaded.json`，关闭交给 GC；而 `human_dom_status` 每次会遍历所有 bake 目录（真机 34 个），句柄数随调用次数上涨。改为 `with open(...)`。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

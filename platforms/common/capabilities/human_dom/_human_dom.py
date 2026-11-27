@@ -55,7 +55,8 @@ def _installed_on_disk(ext_subdir):
     open 后数秒仍空), 即时查盘不可靠; loaded.json 由 _loader 装成功即写, 端口一致性由外层 meta 保证。"""
     import json, os
     try:
-        m = json.load(open(os.path.join(ext_subdir, "loaded.json"), encoding="utf-8"))
+        with open(os.path.join(ext_subdir, "loaded.json"), encoding="utf-8") as fh:
+            m = json.load(fh)
         return bool(m.get("loaded"))
     except Exception:
         return False
@@ -75,7 +76,10 @@ def compute_status(ext_root, self_bridge_port=None, connected_ids=frozenset()):
     for name in sorted(os.listdir(root)):
         subdir = os.path.join(root, name)
         try:
-            meta = json.load(open(os.path.join(subdir, "meta.json")))
+            # 必须用 with：每次调用都会遍历所有 bake 目录（本机 34 个），
+            # `json.load(open(...))` 把关闭交给 GC，句柄数会随调用次数上涨。
+            with open(os.path.join(subdir, "meta.json"), encoding="utf-8") as fh:
+                meta = json.load(fh)
         except Exception:
             continue
         pid = meta.get("profile_id")

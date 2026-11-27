@@ -621,6 +621,32 @@ git status --porcelain docs/            # 空 = 零漂移
 **不进 CI**，所以这三项必须本地跑。
 
 
+
+---
+
+## 第五轮（v4）：`smoke_devtools` 7/7 全绿（2026-11-27，`c7862fd`）
+
+> 出处：`agent:device-operator-lead`，36 标签的运营 profile，`exit=0`。
+
+| 检查 | 读数 |
+|---|---|
+| devtools capability | enabled，4 tools |
+| `cdp_port` | port=51392，`Chrome/158.0.8127.36`，probe 30ms |
+| `list_tabs` | **36 tabs / 328ms**（33 个 unknown：并发探测预算内没赶上） |
+| `eval_in_profile` | `visibilityState='visible'`，9 bytes |
+| 超限拒绝 | 4098B > 1024 被拒且**不截断** |
+| `activate_tab` | 命中 `zhuanlan.zhihu.com/p/…/edit`（**唯一 url**） |
+| activate 后可见 | 是 |
+
+⇒ 之前两条 FAIL（`page_ambiguous`）消失。**但要注意它验的是哪条规则**：
+
+| 规则 | 状态 |
+|---|---|
+| 规则 1：优先取**只出现一次**的 http url | ✅ **真机已验证**（7/7，36 标签，命中的是唯一 url） |
+| 规则 2：所有 http url 都重复时回退 `target_id` | ⚠️ **未在真机验过**；且 `c7862fd` 上这条是**死代码**（读 `tab["id"]`，而契约是 `target_id`）——已在 `2b52c89` 修正，并有单测 + 对方离线构造数据双证（全重复 4 条 → 退回 target_id）。真机要验需构造"所有 URL 重复"的 profile，属可选加深项 |
+
+**对方主动撤回了自己上一轮的说法**（"`_v3_tabs.json` 会自动走 target_id"）——那份数据有大量唯一 url，根本到不了回退分支。这种自我纠正值得记下来：**只验了规则 1，就不要说规则 2 已验证**。
+
 ## 验证覆盖矩阵（2026-11-27 末，四平台可执行测试落地后）
 
 > 这张表回答一个很实际的问题：**"这条逻辑到底被什么验证过？"**
@@ -679,7 +705,7 @@ git status --porcelain docs/            # 空 = 零漂移
 | `border-left` 保真 | v3 稿源没带 style ⇒ 未测 | 用带 `style="border-left:4px …"` 的稿源 + **空草稿**，四项一次量全 |
 | 字数比 | v3 草稿原有 15 字 ⇒ 无有效读数 | 同上 |
 | B1 冻结分支 | 「后台≠冻结」已澄清；冻结需主动触发 | `chrome://discards` 手动 Freeze，或 CDP `Page.setWebLifecycleState` |
-| `choose_target` 的 `target_id` 回退 | 代码已修（`2b52c89`），单测+离线构造已证 | 真机需"所有 URL 重复"的 profile，属可选加深项 |
+| `choose_target` 的 `target_id` 回退 | 规则 1 已真机验（v4 7/7）；规则 2 代码已修（`2b52c89`，此前读错字段是死代码），单测+离线构造已证 | 真机需"所有 URL 重复"的 profile，属可选加深项 |
 | macOS / Android / iOS 端到端 | 运行时与协议层已有测试，**无真机记录** | 首次真机验证（与目标场景无直接关系，优先级最低） |
 
 ## 失败归因速查（smoke 报了 FAIL 时先查这里）
