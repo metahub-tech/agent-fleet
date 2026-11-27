@@ -109,6 +109,8 @@ async def _run_lease_flow(url: str) -> dict:
         async with ClientSession(streams_a[0], streams_a[1]) as a:
             await a.initialize()
             a_acquire = await session_call(a, "acquire", {"holder_name": "integ-A"})
+            before = (await session_call(a, "get_status", {})).get("last_used_at")
+            await asyncio.sleep(0.01)          # 让时间戳有机会前进
             a_call = await session_call(a, "get_screen_size", {})
             a_status = await session_call(a, "get_status", {})
 
@@ -131,6 +133,7 @@ async def _run_lease_flow(url: str) -> dict:
         "a_acquire": a_acquire, "a_call": a_call, "a_status": a_status,
         "b_acquire": b_acquire, "b_call": b_call,
         "a_release": a_release, "c_acquire": c_acquire, "c_call": c_call,
+        "before_last_used": before, "after_last_used": a_status.get("last_used_at"),
     }
 
 
@@ -269,3 +272,17 @@ def test_wait_for_over_mcp_reports_the_right_reason(server_url, monkeypatch):
     assert timed_out.get("attempts", 0) >= 2, timed_out
     assert gone.get("ok") is True and gone.get("kind") == "text_gone", gone
     assert failed.get("reason") == "probe_failed", failed
+
+
+def test_core_call_renews_the_lease(server_url):
+    """设备调用必须刷新 `last_used_at`。
+
+    这正是 `smoke_lease` 真机 11/12 的那条判据：它原先用 `idle_seconds == 0` 判断续租，
+    慢调用后 idle 必然大于 0（`human_dom_status` 在本机要 ~4s），于是把**正常续租**判成失败。
+    这里在进程内用真实 server 断言时间戳前进，不依赖设备。
+    """
+    out = asyncio.run(asyncio.wait_for(_run_lease_flow(server_url), timeout=60))
+    before = out["before_last_used"]
+    after = out["after_last_used"]
+    assert before and after, out
+    assert str(after) > str(before), f"last_used_at 没有前进：{before} -> {after}"
