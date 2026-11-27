@@ -225,3 +225,47 @@ def test_run_actions_over_mcp(server_url, monkeypatch):
     # `file_get` 被刻意排除在白名单外（4 MiB base64 会灌爆批量响应）
     assert bad_batch.get("ok") is False and bad_batch.get("reason") == "invalid_steps", bad_batch
     assert "file_get" not in bad_batch.get("allowed_tools", [])
+
+
+def test_wait_for_over_mcp_reports_the_right_reason(server_url, monkeypatch):
+    """`wait_for` 的三种结果在**协议层**上是否如实（这是 agent 唯一能看到的东西）：
+
+    * 元素不存在但探测正常 → `timeout`
+    * 探测本身报错 → `probe_failed`（不是 timeout，语义不同）
+    * `text_gone` 且本来就不在 → 立即成功
+    """
+    from _win_stubs import load_win_server
+
+    win = load_win_server()
+
+    def absent(*a, **k):
+        return {"ok": True, "total_matched": 0, "elements": []}
+
+    async def flow(url):
+        from mcp import ClientSession
+
+        transport = _transport()
+        async with transport(url) as streams:
+            async with ClientSession(streams[0], streams[1]) as s:
+                await s.initialize()
+
+                monkeypatch.setattr(win, "_win_find_elements", absent)
+                timed_out = _payload(await s.call_tool(
+                    "wait_for", {"kind": "text", "target": "不存在", "timeout_ms": 400}))
+                gone = _payload(await s.call_tool(
+                    "wait_for", {"kind": "text_gone", "target": "对话框", "timeout_ms": 2000}))
+
+                def boom(*a, **k):
+                    raise RuntimeError("UIA exploded")
+
+                monkeypatch.setattr(win, "_win_find_elements", boom)
+                failed = _payload(await s.call_tool(
+                    "wait_for", {"kind": "text", "target": "x", "timeout_ms": 400}))
+                return timed_out, gone, failed
+
+    timed_out, gone, failed = asyncio.run(asyncio.wait_for(flow(server_url), timeout=60))
+
+    assert timed_out.get("reason") == "timeout", timed_out
+    assert timed_out.get("attempts", 0) >= 2, timed_out
+    assert gone.get("ok") is True and gone.get("kind") == "text_gone", gone
+    assert failed.get("reason") == "probe_failed", failed
