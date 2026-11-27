@@ -93,6 +93,8 @@ flowchart LR
 | 应用生命周期 | `terminate_app(target)` | 终止应用 | ✓ all |
 | 应用生命周期 | `current_app()` | 当前前台应用 | ✓ all |
 | 设备生命周期 | `acquire` / `release` / `get_status` / `list_devices` / `set_default_device` / `get_default_device` | 设备资源租约 + 多设备路由 | ✓ all |
+| 编排 | `run_actions(steps, stop_on_error?, delay_ms?)` | 一次调用按序执行多步（**显式白名单**、整体校验后才执行、失败短路标记 `skipped`） | ✓ all |
+| 编排 | `wait_for(kind, target, timeout_ms?)` | 设备侧条件等待（桌面 `window`/`foreground`/`text`，移动 `text`/`app`；均支持 `*_gone`），**超时是正常答案** | ✓ all |
 
 **桌面专属（仅 Windows / macOS）**——iOS 沙箱 / Android 受限，无完整对应：
 
