@@ -155,7 +155,10 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 端口表重生成 | `python3 scripts/gen_docs.py --write` | ✅ |
 | CLI 单元测试 | `cd cli && PYTHONPATH=src python3 -m pytest`（PowerShell: `$env:PYTHONPATH="src"; python3 -m pytest`） | ⚠️ 需先装依赖（`uv sync` 或 `pip install -e ".[dev]"`）；裸跑会因缺 `questionary` / `mcp` 有 2 个 collection error，且必须在 `cli/` 下跑（无 `conftest.py`，`testpaths=["tests"]`） |
 | 平台共享层测试 | `python3 -m pytest platforms/common/tests -q --basetemp=<仓库外目录>` | ✅ 可跑但**预期约 10 个 Windows 环境性失败**（bash 硬编码、`read_text()` 无 encoding 撞 GBK、路径进 regex）；`--basetemp` 必带，否则 `tmp_path` 撞 `%TEMP%` 权限 |
-| 跨平台静态契约 | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 快（实测 28 passed）；改 `platform.toml` / 工具名后必跑 |
+| 跨平台契约（全量） | `python3 -m pytest platforms/tests -q --basetemp=<仓库外目录>` | ✅ 实测 **113 passed / 1 skipped**；改 `platform.toml` / 工具名 / 工具描述后必跑 |
+| 四平台**运行时**行为测试 | 同上（`test_{win,mac,android}_server_runtime.py`） | ✅ Linux 可跑：Windows/macOS 用桩替换 OS 依赖（`_win_stubs.py` / `_mac_stubs.py`），Android/iOS 用 `ATB_ANDROID_ADB=/bin/true` |
+| Universal Tool Set / schema 契约 | 同上（`test_universal_tool_set.py` / `test_tool_schema_contract.py`） | ✅ 断言 21 个 universal 工具 × 4 平台、工具名唯一、每个工具与参数都有 description |
+| 运行时 core 工具数 | 同上（`test_runtime_tool_counts.py`） | ✅ win 49 / mac 45 / android 33 / ios 32（可选能力在 Linux 不注册，故只断言 core） |
 | 租约隔离（双 session） | `python scripts/smoke_lease.py --url http://<host>:<port>/mcp` | ✅ 只需本机有 `mcp` client SDK；只读，不点击/输入 |
 | MCP SDK 版本差异 | 见下：`streamablehttp_client`(1.x) vs `streamable_http_client`(2.x) | ✅ 已在 `smoke_*.py` 与 `fleet/_mcp_transport.py` 统一兼容 |
 
