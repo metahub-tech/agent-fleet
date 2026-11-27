@@ -59,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **iOS `wait_for(text)` 的探测预算同理裁剪**：WDA 的 http 默认超时是 **20s**，比 `wait_for` 默认 10s 总预算还长 ⇒ 等待必然超时。给 `WdaClient._post` / `find_elements` 加单次 `timeout`，`_probe_query_timeout(timeout_ms)` 按等待预算的 1/3 推导；`_find_elements_impl` 抽出供探测复用。iOS server 同样可在 Linux import，新增 2 条运行时用例。
 
+- **发布 SOP 补「平台 × 原语适配矩阵」**：此前 playbook 只有公众号（PC 客户端）的具体步骤，而目标场景包含知乎/抖音。新增一节说明三者该用哪一端、哪套原语、以及各自的真机验证状态（公众号已验、知乎/抖音未验），并写清"网页端用 `human_browser` 而非 `agent_browser`"的原因（真账号零自动化痕迹 + 共享 profile 租约）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

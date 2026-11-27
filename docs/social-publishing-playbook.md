@@ -22,6 +22,31 @@ human_browser_open(profile=P, activate=True)
 
 ---
 
+
+## 0.5 平台 × 原语适配矩阵（这份 SOP 到底覆盖了什么）
+
+> 本文的**具体步骤**是按「公众号 PC 客户端」写的——因为那是唯一拿到真机验收的路径。
+> 知乎 / 抖音没有真机记录，所以这里只给**该用哪一端的哪套原语**，不写死步骤，
+> 避免把猜测当成 SOP。
+
+| 平台 | 形态 | 该用哪一端 | 该用哪套原语 | 真机验证 |
+|---|---|---|---|---|
+| 微信公众号 | PC 客户端（Electron） | `win-device` / `mac-device` | `find_elements` / `tap_element`（含中文逐字合并）+ `clipboard_set_html` 粘正文 + `wait_for` 等状态 + `eval_in_profile` 校验 | ✅ A 组 12/12；B2 前半通过、后半待做 |
+| 知乎 | 网页（创作中心） | `win-device` / `mac-device` + 浏览器 | `human_browser_open`（真账号、零自动化痕迹）→ `human_dom_locate/fill/tap`；需要读结构化数据时 `devtools.eval_in_profile(profile=P, url_part=…)` | ❌ 无 |
+| 抖音（创作服务平台） | 网页 | 同上 | 同知乎 | ❌ 无 |
+| 抖音（App） | 移动端 | `android-device` / `ios-device` | `dump_ui` / `find_elements` / `tap_element` / `wait_for`；输入用 `type_text`（Android 仅 ASCII，中文需先落到剪贴板或走 `adb` 输入法） | ❌ 无（移动端只有桩级测试） |
+
+**为什么网页端要用 `human_browser` 而不是 `agent_browser`**：真账号发布要求零自动化痕迹
+（`navigator.webdriver` 等标志），`human_browser` 起的是宿主真实 Chrome；`agent_browser`
+是 Playwright 托管浏览器。两者共享 profile 租约：**同一个 profile 串 = 同一份登录**。
+
+**跨平台的共同纪律**（三个平台都适用）：
+
+1. 提交前用 `eval_in_profile` 或 `find_elements` **校验草稿状态**，不要凭"操作成功"就点发布；
+2. 任何"发布 / 群发 / 定时"都是不可逆动作 —— 交人确认（`team block --kind human_decision`）；
+3. 页面结构变了不要硬重试：先 `take_screenshot` 记录现场，再回报。
+
+
 ## 1. 前置（每台设备一次）
 
 | 项 | 检查 | 不满足怎么办 |
