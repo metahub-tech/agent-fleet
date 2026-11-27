@@ -38,7 +38,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 `win-device` MCP server（FastMCP，原生多客户端）通过 streamable-http 监听 `0.0.0.0:8766/mcp`：
 
-### core 工具（43 个）
+### core 工具（48 个）
 
 | 类别 | 工具 |
 |---|---|

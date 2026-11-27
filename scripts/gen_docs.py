@@ -217,6 +217,60 @@ def check_readme_counts() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Platform README / setup-guide tool counts
+# ---------------------------------------------------------------------------
+#
+# `check_readme_counts()` only guarded the repo-root README. That let a real drift
+# through once: the root README matched while `platforms/<p>/README.md` and
+# `docs/platforms/<p>.md` still said the old number (gen_docs stayed green).
+# These two files are exactly what a reviewer reads when they open a platform, so
+# they get the same treatment as the root README.
+
+#: platform id -> setup guide under docs/platforms/ (they predate the manifest ids).
+SETUP_GUIDE_BY_ID = {
+    "win-device": "windows.md",
+    "mac-device": "macos.md",
+    "android-device": "android.md",
+    "ios-device": "ios.md",
+}
+
+_FIXED_COUNT_RE = re.compile(r"固定工具数\s*\**\s*(\d+)")
+_CORE_COUNT_RE = re.compile(r"除上面\s*(\d+)\s*个 core 工具外")
+_APPENDIX_CORE_RE = re.compile(r"core 工具（(\d+)\s*个）")
+
+
+def _count_docs_for(m) -> list[Path]:
+    docs = [m.dir / "README.md"]
+    guide = SETUP_GUIDE_BY_ID.get(m.id)
+    if guide:
+        docs.append(REPO_ROOT / "docs" / "platforms" / guide)
+    return docs
+
+
+def check_platform_doc_counts() -> list[str]:
+    """Every platform README / setup guide must state the counts derived from code."""
+    messages: list[str] = []
+    for m in _manifests():
+        expected_total = tool_count(m)
+        expected_core = len(extract_mcp_tools(m.server_path))
+        for path in _count_docs_for(m):
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(REPO_ROOT)
+            for found in _FIXED_COUNT_RE.findall(text):
+                if int(found) != expected_total:
+                    messages.append(f"{rel}: says 固定工具数 {found}, code says {expected_total}")
+            for found in _CORE_COUNT_RE.findall(text):
+                if int(found) != expected_core:
+                    messages.append(f"{rel}: says 除上面 {found} 个 core 工具, code has {expected_core}")
+            for found in _APPENDIX_CORE_RE.findall(text):
+                if int(found) != expected_core:
+                    messages.append(f"{rel}: 附录 A 标题写 core {found} 个, code has {expected_core}")
+    return messages
+
+
+# ---------------------------------------------------------------------------
 # Architecture port-table staleness check
 # ---------------------------------------------------------------------------
 
@@ -252,6 +306,7 @@ def check() -> int:
     """Run all checks. Print messages, return 1 if any mismatch else 0."""
     messages: list[str] = []
     messages.extend(check_readme_counts())
+    messages.extend(check_platform_doc_counts())
     messages.extend(check_architecture_table())
     for msg in messages:
         print(msg)
