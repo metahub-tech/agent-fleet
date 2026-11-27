@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`_cdp.call()` 的超时真正落到 socket 上**：此前只在外层循环判 deadline，而 `recv` 用的是 socket 自身超时（`ws_connect` 设的 5s），于是 `call(timeout=0.2)` 实际会阻塞到 5s；若 socket 没设超时（裸 socketpair / 其他调用方）则**永久阻塞**。现在每轮接收前把 socket 超时设为剩余预算，结束后恢复原值，并有 3 条 socketpair 用例（乱序响应 / CDP 错误 / 超时且耗时 < 1s）。
 
+- **`connect_browser` 把预算传进 probe 与握手**：此前 `connect_browser(udd, 3.0)` 内部的 `/json/version` 探测用固定 3s、ws 握手用默认 5s，实际耗时可达 8s —— 与真机"`eval_in_profile` 偶发 9265ms"的读数吻合（3s 连接 + 5s 握手 + 激活）。现在每轮都按剩余预算裁剪，端口一直探不通也会在预算内返回 `(None, None)`。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

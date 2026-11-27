@@ -140,3 +140,50 @@ def test_call_times_out_without_response(pair):
     assert err["reason"] == "cdp_timeout"
     assert elapsed < 1.0, f"call() blocked {elapsed:.2f}s despite timeout=0.2 — budget not applied to the socket"
     assert client.gettimeout() == 2.0, "原始 socket 超时没有被恢复"
+
+
+# --- connect_browser：预算必须传到 probe/握手，而不是各用默认超时 ----------
+
+def test_connect_browser_propagates_budget(monkeypatch):
+    """`connect_browser(udd, 2.0)` 里每次 probe/握手都不许超过 2.0s。
+
+    否则 probe 用 3s、握手用 5s，实际耗时能到 8s —— 与真机 "eval 偶发 9.3s" 吻合。
+    """
+    import _cdp
+
+    seen: list[float] = []
+
+    def fake_read_port(udd):
+        return 51392
+
+    def fake_probe(port, opener=None, timeout=None):
+        seen.append(float(timeout))
+        return {"Browser": "Chrome/1", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}, None
+
+    def fake_ws(url, timeout=None):
+        seen.append(float(timeout))
+        return object()
+
+    monkeypatch.setattr(_cdp, "read_port_once", fake_read_port)
+    monkeypatch.setattr(_cdp, "probe_version", fake_probe)
+    monkeypatch.setattr(_cdp, "ws_connect", fake_ws)
+
+    sock, port = _cdp.connect_browser("/tmp/whatever", 2.0, opener=lambda *a, **k: None,
+                                      _sleep=lambda s: None)
+    assert sock is not None and port == 51392
+    assert seen, "probe/握手都没被调用"
+    assert all(0 < t <= 2.0 for t in seen), f"有调用超出了一次性预算: {seen}"
+
+
+def test_connect_browser_gives_up_within_budget(monkeypatch):
+    """端口一直探不通时，必须在预算内返回 (None, None)，而不是无限轮。"""
+    import time as _time
+
+    import _cdp
+
+    monkeypatch.setattr(_cdp, "read_port_once", lambda udd: None)
+    started = _time.monotonic()
+    sock, port = _cdp.connect_browser("/tmp/whatever", 0.3, opener=lambda *a, **k: None,
+                                      _sleep=lambda s: _time.sleep(min(s, 0.01)))
+    assert (sock, port) == (None, None)
+    assert _time.monotonic() - started < 1.0

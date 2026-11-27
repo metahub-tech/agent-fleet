@@ -299,17 +299,28 @@ def connect_browser(udd: str, overall_timeout: float, opener=urllib.request.urlo
     """
     end = time.monotonic() + overall_timeout
     while True:
+        remaining = end - time.monotonic()
+        if remaining <= 0:
+            return None, None
         port = read_port_once(udd)
         if port is not None:
-            info, reason = probe_version(port, opener, timeout=VERSION_PROBE_TIMEOUT)
+            # 预算必须往里传：否则 probe/握手各自用默认超时（3s + 5s），
+            # `connect_browser(..., 3.0)` 实际能跑 8s —— 真机实测 eval 偶发 9.3s
+            # 与此吻合（ACTIVATE_TIMEOUT 3s + WS_OP_TIMEOUT 5s + 激活）。
+            probe_budget = max(0.05, min(VERSION_PROBE_TIMEOUT, remaining))
+            info, reason = probe_version(port, opener, timeout=probe_budget)
             if info is not None and reason is None:
+                remaining = end - time.monotonic()
+                if remaining <= 0:
+                    return None, None
+                handshake_budget = max(0.05, min(WS_OP_TIMEOUT, remaining))
                 try:
-                    return ws_connect(info["webSocketDebuggerUrl"]), port
+                    return ws_connect(info["webSocketDebuggerUrl"], timeout=handshake_budget), port
                 except Exception:
                     pass
         if time.monotonic() >= end:
             return None, None
-        _sleep(0.3)
+        _sleep(min(0.3, max(0.0, end - time.monotonic())))
 
 
 def close_quietly(sock) -> None:
