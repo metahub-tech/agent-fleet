@@ -8,7 +8,8 @@
 `should_retry_activation`）。
 
 因此：测试里构造 CDP 错误时，必须带上真实文案形态的 `message`。
-确有必要构造"无 message"的极端输入时，在该行加 `# noqa: fixture-no-message` 并写明原因。
+确有必要构造"无 message"的极端输入时，在该行（或上一行）写明 `fixture-no-message` 并给出原因。
+（不用 `# noqa:` 前缀：那不是 ruff 的错误代码，会让 ruff 报 warning。）
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ TEST_DIRS = [
 
 #: `{"reason": "cdp_timeout"}` 这种"只有 reason"的字面量
 BARE_REASON = re.compile(r'\{\s*"reason"\s*:\s*"(cdp_timeout|cdp_error)"\s*[,}]')
-NOQA = "fixture-no-message"
+MARK = "fixture-no-message"
 
 
 SELF = pathlib.Path(__file__).resolve()
@@ -44,8 +45,9 @@ def test_cdp_error_fixtures_carry_a_message():
         lines = path.read_text(encoding="utf-8").splitlines()
         for index, line in enumerate(lines):
             stripped = line.strip()
-            previous = lines[index - 1] if index else ""
-            if stripped.startswith("#") or NOQA in line or NOQA in previous:
+            # 标记可能写在上一行、上两行（多行注释 + 多行调用），给一点余量
+            nearby = "\n".join(lines[max(0, index - 2):index + 1])
+            if stripped.startswith("#") or MARK in nearby:
                 continue
             if not BARE_REASON.search(line):
                 continue
