@@ -100,6 +100,9 @@ def capability_tool_count(cap_id: str) -> int:
         return len(extract_mcp_tools(CAP_DIR / "browser" / "_human_browser.py"))
     if cap_id == "vision":
         return len(extract_mcp_tools(CAP_DIR / "vision" / "_vision.py"))
+    if cap_id == "devtools":
+        # Registered inside DevtoolsCapability.register(); ast.walk finds them.
+        return len(extract_mcp_tools(CAP_DIR / "devtools" / "_devtools.py"))
     if cap_id == "human_dom":
         # Registered inside HumanDomCapability.register(); ast.walk still finds them.
         return len(extract_mcp_tools(CAP_DIR / "human_dom" / "_human_dom.py"))

@@ -44,8 +44,8 @@ To navigate by address bar without `human_browser_open`: `press_key("cmd+l")` (m
 
 ## Optional: `devtools` primitives (read/eval without screenshots)
 
-If the device has the **opt-in `devtools` capability** enabled (check `list_capabilities()`; it is
-`disabled` unless `[capabilities].enabled` contains `"devtools"`), prefer it over screenshot+coords
+If the device exposes the **`devtools` capability** (win/mac ship it enabled — confirm once with
+`list_capabilities()`; it can be turned off per host), prefer it over screenshot+coords
 whenever you need to **read or evaluate** page state. It talks CDP directly, so it is cheap
 (no image tokens) and scriptable.
 

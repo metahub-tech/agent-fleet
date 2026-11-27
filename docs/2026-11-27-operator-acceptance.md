@@ -21,7 +21,7 @@ git -C <repo> checkout integ/operator-p0-p1
 ```text
 list_capabilities()   → core.tools 里应包含：
                         file_put, file_get, clipboard_set_html
-                        （devtools 默认关闭；若已启用，应有 devtools 能力且 status=enabled）
+                        （devtools 默认开启，应出现 devtools 能力且 status=enabled）
 ```
 
 | 勾 | 项 | 判据 |
@@ -60,7 +60,7 @@ list_capabilities()   → core.tools 里应包含：
 
 ## C. devtools（可选能力；启用后跑）
 
-启用：在设备 `<repo>/.fleet/config.toml` 或 `platform.toml` 的 `[capabilities].enabled` 加 `"devtools"`，重启 server。
+确认（默认已开）：`list_capabilities()` 里 devtools 应为 `enabled`；若被本机 `.fleet/config.toml` 关掉，去掉该覆盖并重启 server。
 
 ```bash
 python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fleet/<op-id>"

@@ -311,9 +311,10 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 - `frozen_background_tab` —— `activate=False` 时目标没响应（后台冻结），先 `activate_tab` 再 eval；
 - `result_too_large` / `not_serializable` / `js_exception` / `frame_not_found` / `page_ambiguous` / `no_target`。
 
-**启用方式**（默认关闭，与 `human_dom` 同属可选能力）：在 `platform.toml` 的
-`[capabilities].enabled` 或本机 `.fleet/config.toml` 里加 `"devtools"`，然后**重启 server**
-（能力是导入期静态注册的）。启用后 win/mac 各多 4 个工具。
+**默认开启**：`devtools` 已写进 win/mac 的 `platform.toml` `[capabilities].enabled`，
+装好即生效（`list_capabilities()` 里应为 `enabled`）。它仍属**可选能力模块**（非 core），
+所以可用本机 `.fleet/config.toml` 关掉或按 host 覆盖；改完**必须重启 server**
+（能力是导入期静态注册的）。win/mac 各贡献 4 个工具。
 
 **验收（只读，不点不输）**：在**已启用 devtools 且浏览器已开着**的设备上跑
 
@@ -361,7 +362,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 46 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 51**（46 core + 1 `list_capabilities` + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
+除上面 46 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 55**（46 core + 1 `list_capabilities` + 4 devtools + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 
