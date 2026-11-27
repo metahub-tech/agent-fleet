@@ -269,3 +269,34 @@ def test_resolve_timeout_clamps_and_falls_back():
     assert so.resolve_timeout(30) == 30.0
     assert so.resolve_timeout("abc") == 180.0                   # 非法 → 默认
     assert so.resolve_timeout(None) == 180.0
+
+
+# --- --probe：零副作用的版本身份检查 --------------------------------------
+
+_NEW_CAPS = {"capabilities": [
+    {"id": "core", "status": "enabled",
+     "tools": ["wait_for", "run_actions", "file_put", "file_get", "clipboard_set_html"]},
+    {"id": "devtools", "status": "enabled", "tools": ["cdp_port"]},
+]}
+
+
+def test_build_identity_new_build():
+    ident = so.build_identity(_NEW_CAPS)
+    assert ident["platform"] == "windows"
+    assert ident["looks_like_this_build"] is True
+    assert ident["required_missing"] == []
+    assert ident["devtools_status"] == "enabled"
+
+
+def test_build_identity_old_build_reports_missing():
+    caps = {"capabilities": [{"id": "core", "status": "enabled", "tools": ["tap"]}]}
+    ident = so.build_identity(caps)
+    assert ident["looks_like_this_build"] is False
+    assert set(ident["required_missing"]) == set(so.REQUIRED_TOOLS)
+    assert ident["devtools_status"] is None
+
+
+def test_format_identity_says_it_like_it_is():
+    assert "这批代码已生效" in so.format_identity(so.build_identity(_NEW_CAPS))
+    old = so.format_identity(so.build_identity({"capabilities": []}))
+    assert "不是这批代码" in old and "MISSING" in old

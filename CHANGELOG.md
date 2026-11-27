@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **两个验收脚本加整体超时（默认 180s，下限 5s）**：设备或某个工具调用卡住时，脚本不再把对方的 shell 挂住，而是打印明确的超时原因并以 `exit 2` 退出。已用"只接受不回包"的黑洞服务端到端验证：预算 4s（被抬到 5s）→ 5.8s 内返回 `run exceeded the overall budget (5s)` + exit 2。
 
+- **`smoke_ops --probe`：零副作用的「这台设备跑的是哪一版」检查**：只连一次、读 `list_capabilities()`，打印 `platform / live tool count / devtools status / 缺哪些必需工具`，然后退出（**不写文件、不碰剪贴板**）。切 build / 回滚后第一时间用它确认，比跑全量 smoke 快且无副作用。退出码 0=这批代码已生效、3=不是这批代码、2=连不上。已在真机旧码上实测：`live tools: 82 / MISSING: wait_for, run_actions, file_put, file_get, clipboard_set_html` → exit 3。
+
 ### 修复
 
 - **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。

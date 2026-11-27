@@ -244,6 +244,46 @@ def check_batch_rejected(payload: dict) -> tuple[bool, str]:
     return True, f"rejected before running; {len(allowed)} tools allowed"
 
 
+def build_identity(caps: dict) -> dict:
+    """从 list_capabilities() 提取"这台设备到底跑的是哪一版"的最小身份。
+
+    为什么需要：切换/回滚 build 之后，最常见的困惑是"我到底连的是新码还是旧码"。
+    这个摘要**不产生任何副作用**（不写文件、不碰剪贴板），可以随时跑。
+    """
+    live = _live_tools(caps)
+    platform = detect_platform(caps)
+    required = required_tools_for(platform)
+    missing = [t for t in required if t not in live]
+    devtools = None
+    if isinstance(caps, dict) and isinstance(caps.get("capabilities"), list):
+        for entry in caps["capabilities"]:
+            if isinstance(entry, dict) and entry.get("id") == "devtools":
+                devtools = entry.get("status")
+    return {
+        "platform": platform,
+        "live_tool_count": len(live),
+        "required_present": [t for t in required if t in live],
+        "required_missing": missing,
+        "devtools_status": devtools,
+        "looks_like_this_build": not missing,
+    }
+
+
+def format_identity(identity: dict) -> str:
+    lines = [
+        f"platform         : {identity['platform']}",
+        f"live tools       : {identity['live_tool_count']}",
+        f"devtools         : {identity['devtools_status'] or '-'}",
+    ]
+    if identity["required_missing"]:
+        lines.append(f"MISSING          : {', '.join(identity['required_missing'])}")
+        lines.append("verdict          : 设备跑的不是这批代码（或能力被关掉了）")
+    else:
+        lines.append(f"present          : {', '.join(identity['required_present'])}")
+        lines.append("verdict          : 这批代码已生效")
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -255,6 +295,9 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     ap.add_argument("--host", help="device host; used with --port to build the URL")
     ap.add_argument("--port", type=int, default=8766, help="device port (default 8766)")
     ap.add_argument("--json", action="store_true", help="print machine-readable results")
+    ap.add_argument("--probe", action="store_true",
+                    help="Zero-side-effect check: connect, report which build the device runs, "
+                         "print the live tool count, then exit (no file/clipboard writes)")
     ap.add_argument("--timeout", type=float, default=180.0,
                     help="Overall wall-clock budget for the whole run (default 180s; "
                          f"values below {MIN_TIMEOUT_S:g}s are raised to it) — "
@@ -326,6 +369,13 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                     return _payload(await session.call_tool(tool, kwargs))
 
                 caps = await call("list_capabilities")
+                if getattr(args, "probe", False):
+                    identity = build_identity(caps)
+                    if args.json:
+                        print(json.dumps({"url": url, **identity}, ensure_ascii=False, indent=2))
+                    else:
+                        print(format_identity(identity))
+                    return 0 if identity["looks_like_this_build"] else 3
                 platform = detect_platform(caps)
                 ok, detail = check_tools_registered(caps, required_tools_for(platform))
                 add(f"required tools registered ({platform})", ok, detail)
