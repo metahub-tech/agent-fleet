@@ -379,6 +379,10 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
+> **`devtools`（可选，默认关闭）**：win/mac 同款 CDP 直连原语（`cdp_port` / `list_tabs` /
+> `activate_tab` / `eval_in_profile`），契约与启用方式见
+> [windows.md §7.8](windows.md#78-devtools-能力可选cdp-直连原语)。启用后本平台另 +4 个工具。
+
 除上面 42 个 core 工具外，mac-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**（与 Windows win-device 同款）。依赖齐全时，mac-device 满配运行时共暴露 **74 个工具**（42 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5 → **79 个**。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：

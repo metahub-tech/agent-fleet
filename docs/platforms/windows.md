@@ -288,6 +288,36 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 > 合并只在**零命中**时发生，所以命中路径的延迟不变；回退结果里 `enabled`/`visible` 为
 > `null`（逐字节点上取这两个字段代价高、意义也不大），`on_screen` 仍然照常给出。
 
+### 7.8 devtools 能力（可选）：CDP 直连原语
+
+社媒运营（公众号等）跑在真实 Chrome 里。`human_browser` 负责"以人的身份把浏览器开起来"，
+但「这个 profile 的调试端口是多少 / 现在有哪些标签 / 在页面里取个数」如果只能靠截图和坐标，
+既慢又会误判。`devtools` 能力把这四件事做成稳定的 MCP 原语（纯 stdlib，不加依赖）：
+
+| 工具 | 返回 | 关键语义 |
+|---|---|---|
+| `cdp_port(profile)` | `{ok, alive, port, ws_url, browser, reason, probe_ms}` | **端口每次重启都会变，调用方不许缓存**；`alive` 必须真打 `/json/version`（1s 超时）；**绝不自动重启浏览器** |
+| `list_tabs(profile, probe_budget_ms=300)` | `{ok, tabs:[{target_id,url,title,visibility}], probe_ms, duration_ms}` | `visibility ∈ visible\|hidden\|unknown`；探测超预算记 `unknown` 且不重试；`url` 完整不截断 |
+| `activate_tab(profile, url_part)` | `{ok, target_id, url}` | 按 url 子串匹配；多命中报 `PAGE_AMBIGUOUS` 并列候选，**不猜** |
+| `eval_in_profile(profile, js, frame?, activate=True, max_result_bytes=1MiB)` | `{ok, value, activated, size_bytes}` | 默认先激活目标页；结果 `returnByValue`，超限报 `result_too_large`（**不截断**） |
+
+`reason` 是稳定契约，调用方按它分支：
+
+- `port_file_missing` —— 该 profile 没开浏览器（先 `human_browser_open`）；
+- `version_probe_failed` —— 端口文件在但探活失败（可能陈旧/正在启动）；此时才会额外给
+  `port_file_age_ms`（设备侧算，`<5s` 多半在启动、`>60s` 多半是陈旧文件；这是**代理指标**，
+  带 `note:"clock_skew"` 时表示 mtime 不可信）；
+- `handshake_timeout` —— 端点活着但拿不到可连的 ws 地址；
+- `frozen_background_tab` —— `activate=False` 时目标没响应（后台冻结），先 `activate_tab` 再 eval；
+- `result_too_large` / `not_serializable` / `js_exception` / `frame_not_found` / `page_ambiguous` / `no_target`。
+
+**启用方式**（默认关闭，与 `human_dom` 同属可选能力）：在 `platform.toml` 的
+`[capabilities].enabled` 或本机 `.fleet/config.toml` 里加 `"devtools"`，然后**重启 server**
+（能力是导入期静态注册的）。启用后 win/mac 各多 4 个工具。
+
+> 与 `human_browser` 共用同一套 profile 字符串 ⇒ 同一个 Chrome user-data-dir。
+> 读页面优先用这里（0 token、可脚本化），需要"人肉点击"时再回到 `tap` / `human_dom`。
+
 ---
 
 ## 附录 · 工具列表
