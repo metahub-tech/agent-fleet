@@ -471,3 +471,18 @@ def test_frozen_reason_requires_a_real_timeout():
                                   activated=False) == "cdp_timeout"
     assert dv.classify_eval_error({"reason": "cdp_timeout", "message": "send failed: broken pipe"},
                                   activated=False) == "cdp_timeout"
+
+
+def test_reason_spelling_is_per_tool_by_design():
+    """`activate_tab` 用大写 `PAGE_AMBIGUOUS`，`eval_in_profile` 用小写 `page_ambiguous`。
+
+    这是**刻意保留**的历史口径（文档与真机证据都按各自写法记录）。这条测试的价值是：
+    将来若有人"顺手统一"，会立刻红，从而被迫先想清楚要不要做破坏性变更。
+    """
+    source = (Path(__file__).resolve().parents[3]
+              / "platforms" / "common" / "capabilities" / "devtools" / "_devtools.py").read_text(encoding="utf-8")
+    assert '"PAGE_AMBIGUOUS" if reason == "page_ambiguous" else reason' in source, (
+        "activate_tab 的大写口径不见了——若确实要统一为小写，请同时改文档/验收记录并升级说明"
+    )
+    # eval_in_profile 侧走 pick_page 的小写 reason（不经 activate_tab 的映射）
+    assert '"reason": reason' in source, "eval_in_profile 的 reason 直通逻辑变了"
