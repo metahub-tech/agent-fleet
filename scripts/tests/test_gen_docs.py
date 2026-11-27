@@ -55,3 +55,28 @@ def test_core_count_regex(text, expected):
 def test_appendix_core_regex():
     assert gen_docs._APPENDIX_CORE_RE.findall("### 附录 A · core 工具（48 个）") == ["48"]
     assert gen_docs._APPENDIX_CORE_RE.findall("### core 工具（43 个）") == ["43"]
+
+
+# --- CHANGELOG 结构门禁（仅 [Unreleased]）---------------------------------
+
+def test_changelog_unreleased_extracts_only_that_section():
+    text = "# Log\n\n## [Unreleased]\n\n### 新增\n\n- a\n\n## [0.1.0] - x\n\n### 新增\n\n- b\n"
+    section = gen_docs.changelog_unreleased(text)
+    assert "- a" in section and "- b" not in section
+
+
+def test_duplicate_subsection_headings_detects_and_dedupes():
+    section = "### 新增\n- a\n\n### 修复\n- b\n\n### 新增\n- c\n"
+    assert gen_docs.duplicate_subsection_headings(section) == ["新增"]
+    assert gen_docs.duplicate_subsection_headings("### 新增\n- a\n") == []
+
+
+def test_changelog_structure_is_clean_now():
+    assert gen_docs.check_changelog_structure() == []
+
+
+def test_changelog_gate_would_have_caught_the_regression():
+    """反向验证：把 [Unreleased] 造出两个「新增」时就该报错。"""
+    text = "## [Unreleased]\n\n### 新增\n- a\n\n### 新增\n- b\n\n## [0.1.0]\n"
+    section = gen_docs.changelog_unreleased(text)
+    assert gen_docs.duplicate_subsection_headings(section) == ["新增"]

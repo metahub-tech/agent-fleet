@@ -217,6 +217,49 @@ def check_readme_counts() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# CHANGELOG structure (仅约束 [Unreleased])
+# ---------------------------------------------------------------------------
+#
+# 这条约束是"追着跑"追出来的：同一个 `### 新增` 小节被重复追加过两次（一次在合并分支、
+# 一次在后续提交），发版时要手工合并。只在 [Unreleased] 范围内管，历史段落不动。
+
+CHANGELOG_MD = REPO_ROOT / "CHANGELOG.md"
+
+
+def changelog_unreleased(text: str) -> str:
+    """取出 `## [Unreleased]` 到下一个 `## [` 之间的内容（没有则返回空串）。"""
+    start = re.search(r"^## \[Unreleased\]", text, re.M)
+    if not start:
+        return ""
+    rest = text[start.end():]
+    end = re.search(r"^## \[", rest, re.M)
+    return rest[:end.start()] if end else rest
+
+
+def duplicate_subsection_headings(section: str) -> list[str]:
+    """返回重复出现的小节标题（`### xxx`），保持首次出现顺序。"""
+    headings = re.findall(r"^### (.+)$", section, re.M)
+    seen: list[str] = []
+    dupes: list[str] = []
+    for h in headings:
+        if h in seen and h not in dupes:
+            dupes.append(h)
+        else:
+            seen.append(h)
+    return dupes
+
+
+def check_changelog_structure() -> list[str]:
+    """`[Unreleased]` 下同类小节只能有一个（否则发版时必然要手工合并且容易漏）。"""
+    if not CHANGELOG_MD.is_file():
+        return []
+    section = changelog_unreleased(CHANGELOG_MD.read_text(encoding="utf-8"))
+    dupes = duplicate_subsection_headings(section)
+    return [f"CHANGELOG.md: [Unreleased] 下重复的小节标题 {dupes!r}（同类条目请合并到同一节）"
+            for _ in dupes]
+
+
+# ---------------------------------------------------------------------------
 # Platform README / setup-guide tool counts
 # ---------------------------------------------------------------------------
 #
@@ -308,6 +351,7 @@ def check() -> int:
     messages.extend(check_readme_counts())
     messages.extend(check_platform_doc_counts())
     messages.extend(check_architecture_table())
+    messages.extend(check_changelog_structure())
     for msg in messages:
         print(msg)
     return 1 if messages else 0
