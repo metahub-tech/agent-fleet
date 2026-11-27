@@ -34,15 +34,12 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import io
-import os
 import subprocess
 import sys
 import threading
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
-from PIL import Image as PILImage
 from pydantic import Field
 
 from fastmcp import Context, FastMCP
@@ -51,7 +48,7 @@ from fastmcp.utilities.types import Image
 # _aliases / _device_state are shared across platform servers — see platforms/common/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 
-from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
+from _aliases import DeviceInfo, load_aliases, resolve_aliases
 import _batch, _wait
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
@@ -296,7 +293,6 @@ def _build_instructions() -> str:
 mcp = FastMCP("ios-device", instructions=_build_instructions())
 
 # 文件上传支撑（设计：docs/internal/design/2026-05-30-ios-agent-file-upload-design.md）
-import time  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 from starlette.responses import JSONResponse  # noqa: E402

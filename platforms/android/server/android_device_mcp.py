@@ -32,7 +32,6 @@ ADB binary resolution order:
 
 from __future__ import annotations
 
-import io
 import os
 import platform as host_platform
 import shutil
@@ -42,9 +41,8 @@ import threading
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
-from PIL import Image as PILImage
 from pydantic import Field
 
 from fastmcp import Context, FastMCP
@@ -56,7 +54,7 @@ from starlette.responses import JSONResponse
 # _aliases / _device_state are shared across platform servers — see platforms/common/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 
-from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
+from _aliases import DeviceInfo, load_aliases, resolve_aliases
 import _batch, _wait
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
@@ -1697,14 +1695,14 @@ if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(line_buffering=True)
         sys.stderr.reconfigure(line_buffering=True)
-    print(f"android-device MCP server starting")
+    print("android-device MCP server starting")
     print(f"  adb       = {_ADB}")
     print(f"  host      = {host_platform.system()} {host_platform.release()}")
     try:
         detected = _detect_devices()
         if not detected:
-            print(f"  devices   = NONE")
-            print(f"  WARNING: server will start but tools will fail until a device appears.")
+            print("  devices   = NONE")
+            print("  WARNING: server will start but tools will fail until a device appears.")
         else:
             overrides = _load_alias_overrides()
             aliases = resolve_aliases(detected, overrides)
@@ -1714,12 +1712,12 @@ if __name__ == "__main__":
                 print(f"    - {alias}  ({d.serial}, {d.brand or '?'} {d.model or '?'})")
     except Exception as e:
         print(f"  devices   = ERROR  ({e})")
-        print(f"  WARNING: server will start but tools may fail until adb is healthy.")
+        print("  WARNING: server will start but tools may fail until adb is healthy.")
     # Transport: streamable-http (FastMCP "http" alias). Migrated from
     # SSE for the same reason as mac-device / win-device: long tool calls
     # broke SSE keep-alive and yielded -32602 forever after.
     # Endpoint: http://<host>:8768/mcp  (was /sse)
-    print(f"  transport = http (streamable) on 0.0.0.0:8768/mcp")
+    print("  transport = http (streamable) on 0.0.0.0:8768/mcp")
     # 清掉上次残留的后台上传子进程 + 暂存临时文件（孤儿清场）
     up.reap_orphans()
     mcp.add_middleware(LeaseGate(_state_registry, serial_for=_lease_serial_for))

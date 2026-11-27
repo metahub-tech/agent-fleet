@@ -37,7 +37,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 import psutil
 import pyautogui
@@ -69,7 +69,7 @@ from capabilities import (
     current_host_os,
     resolve_enabled_capabilities,
 )
-from capabilities.human_dom._bridge import DomBridge, make_ws_route, run_bridge_loopback
+from capabilities.human_dom._bridge import DomBridge, run_bridge_loopback
 from capabilities.human_dom._portfile import resolve_bridge_port
 from _server_runtime import parse_server_args
 
