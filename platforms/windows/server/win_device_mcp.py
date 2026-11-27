@@ -107,6 +107,9 @@ UIA_TIMEOUT_S = float(os.environ.get("FLEET_UIA_TIMEOUT", "8") or 8)
 #: `list_windows` 客户端观测 11.98s、但预算 8s 且没有超时/异常记录，
 #: 有这行才能分辨"服务端真的慢"还是"慢在客户端/会话开销"。
 UIA_SLOW_LOG_S = float(os.environ.get("FLEET_UIA_SLOW_LOG", "5") or 5)
+#: `wait_for(kind="text")` 单次探测的预算：等待应当"多次采样"，
+#: 而不是一次探测吃掉整个等待预算。可用 `FLEET_WAIT_PROBE_BUDGET` 调整。
+WAIT_PROBE_BUDGET_S = float(os.environ.get("FLEET_WAIT_PROBE_BUDGET", "2") or 2)
 UIA_GLYPH_MERGE = os.environ.get("FLEET_UIA_GLYPH_MERGE", "1") != "0"
 UIA_GLYPH_MAX_CHARS = int(os.environ.get("FLEET_UIA_GLYPH_MAX_CHARS", "1") or 1)
 UIA_GLYPH_MAX_NODES = int(os.environ.get("FLEET_UIA_GLYPH_MAX_NODES", "1500") or 1500)
@@ -463,13 +466,15 @@ def _resolve_uia_window(window_title):
     return win, None
 
 
-def _win_find_elements(query, window_title, control_type, include_disabled, max_results):
+def _win_find_elements(query, window_title, control_type, include_disabled, max_results,
+                       budget_s=None):
     """Core UIA element search shared by find_elements + tap_element."""
     win, err = _resolve_uia_window(window_title)
     if err:
         return err
     try:
-        descendants = _uia_descendants_with_timeout(win, control_type)
+        descendants = _uia_descendants_with_timeout(
+            win, control_type, UIA_TIMEOUT_S if budget_s is None else float(budget_s))
     except UiaTimeout:
         return {"ok": False, "reason": "uia_timeout",
                 "error": _uia_timeout_hint("find_elements"),
@@ -1409,7 +1414,10 @@ def wait_for(
         return (needle.lower() in (title or "").lower()), {"title": title, "hwnd": int(hwnd or 0)}
 
     def _probe_text():
-        res = _win_find_elements(needle, window_title, None, False, 5)
+        # 单次探测吃满 8s 预算的话，10s 的等待只能采样 1-2 次 —— 与"轮询"的意图相反。
+        # 等待场景改用更小的单次预算，让同一个总预算里能采到更多样本。
+        res = _win_find_elements(needle, window_title, None, False, 5,
+                                 budget_s=min(UIA_TIMEOUT_S, WAIT_PROBE_BUDGET_S))
         if not res.get("ok"):
             raise RuntimeError(f"find_elements failed: {res.get('reason') or res.get('error')}")
         count = int(res.get("total_matched") or 0)

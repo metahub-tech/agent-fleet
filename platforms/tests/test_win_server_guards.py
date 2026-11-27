@@ -90,3 +90,11 @@ def test_list_windows_logs_slow_calls(tree):
     source = ast.unparse(func)
     assert "UIA_SLOW_LOG_S" in source, "慢调用阈值没被使用"
     assert "[uia] list_windows completed in" in source, "慢调用告警文案被移除"
+
+
+def test_wait_for_text_probe_uses_shorter_budget(tree):
+    """等待场景的单次探测不能吃满整段预算，否则 10s 的 wait 只采样 1-2 次。"""
+    func = _func(tree, "wait_for")
+    source = ast.unparse(func)
+    assert "WAIT_PROBE_BUDGET_S" in source, "wait_for 的 text 探测又用回整段 UIA 预算"
+    assert "budget_s=" in source, "find_elements 调用没有传 budget_s"

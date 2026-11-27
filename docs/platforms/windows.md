@@ -354,7 +354,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 指针验证 | `hover_preview`（把真鼠标移到 (x,y) 但不点 + 截图 + 在 (x,y) 画确定性十字，供上层验证「这一点会不会落在目标上」；R5 起） |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
 | 批量动作 | `run_actions(steps, stop_on_error, delay_ms)`（一次调用跑多步，白名单内工具，整体校验后执行；失败短路并标记 `skipped`） |
-| 等待 | `wait_for(kind, target, timeout_ms)`（设备侧轮询：`window`/`foreground`/`text` **及各自的 `*_gone` 变体**，超时是正常答案 `{ok:false,reason:"timeout"}`） |
+| 等待 | `wait_for(kind, target, timeout_ms)`（`text` 的**单次探测**预算独立，默认 2s，见 `FLEET_WAIT_PROBE_BUDGET`）（设备侧轮询：`window`/`foreground`/`text` **及各自的 `*_gone` 变体**，超时是正常答案 `{ok:false,reason:"timeout"}`） |
 | 剪贴板（富文本） | `clipboard_set_html`（把 HTML 以**唯一** `HTML Format` 条目写进剪贴板，供公众号编辑器等富文本粘贴；默认回读校验，失败即 `ok=false`） |
 | 元素操作 | `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台） |
 | 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
