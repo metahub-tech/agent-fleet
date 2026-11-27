@@ -49,6 +49,40 @@ def normalize_tab(target: dict) -> dict:
     }
 
 
+#: 激活失败后的重试次数（真机实测：浏览器忙时 3s 会超时，空闲时 300ms 就够）
+ACTIVATE_RETRIES = 1
+#: 重试前的等待（秒）
+ACTIVATE_RETRY_DELAY_S = 0.2
+
+
+def activate_with_retry(sock, target_id: str, *,
+                        retries: int = ACTIVATE_RETRIES,
+                        delay_s: float = ACTIVATE_RETRY_DELAY_S,
+                        call=None,
+                        sleep=None) -> tuple[Optional[dict], Optional[dict]]:
+    """`Target.activateTarget`，失败（超时/CDP 错误）后**重试一次**。
+
+    为什么值得重试：真机同一 profile、10 分钟内，`eval(activate=True)` 与
+    `activate_tab` 都出现过 3.3s/3.1s 的 `cdp_timeout`（当时另一个发布流程在跑），
+    而空闲时同一调用只要 **296ms**。激活是幂等操作，重试一次比把超时调大一倍更划算
+    （最坏情况 3s+0.2s+3s，成功路径基本不变）。
+
+    返回与 `_cdp.call` 相同：``(message, error)``。
+    """
+    caller = call or _cdp.call
+    sleeper = sleep or time.sleep
+    params = {"targetId": target_id}
+    msg, err = caller(sock, 1, "Target.activateTarget", params, timeout=ACTIVATE_TIMEOUT)
+    attempt = 0
+    while err is not None and attempt < retries:
+        attempt += 1
+        sleeper(delay_s)
+        msg2, err2 = caller(sock, 2 + attempt, "Target.activateTarget", params,
+                            timeout=ACTIVATE_TIMEOUT)
+        msg, err = msg2, err2
+    return msg, err
+
+
 def pick_page(pages: list[dict], *, target_id: str = "",
               url_part: str = "") -> tuple[Optional[dict], Optional[str]]:
     """按调用方给的线索选页：target_id 优先，其次 url 子串，最后"唯一页"。
@@ -209,7 +243,7 @@ class DevtoolsCapability(CapabilityModule):
         "真账号 Chrome 的 CDP 原语, 与 human_browser 共用同一 profile 语义。"
         "cdp_port(profile)→端口/存活/失败原因(调用方别缓存端口, 每次重启都会变);"
         "list_tabs(profile)→标签清单(后台冻结标签 visibility=unknown, 不挂死);"
-        "activate_tab(profile, url_part)→按 url 子串激活(多命中报 PAGE_AMBIGUOUS);"
+        "activate_tab(profile, url_part|target_id)→按 url 子串或 target_id 激活(多命中报 PAGE_AMBIGUOUS);"
         "eval_in_profile(profile, js)→在该 profile 的页面里求值(默认先激活, 后台只读需显式 activate=False)。"
         "只读/写页面用它们比截图+坐标稳; 绝不自动重启浏览器。"
     )
@@ -314,11 +348,13 @@ class DevtoolsCapability(CapabilityModule):
                     "duration_ms": int((time.monotonic() - started) * 1000)}
 
         @mcp.tool
-        def activate_tab(profile: str = "", url_part: str = "") -> dict:
+        def activate_tab(profile: str = "", url_part: str = "",
+                         target_id: str = "") -> dict:
             """按 url 子串激活标签：{ok, target_id, url}。
 
             0 命中 → `{ok:false, reason:"no_target", candidates:[...]}`；
-            多命中 → `{ok:false, reason:"PAGE_AMBIGUOUS", candidates:[...]}`（不猜）。
+            多命中 → `{ok:false, reason:"PAGE_AMBIGUOUS", candidates:[...]}`（不猜）；
+            也可直接给 `target_id`（来自 `list_tabs`）跳过子串匹配。
             验收方式：激活后再 `list_tabs`，目标 tab 应为 `visible`。
             """
             udd = resolve_udd(profile)
@@ -330,13 +366,15 @@ class DevtoolsCapability(CapabilityModule):
                 pages, reason = _cdp.page_targets(port)
                 if reason:
                     return {"ok": False, "reason": reason}
-                page, hits = match_pages(pages, url_part)
+                page, reason = pick_page(pages, target_id=target_id, url_part=url_part)
                 if page is None:
+                    # `activate_tab` 的历史契约用大写 `PAGE_AMBIGUOUS`（文档与真机证据都按它写），
+                    # 而 `eval_in_profile` 用小写 `page_ambiguous`。这里**保持各自既有口径**，
+                    # 只把新的 `target_id` 能力加进来。
                     return {"ok": False,
-                            "reason": "no_target" if not hits else "PAGE_AMBIGUOUS",
-                            "candidates": [normalize_tab(p) for p in (hits or pages)[:10]]}
-                _msg, err = _cdp.call(sock, 1, "Target.activateTarget",
-                                      {"targetId": page["id"]}, timeout=ACTIVATE_TIMEOUT)
+                            "reason": "PAGE_AMBIGUOUS" if reason == "page_ambiguous" else reason,
+                            "candidates": [normalize_tab(p) for p in pages[:10]]}
+                _msg, err = activate_with_retry(sock, page["id"])
                 if err:
                     return {"ok": False, "reason": classify_eval_error(err, activated=True),
                             "error": err.get("message")}
@@ -382,8 +420,7 @@ class DevtoolsCapability(CapabilityModule):
                             "candidates": [normalize_tab(p) for p in pages[:10]]}
                 activated = bool(activate)
                 if activate:
-                    _msg, err = _cdp.call(browser_sock, 1, "Target.activateTarget",
-                                          {"targetId": page["id"]}, timeout=ACTIVATE_TIMEOUT)
+                    _msg, err = activate_with_retry(browser_sock, page["id"])
                     if err:
                         return {"ok": False, "activated": False,
                                 "reason": classify_eval_error(err, activated=True),

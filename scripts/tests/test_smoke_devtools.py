@@ -176,3 +176,29 @@ def test_resolve_timeout_clamps_and_falls_back():
     assert sd.resolve_timeout(1) == sd.MIN_TIMEOUT_S
     assert sd.resolve_timeout(45) == 45.0
     assert sd.resolve_timeout(object()) == 180.0
+
+
+# --- 选页：撞重复 URL 时退回 target_id（真机 v3 回执）---------------------
+
+def test_choose_target_prefers_unique_url():
+    tabs = [{"id": "A", "url": "https://a.example/x"},
+            {"id": "B", "url": "https://b.example/y"},
+            {"id": "C", "url": "https://b.example/y"}]
+    url, tid = sd.choose_target(tabs)
+    assert url == "https://a.example/x" and tid == ""
+
+
+def test_choose_target_falls_back_to_target_id_when_all_urls_duplicate():
+    tabs = [{"id": "A", "url": "https://zhihu.com/creator"},
+            {"id": "B", "url": "https://zhihu.com/creator"}]
+    url, tid = sd.choose_target(tabs)
+    assert url == "" and tid == "A"
+
+
+def test_choose_target_ignores_non_http_tabs():
+    tabs = [{"id": "A", "url": "about:blank"}, {"id": "B", "url": "chrome://settings"}]
+    assert sd.choose_target(tabs) == ("", "")
+
+
+def test_choose_target_handles_empty():
+    assert sd.choose_target([]) == ("", "")

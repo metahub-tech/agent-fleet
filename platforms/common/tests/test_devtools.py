@@ -357,3 +357,44 @@ def test_probe_visibilities_invalid_value_becomes_unknown():
     pages = _pages_n(2)
     out = dv.probe_visibilities(pages, lambda p, r: "frozen", budget_s=1.0)
     assert set(out.values()) == {"unknown"}
+
+
+# --- 激活重试（真机：浏览器忙时 3s 会超时，空闲时 300ms 成功）-------------
+
+def test_activate_with_retry_succeeds_on_second_attempt():
+    calls = []
+
+    def fake_call(sock, cid, method, params, timeout=None):
+        calls.append((cid, method))
+        if len(calls) == 1:
+            return None, {"reason": "cdp_timeout"}
+        return {"ok": True}, None
+
+    msg, err = dv.activate_with_retry(object(), "T1", call=fake_call, sleep=lambda s: None)
+    assert err is None and msg == {"ok": True}
+    assert len(calls) == 2, "应当只重试一次"
+    assert calls[0][1] == calls[1][1] == "Target.activateTarget"
+
+
+def test_activate_with_retry_gives_up_after_one_retry():
+    calls = []
+
+    def always_fail(sock, cid, method, params, timeout=None):
+        calls.append(cid)
+        return None, {"reason": "cdp_timeout"}
+
+    msg, err = dv.activate_with_retry(object(), "T", call=always_fail, sleep=lambda s: None)
+    assert msg is None and err["reason"] == "cdp_timeout"
+    assert len(calls) == 2, "重试次数应为 1（总共 2 次尝试）"
+    assert len(set(calls)) == len(calls), "重试必须换一个请求 id"
+
+
+def test_activate_with_retry_no_retry_when_successful():
+    calls = []
+
+    def ok(sock, cid, method, params, timeout=None):
+        calls.append(cid)
+        return {"ok": 1}, None
+
+    msg, err = dv.activate_with_retry(object(), "T", call=ok, sleep=lambda s: None)
+    assert err is None and len(calls) == 1

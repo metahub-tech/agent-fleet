@@ -201,6 +201,39 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
+def choose_target(tabs: list[dict]) -> tuple[str, str]:
+    """从 `list_tabs` 的结果里挑一个**不会歧义**的定位线索。
+
+    真机教训（v3 回执）：运营 profile 有 36 个标签页，其中
+    `https://www.zhihu.com/creator/manage/creation/all` 出现 **2 次**。
+    早期实现直接取"第一个 http 页的完整 url"当 `url_part`，于是 `match_pages` 命中 2 条
+    → `page_ambiguous`，被误读成工具回归。
+
+    规则：
+      1. 优先返回**只出现一次**的 http url（最直观，日志里也看得懂）；
+      2. 若所有 http url 都重复，退回第一个 http 页的 `target_id`（`eval_in_profile` /
+         `activate_tab` 都支持）；
+      3. 没有 http 页时返回 ("", "")，由调用方判断。
+    """
+    http_tabs = [tab for tab in (tabs or [])
+                 if isinstance(tab, dict) and str(tab.get("url") or "").startswith("http")]
+    if not http_tabs:
+        return "", ""
+
+    counts: dict[str, int] = {}
+    for tab in http_tabs:
+        url = str(tab.get("url") or "")
+        counts[url] = counts.get(url, 0) + 1
+
+    for tab in http_tabs:
+        url = str(tab.get("url") or "")
+        if counts.get(url) == 1:
+            return url, ""
+
+    first = http_tabs[0]
+    return "", str(first.get("id") or "")
+
+
 def normalize_profile(value: str) -> str:
     """去掉误带的首尾引号（PowerShell 里 --profile "~/.fleet/x" 常传成字面量）。"""
     text = (value or "").strip()
@@ -300,23 +333,19 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                 ok, detail = check_list_tabs(tabs_payload)
                 add("list_tabs shape + latency", ok, detail)
 
-                target_url = ""
-                for tab in tabs_payload.get("tabs") or []:
-                    if isinstance(tab, dict) and str(tab.get("url") or "").startswith("http"):
-                        target_url = tab["url"]
-                        break
+                target_url, target_id = choose_target(tabs_payload.get("tabs") or [])
 
                 eval_payload = await call("eval_in_profile", profile=profile,
                                           js="document.visibilityState",
-                                          url_part=target_url)
+                                          url_part=target_url, target_id=target_id)
                 ok, detail = check_eval_visibility(eval_payload)
-                if not target_url:
+                if not target_url and not target_id:
                     detail += "（该 profile 没有 http 页，无法指定目标页）"
                 add("eval_in_profile read", ok, detail)
 
                 oversize_payload = await call("eval_in_profile", profile=profile,
                                               js="'x'.repeat(4096)", max_result_bytes=1024,
-                                              url_part=target_url)
+                                              url_part=target_url, target_id=target_id)
                 ok, detail = check_oversize_is_rejected(oversize_payload, 1024)
                 add("oversize rejected, not truncated", ok, detail)
 
@@ -326,7 +355,8 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                         first_url = tab["url"]
                         break
                 if first_url:
-                    act_payload = await call("activate_tab", profile=profile, url_part=first_url)
+                    act_payload = await call("activate_tab", profile=profile,
+                                             url_part=target_url, target_id=target_id)
                     ok, detail = check_activate(act_payload)
                     add("activate_tab", ok, detail)
                     if ok and act_payload.get("target_id"):
