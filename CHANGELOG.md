@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **macOS 对齐：`run_actions` / `wait_for`（与 Windows 同名同语义）**：mac 之前没有批量与条件等待，调用方只能一步一步来、用 `sleep` 猜时机。现在两个原语在 mac 上也可用——`run_actions` 走显式白名单（13 个安全工具；`run_shell` / AppleScript / 进程类不可批处理）+ 整体校验 + 失败短路；`wait_for` 支持 `app`（NSWorkspace 运行中应用，便宜）/ `foreground`（前台应用）/ `text`（AX 元素出现，受 AX 预算保护）。共享逻辑（`_batch` / `_wait`）与 Windows 完全同一份，单测已覆盖。mac 固定工具数 **51 → 53**（core 42 → 44）。
 
+- **Android / iOS 对齐：`run_actions` / `wait_for`（四平台同名同语义）**：移动端此前只能用 `sleep` 猜时机、一步一步调用。现在两个原语在所有平台一致——`run_actions` 走各自平台的显式白名单（Android 11 个、iOS 12 个；`run_shell` / 安装 / 上传类刻意不可批处理）+ 整体校验 + 失败短路；`wait_for` 支持 `text`（UI 元素出现）与 `app`（前台包名/bundleId 匹配），超时是正常答案。共享逻辑 `_batch` / `_wait` 与桌面端完全同一份。工具数：android **31 → 33**、ios **30 → 32**。
+
 ### 修复
 
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：

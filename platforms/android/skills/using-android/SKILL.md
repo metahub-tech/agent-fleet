@@ -5,7 +5,7 @@ description: Use when invoking android-device MCP tools to drive a real Android 
 
 # Using android-device
 
-Drive one or more Android devices via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone(s) via **ADB** (USB or Wireless). 30 tools across 10 categories (+ HTTP `POST /upload`).
+Drive one or more Android devices via the `android-device` MCP server (FastMCP, streamable-http on Tailscale, port 8768). The server runs on a **PC host** (Windows or macOS), and reaches the phone(s) via **ADB** (USB or Wireless). 32 tools across 11 categories (+ HTTP `POST /upload`).
 
 ## Mental model
 
@@ -233,7 +233,7 @@ MCP 握手时 `instructions=` 中已列出当前所有连接设备的摘要；�
 - Source code: `platforms/android/server/android_device_mcp.py`
 - Service log (Win): `<repo>/platforms/android/logs/android-device.log`
 - Service log (Mac): same path
-- Tool surface: 30 tools across 10 categories (state 3 / session-default 2 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / agent-upload 5 / ui-introspection 3) + HTTP `POST /upload` route
+- Tool surface: 32 tools across 11 categories (state 3 / session-default 2 / device-info 1 / screen 2 / touch 3 / keyboard 2 / app 6 / shell 1 / file-transfer 2 / agent-upload 5 / ui-introspection 3 / batch+wait 2) + HTTP `POST /upload` route
 
 ## Red flags
 

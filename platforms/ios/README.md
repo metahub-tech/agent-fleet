@@ -62,7 +62,7 @@ Agent: launch_app(target="com.apple.Preferences")      → launched
 This is exactly the flow in the animated demo GIF in the [main README](../../README.md)
 — a real iPad driven over MCP, no human hands.
 
-## 工具集（v0.8.2-alpha 实际暴露，共 29 个）
+## 工具集（v0.8.2-alpha 实际暴露，共 31 个）
 
 所有工具均接受可选 `device` 参数（UDID 或别名）。未传 `device` 且只连 1 台设备时自动路由。
 
@@ -79,6 +79,7 @@ This is exactly the flow in the animated demo GIF in the [main README](../../REA
 | 文件上传（agent→设备）| `upload_to_photos` / `upload_to_app` / `get_upload_endpoint` | agent 自带字节传到 iOS：图片/视频进 Photos 相册(WDA 扩展)、或 app 沙箱(afc)。**推荐** `POST /upload` |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | WDA /source + /elements；推荐 class chain 定位器 |
 | 设备信息 | `device_info` | OS 版本、build、电量、型号（pymobiledevice3 lockdown + diagnostics）|
+| 批量 / 等待 | `run_actions` / `wait_for` | 一次调用跑多步（白名单+整体校验+失败短路）；设备侧条件等待（`text` / `app`，超时是正常答案）|
 
 > 与 android-device 的主要差异：**无 `run_shell`**（iOS 沙箱），文件传输限于 UIFileSharingEnabled 应用，`press_key` 只支持 4 个物理按键，坐标系为 WDA points。
 

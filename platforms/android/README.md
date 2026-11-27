@@ -115,7 +115,7 @@ Agent: install_app(path="/builds/app-debug.apk")       → installed
 Works over USB / Wireless / Hybrid ADB and is multi-device aware (pass `device=`).
 See the animated demo (a real iPad) in the [main README](../../README.md).
 
-## 工具集（v0.7.0-alpha 实际暴露，共 30 个）
+## 工具集（v0.7.0-alpha 实际暴露，共 32 个）
 
 所有工具均接受可选 `device` 参数（serial 或别名）。未传 `device` 且只连 1 台手机时自动路由。
 
@@ -132,6 +132,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 | 文件（host↔device） | `push_file` / `pull_file` | 读写 **host 本地磁盘**路径 |
 | 文件上传（agent→device） | `upload_media` / `stage_upload` / `deliver_staged` / `job_status` / `get_upload_endpoint` | agent 自带字节传到手机：小图 base64 同步进相册 / 大文件分片异步 / 发现 HTTP 端点。**推荐** `POST /upload`（见下） |
 | UI 内省 | `dump_ui` / `find_elements` / `tap_element` | uiautomator dump，精准元素定位 |
+| 批量 / 等待 | `run_actions` / `wait_for` | 一次调用跑多步（白名单+整体校验+失败短路）；设备侧条件等待（`text` / `app`，超时是正常答案）|
 
 > **传文件到手机的首选：HTTP `POST /upload`**（同 server 8768 端口）。agent 直接 POST 文件字节，host 落盘后 adb push（+可选 `pm install` / 媒体扫描），绕过 base64 上下文膨胀、分片与 MCP 25s 死线，任意大小：
 > ```

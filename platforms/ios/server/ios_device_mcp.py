@@ -52,6 +52,7 @@ from fastmcp.utilities.types import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 
 from _aliases import DeviceInfo, derive_alias, load_aliases, resolve_aliases
+import _batch, _wait
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
 from _ios_devices import detect_ios_devices, device_extras
@@ -1089,6 +1090,101 @@ except Exception as e:  # never let capability config crash server startup
     print(f"[capabilities] config load failed, defaulting to core only: "
           f"{type(e).__name__}: {e}", file=sys.stderr)
     _enabled_caps = ["core"]
+
+# ============================================================
+#        WAIT ON DEVICE + BATCHED ACTIONS (ios parity)
+# ============================================================
+
+@mcp.tool
+def wait_for(
+    kind: Annotated[str, Field(description="What to wait for: 'text' | 'app'")],
+    target: Annotated[str, Field(description="Element query (text) or bundleId/name substring (app)")] = "",
+    timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
+    interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,
+    device: Annotated[Optional[str], Field(description="udid or alias")] = None,
+) -> dict:
+    """Wait **on the device** until a condition holds — instead of sleeping blindly.
+
+    Kinds:
+      * ``text`` — a UI element whose name/label contains `target` exists (WDA query);
+      * ``app``  — the foreground app's bundleId/name contains `target`.
+
+    Returns ``{ok, matched, elapsed_ms, attempts}`` on success and
+    ``{ok:false, reason:"timeout", ...}`` on expiry — a timeout is a **normal answer**,
+    so branch on `ok` and pick a fallback instead of retrying blindly.
+    """
+    kind_norm = (kind or "").strip().lower()
+    if kind_norm not in ("text", "app"):
+        return {"ok": False, "reason": "invalid_kind", "allowed_kinds": ["text", "app"]}
+    needle = (target or "").strip()
+    if not needle:
+        return {"ok": False, "reason": "missing_target", "hint": "pass the query in `target`"}
+
+    find_fn = getattr(find_elements, "fn", find_elements)
+    current_fn = getattr(current_app, "fn", current_app)
+
+    def _probe_text():
+        # WDA predicate string：按 name/label 做 contains 匹配（iOS 常用定位方式）
+        predicate = "name CONTAINS[c] %r OR label CONTAINS[c] %r" % (needle, needle)
+        res = find_fn(using="predicate string", value=predicate, device=device)
+        if isinstance(res, dict) and (res.get("error") or res.get("ok") is False):
+            raise RuntimeError(str(res.get("error") or res.get("reason") or "find failed"))
+        els = res.get("elements") if isinstance(res, dict) else None
+        count = len(els or [])
+        return count > 0, {"count": count, "elements": (els or [])[:3]}
+
+    def _probe_app():
+        info = current_fn(device=device)
+        text = f"{info.get('bundleId') or ''} {info.get('name') or ''}" if isinstance(info, dict) else ""
+        return needle.lower() in text.lower(), info
+
+    probe = {"text": _probe_text, "app": _probe_app}[kind_norm]
+    result = _wait.wait_until(probe, timeout_s=timeout_ms / 1000.0, interval_s=interval_ms / 1000.0)
+    result["kind"] = kind_norm
+    result["target"] = needle
+    return result
+
+
+#: Tools allowed inside ios `run_actions` (install / upload / dev-info excluded).
+_IOS_BATCH_ALLOWLIST = (
+    "tap", "tap_element", "type_text", "press_key", "swipe", "long_press",
+    "launch_app", "activate_app", "current_app", "get_screen_size",
+    "find_elements", "wait_for",
+)
+
+
+def _batch_registry() -> dict:
+    registry = {}
+    for name in _IOS_BATCH_ALLOWLIST:
+        obj = globals().get(name)
+        fn = getattr(obj, "fn", obj)
+        if callable(fn):
+            registry[name] = fn
+    return registry
+
+
+@mcp.tool
+def run_actions(
+    steps: Annotated[list[dict], Field(description="Ordered steps: [{tool, args?, sleep_ms?}, …] (max 25)")],
+    stop_on_error: Annotated[bool, Field(description="Stop at the first failed step (default)")] = True,
+    delay_ms: Annotated[int, Field(ge=0, le=5000, description="Fixed pause between steps (ms)")] = 0,
+) -> dict:
+    """Run several device actions in **one** call (fewer round-trips, less state drift).
+
+    Steps are `{"tool": "<name>", "args": {...}, "sleep_ms": 0}`; only an explicit
+    allowlist is accepted (install / upload / device-info are intentionally **not**
+    batchable). Validation is all-or-nothing; `stop_on_error=True` stops at the first
+    failure and marks the rest `skipped`. Pass `device` inside each step's `args` for
+    multi-device.
+    """
+    registry = _batch_registry()
+    try:
+        validated = _batch.validate_steps(steps, registry)
+    except _batch.StepError as exc:
+        return {"ok": False, "reason": "invalid_steps", "error": str(exc),
+                "allowed_tools": sorted(registry)}
+    return _batch.run_steps(validated, registry, stop_on_error=stop_on_error, delay_ms=delay_ms)
+
 
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-ios"))
