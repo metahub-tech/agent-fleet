@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`list_windows` 慢调用留痕（真机反馈：一次 11.98s 无法归因）**：那次客户端观测 11984ms，但 8s 预算既没报超时也没抛异常，因此分不清"服务端真慢"还是"慢在客户端/会话开销"。现在超过 `UIA_SLOW_LOG_S`（默认 5s，可用 `FLEET_UIA_SLOW_LOG` 覆盖）就写一行 `[uia] list_windows completed in X.Xs (... no timeout raised)`——下次同类现象可直接对照。
 
-- **`wait_for(kind="text")` 的单次探测改用更小预算（默认 2s，`FLEET_WAIT_PROBE_BUDGET`）**：此前每次探测都吃满 8s 的 UIA 预算，导致 10s 的等待只能采样 1–2 次——与"轮询"的意图相反。现在单次探测预算独立可调，同一个总预算里能采到更多样本。
+- **`wait_for(kind="text")` 的单次探测改用更小预算（默认 4s，`FLEET_WAIT_PROBE_BUDGET`）**：此前每次探测都吃满 8s 的 UIA 预算，导致 10s 的等待只能采样 1–2 次——与"轮询"的意图相反。现在单次探测预算独立可调，同一个总预算里能采到更多样本。
 
 ### 修复
 

@@ -107,9 +107,12 @@ UIA_TIMEOUT_S = float(os.environ.get("FLEET_UIA_TIMEOUT", "8") or 8)
 #: `list_windows` 客户端观测 11.98s、但预算 8s 且没有超时/异常记录，
 #: 有这行才能分辨"服务端真的慢"还是"慢在客户端/会话开销"。
 UIA_SLOW_LOG_S = float(os.environ.get("FLEET_UIA_SLOW_LOG", "5") or 5)
-#: `wait_for(kind="text")` 单次探测的预算：等待应当"多次采样"，
-#: 而不是一次探测吃掉整个等待预算。可用 `FLEET_WAIT_PROBE_BUDGET` 调整。
-WAIT_PROBE_BUDGET_S = float(os.environ.get("FLEET_WAIT_PROBE_BUDGET", "2") or 2)
+#: `wait_for(kind="text")` 单次探测的预算：等待应当"多次采样"，而不是一次探测吃掉
+#: 整个等待预算。默认取 **4s** 而不是 2s —— 真机实测 `find_elements` 1.5s、`dump_ui`
+#: （depth=4）3.6s，2s 会让重窗口的探测**每次**都超时，`wait_for` 于是永远报 timeout
+#: （假阴性）；4s 在"多采一次"与"别把重窗口判死"之间取平衡。可用
+#: `FLEET_WAIT_PROBE_BUDGET` 覆盖。
+WAIT_PROBE_BUDGET_S = float(os.environ.get("FLEET_WAIT_PROBE_BUDGET", "4") or 4)
 UIA_GLYPH_MERGE = os.environ.get("FLEET_UIA_GLYPH_MERGE", "1") != "0"
 UIA_GLYPH_MAX_CHARS = int(os.environ.get("FLEET_UIA_GLYPH_MAX_CHARS", "1") or 1)
 UIA_GLYPH_MAX_NODES = int(os.environ.get("FLEET_UIA_GLYPH_MAX_NODES", "1500") or 1500)
