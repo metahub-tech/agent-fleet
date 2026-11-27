@@ -165,11 +165,11 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 | `eval_in_profile` | `page_ambiguous` | ❌ 契约缺口 → **`6e01184` 已加 `url_part`/`target_id`** |
 | 超限拒绝 | 先撞 `page_ambiguous`，未到 `result_too_large` | ❌ 同上（修后应可真验到） |
 | `list_windows`（smoke） | 562ms 正常返回，被脚本判 FAIL | ❌ **判据 bug** → `6e01184` 修 |
-| B1 后台标签 | `activate_tab` → `PAGE_AMBIGUOUS(candidates:2)`；`eval_in_profile` → `page_ambiguous(candidates:10)` | ❌ **契约缺口**，且他读代码指出"先 activate 再 eval"的补救不成立 → 已修 |
+| B1 后台标签 | `activate_tab` → `PAGE_AMBIGUOUS(candidates:2)`；`eval_in_profile` → `page_ambiguous(candidates:10)` | ❌ **契约缺口**（`url_part`/`target_id` 已补）；但「后台标签 ⇒ 冻结」这个前提在现场**不成立**，见下 |
 | B2 剪贴板写入 | `bytes:303, attempts:1, verified:true, formats:["HTML Format"], only_html_format:true` | ✅ 前半通过；后半（读正文核对样式）被上面的 eval 问题挡住 |
 | B3 UIA 卡死 | StarBeam(Electron) 前台 → `dump_ui(max_depth=4)` **3609ms**，`uia_budget_s:8.0` | ✅ 有界返回 |
 | B4 中文逐字节点 | 设备无微信 PC 端；StarBeam 的 UIA 树 depth4 全空 Pane，`find_elements("订阅")` → `count:0`, `glyph_merge.applied:true` | ⛔ **环境不具备**（N/A） |
-| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**。11.98s 已可定性：`origin/main` 的 `list_windows` **没有**预算包装（无 `run_with_timeout`），只有本分支有 ⇒ 那次必然是打到旧码 8766（8s 预算的版本不可能跑出 11.98s） |
+| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**。⚠️ 我先前推断「必然是旧码 8766」，被对方用 `start_process` 记录的命令行**证伪**：那次打的是 8767（新码）。所以「8s 预算却没在 8s 收住」仍是**未解**问题——需要服务端日志里那行 `[uia] list_windows ...` 才能定死 |
 | 异常② | `find_elements(window_title="StarBeam")` 两窗口时抛裸异常 `There are 2 elements that match the criteria` | ❌ 既有 bug → **`73dc997` 起返回 `reason:"ambiguous_window"` + candidates** |
 | 交叉证据 | 裸客户端打旧码 8766 的 `list_windows` → `Output validation error: 'result' is a required property` | 佐证旧码该工具在严格客户端下本来就是坏的 |
 
@@ -186,6 +186,25 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 
 > 这四条脚本覆盖不到（需要"制造状态"或输入类操作），但工具调用可以照抄。
 > 下面 `P` = 你正在用的 profile 串（与 `human_browser_open` 用的**同一个**值）。
+
+### B1 判据修正（真机实测后）
+
+原先写的是「`activate=False` 打后台标签必须返回 `frozen_background_tab`」。真机实测（34 标签的运营 profile）：
+
+```
+eval_in_profile(js="1", url_part="appmsgid=100000037", activate=False)
+→ {ok:true, value:1, activated:false, size_bytes:1, elapsed_ms:62}
+```
+
+**后台 ≠ 冻结**：切到后台只是隐藏，Chrome 只在内存压力或长时间后台才冻渲染进程。所以原判据依赖一个
+当前环境不会自然出现的前提，无法跑绿。改成可稳定判定的那部分语义：
+
+| 断言 | 期望 |
+|---|---|
+| 不抢焦点 | `activated:false` |
+| 结果二选一 | 要么 `ok:true` 且 `value` 存在（页面未冻结），要么 `ok:false` + `reason:"frozen_background_tab"`（真的冻结了） |
+
+想真正验证"冻结"这条分支，需先在 `chrome://discards` 手动 Freeze 该标签再跑——属于额外加深项，不作为验收门槛。
 
 ### B1 · 后台标签语义（2 分钟）
 
