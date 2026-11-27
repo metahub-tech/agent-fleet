@@ -755,7 +755,7 @@ def tap(
     x: Annotated[int, Field(description="Screen x coordinate")],
     y: Annotated[int, Field(description="Screen y coordinate")],
     button: Annotated[str, Field(description="left / right / middle")] = "left",
-    clicks: Annotated[int, Field(ge=1, le=3)] = 1,
+    clicks: Annotated[int, Field(ge=1, le=3, description="1=single, 2=double, 3=triple click")] = 1,
 ) -> dict:
     """Click the mouse at screen coordinates."""
     pyautogui.click(x=x, y=y, clicks=clicks, button=button)
@@ -765,8 +765,8 @@ def tap(
 @mcp.tool
 @with_touch
 def move_mouse(
-    x: int,
-    y: int,
+    x: Annotated[int, Field(description="Absolute screen x")],
+    y: Annotated[int, Field(description="Absolute screen y")],
     duration: Annotated[float, Field(description="Seconds to take; 0 = instant")] = 0.0,
 ) -> dict:
     """Move the mouse to a coordinate."""
@@ -776,7 +776,10 @@ def move_mouse(
 
 @mcp.tool
 @with_touch
-def hover_preview(x: int, y: int):
+def hover_preview(
+    x: Annotated[int, Field(description="Screen x to move to (no click)")],
+    y: Annotated[int, Field(description="Screen y to move to (no click)")],
+):
     """Move the real mouse to (x, y) WITHOUT clicking (triggers hover state, e.g. button
     highlight — zero-delay capture reflects the immediate highlight, not dwell-delayed
     tooltips), screenshot, and draw a crosshair marker at (x, y). Use to verify a locate
@@ -854,7 +857,7 @@ def launch_app(
 
 @mcp.tool
 @with_touch
-def kill_process(pid: int) -> dict:
+def kill_process(pid: Annotated[int, Field(description="PID to terminate")]) -> dict:
     """Kill a process by PID."""
     p = psutil.Process(pid)
     name = p.name()
@@ -1266,11 +1269,17 @@ def list_devices() -> list[dict]:
 
 @mcp.tool
 def set_default_device(device: Annotated[str, Field(description="ignored on single-device platforms")] = "host") -> dict:
+    """Accept and ignore a sticky default: this platform has exactly one device.
+
+    Kept for interface parity with the multi-device platforms (Android / iOS), so
+    cross-platform agent code can always call it.
+    """
     return {"default": _SERIAL, "note": "single-device platform; always targets the host"}
 
 
 @mcp.tool
 def get_default_device() -> dict:
+    """Return the (single) device this server targets."""
     return {"default": _SERIAL}
 
 
@@ -1356,7 +1365,9 @@ _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 @mcp.tool
 @with_touch
 def wait_for(
-    kind: Annotated[str, Field(description="What to wait for: 'window' | 'text' | 'foreground'")],
+    kind: Annotated[str, Field(
+        description=("What to wait for: 'window' | 'text' | 'foreground'. Any of them also "
+                     "accepts a '_gone' suffix to wait until it disappears."))],
     target: Annotated[str, Field(description="Window-title substring, UIA element query, or foreground-title substring")] = "",
     timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
     interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,

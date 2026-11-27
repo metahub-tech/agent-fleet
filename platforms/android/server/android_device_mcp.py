@@ -700,8 +700,8 @@ def swipe(
 
 @mcp.tool
 def long_press(
-    x: int,
-    y: int,
+    x: Annotated[int, Field(description="Screen x of the press point")],
+    y: Annotated[int, Field(description="Screen y of the press point")],
     duration_ms: Annotated[int, Field(ge=300, le=10000, description="Hold duration in ms")] = 800,
     device: Annotated[str | None, Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
     ctx: Context = None,
@@ -1563,7 +1563,8 @@ except Exception as e:  # never let capability config crash server startup
 
 @mcp.tool
 def wait_for(
-    kind: Annotated[str, Field(description="What to wait for: 'text' | 'app'")],
+    kind: Annotated[str, Field(
+        description="What to wait for: 'text' | 'app'; either also accepts a '_gone' suffix")],
     target: Annotated[str, Field(description="Element query (text) or package/activity substring (app)")] = "",
     timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
     interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,

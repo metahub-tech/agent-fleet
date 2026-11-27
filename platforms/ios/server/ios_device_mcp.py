@@ -1114,7 +1114,8 @@ except Exception as e:  # never let capability config crash server startup
 
 @mcp.tool
 def wait_for(
-    kind: Annotated[str, Field(description="What to wait for: 'text' | 'app'")],
+    kind: Annotated[str, Field(
+        description="What to wait for: 'text' | 'app'; either also accepts a '_gone' suffix")],
     target: Annotated[str, Field(description="Element query (text) or bundleId/name substring (app)")] = "",
     timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
     interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,
