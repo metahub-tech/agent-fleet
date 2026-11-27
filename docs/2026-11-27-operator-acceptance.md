@@ -33,7 +33,7 @@ unknown 在 28–36 之间浮动，与设计一致：**并发探测在 `probe_bu
 | `smoke_ops` | ✅ **12/12** | 三轮（`d39b3d1`，34 标签 profile） |
 | `smoke_devtools` | ✅ **7/7** | 五轮（`c7862fd`，36 标签 profile） |
 | B1 选页维度 | ✅ `url_part` 命中唯一页、62ms | 第三轮 |
-| B1 冻结分支 | ⚠️ 判据已改（后台≠冻结），冻结本身未验 | 第三轮 |
+| B1 冻结分支 | ⏳ 判据已改；`--freeze-check`（`9b17f34`）可自动验，只碰 `about:blank` | 第三轮 + 第七节 |
 | B2 富文本：结构/乱码/段距 | ✅ h2+2p、`\ufffd=0`、gaps 24px | 第四轮（v3） |
 | B2 富文本：`border-left` / 字数差值 | ⏳ **夹具已备好**，待一次现场 | 「B2 复验夹具」 |
 | B3 UIA 卡死回归 | ✅ `dump_ui` 9797ms 有界返回 | 第三/四轮 |
@@ -122,6 +122,8 @@ python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
 python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id>
 # 可选：再验一条 target_id 管线（规则 2 回退分支真正依赖的就是它）
 python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id> --target-id-check
+# 可选：自动验冻结分支（需先开一个 about:blank；脚本只碰它，结束必解冻）
+python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id> --freeze-check
 # --profile 不要加引号（脚本会剥，但加了容易把引号带进路径）；脚本会自动挑 list_tabs 里的第一个 http 页去 eval
 ```
 
@@ -747,6 +749,17 @@ git status --porcelain docs/            # 空 = 零漂移
 | B1 冻结分支 | 「后台≠冻结」已澄清；冻结需主动触发 | `chrome://discards` 手动 Freeze，或 CDP `Page.setWebLifecycleState` |
 | `choose_target` 的 `target_id` 回退 | 规则 1 已真机验（v4 7/7）；规则 2 代码已修（`2b52c89`，此前读错字段是死代码），单测+离线构造已证 | 真机需"所有 URL 重复"的 profile，属可选加深项 |
 | macOS / Android / iOS 端到端 | 运行时与协议层已有测试，**无真机记录** | 首次真机验证（与目标场景无直接关系，优先级最低） |
+
+## `--freeze-check` 的边界（避免误用）
+
+| 项 | 说明 |
+|---|---|
+| 碰哪些标签 | **只碰 `url == "about:blank"`** 的那一个；没有就记 `skipped` 并提示先开一个 |
+| 会不会留残留 | 不会：`finally` 里无条件 `Page.setWebLifecycleState {state:"active"}` 解冻 |
+| 在哪跑 | **必须在设备本机**（CDP 端口是设备上的 `127.0.0.1`）；连不上会明确报"连不上浏览器" |
+| 判失败的情形 | 页面仍能求值（冻结没生效，不接受"切后台"冒充）、about:blank 消失、冻结调用本身报错 |
+| 判 skipped 的情形 | 没有 about:blank 标签 |
+
 
 ## 失败归因速查（smoke 报了 FAIL 时先查这里）
 
