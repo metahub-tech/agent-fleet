@@ -378,6 +378,39 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 
 ---
 
+
+---
+
+## 基线演进（对方每次验证的是哪个提交，以及之后改了什么）
+
+> 这条链是为了解决一个反复出现的沟通成本：**"你验的是哪个 commit"**。
+> 每次给对方的基线都记在这里；他自己也能对照"我验完之后又变了什么、要不要重跑"。
+
+| 基线 | 谁验的 | A 组结果 | 之后到下一个基线改了什么 |
+|---|---|---|---|
+| `31cd40e` | device-operator 第一轮 | 5/7 + 11/12 | `6e01184` 修判据（`{"result":[…]}`）、加 `url_part`/`target_id`、剥 `--profile` 引号 |
+| `d39b3d1` | device-operator 第二轮（含 B 组） | 12/12 + 7/7 ✅ | `73dc997` `list_windows` 兜异常 + `ambiguous_window`；`846ed7b` 文档更正 |
+| `846ed7b` | 我提出的稳定基线（未单独验证） | — | 见下表 |
+| **`693a47d`** | 当前 tip | 待验 | — |
+
+### `846ed7b` 之后改了什么（按"会不会影响 A 组判据"分类）
+
+**会影响行为、建议重跑 A 组**：
+
+| 提交 | 改动 | 影响面 |
+|---|---|---|
+| `a373886` | `eval_in_profile` 返回 `timings{connect_ms, activate_ms, eval_ms}` | 只增字段，判据不受影响 |
+| `4905ed7` | `list_windows` 超 5s 打印慢调用日志 | 只增日志 |
+| `08a5d20` + `174522b` | `wait_for(text)` 单次探测预算 8s → 4s | `wait_for` 时序变化（防假阴性） |
+| `031cde7` | `wait_for` 新增 `probe_failed` reason | 判据需知道有两种 reason |
+| `0495ac4` | `_cdp.call()` 超时真正生效 | CDP 调用不会再多等 5s |
+| `693a47d` | `connect_browser` 预算下传 | 连接更守时（可能缩短 evals） |
+
+**纯文档**：`33d65cd`（性能基线）、`8c948a4`（冻结方法）、`4ebda47`（docstring）。
+
+**结论**：`wait_for` 的两条改动（8s→4s、新增 `probe_failed`）与 CDP 两条超时修复是真正的行为变化；
+`smoke_ops` 的 12 项判据里只有 `wait_for honours budget` 一项与它相关，其余不受影响。
+
 ## 性能基线（2026-11-27，`test-win11`，散落各轮回执的读数汇总）
 
 > ⚠️ 这不是 benchmark harness 的产物：每条都是**一次**真机调用的观测，机器同时有别的
