@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`list_windows` 兜住枚举期非超时异常（真机实测）**：设备端出现过一次 `[Errno 22] Invalid argument`（pywinauto 枚举期抛的裸 `OSError`），调用方只看到 `Error calling tool`，既不是结构化 `uia_timeout` 也拿不到已收集的窗口。现在非超时异常同样捕获 → 返回已收集部分 + stderr 告警（契约仍是 list）。
 - **同标题多窗口 → 结构化 `ambiguous_window`（既有 bug，真机复现）**：`find_elements(window_title="StarBeam")` 在两个同名窗口时抛出裸异常 `There are 2 elements that match the criteria`。新增共享判定 `_uia_bounds.is_ambiguous_error()` + `ambiguous_window_payload()`，返回 `{ok:false, reason:"ambiguous_window", hint, candidates}`，让调用方能直接改成更具体的标题。
 
+- **`smoke_lease.py` 与 CLI（`fleet verify` / `fleet smoke`）同样兼容 MCP SDK 1.x/2.x**：此前只有两个验收脚本做了兼容，同一环境里 `smoke_lease` 和 CLI 仍会因为 SDK 2.x 把 `streamablehttp_client` 改名成 `streamable_http_client` 而直接报 "SDK not available"。CLI 侧抽出 `fleet._mcp_transport.load_transport()/require_transport()` 统一处理，三处调用点改为按 `streams[0]/streams[1]` 解包。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

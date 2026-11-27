@@ -31,8 +31,11 @@ def probe_mcp_server(host: str, port: int) -> VerifyResult:
 
 async def _list_tools_count(url: str) -> int:
     from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
-    async with streamablehttp_client(url) as (r, w, _):
+
+    from ._mcp_transport import require_transport
+
+    async with require_transport()(url) as _streams:
+        r, w = _streams[0], _streams[1]
         async with ClientSession(r, w) as s:
             await s.initialize()
             tools = await s.list_tools()

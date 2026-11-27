@@ -62,12 +62,14 @@ def run_smoke_tests(host: str, port: int, tests: list[SmokeTest]) -> list[SmokeR
 
 async def _run_async(host: str, port: int, tests: list[SmokeTest]) -> list[SmokeResult]:
     from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
+
+    from ._mcp_transport import require_transport
 
     url = f"http://{host}:{port}/mcp"
     results: list[SmokeResult] = []
     try:
-        async with streamablehttp_client(url) as (reader, writer, _):
+        async with require_transport()(url) as _streams:
+            reader, writer = _streams[0], _streams[1]
             async with ClientSession(reader, writer) as session:
                 await session.initialize()
                 for test in tests:

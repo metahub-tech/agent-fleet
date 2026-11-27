@@ -162,12 +162,12 @@ def _url(args: argparse.Namespace) -> str:
 
 
 async def _run(url: str, args: argparse.Namespace) -> int:
-    try:
-        from mcp import ClientSession
-        from mcp.client.streamable_http import streamablehttp_client
-    except Exception as exc:  # pragma: no cover - environment dependent
-        print(f"ERROR: MCP client SDK not available ({exc}). Use the server venv or `pip install mcp`.", file=sys.stderr)
+    transport = _load_transport()
+    if transport is None:  # pragma: no cover - environment dependent
+        print('ERROR: MCP client SDK not available. Use the server venv, or '
+              '`uv run --with "mcp<2" python scripts/smoke_lease.py`.', file=sys.stderr)
         return 2
+    from mcp import ClientSession
 
     def make_call(session):
         async def call(tool: str, **kwargs):
@@ -177,12 +177,14 @@ async def _run(url: str, args: argparse.Namespace) -> int:
         return call
 
     try:
-        async with streamablehttp_client(url) as (r1, w1, _):
+        async with transport(url) as _streams1:
+            r1, w1 = _streams1[0], _streams1[1]
             async with ClientSession(r1, w1) as s1:
                 await s1.initialize()
                 call_a = make_call(s1)
                 capability = await _pick_capability_tool(call_a, args.capability_tool)
-                async with streamablehttp_client(url) as (r2, w2, _):
+                async with transport(url) as _streams2:
+                    r2, w2 = _streams2[0], _streams2[1]
                     async with ClientSession(r2, w2) as s2:
                         await s2.initialize()
                         results = await run_checks(call_a, make_call(s2), capability, args.holder_prefix)
@@ -202,6 +204,24 @@ async def _run(url: str, args: argparse.Namespace) -> int:
         print("FAILED: " + ", ".join(r["check"] for r in failed), file=sys.stderr)
         return 1
     return 0
+
+
+def _load_transport():
+    """返回 streamable-http 连接器；兼容 MCP SDK 1.x 与 2.x 的导出名。
+
+    1.x: ``streamablehttp_client``；2.x: ``streamable_http_client``（带下划线）。
+    两者都接同一个 URL，返回的上下文管理器都是 (read, write, ...) 元组。
+    """
+    try:
+        from mcp.client.streamable_http import streamablehttp_client as _t   # 1.x
+        return _t
+    except Exception:
+        pass
+    try:
+        from mcp.client.streamable_http import streamable_http_client as _t  # 2.x
+        return _t
+    except Exception:
+        return None
 
 
 def main(argv: Optional[list[str]] = None) -> int:

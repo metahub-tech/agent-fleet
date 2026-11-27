@@ -160,3 +160,11 @@ def test_json_output_shape(tmp_path, monkeypatch, capsys):
     assert smoke_lease.main(["--url", "http://x/mcp", "--json"]) == 0
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert out == {"passed": 12, "total": 12}
+
+
+# --- MCP SDK 1.x/2.x 兼容（真机环境实测：2.x 的导出名带下划线）-------------
+
+def test_load_transport_returns_a_callable():
+    transport = smoke_lease._load_transport()
+    assert transport is not None, "当前环境应至少有一种导出名可用"
+    assert callable(transport)
