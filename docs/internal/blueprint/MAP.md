@@ -95,6 +95,7 @@ agent-fleet CLI
 - `scripts/gen_docs.py`
 - `scripts/install-agent-side.py`
 - `scripts/install_skills.py`
+- `scripts/smoke_devtools.py`
 - `scripts/smoke_lease.py`
 
 ## docs/
@@ -103,6 +104,7 @@ agent-fleet CLI
 - `docs/2026-06-21-device-op-server-launch.md`
 - `docs/2026-06-21-mac-helper-promotion-from-agenthub.md`
 - `docs/2026-06-21-requirements-from-agenthub-device-op.md`
+- `docs/2026-11-27-operator-acceptance.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
 - `docs/install-for-agents.md`
