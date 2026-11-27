@@ -171,3 +171,20 @@ human_dom_status()
 | profile | 真实 | 真实 |
 | 适用 | 截图里看得清的元素 | 需要语义匹配 / 坐标精度要求高 |
 | DOM 不可达时 | 手动截图猜坐标 | 自动 suggest vision_locate (OCR) |
+
+
+## 开销与轮询建议（真机实测）
+
+`human_dom_status()` 会扫描 `~/.fleet/human-dom-ext` 下**所有** profile 并逐个报
+`installed/connected/focused`。本机实测（34 个 profile，其中 29 个"已装扩展但未连桥"）：
+**单次约 4 秒**。所以：
+
+| 用途 | 用哪个 | 为什么 |
+|---|---|---|
+| **首次排障**、确认某 profile 装没装 | `human_dom_status()` | 信息全，值得花一次 4s |
+| **轮询/循环里**判断"连上了没" | 不要用它 | 34 profile 的扫描 + 逐个 `focus_state` 会拖慢主流程 |
+| 判断**单个** profile 是否有焦点 | `human_dom_focused(profile=…)` | 只查一个 profile，返回 `focused/reason`，适合轮询 |
+| 判断能不能操作 | 直接试 `human_dom_locate/tap/fill` | 失败时 reason 已经足够定位（`no_bridge`/`not_connected` 等） |
+
+> 这条来自 2026-11-27 的真机读数：`smoke_lease` 的"能力调用应即时续租"判据一度
+> 因为它 4s 的耗时被误判成失败（改用 `last_used_at` 比较后才正确）。

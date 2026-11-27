@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_lease` 的续租判据改为比较 `last_used_at`（真机抓到的误判）**：此前用 `idle_seconds == 0` 判"续租成功"，而 `human_dom_status` 在本机返回 34 个 profile、单次耗时约 4s，返回后立刻读 status 时 `idle_seconds` 已经是 4 —— **正常续租被判成失败**。实验证实 `last_used_at` 确实前进了；现改为比较时间戳前进，并补 3 条单测。
 
+- **human_dom skill 补「开销与轮询建议」**：真机实测 `human_dom_status()` 在 34 个 profile 时单次约 **4 秒**（逐个 `focus_state` + 全量盘扫描）。写明轮询时不要用它、改用 `human_dom_focused(profile=…)` 或直接试操作；`status` 只在首次排障用。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
