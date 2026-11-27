@@ -171,3 +171,106 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 ---
 
 _本文件是手写稳定层。事实变更（版本、门禁、目录契约）时请同步更新，并保持与 `docs/project-map.md` 一致；两者冲突时以 `docs/project-map.md` 的核对记录为准。_
+
+## 10. 🔴 chat 与 task 的分工（硬约束）➔ 手册：`.agents/skills/starflow-comm-sop/SKILL.md`
+
+> **一句话**：**`task` 管「事」，`chat` 管「人」。两者不得混用。**
+> 本节由 `devops/scripts/onboard-agent.sh` 自动注入，**不要手改**（改源文件后重新注入）。
+
+### 10.1 分工表
+
+| 维度 | **`task`（事）** | **`chat`（人）** |
+|---|---|---|
+| 对象 | 工单 = 可验收的工作单元 | Agent / 人 = 沟通对象 |
+| 存储 | **工单 timeline**（只存） | **thread**（会话） |
+| 是否唤醒 | **不唤醒**（`@` 除外） | **会投递**给对方 |
+| 有无"回包" | 无。只有**状态流转**（submit） | 有。回原 thread |
+| 谁该看 | 主动 `starflow task timeline --task <id>` | 被动收 |
+
+### 10.2 五条铁律
+
+1. **工单不是聊天群**：`chat send --to topic:task:*` 或 `--topic topic:task:*` 都会被**拒绝**。
+   留言用 `starflow task comment --task <id>`；要提醒某人来看用 `--at <who>`（只发"去读"通知，不含正文）。
+2. **认领前不要提交**：`submit` 要求 `claimed_by = 你`。先 `starflow task claim --task <id>`。
+   报错 `409 not_claimed` 就是这个原因。
+3. **只在 chat 说过 = 没说过**：需求、决策、验收结论必须 `flow submit` 或 `task comment` 落到工单。
+4. **与工单相关的求证必须回流**：`chat send --to <人> --relate-task <id> "..."`，
+   否则结论只在会话里，处理那张单的会话看不到。
+5. **阻塞必须显式登记**：`starflow team block --task <id> --reason "..." --kind human_decision`
+   —— 会自动写库 + 推人类飞书。**只在聊天里说"我在等"不算**（历史事故：这样卡了 22.5 小时）。
+
+### 10.3 常用命令速查
+
+```bash
+# 事（工单）
+starflow flow pull                        # 按订阅批量认领
+starflow task claim    --task <id>        # 直接认领（校验 owner_role）
+starflow task comment  --task <id> [--at <who>] "内容"
+starflow task timeline --task <id> [--limit 20]
+starflow task progress --task <id> [--eta 120m] [--beat]
+starflow flow submit   --task <id> --action pass|reject|observe --note "..."
+
+# 人（沟通）
+starflow chat send --to agent:<x> [--relate-task <id>] "内容"
+starflow chat inbox --peek | --pop
+starflow chat send --to agent:<x> --channel primary "..."   # 显式投前台（原 connect 已取消）
+starflow chat exit
+
+# 阻塞
+starflow team block   --task <id> --reason "..." --kind human_decision|peer_dependency|external
+starflow team unblock --task <id>
+starflow team status
+
+# 自检
+starflow brief show
+```
+
+### 10.4 三个真实踩坑（前车之鉴）
+
+| 坑 | 后果 | 正确做法 |
+|---|---|---|
+| `chat send --to topic:task:X` | 被守卫拒绝（工单不是投递通道） | `task comment --task X` |
+| 没 `claim` 就 `submit` | `409 not_claimed`，工单卡住 | 先 `task claim` |
+| 阻塞只在聊天里说 | 卡 22.5 小时无人知 | `team block` 写库 + 飞书 |
+
+### 10.5 长任务
+
+预计超过 30 分钟的任务（构建/CI/部署），**开工时声明一次**：
+```bash
+starflow task progress --task <id> --eta 120m --note "全量构建，预计 2 小时"
+```
+系统会把该会话的判活阈值延长到 ETA；不声明则连续 30 分钟无输出会被判死。
+任务进行中可 `--beat` 刷新进度。
+## 11. 🔴 通道唯一性（硬约束）
+
+> **一句话**：**Agent 之间的通信只能走 StarFlow。** 任何绕过 StarFlow 的"消息获取"都视为越权。
+
+### 11.1 允许的通道（仅此两类）
+
+1. **StarFlow 推送**：`chat.message` 事件注入到你的端点；
+2. **StarFlow 读取 API**：`GET /api/v1/chat/topics/<id>/messages`（需要成员资格）。
+   注意：**你只能读到"投递给你的"消息**（以及你自己发的、系统告警）；
+   别人会话里没投递给你的消息，看不到 —— 这是有意为之，不是缺陷。
+
+### 11.2 禁止的通道（一律视为越权）
+
+| 禁止行为 | 为什么 |
+|---|---|
+| `tmux capture-pane` 读别人的窗格 | 同机同用户就能读屏，但那是 **OS 旁路**，不经任何授权 |
+| 读对端工作区文件、日志、数据库 | 同上，绕过成员校验与审计 |
+| 直接写库改消息/投递状态 | 绕过状态机与投递语义 |
+| 用其它 IM/邮件等外部通道代替 chat | 会话不可审计、不可归档 |
+
+**唯一例外**：人类显式授权（例如运维排障时明确要求你去看某台机器的屏幕）。
+
+### 11.3 为什么必须这样
+
+- 消息**只属于一个地址**：降级/旁路会让"我发的消息他到底收没收到"变成不可判定；
+- 会话**要可归档、可审计**：旁路读到的内容不在会话里，归档后就丢了；
+- 排障**要能追**：通道外的信息无法在 `wf_chat_delivery` / `wf_chat_read_cursor` 留痕。
+
+### 11.4 收到消息后的动作
+
+见 `.agents/skills/starflow-comm-sop/SKILL.md` §0.0：用**同一个 topic** 回复，
+不要自己加 `--channel`（服务端按"从哪来回哪去"寻址）。
+
