@@ -169,7 +169,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 | B2 剪贴板写入 | `bytes:303, attempts:1, verified:true, formats:["HTML Format"], only_html_format:true` | ✅ 前半通过；后半（读正文核对样式）被上面的 eval 问题挡住 |
 | B3 UIA 卡死 | StarBeam(Electron) 前台 → `dump_ui(max_depth=4)` **3609ms**，`uia_budget_s:8.0` | ✅ 有界返回 |
 | B4 中文逐字节点 | 设备无微信 PC 端；StarBeam 的 UIA 树 depth4 全空 Pane，`find_elements("订阅")` → `count:0`, `glyph_merge.applied:true` | ⛔ **环境不具备**（N/A） |
-| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**（11.98s 是否旧码未定论，他要记连的是哪台） |
+| 异常① | 一次 `list_windows` **11984ms** + 裸 `OSError [Errno 22] Invalid argument` | ❌ → **`73dc997` 兜住非超时异常**。11.98s 已可定性：`origin/main` 的 `list_windows` **没有**预算包装（无 `run_with_timeout`），只有本分支有 ⇒ 那次必然是打到旧码 8766（8s 预算的版本不可能跑出 11.98s） |
 | 异常② | `find_elements(window_title="StarBeam")` 两窗口时抛裸异常 `There are 2 elements that match the criteria` | ❌ 既有 bug → **`73dc997` 起返回 `reason:"ambiguous_window"` + candidates** |
 | 交叉证据 | 裸客户端打旧码 8766 的 `list_windows` → `Output validation error: 'result' is a required property` | 佐证旧码该工具在严格客户端下本来就是坏的 |
 
