@@ -120,6 +120,8 @@ python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
 
 ```bash
 python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id>
+# 可选：再验一条 target_id 管线（规则 2 回退分支真正依赖的就是它）
+python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id> --target-id-check
 # --profile 不要加引号（脚本会剥，但加了容易把引号带进路径）；脚本会自动挑 list_tabs 里的第一个 http 页去 eval
 ```
 
