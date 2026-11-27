@@ -147,3 +147,37 @@ def test_batch_rejected_but_ran_something():
         {"ok": False, "reason": "invalid_steps", "allowed_tools": ["tap"],
          "steps": [{"index": 0, "status": "ok"}]})
     assert ok is False and "something ran" in detail
+
+
+# --- 折行 base64 与重试路径 -------------------------------------------------
+
+def test_wrapped_base64_accepted():
+    ok, detail = so.check_wrapped_base64_accepted({"ok": True, "sha256": SHA}, SHA)
+    assert ok is True and "76-column" in detail
+
+
+def test_wrapped_base64_rejected_is_actionable():
+    ok, detail = so.check_wrapped_base64_accepted({"ok": False, "reason": "invalid_base64"}, SHA)
+    assert ok is False and "whitespace must be stripped" in detail
+
+
+def test_wrapped_base64_sha_mismatch():
+    ok, detail = so.check_wrapped_base64_accepted({"ok": True, "sha256": "deadbeef"}, SHA)
+    assert ok is False and "sha mismatch" in detail
+
+
+def test_attempts_reported_ok():
+    ok, detail = so.check_attempts_reported({"ok": True, "attempts": 1}, 2)
+    assert ok is True and "1/2" in detail
+
+
+def test_attempts_out_of_range():
+    ok, _ = so.check_attempts_reported({"ok": True, "attempts": 3}, 2)
+    assert ok is False
+    ok, _ = so.check_attempts_reported({"ok": True}, 2)
+    assert ok is False
+
+
+def test_attempts_reports_failure():
+    ok, detail = so.check_attempts_reported({"ok": False, "reason": "clipboard_busy"}, 2)
+    assert ok is False and "clipboard_busy" in detail

@@ -108,6 +108,31 @@ def check_oversize_rejected(put: dict, expected_bytes: int) -> tuple[bool, str]:
     return True, f"rejected {expected_bytes} bytes without truncation"
 
 
+def check_wrapped_base64_accepted(put: dict, expected_sha: str) -> tuple[bool, str]:
+    """折行 base64（每 76 列一行，标准编码器常见输出）必须被接受。
+
+    回归：`file_put` 曾用 `validate=True` 直接解，折行会被误判成 `invalid_base64`。
+    """
+    if put.get("ok") is not True:
+        reason = put.get("reason")
+        if reason == "invalid_base64":
+            return False, "line-wrapped base64 was rejected — whitespace must be stripped first"
+        return False, f"wrapped-base64 push failed: {reason or put}"
+    if put.get("sha256") != expected_sha:
+        return False, f"sha mismatch for wrapped input: {put.get('sha256')!r}"
+    return True, "76-column wrapped base64 accepted, sha matches"
+
+
+def check_attempts_reported(payload: dict, max_attempts: int) -> tuple[bool, str]:
+    """`attempts=2` 时成功仍要报 `attempts`，且不超过请求值（重试路径不算坏）。"""
+    if payload.get("ok") is not True:
+        return False, f"clipboard write failed with retries enabled: {payload.get('reason') or payload}"
+    attempts = payload.get("attempts")
+    if not isinstance(attempts, int) or not 1 <= attempts <= max_attempts:
+        return False, f"attempts={attempts!r} not in 1..{max_attempts}"
+    return True, f"succeeded on attempt {attempts}/{max_attempts}"
+
+
 def check_clipboard(payload: dict) -> tuple[bool, str]:
     if payload.get("ok") is not True:
         return False, f"clipboard_set_html failed: {payload.get('reason') or payload}"
@@ -211,6 +236,11 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                 ok, detail = check_roundtrip(put, got, sha, len(blob))
                 add("binary round-trip (sha256)", ok, detail)
 
+                wrapped = "\r\n".join(b64[i:i + 76] for i in range(0, len(b64), 76))
+                put_wrapped = await call("file_put", path=TEMP_FILE, content_b64=wrapped)
+                ok, detail = check_wrapped_base64_accepted(put_wrapped, sha)
+                add("line-wrapped base64 accepted", ok, detail)
+
                 big = base64.b64encode(b"\0" * (MAX_TRANSFER_BYTES + 1)).decode()
                 over = await call("file_put", path=OVERSIZE_FILE, content_b64=big)
                 ok, detail = check_oversize_rejected(over, MAX_TRANSFER_BYTES + 1)
@@ -220,6 +250,11 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                                   content="<h2>标题</h2><p>正文 &amp; 符号</p>")
                 ok, detail = check_clipboard(clip)
                 add("rich HTML clipboard + read-back", ok, detail)
+
+                clip_retry = await call("clipboard_set_html",
+                                        content="<h2>再次</h2><p>正文</p>", attempts=2)
+                ok, detail = check_attempts_reported(clip_retry, 2)
+                add("clipboard retry path reports attempts", ok, detail)
 
                 waited = await call("wait_for", kind="foreground",
                                     target="__fleet_smoke_impossible__", timeout_ms=300,

@@ -37,9 +37,9 @@ list_capabilities()   → core.tools 里应包含：
 python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
 ```
 
-脚本会做：工具注册检查 / 二进制往返 sha / 超限不落盘 / 富文本剪贴板（格式列表只有
-`HTML Format` + 回读通过）/ `wait_for` 预算是否被执行 / `run_actions` 顺序执行与
-**整批预校验**。**副作用**：会覆盖设备剪贴板，并在 `C:\Windows\Temp` 写一个临时文件；
+脚本会做：工具注册检查 / 二进制往返 sha（含 **76 列折行 base64** —— 标准编码器常见输出）/
+超限不落盘 / 富文本剪贴板（格式列表只有 `HTML Format` + 回读通过 + **`attempts` 重试路径**）/
+`wait_for` 预算是否被执行 / `run_actions` 顺序执行与**整批预校验**。**副作用**：会覆盖设备剪贴板，并在 `C:\Windows\Temp` 写一个临时文件；
 不会点击/输入/启动任何东西。
 
 退出码：`0` 通过、`1` 有失败、`2` 连不上、`3` 缺少必需工具（= 设备上的代码不是这批）。
