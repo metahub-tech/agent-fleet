@@ -239,8 +239,11 @@ def choose_target(tabs: list[dict]) -> tuple[str, str]:
         if counts.get(url) == 1:
             return url, ""
 
+    # 字段名必须用 `target_id`：`list_tabs` 的 tab 契约是
+    # {target_id, url, title, visibility}（见 `normalize_tab`），**没有 `id`**。
+    # 早期写成 `first.get("id")` 时这里永远返回空串，回退分支实际是死的。
     first = http_tabs[0]
-    return "", str(first.get("id") or "")
+    return "", str(first.get("target_id") or "")
 
 
 def normalize_profile(value: str) -> str:

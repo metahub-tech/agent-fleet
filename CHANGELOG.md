@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **租约的端到端集成测试（CI 可跑，无需设备）**：用桩把 Windows server 的 OS 依赖换掉后，在本地随机端口真起一个 streamable-http MCP server，用官方 client 开三个独立 session，验证 `acquire` → B 被拒（`device_leased`）→ A 可用并刷新 → `release` 后新 session 立刻可用。**顺带发现并记录一个真坑**：租约中间件是在 `main()` 里 `add_middleware` 挂上去的，直接 `mcp.run()` 会**绕过它**（已补进 AGENTS §7 第 13 条）。
 
+- **`smoke_devtools.choose_target` 的回退分支字段名写错（死代码）**：`list_tabs` 的 tab 契约是 `{target_id,url,title,visibility}`，回退分支却读 `tab["id"]`，于是"所有 http url 都重复时退回 target_id"这条路**永远返回空串**、等于没接通。已改为 `target_id`，并把测试夹具改成用真实的 `normalize_tab` 构造（此前夹具用的是 `{"id":…}`，正好与错误实现"互相印证"，把死代码测成了活的）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

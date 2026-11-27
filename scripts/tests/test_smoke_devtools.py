@@ -180,23 +180,40 @@ def test_resolve_timeout_clamps_and_falls_back():
 
 # --- 选页：撞重复 URL 时退回 target_id（真机 v3 回执）---------------------
 
+def _tab(target_id, url):
+    """按 `list_tabs` 的**真实契约**造数据（{target_id,url,title,visibility}）。
+
+    早期测试里我写的是 {"id": ...}，于是 `choose_target` 的 target_id 回退分支
+    读 `tab["id"]` 也能过——**测试夹具与真实形状不一致，把死代码测成了活的**。
+    这里改为调用真实的 `normalize_tab`，从根上避免形状漂移。
+    """
+    import sys
+    from pathlib import Path as _Path
+
+    repo_common = _Path(__file__).resolve().parents[2] / "platforms" / "common"
+    if str(repo_common) not in sys.path:
+        sys.path.insert(0, str(repo_common))
+    from capabilities.devtools._devtools import normalize_tab
+    return normalize_tab({"id": target_id, "url": url, "title": target_id})
+
+
 def test_choose_target_prefers_unique_url():
-    tabs = [{"id": "A", "url": "https://a.example/x"},
-            {"id": "B", "url": "https://b.example/y"},
-            {"id": "C", "url": "https://b.example/y"}]
+    tabs = [_tab("A", "https://a.example/x"),
+            _tab("B", "https://b.example/y"),
+            _tab("C", "https://b.example/y")]
     url, tid = sd.choose_target(tabs)
     assert url == "https://a.example/x" and tid == ""
 
 
 def test_choose_target_falls_back_to_target_id_when_all_urls_duplicate():
-    tabs = [{"id": "A", "url": "https://zhihu.com/creator"},
-            {"id": "B", "url": "https://zhihu.com/creator"}]
+    tabs = [_tab("A", "https://zhihu.com/creator"),
+            _tab("B", "https://zhihu.com/creator")]
     url, tid = sd.choose_target(tabs)
-    assert url == "" and tid == "A"
+    assert url == "" and tid == "A", "回退分支必须返回真实的 target_id（不是 id）"
 
 
 def test_choose_target_ignores_non_http_tabs():
-    tabs = [{"id": "A", "url": "about:blank"}, {"id": "B", "url": "chrome://settings"}]
+    tabs = [_tab("A", "about:blank"), _tab("B", "chrome://settings")]
     assert sd.choose_target(tabs) == ("", "")
 
 
