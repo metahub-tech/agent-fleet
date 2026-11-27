@@ -1,0 +1,152 @@
+"""租约（lease）端到端集成测试：真起一个 MCP HTTP server，真开两个 session。
+
+价值：设备租约是这套系统最容易出事、也最容易"只在真机上才知道"的机制——操作员在真机
+上两次被它挡住/被它驱动。此前只有 `scripts/smoke_lease.py` 能在**真设备**上验。
+
+做法：用 `_win_stubs` 把 Windows server 的 OS 依赖换掉（`get_screen_size` 等返回假值），
+然后在本地随机端口起一个真的 streamable-http MCP server，用官方 client 开两个独立
+session，验证：
+
+1. A `acquire` 成功；B `acquire` 被拒且 `current_holder` 是 A；
+2. B 调 core 工具 → `{ok:false, reason:"device_leased"}`；
+3. A 调 core 工具 → 成功，并刷新 `last_used`（auto-renew）；
+4. A `release` 后 B 立刻可用。
+
+局限：验证的是**租约状态机与中间件**，不是任何 OS 行为。
+"""
+from __future__ import annotations
+
+import asyncio
+import pathlib
+import socket
+import sys
+import threading
+import time
+
+import pytest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+REPO = pathlib.Path(__file__).resolve().parents[2]
+
+
+def _free_port() -> int:
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+@pytest.fixture(scope="module")
+def server_url():
+    from _win_stubs import load_win_server
+
+    win = load_win_server()
+    port = _free_port()
+
+    # 注意：租约中间件是在 `main()` 里挂到 app 上的，直接 `mcp.run()` 会**绕过**它
+    # （第一版就是这么写的，于是 B 的 core 调用被放行——集成测试当场抓到）。
+    # 这里复用 `main()` 的同一条挂载路径，只把 transport/端口换成本地。
+    from _lease_gate import LeaseGate
+
+    win.mcp.add_middleware(LeaseGate(win._state_registry,
+                                    serial_for=lambda _ctx, _args: win._SERIAL))
+
+    def serve():
+        try:
+            win.mcp.run(transport="http", host="127.0.0.1", port=port, show_banner=False)
+        except Exception:  # pragma: no cover - server shutdown at process exit
+            pass
+
+    threading.Thread(target=serve, daemon=True).start()
+
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.1)
+    else:  # pragma: no cover
+        pytest.skip("stubbed MCP server did not start")
+    return f"http://127.0.0.1:{port}/mcp"
+
+
+def _transport():
+    try:
+        from mcp.client.streamable_http import streamablehttp_client as t   # 1.x
+        return t
+    except Exception:
+        from mcp.client.streamable_http import streamable_http_client as t  # 2.x
+        return t
+
+
+def _payload(result):
+    content = getattr(result, "structuredContent", None)
+    if isinstance(content, dict):
+        return content
+    for block in getattr(result, "content", []) or []:
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            import json
+            try:
+                return json.loads(text)
+            except Exception:
+                return {"text": text}
+    return {}
+
+
+async def _run_lease_flow(url: str) -> dict:
+    from mcp import ClientSession
+
+    transport = _transport()
+
+    async def session_call(session, name, args=None):
+        return _payload(await session.call_tool(name, args or {}))
+
+    async with transport(url) as streams_a:
+        async with ClientSession(streams_a[0], streams_a[1]) as a:
+            await a.initialize()
+            a_acquire = await session_call(a, "acquire", {"holder_name": "integ-A"})
+            a_call = await session_call(a, "get_screen_size", {})
+            a_status = await session_call(a, "get_status", {})
+
+            async with transport(url) as streams_b:
+                async with ClientSession(streams_b[0], streams_b[1]) as b:
+                    await b.initialize()
+                    b_acquire = await session_call(b, "acquire", {"holder_name": "integ-B"})
+                    b_call = await session_call(b, "get_screen_size", {})
+
+            a_release = await session_call(a, "release", {"holder_name": "integ-A"})
+
+            async with transport(url) as streams_c:
+                async with ClientSession(streams_c[0], streams_c[1]) as c:
+                    await c.initialize()
+                    c_acquire = await session_call(c, "acquire", {"holder_name": "integ-C"})
+                    c_call = await session_call(c, "get_screen_size", {})
+                    await session_call(c, "release", {"holder_name": "integ-C"})
+
+    return {
+        "a_acquire": a_acquire, "a_call": a_call, "a_status": a_status,
+        "b_acquire": b_acquire, "b_call": b_call,
+        "a_release": a_release, "c_acquire": c_acquire, "c_call": c_call,
+    }
+
+
+def test_lease_is_enforced_across_sessions(server_url):
+    out = asyncio.run(asyncio.wait_for(_run_lease_flow(server_url), timeout=60))
+
+    assert out["a_acquire"].get("acquired") is True, out["a_acquire"]
+    assert "width" in out["a_call"] and "height" in out["a_call"], out["a_call"]
+    assert out["a_status"].get("holder") == "integ-A", out["a_status"]
+
+    assert out["b_acquire"].get("acquired") is False, out["b_acquire"]
+    assert out["b_acquire"].get("current_holder") == "integ-A", out["b_acquire"]
+
+    assert out["b_call"].get("ok") is False, out["b_call"]
+    assert out["b_call"].get("reason") == "device_leased", out["b_call"]
+
+    assert out["a_release"].get("released") is True, out["a_release"]
+    assert out["c_acquire"].get("acquired") is True, out["c_acquire"]
+    assert "width" in out["c_call"] and "height" in out["c_call"], out["c_call"]

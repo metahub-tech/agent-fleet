@@ -151,6 +151,8 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 11. **MCP session 只活在服务进程内存里**：进程一换，所有客户端 404（`Invalid or expired session ID`），与 `acquire`/租约无关。设备端稳定性三件套：任务计划 `ExecutionTimeLimit=PT0S`、重复触发器只做 6 小时兜底、launcher 单实例互斥（`Local\agent-fleet-win-device-launcher`）。排查用 `~/.agent-fleet/session-audit.log`（`created/reused/expired_or_unknown/bad_request`）。
 12. **版本号有历史坑**：v0.8.5–v0.8.13 这 9 个 tag 当时都没 bump `__version__`，所以那 9 个 release 装上后 `agent-fleet --version` 都自称 `0.8.4a1`（tag 不可改写，已在 `docs/roadmap.md` 注明）。main 已统一到 `0.8.14a1`（v0.8.14-alpha 起每次 tag 同步 bump）——**每次发 tag 必须同时 bump 6 处（`cli/src/fleet/__init__.py`、`cli/pyproject.toml`、4 个 server `pyproject.toml`）+ `cli/tests/test_smoke.py` 的断言**。
 
+13. **`mcp.run()` 会绕过租约中间件**：租约门（`LeaseGate`）是在各 server 的 `main()` 里 `mcp.add_middleware(...)` 挂上去的，不是在 import 期。自己写脚本起服务做实验时若直接 `mcp.run(...)`，**租约完全不生效**（表现为 B session 也能调设备工具）。要么走 `main()`，要么像 `platforms/tests/test_lease_integration.py` 那样先手动 `add_middleware`。
+
 ---
 
 ## 8. 项目级技能与自检

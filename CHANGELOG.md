@@ -66,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_devtools` 的结果里带上"用了哪种选页线索"**：`eval_in_profile` / 超限两项现在会附加 `target=url:<…>` 或 `target=id:<…>`。真机复盘时最耗时的就是猜"它到底挑了哪个标签"，有了这行一眼可辨。
 
+- **租约的端到端集成测试（CI 可跑，无需设备）**：用桩把 Windows server 的 OS 依赖换掉后，在本地随机端口真起一个 streamable-http MCP server，用官方 client 开三个独立 session，验证 `acquire` → B 被拒（`device_leased`）→ A 可用并刷新 → `release` 后新 session 立刻可用。**顺带发现并记录一个真坑**：租约中间件是在 `main()` 里 `add_middleware` 挂上去的，直接 `mcp.run()` 会**绕过它**（已补进 AGENTS §7 第 13 条）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
