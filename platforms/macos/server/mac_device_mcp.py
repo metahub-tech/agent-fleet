@@ -61,6 +61,7 @@ from capabilities import (
     AgentBrowserCapability,
     CapabilityRegistry,
     CoreCapability,
+    DevtoolsCapability,
     HumanBrowserCapability,
     HumanDomCapability,
     VisionCapability,
