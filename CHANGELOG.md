@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **macOS：AX 遍历加硬预算（与 Windows 的 UIA 预算对齐）**：`dump_ui` / `list_ui_elements` / `find_elements` / `tap_element` 的 AX 遍历此前**没有任何超时**——目标应用卡住（Electron a11y 阻塞、主线程死锁、超大树）时会把 MCP 请求线程拖住，工具调用永不返回。现在复用 `platforms/common/_uia_bounds.py` 的 `run_with_timeout`（与 Windows 同一套原语），超时返回 `{ok:false, reason:"uia_timeout", hint:…}` 并附 `ax_budget_s`，调用方直接降级到截图+坐标。`FLEET_AX_TIMEOUT`（默认 8s）可调。
 
+- **macOS 对齐：`run_actions` / `wait_for`（与 Windows 同名同语义）**：mac 之前没有批量与条件等待，调用方只能一步一步来、用 `sleep` 猜时机。现在两个原语在 mac 上也可用——`run_actions` 走显式白名单（13 个安全工具；`run_shell` / AppleScript / 进程类不可批处理）+ 整体校验 + 失败短路；`wait_for` 支持 `app`（NSWorkspace 运行中应用，便宜）/ `foreground`（前台应用）/ `text`（AX 元素出现，受 AX 预算保护）。共享逻辑（`_batch` / `_wait`）与 Windows 完全同一份，单测已覆盖。mac 固定工具数 **51 → 53**（core 42 → 44）。
+
 ### 修复
 
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：

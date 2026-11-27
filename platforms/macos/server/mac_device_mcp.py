@@ -49,7 +49,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.utilities.types import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-import _fsops, _proc, _search
+import _batch, _fsops, _proc, _search, _wait
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 from _uia_bounds import UiaTimeout, run_with_timeout  # 与 Windows 同一套遍历预算原语
 import _server_runtime
@@ -1191,6 +1191,132 @@ except SystemExit:
 _bridge_port = resolve_bridge_port(_server_args.port, override=_server_args.dom_bridge_port)
 
 _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
+# ============================================================
+#        WAIT ON DEVICE + BATCHED ACTIONS (macOS parity)
+# ============================================================
+
+@mcp.tool
+@with_touch
+def wait_for(
+    kind: Annotated[str, Field(description="What to wait for: 'app' | 'foreground' | 'text'")],
+    target: Annotated[str, Field(description="App-name substring (app/foreground) or AX element query (text)")] = "",
+    timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
+    interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,
+    app: Annotated[Optional[str], Field(description="For kind='text': scope the AX search to this app")] = None,
+) -> dict:
+    """Wait **on the device** until a condition holds — instead of sleeping blindly.
+
+    Kinds (macOS has no generic window enumeration, so these are app/AX based):
+      * ``app``        — any running app whose localized name or bundle id contains `target`
+        (cheap: NSWorkspace.runningApplications, no AX walk);
+      * ``foreground`` — the frontmost app's name/bundle id contains `target`;
+      * ``text``       — an AX element matching `target` exists (optionally scoped by `app`);
+        this walks the accessibility tree, so keep the budget sane.
+
+    Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success and
+    ``{ok:false, reason:"timeout", ...}`` on expiry — a timeout is a **normal answer**,
+    so branch on `ok` and pick a fallback. Probe errors don't abort the wait; the last
+    one is reported as `last_error`.
+    """
+    kind_norm = (kind or "").strip().lower()
+    if kind_norm not in ("app", "foreground", "text"):
+        return {"ok": False, "reason": "invalid_kind", "allowed_kinds": ["app", "foreground", "text"]}
+    needle = (target or "").strip()
+    if not needle:
+        return {"ok": False, "reason": "missing_target", "hint": "pass the name/query in `target`"}
+
+    def _running_apps() -> list[dict]:
+        from AppKit import NSWorkspace  # type: ignore
+        out = []
+        for app_obj in NSWorkspace.sharedWorkspace().runningApplications():
+            try:
+                out.append({
+                    "name": str(app_obj.localizedName() or ""),
+                    "bundle_id": str(app_obj.bundleIdentifier() or ""),
+                    "pid": int(app_obj.processIdentifier()),
+                })
+            except Exception:
+                continue
+        return out
+
+    def _probe_app():
+        hits = [a for a in _running_apps()
+                if needle.lower() in a["name"].lower() or needle.lower() in a["bundle_id"].lower()]
+        return bool(hits), {"count": len(hits), "matches": hits[:5]}
+
+    def _probe_foreground():
+        from AppKit import NSWorkspace  # type: ignore
+        app_obj = NSWorkspace.sharedWorkspace().frontmostApplication()
+        if app_obj is None:
+            return False, {"app": None}
+        name = str(app_obj.localizedName() or "")
+        bundle = str(app_obj.bundleIdentifier() or "")
+        matched = needle.lower() in name.lower() or needle.lower() in bundle.lower()
+        return matched, {"app": name, "bundle_id": bundle, "pid": int(app_obj.processIdentifier())}
+
+    def _probe_text():
+        res = _mac_find_elements(needle, app, False, 5, 8)
+        if not res.get("ok"):
+            raise RuntimeError(f"find_elements failed: {res.get('reason') or res.get('error')}")
+        count = int(res.get("total_matched") or 0)
+        return count > 0, {"count": count, "elements": (res.get("elements") or [])[:3]}
+
+    probe = {"app": _probe_app, "foreground": _probe_foreground, "text": _probe_text}[kind_norm]
+    result = _wait.wait_until(probe, timeout_s=timeout_ms / 1000.0, interval_s=interval_ms / 1000.0)
+    result["kind"] = kind_norm
+    result["target"] = needle
+    return result
+
+
+#: Tools allowed inside mac `run_actions`. Explicit allowlist — no reflection, no
+#: recursion, and nothing unreviewable (apple script / shell / process are excluded).
+_MAC_BATCH_ALLOWLIST = (
+    "tap", "tap_element", "type_text", "paste_text", "press_key", "swipe",
+    "move_mouse", "launch_app", "current_app", "get_screen_size", "hover_preview",
+    "find_elements", "wait_for",
+)
+
+
+def _batch_registry() -> dict:
+    """name → callable for the allowlisted tools (unwrapping FastMCP's wrapper)."""
+    registry = {}
+    for name in _MAC_BATCH_ALLOWLIST:
+        obj = globals().get(name)
+        fn = getattr(obj, "fn", obj)
+        if callable(fn):
+            registry[name] = fn
+    return registry
+
+
+@mcp.tool
+@with_touch
+def run_actions(
+    steps: Annotated[list[dict], Field(description="Ordered steps: [{tool, args?, sleep_ms?}, …] (max 25)")],
+    stop_on_error: Annotated[bool, Field(description="Stop at the first failed step (default). false keeps going")] = True,
+    delay_ms: Annotated[int, Field(ge=0, le=5000, description="Fixed pause between steps (ms)")] = 0,
+) -> dict:
+    """Run several device actions in **one** call (fewer round-trips, less state drift).
+
+    Each step is `{"tool": "<name>", "args": {...}, "sleep_ms": 0}`. Only an explicit
+    allowlist is accepted (`tap`, `tap_element`, `type_text`, `paste_text`, `press_key`,
+    `swipe`, `move_mouse`, `launch_app`, `current_app`, `get_screen_size`,
+    `hover_preview`, `find_elements`, `wait_for`) — AppleScript / shell / process tools
+    are intentionally **not** batchable. `run_actions` itself is not allowed.
+
+    Validation is all-or-nothing: a typo in step 6 rejects the whole batch before
+    anything runs. `stop_on_error=True` stops at the first failed step and marks the
+    rest `skipped`; a step that raises is reported as `status:"error"` without
+    aborting the call. Binary results are summarised, never dumped into JSON.
+    """
+    registry = _batch_registry()
+    try:
+        validated = _batch.validate_steps(steps, registry)
+    except _batch.StepError as exc:
+        return {"ok": False, "reason": "invalid_steps", "error": str(exc),
+                "allowed_tools": sorted(registry)}
+    return _batch.run_steps(validated, registry, stop_on_error=stop_on_error, delay_ms=delay_ms)
+
+
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-mac"))
 _cap_registry.add(AgentBrowserCapability())

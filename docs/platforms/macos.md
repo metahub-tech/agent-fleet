@@ -370,7 +370,7 @@ AX 调用。目标应用卡住时（Electron a11y 阻塞、主线程死锁、或
 
 `mac-device` MCP（监听 `0.0.0.0:8767/mcp`）暴露的工具：
 
-### 附录 A · core 工具（42 个）
+### 附录 A · core 工具（44 个）
 
 server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
 
@@ -386,6 +386,7 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 进程 / 应用（一次性） | `launch_app`（底层 `open -a`）, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
 | 长时进程 | `start_process`, `read_process_output`, `interact_with_process`, `force_terminate`, `list_sessions` |
 | 文件系统 | `read_file`, `write_file`, `edit_block`, `list_directory`, `create_directory`, `move_file`, `get_file_info` |
+| 批量 / 等待 | `run_actions(steps, stop_on_error, delay_ms)`（一次调用跑多步，白名单内工具，整体校验后执行）、`wait_for(kind, target, timeout_ms)`（`app`/`foreground`/`text`，超时是正常答案） |
 | 文件搜索 | `start_search`, `get_more_search_results`, `list_searches`, `stop_search` |
 | Shell | `run_shell`（底层 zsh）, `run_applescript`（macOS 扩展） |
 
@@ -393,7 +394,7 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 42 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 51**（42 core + 1 `list_capabilities` + 4 devtools + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
+除上面 44 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 53**（44 core + 1 `list_capabilities` + 4 devtools + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
 
 > **`devtools`（默认开启，属可选能力模块）**：win/mac 同款 CDP 直连原语（`cdp_port` / `list_tabs` /
 > `activate_tab` / `eval_in_profile`），契约与按 host 关闭的方式见
