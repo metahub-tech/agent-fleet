@@ -240,6 +240,8 @@ Android / iOS 各有一条 HTTP `POST /upload` + MCP 工具组合；主机侧暂
 | 改用户可见文档 | 分支 `docs/…`、commit `docs:` → 同步 `docs/platforms/<p>.md` + `platforms/<p>/README.md` → `CHANGELOG [Unreleased]` → 9 语 README 同步（至少 `zh-CN`）→ 套 `PULL_REQUEST_TEMPLATE/docs.md` + `needs-review` |
 | 改 CLI 向导 | `cli/src/fleet/` → 同步 `cli/tests/` → `uv sync` 后 `PYTHONPATH=src pytest` → 影响安装行为时更新 `docs/install-pattern.md` |
 | 把项目装到一台机器上（或交给 agent 装） | [`docs/install-for-agents.md`](install-for-agents.md)：S0 探测 → S1 装设备桥 → S2 自检 → S3 `install_skills.py` → S4 human_dom provisioning → S5 人类 4 步 | `python3 scripts/install_skills.py --list`；装完 `list_capabilities` 对账 |
+| 做一次社媒发布（公众号等） | [`docs/social-publishing-playbook.md`](social-publishing-playbook.md)：打开 → 定位 tab → 填标题（human_dom）→ 粘正文（clipboard_set_html）→ 传图（file_put + wait_for）→ eval 校验；含失败降级表与风控纪律 |
+| 一次调用跑多步 / 等服务端条件 | `run_actions(steps)`（白名单 + 整体校验 + 失败短路）、`wait_for(kind, target)`（超时是正常答案，按 `ok` 分支） |
 | 查「这台设备现在能干什么」 | 调该设备 `list_capabilities()`（别读文档）；接线方式见 §6 |
 | 排查设备连不上 | `/mcp` 状态 → `http://` 非 `https://` → `tailscale status`/`ping` → `curl -sI http://host:8766/mcp` → 设备端 `Get-NetTCPConnection -LocalPort 8766`（`docs/agent-host-setup.md:149-197`） |
 

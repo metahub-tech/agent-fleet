@@ -140,6 +140,8 @@ Holder auto-clears after **10 minutes** of no device activity; every allowed dev
 
 ## Reference
 
+- End-to-end social publishing recipe (open → fill → paste HTML → upload → verify): `docs/social-publishing-playbook.md`
+
 - Setup: `docs/platforms/windows.md` in agent-fleet repo
 - Diagnostic: run `platforms/windows/scripts/diagnose.ps1` on the Windows host
 - Tool surface: 42 tools in 9 categories

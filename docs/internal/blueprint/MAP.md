@@ -111,5 +111,6 @@ agent-fleet CLI
 - `docs/install-pattern.md`
 - `docs/project-map.md`
 - `docs/roadmap.md`
+- `docs/social-publishing-playbook.md`
 - `docs/platforms/` _(各平台 setup guide)_
 
