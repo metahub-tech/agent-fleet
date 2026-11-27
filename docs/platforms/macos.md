@@ -379,7 +379,7 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 42 个 core 工具外，mac-device 运行时还由能力框架额外暴露 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**（与 Windows win-device 同款）。依赖齐全时，mac-device 满配运行时共暴露 **74 个工具**（42 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5 → **79 个**。
+除上面 42 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 47**（42 core + 1 `list_capabilities` + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 
@@ -391,12 +391,12 @@ server 源码 `mac_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 嫁接 Playwright MCP，驱动一个**真实有头 Chrome**、通过 CDP 操作。因走 CDP / `navigator.webdriver`，**带自动化痕迹**——适合端到端测试、抓取、浏览学习这类不绑定真实个人身份的场景。
 
-- **27 个工具** = 23 个 `browser_*` 操作工具 + 4 个租约管理工具：
+- **工具数不固定** = 4 个租约管理工具 + 实际安装的 `@playwright/mcp` 暴露的 `browser_*` 操作工具（下列为静态基线，上游增删会变；以 `list_capabilities()` 为准）：
   - 操作：`browser_navigate`, `browser_navigate_back`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_fill_form`, `browser_press_key`, `browser_hover`, `browser_drag`, `browser_drop`, `browser_select_option`, `browser_file_upload`, `browser_take_screenshot`, `browser_evaluate`, `browser_run_code_unsafe`, `browser_console_messages`, `browser_network_requests`, `browser_network_request`, `browser_handle_dialog`, `browser_wait_for`, `browser_tabs`, `browser_resize`, `browser_close`
   - 租约管理：`browser_bind`, `browser_release`, `browser_quit`, `browser_status`
 - **多 profile 真并行**：每个 `browser_*` 工具带 `profile`（默认 `isolated`）+ `holder`（默认 `agent`）两个参数；首次调用自动 bind 起该 profile 的 Chrome。租约机制：被他人占用 → 返回 busy 拒绝 + `auto_release_in_seconds`；idle 10 分钟自动回收；`browser_release` 解绑但保留进程供秒级复用；`browser_quit` 关进程。
 - **典型工作流**：`browser_navigate` 开页 → `browser_snapshot` 取无障碍树 + `ref` → `browser_click(ref=...)` / `browser_type` 按 `ref` 操作。
-- **依赖**：Google Chrome + Node.js/npx（`@playwright/mcp`）。缺任一项该能力 `status=unavailable`、不暴露这 27 个工具。
+- **依赖**：Google Chrome + Node.js/npx（`@playwright/mcp`）。缺任一项该能力 `status=unavailable`、不暴露 `agent_browser` 工具。
 - **对应 skill**：`using-fleet-browser`。
 
 #### human_browser（origin = self-built）

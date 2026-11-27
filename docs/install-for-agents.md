@@ -325,7 +325,7 @@ human_dom_locate(query="Learn more", profile="~/.fleet/<account-id>")
 | `GET /health` 返回 404 | 你探的是 android / ios | 这两个平台是裸 `mcp.run()`，**没有 `/health`**，只能 TCP 探测 / 直接 `list_capabilities` |
 | 自己写脚本连 MCP 报 `Server returned an error response` | 客户端 SDK 版本 | 用 `mcp<2`（仓库 `verify.py` 也是 1.x API）；`uv run --with "mcp<2"` |
 | 自己写脚本连 `POST /mcp` 得到 502 | 本机系统代理拦截 | 设 `NO_PROXY` / `no_proxy` 排除设备主机与 `100.64.0.0/10,127.0.0.1,localhost` |
-| 工具数与本手册不符 | `agent_browser` 的工具由**实际安装的 `@playwright/mcp` 版本**决定（实测某机 29 个，静态清单 27 个） | 只信 `list_capabilities()`；静态常量仅用于文档口径 |
+| 工具数与本手册不符 | `agent_browser` 的工具由**实际安装的 `@playwright/mcp` 版本**决定，本手册不承诺固定数 | 只信 `list_capabilities()`；文档只承诺固定工具数（core + `list_capabilities` + 本仓库实现的可选能力） |
 | skill 装完 agent 看不到 | 目标目录不是该 agent 的技能根、会话缓存 | 用 `--target` 指到正确目录；重启会话 |
 
 ---

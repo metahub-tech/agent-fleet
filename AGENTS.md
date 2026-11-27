@@ -124,6 +124,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 5. `gen_docs.py` 增加 `OPT_IN_CAPABILITIES` 与 `human_dom` 计数分支：默认总数不含 opt-in，运行时以 `list_capabilities()` 为准。
 6. `docs/roadmap.md` 补齐 0.8.3–0.8.13；`SNAPSHOT.md` 回填 `base_commit` / 日期。
 7. `docs/install-pattern.md` 的旧命名（`*_gui_mcp.py`、`android`/`iphone`）与「iOS v0.7 计划 TBD」按现行目录契约重写，并补上 `platform.toml` 与 `platforms/common/` 说明。
+8. **2026-11-27 工具数口径改为「固定工具数」**：win 48 / mac 47 / android 31 / ios 30（core + `list_capabilities` + 本仓库实现的可选能力）；`agent_browser` 工具数随所装 `@playwright/mcp` 版本变化，只信运行时 `list_capabilities()`。
 
 **仍待处理**（不要顺手改，按 project-map §9.2 分流）：
 
@@ -137,7 +138,7 @@ agent-fleet 让 LLM agent **通过 MCP 操作真实的 Windows / macOS / Android
 
 ## 7. 最容易踩的坑
 
-1. **用 AST 数工具总数必错**：`extract_mcp_tools` 只扫 server 文件，漏掉 `agent_browser`（运行时生成 27+4）、`vision`（3）、`human_dom`（5，注册在 `_human_dom.py` 的 `register()` 内）。要准数只有 `list_capabilities()`。
+1. **用 AST 数工具总数必错**：`extract_mcp_tools` 只扫 server 文件，漏掉 `agent_browser`（运行时内省所装 `@playwright/mcp`，数量随版本变化，另有 4 个管理工具）、`vision`（3）、`human_dom`（5，注册在 `_human_dom.py` 的 `register()` 内）。要准数只有 `list_capabilities()`。
 2. **`[capabilities].enabled` 写了不一定生效**：优先级 `.fleet/config.toml` > `platform.toml` > `["core"]`；registry 里没 `add()` 的模块写也白写（android/ios 只 add 了 core）；**改完必须重启 server**（导入期静态注册）。
 3. **`human_dom` 是 opt-in**：没有 `~/.fleet/human-dom-ready` → `unavailable`、工具根本不存在；`installed=true / connected=false` 不是「没装」，别重装。
 4. **四个 server 启动方式不一样**：只有 win/mac 走 `_server_runtime`（有 `--host/--port/--token` 与 `/health`），android/ios 是裸 `mcp.run(host=..., port=<字面量>)`。

@@ -66,6 +66,12 @@ FRAMEWORK_TOOLS = ["list_capabilities"]
 # contract (README numbers describe the default install).
 OPT_IN_CAPABILITIES = {"human_dom"}
 
+# Capabilities whose tool surface is owned by a third-party backend and can
+# change with the installed version (agent_browser proxies @playwright/mcp).
+# They are excluded from the stable "fixed tools" contract below; runtime
+# list_capabilities() remains the only authority for their real count.
+VARIABLE_CAPABILITIES = {"agent_browser"}
+
 
 def _count_list_literal(path: Path, name: str) -> int:
     """Count elements of a module-level `name = [...]` list literal via AST."""
@@ -81,8 +87,12 @@ def _count_list_literal(path: Path, name: str) -> int:
 
 
 def capability_tool_count(cap_id: str) -> int:
-    """Tools an enabled OPTIONAL capability contributes (static). core is counted
-    via the inline server tools; unknown optionals contribute 0 (add a branch)."""
+    """Tools an enabled OPTIONAL capability contributes (static baseline).
+
+    core is counted via the inline server tools; unknown optionals contribute 0
+    (add a branch). For agent_browser this is only a baseline list: the real
+    surface is introspected from the installed @playwright/mcp at startup, so it
+    is excluded from tool_count() (see VARIABLE_CAPABILITIES)."""
     if cap_id == "agent_browser":
         f = CAP_DIR / "browser" / "_agent_browser.py"
         return _count_list_literal(f, "PLAYWRIGHT_TOOLS") + _count_list_literal(f, "_MGMT_TOOLS")
@@ -97,17 +107,22 @@ def capability_tool_count(cap_id: str) -> int:
 
 
 def tool_count(m) -> int:
-    """Total tools a platform exposes on a DEFAULT install — mirrors
-    list_capabilities() with every dependency present: inline core (@mcp.tool in
-    the server) + framework discovery tool(s) + every enabled, non-opt-in
-    optional capability's tools. Opt-in capabilities (OPT_IN_CAPABILITIES) are
-    excluded on purpose: they add tools only after the host marker exists."""
+    """FIXED tool count a platform exposes on a default install.
+
+    "Fixed" = inline core (@mcp.tool in the server) + framework discovery
+    tool(s) + optional capabilities whose surface this repo controls. Excluded
+    on purpose: opt-in capabilities (human_dom: adds tools only after the host
+    marker exists) and variable capabilities (agent_browser: proxies a
+    third-party @playwright/mcp whose version decides the tool list). Count
+    those from the runtime list_capabilities() — never from a static number."""
     core = len(extract_mcp_tools(m.server_path))
     enabled = list((getattr(m, "capabilities", None) or {}).get("enabled") or ["core"])
     optional = sum(
         capability_tool_count(c)
         for c in enabled
-        if c != "core" and c not in OPT_IN_CAPABILITIES
+        if c != "core"
+        and c not in OPT_IN_CAPABILITIES
+        and c not in VARIABLE_CAPABILITIES
     )
     return core + len(FRAMEWORK_TOOLS) + optional
 
@@ -173,12 +188,17 @@ def write_architecture() -> bool:
 # ---------------------------------------------------------------------------
 
 def check_readme_counts() -> list[str]:
-    """Return a list of mismatch messages (empty = all good)."""
+    """Return mismatch messages (empty = all good).
+
+    README must state the FIXED count ("<n> fixed tools" or "<n> tools").
+    Variable-surface capabilities (agent_browser) are documented as
+    runtime-only, so they never appear in this number.
+    """
     text = README_MD.read_text(encoding="utf-8")
     messages: list[str] = []
     for m in _manifests():
         pattern = re.compile(
-            rf"{re.escape(m.id)}[^|\n]*?(\d+)\s*(?:\*\*\s*)?tools",
+            rf"{re.escape(m.id)}[^|\n]*?(\d+)\s*(?:fixed\s+)?(?:\*\*\s*)?tools",
         )
         match = pattern.search(text)
         n = tool_count(m)

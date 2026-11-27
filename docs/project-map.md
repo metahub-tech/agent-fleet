@@ -92,8 +92,8 @@ agent-fleet 是**让 LLM agent 操作真实物理设备的 MCP 基座**：四个
 **计数口径的三个坑**（会让人写出错误数字）：
 
 - `list_capabilities` 由框架统一注册，**不在** server 的 `@mcp.tool` 里，但运行时一定多这 1 个。
-- 可选能力工具（`browser_*` 27 个、`human_browser_open` 1 个、`vision_*` 3 个、`human_dom_*` 5 个）由能力框架**运行时注入**，静态清单里没有。`scripts/gen_docs.py:75-85` 的 `capability_tool_count()` 只写了 `agent_browser` / `human_browser` / `vision` 三个分支，**没有 `human_dom` 分支**（函数 docstring 自己写着 "unknown optionals contribute 0 (add a branch)"），所以对它无条件返回 0 —— 而 AST 本身数得到那 5 个（`_human_dom.py:160-205` 的 5 个 `async @mcp.tool`，`extract_mcp_tools` 能递归到）。→ 启用了 human_dom 的 win/mac，`gen_docs` 报的数会**少 5**。
-- `human_dom` 是 **opt-in**：没有 `~/.fleet/human-dom-ready` 标记时 `status=unavailable`、运行时工具为 0；装了才 +5。所以「工具总数」说到底只有一个权威口径：**运行时 `list_capabilities()`**。
+- 可选能力工具（`human_browser_open` 1 个、`vision_*` 3 个、`human_dom_*` 5 个、`browser_*` 数量随所装 `@playwright/mcp` 版本变化）由能力框架**运行时注入**，静态清单里没有。`scripts/gen_docs.py` 的 `capability_tool_count()` 有 `human_dom` 分支（opt-in 计数），但 `agent_browser` 被列入 `VARIABLE_CAPABILITIES`、**排除在固定总数之外**——它嫁接第三方 MCP，工具面由安装版本决定，静态常量只是基线。
+- `human_dom` 是 **opt-in**：没有 `~/.fleet/human-dom-ready` 标记时 `status=unavailable`、运行时工具为 0；装了才 +5。所以「完整工具数」永远只有一个权威口径：**运行时 `list_capabilities()`**；文档只承诺**固定工具数**（core + `list_capabilities` + 本仓库实现的可选能力）。
 
 ---
 

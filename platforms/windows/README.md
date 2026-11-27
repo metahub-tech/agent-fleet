@@ -58,7 +58,7 @@ See the animated demo (a real iPad) in the [main README](../../README.md).
 
 ### 浏览器能力（可选）
 
-除上面 43 个 core 工具外，win-device 运行时还由能力框架额外暴露 1 个发现工具 `list_capabilities`（all-platform always-on）+ 两个可选浏览器能力：`agent_browser`（嫁接 Playwright MCP，有头 Chrome / CDP，带自动化痕迹，27 个工具，依赖 Chrome + Node/npx，skill `using-fleet-browser`）与 `human_browser`（驱动真人日常 Chrome，零自动化痕迹，1 个工具 `human_browser_open`，依赖 Chrome，skill `using-human-browser`）。依赖齐全时满配 **75 个工具**（43 core + 1 `list_capabilities` + 27 agent_browser + 1 human_browser + 3 vision）。`human_dom` 为 **opt-in**（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 **+5 → 80 个**。能力按"依赖齐全才暴露"渐进披露，调 `list_capabilities` 查本机实际可用的能力与工具。详见 [`../../docs/platforms/windows.md` 附录 B · 浏览器能力](../../docs/platforms/windows.md#附录-b--浏览器能力可选)。
+除上面 43 个 core 工具外，win-device 运行时还由能力框架额外暴露 1 个发现工具 `list_capabilities`（all-platform always-on）+ 两个可选浏览器能力：`agent_browser`（嫁接 Playwright MCP，有头 Chrome / CDP，带自动化痕迹，依赖 Chrome + Node/npx，skill `using-fleet-browser`；**工具数随所装 @playwright/mcp 版本变化，以 `list_capabilities()` 为准**）与 `human_browser`（驱动真人日常 Chrome，零自动化痕迹，1 个工具 `human_browser_open`，依赖 Chrome，skill `using-human-browser`）。依赖齐全时**固定工具数 48**（43 core + 1 `list_capabilities` + 1 human_browser + 3 vision）；`agent_browser` 不计入固定数。`human_dom` 为 **opt-in**（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 **+5**，同样以运行时为准。能力按"依赖齐全才暴露"渐进披露，调 `list_capabilities` 查本机实际可用的能力与工具。详见 [`../../docs/platforms/windows.md` 附录 B · 浏览器能力](../../docs/platforms/windows.md#附录-b--浏览器能力可选)。
 
 > **v0.2 历史变更**：旧版还有一个独立的 `winpc-shell` MCP（mcp-proxy + npm desktop-commander，端口 8765），由于 single-client 限制 + npm 依赖问题在 v0.2.0 全部并入 `win-device`。`setup-windows.ps1` 会自动清理老版本残留。
 
