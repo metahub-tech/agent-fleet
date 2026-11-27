@@ -53,6 +53,7 @@ class _FakeLease:
     def __init__(self, capability=True):
         self.holder = None
         self.idle = 0
+        self.tick = 0
         self.capability = capability
 
     def caller(self, name):
@@ -81,10 +82,12 @@ class _FakeLease:
             if self.holder not in (None, mine["holder"]):
                 return {"ok": False, "reason": "device_leased", "current_holder": self.holder}
             self.idle = 0
+            self.tick += 1                      # 模拟 last_used_at 前进
             if tool == "get_screen_size":
                 return {"width": 1920, "height": 1080}
             if tool == "get_status":
-                return {"in_use": self.holder is not None, "idle_seconds": self.idle}
+                return {"in_use": self.holder is not None, "idle_seconds": self.idle,
+                        "last_used_at": f"2026-11-27T20:52:{self.tick:02d}.000000+00:00"}
             return {"ok": True, "tool": tool}
         return call
 
@@ -168,3 +171,22 @@ def test_load_transport_returns_a_callable():
     transport = smoke_lease._load_transport()
     assert transport is not None, "当前环境应至少有一种导出名可用"
     assert callable(transport)
+
+
+# --- 续租判据：比较 last_used_at，而不是 idle_seconds == 0 -----------------
+
+def test_renewed_detects_advancing_timestamp():
+    assert smoke_lease._renewed("2026-11-27T20:52:25.546582+00:00", "2026-11-27T20:52:21.697612+00:00") is True
+    assert smoke_lease._renewed("2026-11-27T20:52:21.697612+00:00", "2026-11-27T20:52:25.546582+00:00") is False
+
+
+def test_renewed_is_false_without_timestamps():
+    assert smoke_lease._renewed(None, "2026-11-27T20:52:21+00:00") is False
+    assert smoke_lease._renewed("2026-11-27T20:52:21+00:00", None) is False
+
+
+def test_slow_call_does_not_look_unrenewed():
+    """慢调用返回后 idle 可能已经是几秒 —— 旧判据（idle==0）会误判成"未续租"。"""
+    before = "2026-11-27T20:52:21.697612+00:00"
+    after = "2026-11-27T20:52:25.546582+00:00"      # 中间那次 human_dom_status 花了 ~4s
+    assert smoke_lease._renewed(after, before) is True

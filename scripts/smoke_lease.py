@@ -5,7 +5,8 @@ Runs against a *running* device server (streamable-http) and proves:
 
 1. A acquires; B's `acquire` is refused with A as `current_holder`;
 2. B's core tool call is refused with ``{ok: false, reason: "device_leased"}``;
-3. A's core call works and **auto-renews** the lease (``idle_seconds == 0``);
+3. A's core call works and **auto-renews** the lease (``last_used_at`` 前进；
+   不能用 `idle_seconds == 0`——慢调用返回后 idle 必然大于 0);
 4. B's *capability* tool call (e.g. ``human_dom_status`` / ``browser_status``) is
    refused too — capabilities are gated and renew through the same path;
 5. A's release frees the device for B immediately.
@@ -56,6 +57,17 @@ def _payload(result: Any) -> dict:
     return {}
 
 
+def _renewed(current, baseline) -> bool:
+    """判断租约是否被刷新：**比较 last_used_at 是否前进**，而不是 `idle_seconds == 0`。
+
+    真机教训：`human_dom_status` 在有 34 个 profile 时单次调用要 ~4 秒，返回后立刻读
+    status，`idle_seconds` 已经是 4 —— 用 "idle==0" 会把**正常续租**判成失败。
+    """
+    if not current or not baseline:
+        return False
+    return str(current) > str(baseline)
+
+
 def _denied(payload: dict) -> bool:
     return payload.get("ok") is False and payload.get("reason") == "device_leased"
 
@@ -103,21 +115,27 @@ async def run_checks(
     denied = await call_b("get_screen_size")
     check("B core tool denied", _denied(denied), denied)
 
+    renew_baseline = (await call_a("get_status")).get("last_used_at")
     allowed = await call_a("get_screen_size")
     check("A core tool allowed", "width" in allowed and "height" in allowed, allowed)
 
     status_a = await call_a("get_status")
-    check("A core call auto-renewed (idle 0s)", status_a.get("idle_seconds") == 0, status_a)
+    check("A core call auto-renewed", _renewed(status_a.get("last_used_at"), renew_baseline),
+          {"last_used_at": status_a.get("last_used_at"), "baseline": renew_baseline,
+           "idle_seconds": status_a.get("idle_seconds")})
 
     if capability_tool:
         denied_cap = await call_b(capability_tool)
         check(f"B capability tool denied ({capability_tool})", _denied(denied_cap), denied_cap)
 
+        renew_baseline_b = (await call_a("get_status")).get("last_used_at")
         allowed_cap = await call_a(capability_tool)
         check(f"A capability tool allowed ({capability_tool})", not _denied(allowed_cap), {"ok": allowed_cap.get("ok")})
 
         status_cap = await call_a("get_status")
-        check("A capability call auto-renewed (idle 0s)", status_cap.get("idle_seconds") == 0, status_cap)
+        check("A capability call auto-renewed", _renewed(status_cap.get("last_used_at"), renew_baseline_b),
+              {"last_used_at": status_cap.get("last_used_at"), "baseline": renew_baseline_b,
+               "idle_seconds": status_cap.get("idle_seconds")})
     else:
         check("capability-tool assertions", True, "skipped: no gated capability tool on this platform")
 
