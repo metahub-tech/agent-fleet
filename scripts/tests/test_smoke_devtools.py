@@ -240,3 +240,30 @@ def test_pick_target_id():
     assert sd.pick_target_id(tabs) == "A"
     assert sd.pick_target_id([]) == ""
     assert sd.pick_target_id([{"url": "https://x"}]) == ""
+
+
+# --- 冻结检查（只碰 about:blank；未真冻结要判失败）------------------------
+
+def test_find_blank_tab_only_matches_about_blank():
+    tabs = [{"target_id": "A", "url": "https://zhihu.com/x"},
+            {"target_id": "B", "url": "about:blank"}]
+    assert sd.find_blank_tab(tabs)["target_id"] == "B"
+    assert sd.find_blank_tab([{"target_id": "A", "url": "https://x"}]) is None
+    assert sd.find_blank_tab([]) is None
+
+
+def test_freeze_state_ok_requires_frozen_reason():
+    ok, detail = sd.freeze_state_ok({"ok": False, "activated": False,
+                                     "reason": "frozen_background_tab"})
+    assert ok is True and "frozen_background_tab" in detail
+
+
+def test_freeze_state_ok_fails_when_page_still_answers():
+    """切后台≠冻结；若页面还能求值，说明冻结没生效，不能算通过。"""
+    ok, detail = sd.freeze_state_ok({"ok": True, "value": 1})
+    assert ok is False and "未冻结" in detail
+
+
+def test_freeze_state_ok_fails_on_unexpected_payload():
+    ok, _ = sd.freeze_state_ok({"ok": False, "reason": "page_ambiguous"})
+    assert ok is False

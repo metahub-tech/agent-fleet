@@ -90,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_devtools --target-id-check`：不构造重复 profile 也能验 `target_id` 管线**：规则 2（全重复时回退 `target_id`）的真正风险不在选择逻辑，而在**下游能否用 `target_id` 跑通**。新增开关：从 `list_tabs` 取一个真实 `target_id` 直传 `eval_in_profile`，确认 `ok` 且能求值。默认关闭（不改变既有跑法）。
 
+- **`smoke_devtools --freeze-check`：把「冻结分支」变成可自动验的一项**：此前 B1 的负向判据只能手工（`chrome://discards`）。新增开关：**只找 `about:blank`** 标签，用 CDP `Page.setWebLifecycleState` 冻结 → 让 `eval_in_profile(activate=False, target_id=…)` 断言 `frozen_background_tab` → `finally` 里必解冻。没有 `about:blank` 时明确记 skipped（不碰任何业务标签）。若页面仍能求值则判**失败**（说明冻结没生效），不接受"切后台"冒充。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

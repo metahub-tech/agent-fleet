@@ -32,6 +32,7 @@ import argparse
 import asyncio
 import json
 import sys
+from pathlib import Path
 from typing import Any, Optional
 
 VISIBILITY_VALUES = ("visible", "hidden", "unknown")
@@ -196,12 +197,43 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     ap.add_argument("--target-id-check", dest="target_id_check", action="store_true",
                     help="Extra check: pass a real target_id from list_tabs straight to "
                          "eval_in_profile (verifies the target_id plumbing; no click/typing)")
+    ap.add_argument("--freeze-check", dest="freeze_check", action="store_true",
+                    help="Extra check: freeze an about:blank tab via CDP Page.setWebLifecycleState, "
+                         "assert eval(activate=False) reports frozen_background_tab, then thaw. "
+                         "Only touches about:blank; skipped if none is open")
     ap.add_argument("--json", action="store_true", help="print machine-readable results")
     ap.add_argument("--timeout", type=float, default=180.0,
                     help="Overall wall-clock budget for the whole run (default 180s; "
                          f"values below {MIN_TIMEOUT_S:g}s are raised to it) — "
                          "a hung device must not hang your shell")
     return ap.parse_args(argv)
+
+
+def find_blank_tab(tabs: list[dict]) -> dict | None:
+    """挑一个 `about:blank` 标签用于冻结实验。
+
+    安全约束：**只碰 about:blank**。操作员的真实 profile 里有几十个业务标签页，
+    冻结任何一个都可能打断他正在做的事。
+    """
+    for tab in tabs or []:
+        if isinstance(tab, dict) and str(tab.get("url") or "") == "about:blank" and tab.get("target_id"):
+            return tab
+    return None
+
+
+def freeze_state_ok(payload: dict) -> tuple[bool, str]:
+    """判定"冻结后的 eval"是否给出了预期信号。
+
+    契约：`activate=False` 打一个**已冻结**的页 → `{ok:false, activated:false, reason:"frozen_background_tab"}`。
+    若浏览器并未真的冻上（切后台≠冻结），会返回 `ok:true` —— 那说明冻结步骤没生效，
+    不能算通过。
+    """
+    if payload.get("ok") is False and payload.get("reason") == "frozen_background_tab":
+        return True, "reason=frozen_background_tab, activated=false"
+    if payload.get("ok") is True:
+        return False, ("页面未冻结（仍能求值）——冻结步骤没生效，"
+                       "检查 Page.setWebLifecycleState 是否被浏览器接受")
+    return False, f"未预期的返回：{payload}"
 
 
 def pick_target_id(tabs: list[dict]) -> str:
@@ -361,6 +393,9 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                 ok, detail = check_list_tabs(tabs_payload)
                 add("list_tabs shape + latency", ok, detail)
 
+                if getattr(args, "freeze_check", False):
+                    await _run_freeze_check(call, profile, tabs_payload.get("tabs") or [], add)
+
                 target_url, target_id = choose_target(tabs_payload.get("tabs") or [])
 
                 eval_payload = await call("eval_in_profile", profile=profile,
@@ -419,6 +454,65 @@ async def _run(url: str, args: argparse.Namespace) -> int:
         print("FAILED: " + ", ".join(r["check"] for r in failed), file=sys.stderr)
         return 1
     return 0
+
+
+async def _run_freeze_check(call, profile: str, tabs: list[dict], add) -> None:
+    """冻结 about:blank → 断言 eval(activate=False) 报 frozen_background_tab → 解冻。
+
+    为什么只能在本机跑：CDP 的调试端口是设备上的 `127.0.0.1`，脚本必须在**设备上**
+    执行（worktree 里跑就是这种情况）。若连不上，检查会明确说明而不是静默跳过。
+    """
+    blank = find_blank_tab(tabs)
+    if blank is None:
+        add("frozen background tab", True,
+            "skipped: 没有 about:blank 标签（先 human_browser_open(url='about:blank') 再跑）")
+        return
+
+    repo_common = Path(__file__).resolve().parent.parent / "platforms" / "common"
+    if str(repo_common) not in sys.path:
+        sys.path.insert(0, str(repo_common))
+    try:
+        import _cdp
+        from capabilities.devtools._devtools import resolve_udd
+    except Exception as exc:  # pragma: no cover - 依赖缺失时给出原因
+        add("frozen background tab", False, f"无法加载 CDP 原语：{exc}")
+        return
+
+    udd = resolve_udd(profile)
+    sock = None
+    page_sock = None
+    frozen = False
+    try:
+        sock, port = _cdp.connect_browser(udd, 3.0)
+        if sock is None:
+            add("frozen background tab", False, "连不上浏览器（端口文件缺失/握手失败）")
+            return
+        pages, reason = _cdp.page_targets(port)
+        page = next((p for p in pages if str(p.get("url") or "") == "about:blank"), None)
+        if page is None:
+            add("frozen background tab", False, "about:blank 在标签列表里消失了（可能刚被关）")
+            return
+        page_sock = _cdp.ws_connect(page["webSocketDebuggerUrl"], timeout=3.0)
+        _msg, err = _cdp.call(page_sock, 1, "Page.setWebLifecycleState",
+                              {"state": "frozen"}, timeout=3.0)
+        if err:
+            add("frozen background tab", False, f"冻结失败：{err.get('message') or err}")
+            return
+        frozen = True
+        payload = await call("eval_in_profile", profile=profile, js="1",
+                             target_id=blank["target_id"], activate=False)
+        ok, detail = freeze_state_ok(payload)
+        add("frozen background tab", ok, detail)
+    finally:
+        if frozen and page_sock is not None:
+            try:
+                _cdp.call(page_sock, 2, "Page.setWebLifecycleState", {"state": "active"}, timeout=3.0)
+            except Exception:
+                pass
+        if page_sock is not None:
+            _cdp.close_quietly(page_sock)
+        if sock is not None:
+            _cdp.close_quietly(sock)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
