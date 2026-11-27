@@ -1,6 +1,4 @@
 """`_wait` 单测：命中即返回、超时边界、探测异常容错、间隔与预算封顶。"""
-import pytest
-
 from _wait import MAX_TIMEOUT_S, wait_until
 
 

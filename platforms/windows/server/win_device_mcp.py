@@ -1391,8 +1391,6 @@ _BATCH_ALLOWLIST = (
 
 def _batch_registry() -> dict:
     """name → callable for the allowlisted tools (unwrapping FastMCP's wrapper)."""
-    import builtins  # noqa: F401  (kept local: only used for clarity)
-
     registry = {}
     for name in _BATCH_ALLOWLIST:
         obj = globals().get(name)

@@ -6,8 +6,6 @@
 3. Close 只在 Open 成功后调用；
 4. 重试是**整轮重来**（重新 alloc，不复用上一轮失败的句柄）。
 """
-import pytest
-
 from _clipboard import read_clipboard_html, set_clipboard_html
 from _cf_html import CLIPBOARD_FORMAT, build_cf_html
 

@@ -15,7 +15,6 @@ import json
 import time
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 # 底层 CDP 原语已抽到平台共享的 `_cdp`（human_dom 与 devtools 能力共用）。
 # 这里沿用旧的私有名做**模块级别名**：既有调用方与单测（monkeypatch `_loader._http_json`
@@ -23,13 +22,10 @@ from typing import Optional
 # 因为它们要接受测试注入的 opener。
 from _cdp import (  # noqa: E402  (与下方既有 import 同属模块级)
     HTTP_TIMEOUT as _HTTP_TIMEOUT,
-    WS_OP_TIMEOUT as _WS_OP_TIMEOUT,
     cdp_call as _cdp_call,
-    read_devtools_port as _read_devtools_port,
+    read_devtools_port as _read_devtools_port,  # noqa: F401  单测直接引用这个稳定别名
     read_port_once as _read_port_once,
     ws_connect as _ws_connect,
-    ws_recv_text as _ws_recv_text,
-    ws_send as _ws_send,
 )
 
 

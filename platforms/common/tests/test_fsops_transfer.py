@@ -8,8 +8,6 @@ import hashlib
 import os
 from pathlib import Path
 
-import pytest
-
 from _fsops import (
     MAX_TRANSFER_BYTES,
     first_reparse_component,

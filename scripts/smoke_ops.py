@@ -34,7 +34,6 @@ import base64
 import hashlib
 import json
 import sys
-import time
 from typing import Any, Optional
 
 REQUIRED_TOOLS = ("file_put", "file_get", "clipboard_set_html", "wait_for", "run_actions")

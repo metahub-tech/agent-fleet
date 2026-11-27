@@ -3,8 +3,6 @@
 这些正是手工实现 CF_HTML 最容易错的点：中文按字符算偏移、头长度变化后偏移错位、
 用"整份入参 vs 解码字符串"做等值比较（必然假红）。
 """
-import pytest
-
 from _cf_html import (
     END_MARKER,
     START_MARKER,
