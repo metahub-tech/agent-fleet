@@ -161,6 +161,17 @@ def _format_known(detected: list[DeviceInfo], aliases: dict[str, str]) -> str:
     return ", ".join(parts)
 
 
+#: `wait_for` 探测的 WDA 查询上限。默认 WDA http 超时是 20s，比 `wait_for` 的
+#: 默认 10s 总预算还长 —— 不裁剪的话等待永远超时。实际值按等待预算的 1/3 推导。
+WAIT_PROBE_QUERY_TIMEOUT_S = 5.0
+
+
+def _probe_query_timeout(timeout_ms: int) -> float:
+    """按等待总预算推导单次 WDA 查询超时（夹在 [1s, 上限]）。"""
+    third = max(0.0, float(timeout_ms)) / 3000.0
+    return max(1.0, min(WAIT_PROBE_QUERY_TIMEOUT_S, third))
+
+
 def _resolve_device(device_arg: str | None, session_default: str | None = None) -> str:
     """Resolve a device argument to a UDID. Order: explicit -> sticky default ->
     only-1 autoselect -> MultipleDevicesError.
@@ -568,8 +579,14 @@ def find_elements(
     """
     udid = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(udid)
-    elements = _wda_for(udid).find_elements(using, value)
+    elements = _find_elements_impl(udid, using, value)
     return {"ok": True, "count": len(elements), "elements": elements, "device": udid}
+
+
+def _find_elements_impl(udid: str, using: str, value: str,
+                        timeout: float | None = None) -> list[dict]:
+    """WDA 查询的实现体（显式 udid + 可选单次超时，供 wait_for 探测复用）。"""
+    return _wda_for(udid).find_elements(using, value, timeout=timeout)
 
 
 @mcp.tool
@@ -1127,21 +1144,22 @@ def wait_for(
     if not needle:
         return {"ok": False, "reason": "missing_target", "hint": "pass the query in `target`"}
 
-    find_fn = getattr(find_elements, "fn", find_elements)
+    find_impl = _find_elements_impl
     current_fn = getattr(current_app, "fn", current_app)
+    udid = _resolve_device(device, _get_session_default(ctx))
 
     def _probe_text():
         # WDA predicate string：按 name/label 做 contains 匹配（iOS 常用定位方式）
         predicate = "name CONTAINS[c] %r OR label CONTAINS[c] %r" % (needle, needle)
-        res = find_fn(using="predicate string", value=predicate, device=device, ctx=ctx)
-        if isinstance(res, dict) and (res.get("error") or res.get("ok") is False):
-            raise RuntimeError(str(res.get("error") or res.get("reason") or "find failed"))
-        els = res.get("elements") if isinstance(res, dict) else None
-        count = len(els or [])
-        return count > 0, {"count": count, "elements": (els or [])[:3]}
+        # `_find_elements_impl` 返回 WDA 元素列表（工具层才包成 dict）；异常交给
+        # wait_until 记成 probe_failed，不要在这里吞掉。
+        els = find_impl(udid, "predicate string", predicate,
+                        timeout=_probe_query_timeout(timeout_ms)) or []
+        count = len(els)
+        return count > 0, {"count": count, "elements": els[:3]}
 
     def _probe_app():
-        info = current_fn(device=device, ctx=ctx)
+        info = current_fn(device=udid, ctx=ctx)
         text = f"{info.get('bundleId') or ''} {info.get('name') or ''}" if isinstance(info, dict) else ""
         return needle.lower() in text.lower(), info
 

@@ -99,3 +99,48 @@ def test_run_actions_rejects_bad_step_up_front(android, monkeypatch):
     out = _tool_fn(android.run_actions)(steps=[{"tool": "does_not_exist"}], ctx=None)
     assert out["ok"] is False and out["reason"] == "invalid_steps"
     assert "wait_for" in out["allowed_tools"]
+
+
+# --- iOS 同款测试（同样可在 Linux import）---------------------------------
+
+@pytest.fixture(scope="module")
+def ios():
+    monkeypatch = pytest.MonkeyPatch()
+    for p in (str(REPO / "platforms" / "common"),
+              str(REPO / "platforms" / "ios" / "server"),
+              str(REPO / "platforms")):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    spec = importlib.util.spec_from_file_location(
+        "ios_device_mcp_under_test", REPO / "platforms" / "ios" / "server" / "ios_device_mcp.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    yield module
+    monkeypatch.undo()
+
+
+def test_ios_probe_query_timeout_is_fraction_of_wait(ios):
+    # 默认 10s 等待 → 查询预算约为 1/3，绝不能到默认的 20s
+    assert 1.0 <= ios._probe_query_timeout(10_000) < 10.0
+    assert ios._probe_query_timeout(10_000) < ios.WAIT_PROBE_QUERY_TIMEOUT_S
+    # 长等待放大，但不超过上限
+    assert ios._probe_query_timeout(60_000) == ios.WAIT_PROBE_QUERY_TIMEOUT_S
+    # 极小预算仍给 1s 下限，避免直接判死
+    assert ios._probe_query_timeout(0) == 1.0
+
+
+def test_ios_wait_for_text_probe_uses_budget_and_udid(ios, monkeypatch):
+    seen = {}
+
+    def fake_find(udid, using, value, timeout=None):
+        seen.update(udid=udid, using=using, value=value, timeout=timeout)
+        return [{"ELEMENT": "1", "name": "命中"}]
+
+    monkeypatch.setattr(ios, "_find_elements_impl", fake_find)
+    monkeypatch.setattr(ios, "_resolve_device", lambda device, default=None: "fake-udid")
+    out = getattr(ios.wait_for, "fn", ios.wait_for)(kind="text", target="命中", device=None, ctx=None)
+    assert out["ok"] is True
+    assert seen["udid"] == "fake-udid"
+    assert seen["using"] == "predicate string"
+    assert 1.0 <= seen["timeout"] < 10.0

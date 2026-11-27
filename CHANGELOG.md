@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Android `wait_for(text)` 的探测预算按等待预算推导**：一次 `uiautomator dump`（默认 15s）+ `cat`（10s）比 `wait_for` 的默认 10s 总预算还长 ⇒ 等待**必然超时**，条件成立也等不到。现在 `_probe_budgets(timeout_ms)` 取总预算的 1/3（夹在 1s–上限之间），默认 10s 等待可采 ~2 个样本、60s 可放大。
 - **Android server 变成 Linux 可测**：把 `ATB_ANDROID_ADB` 指到 `/bin/true` 后 server 能在 Linux 上 import，于是 `_dump_ui_impl` / `_find_elements_impl`（新抽出、显式 serial + 可调超时）与 `wait_for` / `run_actions` 的接线可以**真跑**，不再只靠读代码。新增 6 条运行时用例（结构化错误、预算推导、ctx/设备解析、整批预校验）。
 
+- **iOS `wait_for(text)` 的探测预算同理裁剪**：WDA 的 http 默认超时是 **20s**，比 `wait_for` 默认 10s 总预算还长 ⇒ 等待必然超时。给 `WdaClient._post` / `find_elements` 加单次 `timeout`，`_probe_query_timeout(timeout_ms)` 按等待预算的 1/3 推导；`_find_elements_impl` 抽出供探测复用。iOS server 同样可在 Linux import，新增 2 条运行时用例。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

@@ -121,8 +121,12 @@ class WdaClient:
 
     # ---- low-level HTTP
 
-    def _post(self, path: str, json: dict | None = None) -> dict:
-        r = self._client.post(path, json=json if json is not None else {})
+    def _post(self, path: str, json: dict | None = None,
+              timeout: float | None = None) -> dict:
+        # 单次超时覆盖：等待类调用方（wait_for 的探测）需要比默认 20s 更小的预算，
+        # 否则一次查询就吃掉整段等待窗口。
+        kwargs = {} if timeout is None else {"timeout": timeout}
+        r = self._client.post(path, json=json if json is not None else {}, **kwargs)
         r.raise_for_status()
         return r.json()
 
@@ -215,9 +219,11 @@ class WdaClient:
         r.raise_for_status()
         return r.json().get("value")
 
-    def find_elements(self, using: str, value: str) -> list[dict]:
+    def find_elements(self, using: str, value: str,
+                      timeout: float | None = None) -> list[dict]:
         sid = self.ensure_session()
-        r = self._post(f"/session/{sid}/elements", {"using": using, "value": value})
+        r = self._post(f"/session/{sid}/elements", {"using": using, "value": value},
+                       timeout=timeout)
         return r.get("value", [])
 
     def click_element(self, element_id: str) -> dict:
