@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_（v0.8.14-alpha 之后暂无未发布变更）_
+### 新增
+
+- **Windows UIA 稳定性 + 中文「一字一节点」合并（device-operator 社媒场景反馈）**：`dump_ui` / `inspect_window` / `find_elements` / `tap_element` / `list_windows` 的 UIA 遍历现在统一受**硬预算**约束（`FLEET_UIA_TIMEOUT`，默认 8s），超时返回结构化 `reason:"uia_timeout"` 而不是把 MCP 请求线程永久挂住；`list_windows` 超时返回已收集的部分窗口并在服务端日志告警。同时 `find_elements` / `tap_element` 在**原始匹配零命中**时自动回退：把 Electron/Chromium 报成的「每个汉字一个 `Text` 叶子」按同一行/相邻/同容器合并成文本 run（`merged` / `merged_from` / `glyph_merge` 元信息），并按**查询词自身那一截**的几何点击（`clicked_text_span`），避免点到整句中点。开关：`FLEET_UIA_GLYPH_MERGE`（默认开）、`FLEET_UIA_GLYPH_MAX_CHARS`（默认 1）、`FLEET_UIA_GLYPH_MAX_NODES`（默认 1500）。纯逻辑落在 `platforms/common/_uia_bounds.py`（21 条跨平台单测），Windows 侧只做接线。
 
 ### 修复
 

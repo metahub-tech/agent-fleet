@@ -54,6 +54,8 @@ tap_element(query="Submit")                 # default: locate by semantics, clic
 **Known limits:**
 - **Browser web content is NOT in the UIA tree** — page elements (links, buttons inside a web page) won't be found. For web, use `take_screenshot` + `tap(x, y)`, or a dedicated browser tool.
 - **Multi-monitor:** element coords on secondary displays can be off; if a tap misses, fall back to `take_screenshot` + manual `tap(x, y)`.
+- **`reason: "uia_timeout"`** — the window's accessibility provider is busy or hung (common for Electron/Chromium apps and consoles). The call returns within the UIA budget instead of hanging, so retry once after the app settles, narrow with `window_title` / `control_type`, or drop to `take_screenshot` + `tap`. Do NOT raise `FLEET_UIA_TIMEOUT` just to "make it work".
+- **Electron / Chinese text ("一字一节点")** — some Electron apps report one `Text` node *per CJK character*, so a query like `订阅` would never match a single node. `find_elements` / `tap_element` now merge adjacent single-character leaves into a text run automatically (result carries `merged: true`, `merged_from`, and `glyph_merge` metadata), and `tap_element` clicks the matched characters (`clicked_text_span`), not the middle of the whole run. If the merged name looks over-joined, add `window_title` / `control_type` to narrow, or use the span info to verify before acting.
 
 ### Long-running tasks: `start_process`, NOT `run_shell`
 

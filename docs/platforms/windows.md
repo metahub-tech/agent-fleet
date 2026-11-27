@@ -256,6 +256,40 @@ Get-Content "$env:USERPROFILE\.agent-fleet\session-audit.log" -Tail 20
 
 ---
 
+### 7.7 UIA 卡死与「中文一字一节点」
+
+两个和 `dump_ui` / `find_elements` / `tap_element` 有关的真机问题，均已内建兜底，不需要调用方额外处理：
+
+**① UIA 遍历卡死**：某些窗口（Electron/Chromium 应用、控制台、UI 线程繁忙的程序）的
+accessibility provider 会让一次遍历阻塞几十秒甚至永久挂住。旧实现没有预算，卡住的是
+MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/树导出都有硬预算（默认 8s）：
+
+- `dump_ui` 超时 → `{ok:false, reason:"uia_timeout", hint:…}`（不会再挂住）；
+- `inspect_window` 超时 → `ERROR: …exceeded the UIA budget…`；
+- `find_elements` / `tap_element` 超时 → `{ok:false, reason:"uia_timeout"}`；
+- `list_windows` 超时 → 返回**已收集到的部分窗口**，并在服务端日志写一行警告。
+
+超时后那个卡住的线程仍在后台（Python 无法强杀），但不会再拖住其它请求。
+调 `FLEET_UIA_TIMEOUT`（秒，默认 `8`）可放宽；**只在确有单次调用本来就慢时才调大**。
+
+**② Electron 把中文拆成「一字一节点」**：Chromium/Electron 的 accessibility 树常把一个
+文本块报成**每个汉字一个** `Text`/`Word` 叶子。于是 `find_elements(query="订阅")` 永远
+`not_found`（单个节点里只有「订」或「阅」），`dump_ui` 的树也被碎片撑爆。现在
+`find_elements` / `tap_element` 在**原始匹配零命中**时自动回退：把同一行、相邻、同容器的
+单字叶子合并成文本 run 再匹配（返回体带 `merged:true` / `merged_from` / `glyph_merge` 元信息）。
+点命中「run 的一部分」时，`tap_element` 会点在**查询词自己那一截**的中心（`clicked_text_span`
+回传具体区间），不会点到整句的中点。
+
+- `FLEET_UIA_GLYPH_MERGE=0` 关闭该回退（默认开）；
+- `FLEET_UIA_GLYPH_MAX_CHARS`（默认 `1`）控制「多短的节点才参与合并」——默认只拼真正的逐字节点，
+  不会误伤正常的两三字标签；
+- `FLEET_UIA_GLYPH_MAX_NODES`（默认 `1500`）限制单次读取矩形的叶子数。
+
+> 合并只在**零命中**时发生，所以命中路径的延迟不变；回退结果里 `enabled`/`visible` 为
+> `null`（逐字节点上取这两个字段代价高、意义也不大），`on_screen` 仍然照常给出。
+
+---
+
 ## 附录 · 工具列表
 
 `win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：
