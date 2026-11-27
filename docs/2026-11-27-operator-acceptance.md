@@ -387,8 +387,10 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 **设备租约旁证**：同期 8766 被 `line-t1-779` 持有（idle 54s、auto_release ≈546s），
 他的设备调用被 `device_leased` 拒绝——这是强制租约的**预期行为**，不是缺陷。
 
-**尚未验证**：B 组（后台标签 `frozen_background_tab`、剪贴板粘贴保真、UIA 卡死回归、
-中文元素 `merged`/`clicked_text_span`）——它们需要输入类操作，必须等设备空闲。
+**当时尚未验证**：B 组（后台标签冻结、剪贴板粘贴保真、UIA 卡死回归、中文元素
+`merged`/`clicked_text_span`）——它们需要输入类操作，必须等设备空闲。
+**后续进度（见下文第二/三/四轮）**：B3 已通过；B1 的选页维度已通过、冻结分支待定；
+B2 后半已在 v3 实测三项通过（`border-left` 与字数比因现场条件未测）；B4 环境不具备（N/A）。
 
 
 ---
@@ -573,8 +575,15 @@ activate_tab        → ok 297ms
 - ❌ 不能：UIA/AX/WDA/adb 的真实行为、坐标正确性、真实窗口与 Electron 树的形态、
   冻结语义、剪贴板在真实应用里的保真度。
 
-**因此仍未闭环的真机项**：B2 后半（粘贴保真）、B1 冻结分支（方法已给，需 `chrome://discards`
-或 CDP `Page.setWebLifecycleState`）、macOS/Android/iOS 的端到端首次验证。
+**因此仍未闭环的真机项**（截至 v3 之后）：
+
+| 项 | 现状 | 下一步 |
+|---|---|---|
+| `border-left` 保真 | v3 稿源没带 style ⇒ 未测 | 用带 `style="border-left:4px …"` 的稿源 + **空草稿**，四项一次量全 |
+| 字数比 | v3 草稿原有 15 字 ⇒ 无有效读数 | 同上 |
+| B1 冻结分支 | 「后台≠冻结」已澄清；冻结需主动触发 | `chrome://discards` 手动 Freeze，或 CDP `Page.setWebLifecycleState` |
+| `choose_target` 的 `target_id` 回退 | 代码已修（`2b52c89`），单测+离线构造已证 | 真机需"所有 URL 重复"的 profile，属可选加深项 |
+| macOS / Android / iOS 端到端 | 运行时与协议层已有测试，**无真机记录** | 首次真机验证（与目标场景无直接关系，优先级最低） |
 
 ## 失败归因速查（smoke 报了 FAIL 时先查这里）
 
