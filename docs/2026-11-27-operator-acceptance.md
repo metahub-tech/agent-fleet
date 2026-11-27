@@ -270,6 +270,18 @@ clipboard_set_html(content=(
 
 **收尾**：`press_key("ctrl+z")` 撤销，回读确认草稿为空。**不要点发表/群发。**
 
+**夹具已离线自检过**（不是"看着像能跑"）：
+
+```
+build_cf_html(夹具)         → 307 bytes；StartHTML=105、StartFragment=117、EndFragment=275
+extract_fragment(...)       → 与原文完全一致
+readback_ok(written, same)  → (True, "bytes_equal")
+```
+
+所以在真机上若出现"写进去的东西不对"，那是**编辑器/粘贴链路**的问题，不是夹具本身坏了——
+这条区分能省掉一轮排查。
+
+
 ### 仍未闭环
 
 - `list_windows` 那次 **11984ms + 裸 `OSError [Errno 22]`**：对方已用 `start_process` 命令行
