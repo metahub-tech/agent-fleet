@@ -171,6 +171,12 @@ def probe_visibilities(
 
     返回 ``{target_id: "visible"|"hidden"|"unknown"}``；``probe(page, remaining_s)``
     返回三态之一或抛异常（按 unknown 处理）。
+
+    **线程语义**：worker 是 daemon 线程，最多 ``max_workers`` 个；到达 deadline 后本函数
+    直接返回，**不会**等待卡住的 probe（Python 杀不掉线程）。因此"一个 probe 永久卡住"
+    会留下一个 daemon 线程——这是设计取舍：宁可留一个后台线程，也不让调用方被拖住。
+    尝试过写"线程数回落"的回归用例，但变异验证发现它抓不到真实回归（去掉 join 也照样绿），
+    属于假闸，故不保留；这里用文字把语义写清。
     """
     deadline = clock() + max(0.0, float(budget_s))
     results: dict[str, str] = {}
