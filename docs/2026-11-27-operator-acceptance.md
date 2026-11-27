@@ -130,6 +130,72 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 
 ---
 
+
+---
+
+## B 组最小执行脚本（复制即可跑，约 6 分钟）
+
+> 这四条脚本覆盖不到（需要"制造状态"或输入类操作），但工具调用可以照抄。
+> 下面 `P` = 你正在用的 profile 串（与 `human_browser_open` 用的**同一个**值）。
+
+### B1 · 后台标签语义（2 分钟）
+
+```
+1) human_browser_open(url="about:blank", profile=P, activate=True)
+2) human_browser_open(url="https://example.com", profile=P, activate=True)   # 现在有两个标签
+3) list_tabs(profile=P)                    → 记下 about:blank 的 url 片段（记为 U1）
+4) devtools.eval_in_profile(profile=P, js="1", url_part=U1, activate=False)
+   期望：{ok:false, activated:false, reason:"frozen_background_tab"}
+5) devtools.eval_in_profile(profile=P, js="1", url_part=U1)          # 默认 activate=True
+   期望：{ok:true, activated:true, value:1}
+6) 收尾：手动关掉 about:blank 标签
+```
+
+判据：第 4 步 **必须同时**满足 `ok=false` 且 `reason=frozen_background_tab`（不接受只判 `ok=false`）；
+第 5 步 `activated=true` 且 `value=1`。
+
+### B2 · 剪贴板保真（2 分钟）
+
+```
+1) clipboard_set_html(content="<h2 style=\"border-left:4px solid #07c\">测试标题</h2><p>第一段</p><p>第二段</p>")
+   期望：ok=true、verified=true、formats=["HTML Format"]
+2) 打开公众号草稿编辑器正文，press_key("ctrl+v")
+3) eval_in_profile(profile=P, url_part="<编辑器页 url 片段>", js="<verify_js>")
+   期望读数：正文字数 = 稿源字数；h2Count = 1；无 \ufffd；H2 的 borderLeft=4px；相邻 <p> 间距≈20px
+```
+
+判据：`formats` **恰好** `["HTML Format"]`；字数/标题数一致；样式三项（borderLeft / 段间距 / 无乱码）符合。
+**做完删掉临时草稿。**
+
+### B3 · UIA 卡死回归（1 分钟）
+
+```
+1) 打开微信 PC 客户端（或任一 Electron 应用）并让它在前台
+2) dump_ui()          → 记耗时
+   期望：要么 ok=true，要么 ok=false + reason="uia_timeout"；**总耗时 ≤ 10s**
+3) list_windows()     → 期望很快返回（list，不是 dict）
+```
+
+判据：**只看"有没有在 10s 内返回"**，返回什么都行。
+
+### B4 · 中文「一字一节点」（1 分钟）
+
+```
+1) 在同一个 Electron 应用里，find_elements(query="设置")   → 期望能看到 merged:true 的候选
+2) tap_element(query="设置")（如果它确实是个可点元素）
+   期望：返回带 clicked_text_span，落点在"设置"两个字上
+```
+
+判据：`merged:true` 出现；`tap_element` 的 `clicked_text_span` 文本等于查询词。
+若该应用不是逐字节点（中文合并不会触发），这条记 `N/A` 并注明应用名。
+
+### 回执只要这三行
+
+```
+B1 = pass/fail（reason=?）   B2 = pass/fail（字数=? 样式=?）
+B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
+```
+
 ## 首轮真机读数（2026-11-27，第一轮）
 
 > 出处：`agent:device-operator-lead` 在真机上跑的**第一轮**结果；基线 commit `31cd40e`，
