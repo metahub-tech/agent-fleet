@@ -315,6 +315,17 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 `[capabilities].enabled` 或本机 `.fleet/config.toml` 里加 `"devtools"`，然后**重启 server**
 （能力是导入期静态注册的）。启用后 win/mac 各多 4 个工具。
 
+**验收（只读，不点不输）**：在**已启用 devtools 且浏览器已开着**的设备上跑
+
+```bash
+python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fleet/<op-id>"
+```
+
+它会依次断言：能力 `enabled`、`cdp_port` 存活（或给出可操作的 `reason`）、`list_tabs`
+形状合法且 **1s 内返回**（防挂死）、`eval_in_profile` 能读 `document.visibilityState`、
+**超限结果报 `result_too_large` 且不带被截断的 `value`**、`activate_tab` 后目标页为
+`visible`（探测超预算记 `unknown` 也算过）。退出码 `0/1/2/3` = 通过/失败/连不上/能力未启用。
+
 > 与 `human_browser` 共用同一套 profile 字符串 ⇒ 同一个 Chrome user-data-dir。
 > 读页面优先用这里（0 token、可脚本化），需要"人肉点击"时再回到 `tap` / `human_dom`。
 
