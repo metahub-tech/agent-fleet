@@ -625,6 +625,8 @@ python3 scripts/gen_docs.py --check
 | Android | ✅ `test_android_runtime.py`（12 条） | ✅ `test_mobile_server_guards.py` | ❌ 无 |
 | iOS | ✅ 同上（2 条 iOS 专属） | ✅ 同上 | ❌ 无 |
 
+**总量快照（2026-11-27 末）**：`platforms/common` **506** + `platforms/tests` **125** + `scripts/tests` **105** + `cli` **164** = **900 条**，四套全绿（含 30 条 vision、125 条平台/协议层契约）。
+
 **跨平台契约**：`test_universal_tool_set.py`（21 个 universal 工具 × 4 平台 + 工具名唯一）、
 `test_tool_schema_contract.py`（描述/参数说明/编排原语参数 × 4 平台）、
 `test_runtime_tool_counts.py`（core 桶计数 × 4 平台）、
