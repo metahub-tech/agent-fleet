@@ -1204,6 +1204,7 @@ _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=foreground_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 置前(activate 二态: 激活/非激活最大化)
 _cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
+_cap_registry.add(DevtoolsCapability())  # CDP 直连原语（opt-in：需在 [capabilities].enabled 里加 devtools）
 _cap_registry.setup(mcp, _enabled_caps)
 
 
