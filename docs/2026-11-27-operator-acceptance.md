@@ -28,6 +28,7 @@ list_capabilities()   → core.tools 里应包含：
 |---|---|---|
 | ☐ | server 已重启 | `list_capabilities()` 的 `core.tools` 含上述 3 个新工具名 |
 | ☐ | 版本一致 | 设备上的 checkout 是 `integ/operator-p0-p1`（`git -C <repo> log -1 --format=%h`） |
+| ☐ | skill 是**拷贝**模式（Windows 常态）时，pull 后要重装 | `python3 scripts/install_skills.py --platform win-device --target <你的技能目录> --force`；否则 agent 读到的仍是旧 SOP（符号链接模式会自动跟随，无需重装） |
 
 ---
 
