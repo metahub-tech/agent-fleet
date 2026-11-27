@@ -11,10 +11,12 @@ import pytest
 
 from _uia_bounds import (
     UiaTimeout,
+    ambiguous_window_payload,
     as_rect,
     find_span,
     has_cjk,
     is_cjk_char,
+    is_ambiguous_error,
     is_text_like,
     merge_text_runs,
     rank_key,
@@ -228,3 +230,42 @@ def test_run_with_timeout_uses_daemon_thread():
     stuck = [t for t in threading.enumerate() if t.name == "uia-daemon"]
     assert stuck and all(t.daemon for t in stuck)
     assert threading.active_count() >= before
+
+
+# --- 窗口歧义识别（真机：StarBeam 两个窗口时抛裸异常）---------------------
+
+class FakeAmbiguous(Exception):
+    pass
+
+
+class ElementAmbiguousError(Exception):
+    pass
+
+
+def test_is_ambiguous_error_by_message():
+    exc = Exception('There are 2 elements that match the criteria {"title": "StarBeam"}')
+    assert is_ambiguous_error(exc) is True
+
+
+def test_is_ambiguous_error_by_type_name():
+    assert is_ambiguous_error(ElementAmbiguousError("nope")) is True
+    assert is_ambiguous_error(FakeAmbiguous("nope")) is True
+
+
+def test_is_ambiguous_error_rejects_unrelated():
+    assert is_ambiguous_error(OSError(22, "Invalid argument")) is False
+    assert is_ambiguous_error(ValueError("window not found")) is False
+
+
+def test_ambiguous_window_payload_shape():
+    payload = ambiguous_window_payload("StarBeam", [{"title": "StarBeam - 1"}, {"title": "StarBeam - 2"}])
+    assert payload["ok"] is False
+    assert payload["reason"] == "ambiguous_window"
+    assert "StarBeam" in payload["error"]
+    assert payload["hint"]
+    assert len(payload["candidates"]) == 2
+
+
+def test_ambiguous_window_payload_caps_candidates():
+    payload = ambiguous_window_payload("X", [{"title": str(i)} for i in range(50)])
+    assert len(payload["candidates"]) == 10

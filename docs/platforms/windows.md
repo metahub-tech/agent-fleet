@@ -269,7 +269,8 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 - `dump_ui` 超时 → `{ok:false, reason:"uia_timeout", hint:…}`（不会再挂住）；
 - `inspect_window` 超时 → `ERROR: …exceeded the UIA budget…`；
 - `find_elements` / `tap_element` 超时 → `{ok:false, reason:"uia_timeout"}`；
-- `list_windows` 超时 → 返回**已收集到的部分窗口**，并在服务端日志写一行警告。
+- `list_windows` 超时 → 返回**已收集到的部分窗口**，并在服务端日志写一行警告；枚举期抛的非超时异常（真机见过 `[Errno 22]`）同样兜住，返回已收集部分而不是让调用方收到裸 `Error calling tool`。
+- 同一个 `window_title` 命中多个窗口时，`find_elements` / `dump_ui` 等返回 `{ok:false, reason:"ambiguous_window", hint, candidates}`（而不是抛 `There are N elements that match the criteria`）。
 
 超时后那个卡住的线程仍在后台（Python 无法强杀），但不会再拖住其它请求。
 调 `FLEET_UIA_TIMEOUT`（秒，默认 `8`）可放宽；**只在确有单次调用本来就慢时才调大**。

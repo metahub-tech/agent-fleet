@@ -146,6 +146,35 @@ def _join_separator(prev_name: str, next_name: str, gap: int, ref_height: int) -
     return ""
 
 
+_AMBIGUOUS_NAME_HINTS = ("ambiguous",)
+_AMBIGUOUS_MESSAGE_HINTS = ("match the criteria", "more than one")
+
+
+def is_ambiguous_error(exc: BaseException) -> bool:
+    """pywinauto 在"多个窗口同时匹配"时抛的异常，文案/类型都不同版本各异。
+
+    真机实测（StarBeam 有两个窗口）：`find_elements(window_title="StarBeam")` 抛出裸异常
+    ``There are 2 elements that match the criteria {...}``，调用方只能看到未结构化错误。
+    这里只做**识别**，判定依据是类型名或文案里的稳定片段。
+    """
+    name = type(exc).__name__.lower()
+    if any(hint in name for hint in _AMBIGUOUS_NAME_HINTS):
+        return True
+    message = str(exc).lower()
+    return any(hint in message for hint in _AMBIGUOUS_MESSAGE_HINTS)
+
+
+def ambiguous_window_payload(window_title: str, candidates: list[dict] | None = None) -> dict:
+    """生成"窗口匹配不唯一"的结构化返回（reason 固定为 ``ambiguous_window``）。"""
+    return {
+        "ok": False,
+        "reason": "ambiguous_window",
+        "error": f"multiple windows match {window_title!r}",
+        "hint": "pass a longer / more specific window_title to disambiguate",
+        "candidates": list(candidates or [])[:10],
+    }
+
+
 def merge_text_runs(
     elements: Sequence[dict],
     *,

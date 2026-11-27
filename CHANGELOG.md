@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_ops --probe`：零副作用的「这台设备跑的是哪一版」检查**：只连一次、读 `list_capabilities()`，打印 `platform / live tool count / devtools status / 缺哪些必需工具`，然后退出（**不写文件、不碰剪贴板**）。切 build / 回滚后第一时间用它确认，比跑全量 smoke 快且无副作用。退出码 0=这批代码已生效、3=不是这批代码、2=连不上。已在真机旧码上实测：`live tools: 82 / MISSING: wait_for, run_actions, file_put, file_get, clipboard_set_html` → exit 3。
 
+- **`list_windows` 兜住枚举期非超时异常（真机实测）**：设备端出现过一次 `[Errno 22] Invalid argument`（pywinauto 枚举期抛的裸 `OSError`），调用方只看到 `Error calling tool`，既不是结构化 `uia_timeout` 也拿不到已收集的窗口。现在非超时异常同样捕获 → 返回已收集部分 + stderr 告警（契约仍是 list）。
+- **同标题多窗口 → 结构化 `ambiguous_window`（既有 bug，真机复现）**：`find_elements(window_title="StarBeam")` 在两个同名窗口时抛出裸异常 `There are 2 elements that match the criteria`。新增共享判定 `_uia_bounds.is_ambiguous_error()` + `ambiguous_window_payload()`，返回 `{ok:false, reason:"ambiguous_window", hint, candidates}`，让调用方能直接改成更具体的标题。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

@@ -264,7 +264,9 @@ class DevtoolsCapability(CapabilityModule):
             """列出该 profile 的页面标签：{ok, tabs:[{target_id,url,title,visibility}], probe_ms, duration_ms}。
 
             `visibility ∈ visible | hidden | unknown`。探测**并发**进行（有界并发 8），**总预算**默认 300ms；
-            没赶上的记 `unknown` 且**不重试**（总延迟可控）—— 拿到 unknown 时调用方应先 `activate_tab` 再 eval。
+            没赶上的记 `unknown` 且**不重试**（总延迟可控）。
+            ⚠️ 拿到 `unknown` **不要**以为 `activate_tab` 就能让 eval 选对页：CDP 的 `/json` 不暴露
+            哪个是前台，选页只能靠 `eval_in_profile(url_part=…|target_id=…)` 显式指定。
             真账号 profile 常有几十个标签页，串行探测会让绝大多数变成 unknown，故采用并发。
             不给 `frozen` 布尔：探针本身会挂在冻结标签上，猜一个 false 比 unknown 更坏。
             `url` 完整不截断（截断会让调用方匹配误判）。

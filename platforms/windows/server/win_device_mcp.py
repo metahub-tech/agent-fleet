@@ -31,7 +31,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
 # per-monitor DPI awareness 必须在 pyautogui / PIL / pywinauto 之前置位: 这些库 import 时会
 # 锁定进程 DPI 模式, 之后再置可能【静默失败】→ 缩放屏视觉点击漂移(AgentHub #100 轮3
@@ -59,7 +59,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common")
 import _batch, _fsops, _proc, _search, _wait
 import _cf_html, _clipboard
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
-from _uia_bounds import (  # UIA 不卡死 + Electron「一字一节点」合并（纯逻辑，跨平台可测）
+# UIA 不卡死 + Electron「一字一节点」合并 + 窗口歧义识别（纯逻辑，跨平台可测）
+from _uia_bounds import (
+    ambiguous_window_payload,
+    is_ambiguous_error,
     UiaTimeout,
     find_span,
     is_text_like,
@@ -255,6 +258,11 @@ def list_windows() -> list[dict]:
     except UiaTimeout:
         print(f"[uia] list_windows timed out after {UIA_TIMEOUT_S:g}s; "
               f"returning {len(out)} window(s) collected so far", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        # 真机实测出现过 [Errno 22] Invalid argument（pywinauto 枚举期抛的裸 OSError）。
+        # 契约是 list，不能返回 dict；兜住后返回已收集部分并把原因打到日志。
+        print(f"[uia] list_windows failed after collecting {len(out)} window(s): "
+              f"{type(exc).__name__}: {exc}", file=sys.stderr)
     return out
 
 
@@ -401,8 +409,29 @@ def _resolve_uia_window(window_title):
     as dump_ui)."""
     import win32gui
     if window_title:
-        win = Desktop(backend="uia").window(title_re=f".*{re.escape(window_title)}.*")
-        win.wait("visible", timeout=3)
+        try:
+            win = Desktop(backend="uia").window(title_re=f".*{re.escape(window_title)}.*")
+            win.wait("visible", timeout=3)
+        except Exception as exc:  # noqa: BLE001
+            # pywinauto 在多个窗口同时匹配时会抛 ElementAmbiguousError，
+            # 文案是 "There are 2 elements that match the criteria ..."；
+            # 直接抛出去调用方只能看到裸异常，判定不了"该给更具体的标题"。
+            message = str(exc)
+            if is_ambiguous_error(exc):
+                candidates = []
+                try:
+                    for w in Desktop(backend="uia").windows():
+                        try:
+                            title = w.window_text() or ""
+                        except Exception:
+                            continue
+                        if window_title.lower() in title.lower():
+                            candidates.append({"title": title, "pid": w.process_id()})
+                except Exception:
+                    pass
+                return None, ambiguous_window_payload(window_title, candidates)
+            return None, {"ok": False, "reason": "window_not_found",
+                          "error": f"{type(exc).__name__}: {message}"}
         try:
             cls = win.class_name()
         except Exception:
