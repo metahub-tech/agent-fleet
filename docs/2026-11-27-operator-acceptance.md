@@ -607,8 +607,17 @@ python3 scripts/gen_docs.py --check
 ./scripts/gen-blueprint-interface.sh --check && ./scripts/check-blueprint-refs.sh --check
 ```
 
+**4) 生成器幂等**（`--check` 只验数字，`--write` 才能证明文档与生成器**完全一致**）：
+
+```bash
+python3 scripts/gen_docs.py --write     # 应打印 "No change — ... already up-to-date"
+./scripts/gen-blueprint-map.sh          # 重写后 git status 必须为空
+./scripts/gen-blueprint-interface.sh
+git status --porcelain docs/            # 空 = 零漂移
+```
+
 **2026-11-27 末实测**：`commits=124 missing_dco=0`；`0 124`（main 仍 `386814c`，无冲突）；
-三道门禁全绿。CI 里 `python-tests` 是 `continue-on-error`、`gen_docs` 与 `platforms/**` 测试
+三道门禁全绿；**生成器幂等**（`gen_docs --write` 报 no change、蓝图重写后 `git status` 为空）。CI 里 `python-tests` 是 `continue-on-error`、`gen_docs` 与 `platforms/**` 测试
 **不进 CI**，所以这三项必须本地跑。
 
 
