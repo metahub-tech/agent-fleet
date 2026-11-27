@@ -172,12 +172,19 @@ run_actions(steps=[
   // `querySelector('[contenteditable]')` 返回第一个 ⇒ 会把标题长度当正文字数。
   // 取**最后一个** `.ProseMirror`（或换成你自己确认过的正文根选择器）。
   const roots = [...document.querySelectorAll('.ProseMirror')];
+  const rootLens = roots.map((r) => (r.innerText || '').length);
+  // 取"最后一个"只在页面上只有编辑器本身（标题 + 正文 = 2 个根）时成立；
+  // 弹层/裁剪对话框里也可能挂 ProseMirror，排在正文之后就会选错。
+  const editorLayout = roots.length === 2 ? 'clean' : 'unexpected';
   const body = roots.length ? roots[roots.length - 1] : null;
   const text = (body?.innerText || '');
   const h2 = body ? body.querySelector('h2') : null;
   return ({
   // chars 含块间换行/空白（真机实测：raw=1346 / trim=1343 / nonblank=1240）
   // ⇒ **判据用 charsNonBlank**，chars 只用于显示与前后差值。
+  editorRoots: roots.length,
+  editorLayout,
+  rootLens,
   chars: text.trim().length,
   charsNonBlank: text.replace(/\s/g, '').length,
   h2Count: body ? body.querySelectorAll('h2').length : 0,
@@ -207,12 +214,28 @@ run_actions(steps=[
 | `markers.mojibake` | `false` | ✅ |
 | `gaps` | **仅 B2 夹具**可用 20–34px | 真实稿子里见过 78（标题后/大段间）与 12（列表项间）——对任意草稿应"与稿源结构逐段比对"或只看"`>0` 且稳定" |
 
+> **`editorLayout` 必须为 `clean`（`editorRoots === 2`）才算可信**：若页面挂了额外 ProseMirror
+> （插入视频/模板弹层、图片裁剪对话框里的富文本），它可能排在正文之后 ⇒ `last` 会选错；
+> 遇到 `unexpected` 时用下面 §5.1 显式指定正文根。
+
 > 这套 JS 已在真机 1343 字草稿上原样跑过：`chars=1343, h2Count=7, imgCount=2, h2BorderLeft=4px, mojibake=false`
 > —— **取最后一个 `.ProseMirror` 这条修复真机成立**（标题是 20 字，没被误读）。
 
 > **别拿页面底部的「正文字数」计数器当判据**：它是编辑器自己的统计口径，与 `innerText` 长度
 > 不一致（真机见过 15 vs 20）。用**粘前/粘后的 `charsNonBlank` 差值**。
 **样式三项**（`h2[].borderLeft`、段间距、封面 `background-image`）只用于 diff，不进工具契约。
+
+### §5.1 显式正文根（`editorLayout == "unexpected"` 时用）
+
+```javascript
+// 用你自己在真实页面上确认过的正文根替换下面的启发式；
+// 示例：正文是"标题之外那个文本明显更长的 ProseMirror"
+(() => {
+  const roots = [...document.querySelectorAll('.ProseMirror')];
+  const body = roots.filter((r) => (r.innerText || '').trim().length > 200).pop() || null;
+  return { ok: !!body, chars: (body?.innerText || '').trim().length };
+})()
+```
 
 ---
 
