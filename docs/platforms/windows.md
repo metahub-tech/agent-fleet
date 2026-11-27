@@ -302,7 +302,7 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 | `cdp_port(profile)` | `{ok, alive, port, ws_url, browser, reason, probe_ms}` | **端口每次重启都会变，调用方不许缓存**；`alive` 必须真打 `/json/version`（1s 超时）；**绝不自动重启浏览器** |
 | `list_tabs(profile, probe_budget_ms=300)` | `{ok, tabs:[{target_id,url,title,visibility}], probe_ms, duration_ms}` | `visibility ∈ visible\|hidden\|unknown`；探测超预算记 `unknown` 且不重试；`url` 完整不截断 |
 | `activate_tab(profile, url_part)` | `{ok, target_id, url}` | 按 url 子串匹配；多命中报 `PAGE_AMBIGUOUS` 并列候选，**不猜** |
-| `eval_in_profile(profile, js, frame?, activate=True, max_result_bytes=1MiB, url_part?, target_id?)` | `{ok, value, activated, size_bytes}` | 默认先激活目标页；**多标签时必须给 `url_part` 或 `target_id`**（来自 `list_tabs`），否则 `page_ambiguous`（真账号 profile 常几十个标签页）；结果 `returnByValue`，超限报 `result_too_large`（**不截断**） |
+| `eval_in_profile(profile, js, frame?, activate=True, max_result_bytes=1MiB, url_part?, target_id?)` | `{ok, value, activated, size_bytes, elapsed_ms, timings:{connect_ms, activate_ms, eval_ms}}` | 默认先激活目标页；**多标签时必须给 `url_part` 或 `target_id`**（来自 `list_tabs`），否则 `page_ambiguous`（真账号 profile 常几十个标签页）；结果 `returnByValue`，超限报 `result_too_large`（**不截断**） |
 
 `reason` 是稳定契约，调用方按它分支：
 

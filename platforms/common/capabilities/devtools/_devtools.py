@@ -366,6 +366,9 @@ class DevtoolsCapability(CapabilityModule):
                 return {"ok": False, "activated": False,
                         "reason": "port_file_missing" if _cdp.read_port_once(udd) is None
                         else "version_probe_failed"}
+            # 真机反馈：偶发 9.3s（贴着超时线）。没有分解只能猜，故把 connect / activate /
+            # eval 三段耗时都带回去，下次慢的时候能直接看出是哪一段。
+            t_after_connect = time.monotonic()
             activated = False
             try:
                 pages, reason = _cdp.page_targets(port)
@@ -387,6 +390,7 @@ class DevtoolsCapability(CapabilityModule):
                                 "error": err.get("message")}
             finally:
                 _cdp.close_quietly(browser_sock)
+            t_after_activate = time.monotonic()
 
             sock = None
             try:
@@ -434,9 +438,15 @@ class DevtoolsCapability(CapabilityModule):
                     return {"ok": False, "activated": activated,
                             "reason": "result_too_large", "size_bytes": size,
                             "max_result_bytes": int(max_result_bytes)}
+                now = time.monotonic()
                 return {"ok": True, "value": value, "activated": activated,
                         "size_bytes": size,
-                        "elapsed_ms": int((time.monotonic() - started) * 1000)}
+                        "elapsed_ms": int((now - started) * 1000),
+                        "timings": {
+                            "connect_ms": int((t_after_connect - started) * 1000),
+                            "activate_ms": int((t_after_activate - t_after_connect) * 1000),
+                            "eval_ms": int((now - t_after_activate) * 1000),
+                        }}
             except Exception as exc:
                 return {"ok": False, "activated": activated,
                         "reason": "cdp_timeout", "error": f"{type(exc).__name__}: {exc}"}
