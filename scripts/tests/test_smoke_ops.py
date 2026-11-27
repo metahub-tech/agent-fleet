@@ -219,3 +219,31 @@ def test_uia_unexpected_failure_is_reported():
 def test_uia_no_foreground_special_case():
     ok, _ = so.check_uia_latency("dump_ui", {"ok": False, "error": "No foreground window detected"}, 5)
     assert ok is True
+
+
+# --- 平台判定 -------------------------------------------------------------
+
+def test_detect_platform_windows():
+    caps = {"capabilities": [{"id": "core", "status": "enabled",
+                              "tools": ["file_put", "wait_for", "run_actions"]}]}
+    assert so.detect_platform(caps) == "windows"
+    assert set(so.required_tools_for("windows")) == set(so.REQUIRED_TOOLS)
+
+
+def test_detect_platform_macos():
+    caps = {"capabilities": [{"id": "core", "status": "enabled",
+                              "tools": ["wait_for", "run_actions"]}]}
+    assert so.detect_platform(caps) == "macos"
+    assert set(so.required_tools_for("macos")) == set(so.COMMON_TOOLS)
+
+
+def test_detect_platform_unknown_when_tools_missing():
+    caps = {"capabilities": [{"id": "core", "status": "enabled", "tools": ["tap"]}]}
+    assert so.detect_platform(caps) == "unknown"
+    # unknown 时按最严格报，方便直接看到缺什么
+    assert set(so.required_tools_for("unknown")) == set(so.REQUIRED_TOOLS)
+
+
+def test_disabled_capabilities_do_not_count():
+    caps = {"capabilities": [{"id": "core", "status": "disabled", "tools": ["file_put"]}]}
+    assert so.detect_platform(caps) == "unknown"

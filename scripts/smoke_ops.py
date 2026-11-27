@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Acceptance smoke test for the 2026-11 device-operation primitives.
 
-Proves, against a **running** Windows device server:
+Proves, against a **running** device server (Windows or macOS):
 
-1. the new tools are actually registered (`file_put` / `file_get` /
-   `clipboard_set_html` / `wait_for` / `run_actions` in `list_capabilities()`);
+1. the new tools are actually registered — **platform is auto-detected from the live
+   tool list**: `file_put` present ⇒ Windows (file + clipboard blocks run);
+   otherwise `wait_for` present ⇒ macOS (common blocks only; macOS does not ship the
+   file/clipboard primitives yet);
 2. ``file_put`` → ``file_get`` round-trips binary bytes with an **identical sha256**
    and the same size;
 3. an over-limit push (5 MiB) fails with ``file_too_large`` and leaves **no file**
@@ -16,8 +18,8 @@ Proves, against a **running** Windows device server:
 6. ``run_actions`` executes steps in order and rejects an invalid batch
    **before running anything** (``invalid_steps``).
 
-Side effects are explicit: this clobbers the Windows clipboard and writes one temp
-file under ``%TEMP%``. It never taps, types, or launches anything.
+Side effects are explicit and **Windows-only**: on Windows this clobbers the clipboard
+and writes one temp file under the Windows temp dir; on macOS nothing is written. It never taps, types, or launches anything.
 
 Usage:
     python3 scripts/smoke_ops.py --url http://test-win11:8766/mcp
@@ -37,10 +39,46 @@ import sys
 import time
 from typing import Any, Optional
 
-REQUIRED_TOOLS = ("file_put", "file_get", "clipboard_set_html", "wait_for", "run_actions")
+#: 所有平台都应有
+COMMON_TOOLS = ("wait_for", "run_actions")
+#: 仅 Windows 提供（macOS 目前没有文件字节收发与剪贴板原语）
+WINDOWS_ONLY_TOOLS = ("file_put", "file_get", "clipboard_set_html")
+REQUIRED_TOOLS = COMMON_TOOLS + WINDOWS_ONLY_TOOLS
+
 TEMP_FILE = r"C:\Windows\Temp\fleet-smoke-binary.bin"
 OVERSIZE_FILE = r"C:\Windows\Temp\fleet-smoke-oversize.bin"
 MAX_TRANSFER_BYTES = 4 * 1024 * 1024
+
+
+def detect_platform(caps: dict) -> str:
+    """按设备**实际暴露的工具**判定平台，而不是靠用户传参。
+
+    判据：有 `file_put` ⇒ windows（文件/剪贴板是本批 Windows-only 原语）；
+    否则有 `wait_for` ⇒ macos；都没有 ⇒ unknown（= 设备跑的不是这批代码）。
+    """
+    live = _live_tools(caps)
+    if "file_put" in live:
+        return "windows"
+    if "wait_for" in live:
+        return "macos"
+    return "unknown"
+
+
+def required_tools_for(platform: str) -> tuple[str, ...]:
+    if platform == "windows":
+        return REQUIRED_TOOLS
+    if platform == "macos":
+        return COMMON_TOOLS
+    return REQUIRED_TOOLS          # unknown 时按最严格报，好让用户看到缺什么
+
+
+def _live_tools(caps: dict) -> set[str]:
+    live: set[str] = set()
+    if isinstance(caps, dict) and isinstance(caps.get("capabilities"), list):
+        for entry in caps["capabilities"]:
+            if isinstance(entry, dict) and entry.get("status") == "enabled":
+                live.update(entry.get("tools") or [])
+    return live
 
 
 def _payload(result: Any) -> dict:
@@ -67,10 +105,7 @@ def _payload(result: Any) -> dict:
 def check_tools_registered(caps: dict, required=REQUIRED_TOOLS) -> tuple[bool, str]:
     if not isinstance(caps, dict) or not isinstance(caps.get("capabilities"), list):
         return False, "list_capabilities() did not return a capabilities list"
-    live: set[str] = set()
-    for entry in caps["capabilities"]:
-        if isinstance(entry, dict) and entry.get("status") == "enabled":
-            live.update(entry.get("tools") or [])
+    live = _live_tools(caps)
     missing = [t for t in required if t not in live]
     if missing:
         return False, f"missing tools on this build: {', '.join(missing)} (got {len(live)} live tools)"
@@ -250,39 +285,44 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                     return _payload(await session.call_tool(tool, kwargs))
 
                 caps = await call("list_capabilities")
-                ok, detail = check_tools_registered(caps)
-                add("required tools registered", ok, detail)
+                platform = detect_platform(caps)
+                ok, detail = check_tools_registered(caps, required_tools_for(platform))
+                add(f"required tools registered ({platform})", ok, detail)
                 if not ok:
                     return _finish(url, results, args.json, code=3)
 
-                blob = bytes(range(256)) * 8            # 2 KiB, non-text binary
-                sha = hashlib.sha256(blob).hexdigest()
-                b64 = base64.b64encode(blob).decode()
+                if platform == "windows":
+                    blob = bytes(range(256)) * 8            # 2 KiB, non-text binary
+                    sha = hashlib.sha256(blob).hexdigest()
+                    b64 = base64.b64encode(blob).decode()
 
-                put = await call("file_put", path=TEMP_FILE, content_b64=b64)
-                got = await call("file_get", path=TEMP_FILE) if put.get("ok") else {}
-                ok, detail = check_roundtrip(put, got, sha, len(blob))
-                add("binary round-trip (sha256)", ok, detail)
+                    put = await call("file_put", path=TEMP_FILE, content_b64=b64)
+                    got = await call("file_get", path=TEMP_FILE) if put.get("ok") else {}
+                    ok, detail = check_roundtrip(put, got, sha, len(blob))
+                    add("binary round-trip (sha256)", ok, detail)
 
-                wrapped = "\r\n".join(b64[i:i + 76] for i in range(0, len(b64), 76))
-                put_wrapped = await call("file_put", path=TEMP_FILE, content_b64=wrapped)
-                ok, detail = check_wrapped_base64_accepted(put_wrapped, sha)
-                add("line-wrapped base64 accepted", ok, detail)
+                    wrapped = "\r\n".join(b64[i:i + 76] for i in range(0, len(b64), 76))
+                    put_wrapped = await call("file_put", path=TEMP_FILE, content_b64=wrapped)
+                    ok, detail = check_wrapped_base64_accepted(put_wrapped, sha)
+                    add("line-wrapped base64 accepted", ok, detail)
 
-                big = base64.b64encode(b"\0" * (MAX_TRANSFER_BYTES + 1)).decode()
-                over = await call("file_put", path=OVERSIZE_FILE, content_b64=big)
-                ok, detail = check_oversize_rejected(over, MAX_TRANSFER_BYTES + 1)
-                add("oversize rejected, not truncated", ok, detail)
+                    big = base64.b64encode(b"\0" * (MAX_TRANSFER_BYTES + 1)).decode()
+                    over = await call("file_put", path=OVERSIZE_FILE, content_b64=big)
+                    ok, detail = check_oversize_rejected(over, MAX_TRANSFER_BYTES + 1)
+                    add("oversize rejected, not truncated", ok, detail)
 
-                clip = await call("clipboard_set_html",
-                                  content="<h2>标题</h2><p>正文 &amp; 符号</p>")
-                ok, detail = check_clipboard(clip)
-                add("rich HTML clipboard + read-back", ok, detail)
+                    clip = await call("clipboard_set_html",
+                                      content="<h2>标题</h2><p>正文 &amp; 符号</p>")
+                    ok, detail = check_clipboard(clip)
+                    add("rich HTML clipboard + read-back", ok, detail)
 
-                clip_retry = await call("clipboard_set_html",
-                                        content="<h2>再次</h2><p>正文</p>", attempts=2)
-                ok, detail = check_attempts_reported(clip_retry, 2)
-                add("clipboard retry path reports attempts", ok, detail)
+                    clip_retry = await call("clipboard_set_html",
+                                            content="<h2>再次</h2><p>正文</p>", attempts=2)
+                    ok, detail = check_attempts_reported(clip_retry, 2)
+                    add("clipboard retry path reports attempts", ok, detail)
+                else:
+                    add("binary / clipboard checks", True,
+                        "skipped: macOS build does not ship file_put/file_get/clipboard_set_html")
 
                 waited = await call("wait_for", kind="foreground",
                                     target="__fleet_smoke_impossible__", timeout_ms=300,
@@ -311,11 +351,12 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                 ok, detail = check_uia_latency("dump_ui", dumped, dump_ms)
                 add("dump_ui returns within budget", ok, detail)
 
-                t0 = time.monotonic()
-                windows = await call("list_windows")
-                windows_ms = int((time.monotonic() - t0) * 1000)
-                ok, detail = check_uia_latency("list_windows", windows, windows_ms)
-                add("list_windows returns within budget", ok, detail)
+                if platform == "windows":
+                    t0 = time.monotonic()
+                    windows = await call("list_windows")
+                    windows_ms = int((time.monotonic() - t0) * 1000)
+                    ok, detail = check_uia_latency("list_windows", windows, windows_ms)
+                    add("list_windows returns within budget", ok, detail)
 
                 t0 = time.monotonic()
                 searched = await call("find_elements", query="__fleet_smoke_impossible__")

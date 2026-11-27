@@ -35,6 +35,8 @@ list_capabilities()   → core.tools 里应包含：
 
 ```bash
 python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
+（脚本会按设备**实际工具集**自动判定平台：有 `file_put` ⇒ Windows 跑全部；
+  只有 `wait_for` ⇒ macOS 跑通用项并跳过文件/剪贴板；两者都没有 ⇒ exit 3，说明代码不是这批。）
 ```
 
 脚本会做：工具注册检查 / 二进制往返 sha（含 **76 列折行 base64** —— 标准编码器常见输出）/
