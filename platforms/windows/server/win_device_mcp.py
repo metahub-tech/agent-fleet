@@ -1082,8 +1082,11 @@ def file_put(
     Returns {ok, path, bytes, sha256}.
     """
     import base64 as _b64
+    import re as _re
+    # 容忍换行/空白：标准编码器常按 76 列折行，直接 validate=True 会误判成坏输入。
+    compact = _re.sub(r"\s+", "", content_b64 or "")
     try:
-        data = _b64.b64decode(content_b64 or "", validate=True)
+        data = _b64.b64decode(compact, validate=True)
     except Exception:
         return {"ok": False, "reason": "invalid_base64",
                 "hint": "content_b64 must be standard base64 (padding included)"}

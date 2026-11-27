@@ -157,20 +157,69 @@ _REASON_BY_KIND = {
 }
 
 
+def _attempt_once(backend: Any, fmt: int, payload: bytes) -> tuple[bool, str, int]:
+    """跑**一轮**完整写入。返回 (ok, reason, winerror)。
+
+    所有权规则都在 finally 里，且只在这一处：
+    * ``SetClipboardData`` 成功 ⇒ 内存交给系统，**绝不** ``GlobalFree``；
+    * 失败 ⇒ 句柄仍是我们的，必须 ``GlobalFree``（每轮泄漏一块，高频重试可观测）；
+    * ``CloseClipboard`` 只在 ``OpenClipboard`` 成功后调用。
+    ``last_error()`` 必须在失败调用之后、``CloseClipboard`` 之前读（close 会覆盖它）。
+    """
+    opened = False
+    handle = 0
+    transferred = False
+    try:
+        if not backend.open_clipboard():
+            return False, _REASON_BY_KIND["open"], int(backend.last_error())
+
+        opened = True
+        if not backend.empty_clipboard():
+            return False, _REASON_BY_KIND["empty"], int(backend.last_error())
+
+        handle = int(backend.global_alloc(len(payload)))
+        if not handle:
+            return False, _REASON_BY_KIND["alloc"], int(backend.last_error())
+
+        ptr = int(backend.global_lock(handle))
+        if not ptr:
+            return False, _REASON_BY_KIND["lock"], int(backend.last_error())
+
+        backend.write_memory(ptr, payload)
+        backend.global_unlock(handle)
+
+        if not backend.set_clipboard_data(fmt, handle):
+            return False, _REASON_BY_KIND["set"], int(backend.last_error())
+
+        transferred = True
+        return True, "", 0
+    finally:
+        if handle and not transferred:
+            backend.global_free(handle)
+        if opened:
+            backend.close_clipboard()
+
+
 def set_clipboard_html(
     payload: bytes,
     attempts: int = 1,
     retry_delay_s: float = 0.1,
     api: Optional[Any] = None,
+    sleep: Optional[Any] = None,
 ) -> dict:
     """把 CF_HTML 字节写进剪贴板，只注册 ``HTML Format`` 一种格式。
 
-    返回 ``{ok, attempts, value_bytes, formats?}`` 或 ``{ok: False, reason, attempts,
-    attempts_detail}``。``reason``：``clipboard_busy``（被别的进程占着）/
-    ``clipboard_alloc_failed`` / ``clipboard_lock_failed`` / ``clipboard_write_failed``
-    / ``format_not_registered``。
+    重试是**整轮重来**：每轮重新 ``OpenClipboard``/``GlobalAlloc``/写/Set，**不复用**上一轮
+    失败留下的句柄；两轮之间 ``sleep(retry_delay_s)`` —— 占用剪贴板的是别的进程，
+    不间隔就重试等于空转。
+
+    返回 ``{ok, attempts, value_bytes, attempts_detail}`` 或
+    ``{ok: False, reason, attempts, attempts_detail}``。``reason``：
+    ``clipboard_busy`` / ``clipboard_alloc_failed`` / ``clipboard_lock_failed`` /
+    ``clipboard_write_failed`` / ``format_not_registered``。
     """
     total = max(1, int(attempts))
+    backoff = sleep if sleep is not None else time.sleep
     backend = api if api is not None else ClipboardApi()
     fmt = int(backend.register_format(CLIPBOARD_FORMAT))
     if not fmt:
@@ -181,65 +230,16 @@ def set_clipboard_html(
     last_reason = "clipboard_write_failed"
     for attempt in range(1, total + 1):
         started = time.monotonic()
-        opened = False
-        handle = 0
-        transferred = False
-        try:
-            if not backend.open_clipboard():
-                last_reason = _REASON_BY_KIND["open"]
-                detail.append({"n": attempt, "reason": last_reason,
-                               "winerror": backend.last_error(),
-                               "t_ms": int((time.monotonic() - started) * 1000)})
-                continue
-
-            opened = True
-            if not backend.empty_clipboard():
-                last_reason = _REASON_BY_KIND["empty"]
-                detail.append({"n": attempt, "reason": last_reason,
-                               "winerror": backend.last_error(),
-                               "t_ms": int((time.monotonic() - started) * 1000)})
-                continue
-
-            handle = int(backend.global_alloc(len(payload)))
-            if not handle:
-                last_reason = _REASON_BY_KIND["alloc"]
-                detail.append({"n": attempt, "reason": last_reason,
-                               "winerror": backend.last_error(),
-                               "t_ms": int((time.monotonic() - started) * 1000)})
-                continue
-
-            ptr = int(backend.global_lock(handle))
-            if not ptr:
-                last_reason = _REASON_BY_KIND["lock"]
-                detail.append({"n": attempt, "reason": last_reason,
-                               "winerror": backend.last_error(),
-                               "t_ms": int((time.monotonic() - started) * 1000)})
-                continue
-
-            backend.write_memory(ptr, payload)
-            backend.global_unlock(handle)
-
-            if not backend.set_clipboard_data(fmt, handle):
-                last_reason = _REASON_BY_KIND["set"]
-                detail.append({"n": attempt, "reason": last_reason,
-                               "winerror": backend.last_error(),
-                               "t_ms": int((time.monotonic() - started) * 1000)})
-                continue
-
-            # 成功：所有权已交给系统，绝不能 free
-            transferred = True
+        ok, reason, winerror = _attempt_once(backend, fmt, payload)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        if ok:
             return {"ok": True, "attempts": attempt, "value_bytes": len(payload),
                     "attempts_detail": detail}
-        finally:
-            # 失败路径：Set 没成功 ⇒ 句柄仍是我们的，必须 free（每次失败一块，高频重试会漏）
-            if handle and not transferred:
-                backend.global_free(handle)
-            # 只有 Open 成功才 Close：否则会关掉别人窗口上的剪贴板所有权
-            if opened:
-                backend.close_clipboard()
-        # 走到这里说明本轮失败；sleep 后整轮重来（不持锁、不复用句柄）
+        last_reason = reason
+        detail.append({"n": attempt, "reason": reason,
+                       "winerror": winerror, "t_ms": elapsed_ms})
         if attempt < total:
-            time.sleep(max(0.0, float(retry_delay_s)))
+            backoff(max(0.0, float(retry_delay_s)))
 
     return {"ok": False, "reason": last_reason, "attempts": total,
             "attempts_detail": detail}

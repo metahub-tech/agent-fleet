@@ -175,3 +175,21 @@ def test_read_busy():
     result = read_clipboard_html(api=api)
     assert result["ok"] is False and result["reason"] == "clipboard_busy"
     assert api.closed == 0
+
+def test_retry_actually_waits_between_attempts():
+    """回归：失败路径用 continue 会跳过 sleep，重试等于空转（实测曾如此）。"""
+    slept: list[float] = []
+    api = FakeApi(opens=[False, False, True], set_ok=[True])
+    result = set_clipboard_html(build_cf_html("<p>x</p>"), attempts=3,
+                                retry_delay_s=0.25, api=api, sleep=slept.append)
+    assert result["ok"] is True and result["attempts"] == 3
+    assert slept == [0.25, 0.25]          # 两轮失败 → 两次间隔；成功那轮之后不再睡
+
+
+def test_no_sleep_after_last_attempt():
+    slept: list[float] = []
+    api = FakeApi(opens=[False, False])
+    result = set_clipboard_html(b"x", attempts=2, retry_delay_s=0.5,
+                                api=api, sleep=slept.append)
+    assert result["ok"] is False
+    assert slept == [0.5]                 # 只有第一次失败后睡，最后一轮之后不睡
