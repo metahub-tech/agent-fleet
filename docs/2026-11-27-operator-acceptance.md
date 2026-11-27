@@ -89,7 +89,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.flee
 | 勾 | 判据（脚本已覆盖） |
 |---|---|
 | ☐ | 退出码 0；能力 `enabled`、`cdp_port` 存活且带 `probe_ms`、`list_tabs` **1s 内**返回、`eval` 可读、超限报 `result_too_large` 且**不带** `value`、`activate_tab` 后目标 `visible` |
-| ☐ | （手动）开两个标签，把目标页切后台 → `eval_in_profile(activate=False)` 必须 `ok=false, activated=false, reason="frozen_background_tab"` |
+| ☐ | 冻结分支：**先确定性地冻结**一个临时标签（见下「如何确定性地触发冻结」），再 `eval_in_profile(activate=False)` → 必须 `ok=false, activated=false, reason="frozen_background_tab"`。只切后台**不算**（后台≠冻结，见 B1 判据修正） |
 | ☐ | （手动）同场景默认参数 → `ok=true, activated=true` 且返回值正确 |
 
 ---
@@ -225,6 +225,47 @@ eval_in_profile(..., 默认参数)
 > 这四条脚本覆盖不到（需要"制造状态"或输入类操作），但工具调用可以照抄。
 > 下面 `P` = 你正在用的 profile 串（与 `human_browser_open` 用的**同一个**值）。
 
+### 如何确定性地触发冻结（两条都行，任选其一）
+
+**为什么需要**：切后台只是隐藏，Chrome 只在内存压力或长时间后台才冻结渲染进程。
+所以"后台 ⇒ frozen"这条负向判据在现场跑不出来，必须**主动**冻结。
+
+**方法 A · chrome://discards（零代码，手工）**
+
+1. 地址栏打开 `chrome://discards`；
+2. 找到目标标签那一行（按 URL 认），点右侧 `Freeze`；
+3. 回到标签页应看到"已冻结"提示，然后跑 `eval_in_profile(..., activate=False)`。
+
+**方法 B · CDP 直接改生命周期（可脚本化）**
+
+在浏览器级 CDP 连接上对该 tab 的 session 发：
+
+```json
+{"method": "Page.setWebLifecycleState", "params": {"state": "frozen"}}
+```
+
+解冻用 `{"state": "active"}`。用我们自己的 `_cdp` 原语即可：
+
+```python
+import sys
+sys.path.insert(0, "platforms/common")
+sys.path.insert(0, "platforms/common/capabilities/devtools")
+import _cdp
+from _devtools import resolve_udd            # profile 串 → user-data-dir 绝对路径
+
+udd = resolve_udd(profile)                    # 与 human_browser_open 用的是同一个 profile 串
+sock, port = _cdp.connect_browser(udd, 3.0)   # 浏览器级连接
+pages, _reason = _cdp.page_targets(port)
+page = next(p for p in pages if "about:blank" in (p.get("url") or ""))
+page_sock = _cdp.ws_connect(page["webSocketDebuggerUrl"], timeout=3.0)
+_cdp.call(page_sock, 1, "Page.setWebLifecycleState", {"state": "frozen"}, timeout=3.0)
+_cdp.close_quietly(page_sock)
+_cdp.close_quietly(sock)
+```
+
+> 注意：方法 B 会让**当前标签**进入冻结态，操作员用真实 profile 时请只在临时标签
+> （`about:blank`）上做，做完 `{"state": "active"}` 解冻。
+
 ### B1 判据修正（真机实测后）
 
 原先写的是「`activate=False` 打后台标签必须返回 `frozen_background_tab`」。真机实测（34 标签的运营 profile）：
@@ -248,13 +289,13 @@ eval_in_profile(js="1", url_part="appmsgid=100000037", activate=False)
 
 ```
 1) human_browser_open(url="about:blank", profile=P, activate=True)
-2) human_browser_open(url="https://example.com", profile=P, activate=True)   # 现在有两个标签
+2) 按下面「如何确定性地触发冻结」把 about:blank 这个标签冻上
 3) list_tabs(profile=P)                    → 记下 about:blank 的 url 片段（记为 U1）
 4) devtools.eval_in_profile(profile=P, js="1", url_part=U1, activate=False)
-   期望：{ok:false, activated:false, reason:"frozen_background_tab"}
+   期望：{ok:false, activated:false, reason:"frozen_background_tab"}    ← 这一条才验"冻结"
 5) devtools.eval_in_profile(profile=P, js="1", url_part=U1)          # 默认 activate=True
-   期望：{ok:true, activated:true, value:1}
-6) 收尾：手动关掉 about:blank 标签
+   期望：{ok:true, activated:true, value:1}                              ← 自动解冻并求值
+6) 收尾：解冻/关掉 about:blank 标签
 ```
 
 判据：第 4 步 **必须同时**满足 `ok=false` 且 `reason=frozen_background_tab`（不接受只判 `ok=false`）；
