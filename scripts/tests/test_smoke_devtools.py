@@ -202,3 +202,17 @@ def test_choose_target_ignores_non_http_tabs():
 
 def test_choose_target_handles_empty():
     assert sd.choose_target([]) == ("", "")
+
+
+# --- 结果里带选页线索 -----------------------------------------------------
+
+def test_describe_target_prefers_url():
+    assert sd.describe_target("https://a/b", "T1").startswith("target=url:https://a/b")
+
+
+def test_describe_target_falls_back_to_id():
+    assert sd.describe_target("", "T1") == "target=id:T1"
+
+
+def test_describe_target_reports_none():
+    assert sd.describe_target("", "").startswith("target=none")

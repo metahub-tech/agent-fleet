@@ -201,6 +201,15 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
+def describe_target(url: str, target_id: str) -> str:
+    """把选页线索格式化成一行可读文本（进结果 detail，出问题时第一眼能看出用了哪种）。"""
+    if url:
+        return f"target=url:{url[:60]}"
+    if target_id:
+        return f"target=id:{target_id}"
+    return "target=none（该 profile 没有 http 页，无法指定目标页）"
+
+
 def choose_target(tabs: list[dict]) -> tuple[str, str]:
     """从 `list_tabs` 的结果里挑一个**不会歧义**的定位线索。
 
@@ -339,9 +348,7 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                                           js="document.visibilityState",
                                           url_part=target_url, target_id=target_id)
                 ok, detail = check_eval_visibility(eval_payload)
-                if not target_url and not target_id:
-                    detail += "（该 profile 没有 http 页，无法指定目标页）"
-                add("eval_in_profile read", ok, detail)
+                add("eval_in_profile read", ok, detail + " | " + describe_target(target_url, target_id))
 
                 oversize_payload = await call("eval_in_profile", profile=profile,
                                               js="'x'.repeat(4096)", max_result_bytes=1024,
