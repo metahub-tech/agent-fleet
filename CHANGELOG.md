@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **macOS `wait_for(text)` 的探测预算与 Windows 对齐（默认 4s，`FLEET_WAIT_PROBE_BUDGET`）**：mac 端同样是"每次探测走完整 AX 遍历、吃满 8s 预算"，导致等待退化成 1–2 次采样。`_ax_walk_budgeted` / `_mac_find_elements` 增加可选 `budget_s`，等待场景按 4s 探测；其余调用点预算不变。
 
+- **Android `wait_for(text)` 的探测预算按等待预算推导**：一次 `uiautomator dump`（默认 15s）+ `cat`（10s）比 `wait_for` 的默认 10s 总预算还长 ⇒ 等待**必然超时**，条件成立也等不到。现在 `_probe_budgets(timeout_ms)` 取总预算的 1/3（夹在 1s–上限之间），默认 10s 等待可采 ~2 个样本、60s 可放大。
+- **Android server 变成 Linux 可测**：把 `ATB_ANDROID_ADB` 指到 `/bin/true` 后 server 能在 Linux 上 import，于是 `_dump_ui_impl` / `_find_elements_impl`（新抽出、显式 serial + 可调超时）与 `wait_for` / `run_actions` 的接线可以**真跑**，不再只靠读代码。新增 6 条运行时用例（结构化错误、预算推导、ctx/设备解析、整批预校验）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

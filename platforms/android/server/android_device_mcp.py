@@ -310,6 +310,28 @@ def _format_known(detected: list[DeviceInfo], aliases: dict[str, str]) -> str:
     return ", ".join(bits)
 
 
+#: uiautomator dump / cat 的默认超时（原有取值，保持不变）
+UI_DUMP_TIMEOUT_S = 15.0
+UI_CAT_TIMEOUT_S = 10.0
+#: `wait_for` 探测用的**上限**：实际取值按等待总预算的三分之一推导
+#: （见 `_probe_budgets`），保证默认 10s 的等待至少能采到 2 个样本。
+WAIT_PROBE_DUMP_TIMEOUT_S = 5.0
+WAIT_PROBE_CAT_TIMEOUT_S = 2.0
+
+
+def _probe_budgets(timeout_ms: int) -> tuple[float, float]:
+    """按等待总预算推导单次探测的 (dump, cat) 超时。
+
+    一次 uiautomator dump 默认 15s、cat 10s —— 直接吃满的话，默认 10s 的
+    `wait_for` 永远超时（条件成立了也等不到）。这里取总预算的 1/3 作为单次上限，
+    并夹在 [1s, WAIT_PROBE_*] 之间：短等待用小探测，长等待可以放大。
+    """
+    third = max(0.0, float(timeout_ms)) / 3000.0
+    dump_s = max(1.0, min(WAIT_PROBE_DUMP_TIMEOUT_S, third))
+    cat_s = max(1.0, min(WAIT_PROBE_CAT_TIMEOUT_S, third))
+    return dump_s, cat_s
+
+
 def _resolve_device(
     device_arg: Optional[str],
     session_default: Optional[str] = None,
@@ -1371,14 +1393,27 @@ def dump_ui(
     """
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
+    return _dump_ui_impl(serial, max_depth=max_depth)
+
+
+def _dump_ui_impl(serial: str, max_depth: int = 12,
+                  dump_timeout: float = UI_DUMP_TIMEOUT_S,
+                  cat_timeout: float = UI_CAT_TIMEOUT_S) -> dict:
+    """`dump_ui` 的实现体（显式 serial + 可调超时）。
+
+    为什么要拆出来：`find_elements` / `wait_for` 的探测都走这里，
+    而等待类调用方必须能用**更小的单次预算**——否则一次 uiautomator dump
+    （默认 15s）+ cat（10s）就超过 `wait_for` 的默认 10s 总预算，
+    等待变成"永远超时"。
+    """
     # 1. uiautomator dump on device → /sdcard/window_dump.xml
     dump_path_device = "/sdcard/window_dump.xml"
-    r = _adb_exec(f"uiautomator dump {dump_path_device}", timeout=15, serial=serial)
+    r = _adb_exec(f"uiautomator dump {dump_path_device}", timeout=dump_timeout, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "uiautomator dump failed", "stderr": r["stderr"]}
 
     # 2. cat the XML back (avoids needing a host tmp file)
-    r = _adb_exec(f"cat {dump_path_device}", timeout=10, capture_bytes=True, serial=serial)
+    r = _adb_exec(f"cat {dump_path_device}", timeout=cat_timeout, capture_bytes=True, serial=serial)
     if r["returncode"] != 0:
         return {"ok": False, "error": "cat dump failed", "stderr": r["stderr"]}
     # _adb_run(capture_bytes=True) puts raw bytes in "stdout_bytes" and sets
@@ -1425,7 +1460,17 @@ def find_elements(
 
     serial = _resolve_device(device, _get_session_default(ctx))
     _state_registry.touch(serial)
-    dump = dump_ui(device=serial)
+    return _find_elements_impl(serial, text=text, resource_id=resource_id,
+                               content_desc=content_desc, class_name=class_name,
+                               clickable_only=clickable_only)
+
+
+def _find_elements_impl(serial: str, *, text=None, resource_id=None, content_desc=None,
+                        class_name=None, clickable_only=False,
+                        dump_timeout: float = UI_DUMP_TIMEOUT_S,
+                        cat_timeout: float = UI_CAT_TIMEOUT_S) -> dict:
+    """`find_elements` 的实现体（显式 serial + 可调超时，供 wait_for 探测复用）。"""
+    dump = _dump_ui_impl(serial, dump_timeout=dump_timeout, cat_timeout=cat_timeout)
     if not dump.get("ok"):
         return dump
 
@@ -1548,18 +1593,22 @@ def wait_for(
     if not needle:
         return {"ok": False, "reason": "missing_target", "hint": "pass the query in `target`"}
 
-    find_fn = getattr(find_elements, "fn", find_elements)
+    find_impl = _find_elements_impl
     current_fn = getattr(current_app, "fn", current_app)
+    serial = _resolve_device(device, _get_session_default(ctx))
 
     def _probe_text():
-        res = find_fn(text=needle, device=device, ctx=ctx)
+        # 等待场景用按预算推导的单次超时：一次 uiautomator dump 默认 15s，
+        # 会直接吃掉 `wait_for` 的 10s 总预算（等待将永远超时）。
+        dump_s, cat_s = _probe_budgets(timeout_ms)
+        res = find_impl(serial, text=needle, dump_timeout=dump_s, cat_timeout=cat_s)
         if isinstance(res, dict) and res.get("error"):
             raise RuntimeError(str(res["error"]))
         count = len(res.get("elements") or []) if isinstance(res, dict) else 0
         return count > 0, {"count": count, "elements": (res.get("elements") or [])[:3]}
 
     def _probe_app():
-        info = current_fn(device=device, ctx=ctx)
+        info = current_fn(device=serial, ctx=ctx)
         text = f"{info.get('package') or ''} {info.get('activity') or ''}" if isinstance(info, dict) else ""
         return needle.lower() in text.lower(), info
 

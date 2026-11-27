@@ -81,16 +81,26 @@ def test_run_actions_passes_ctx_to_registry(parsed):
     )
 
 
-def test_wait_for_passes_ctx_to_probes(parsed):
-    """`wait_for` 有两个探测（text / app），**两个都要**带 ctx。
+def test_wait_for_honours_session_default_device(parsed):
+    """`wait_for` 不许丢掉"会话级默认设备"。
 
-    只带一个也会让另一半路径丢掉会话默认设备——真机单设备看不出，多设备直接失败。
+    两个平台的实现方式不同，但都要求同一条不变量：
+    * android：进入 `wait_for` 先 `_resolve_device(device, _get_session_default(ctx))`
+      解析出 serial，探测统一用它（比逐探测传 ctx 更省）；
+    * ios：两个探测（text / app）各自把 ctx 传下去。
+
+    判定方式：要么出现 `_get_session_default(ctx)`，要么两个探测都带 ctx。
     """
     platform, tree = parsed
     func = _func(tree, "wait_for")
+    source = ast.unparse(func)
     ctx_kwargs = [kw for call in _calls(func) for kw in call.keywords if kw.arg == "ctx"]
+
+    if "_get_session_default" in source:
+        return                       # android：已显式解析会话默认设备
     assert len(ctx_kwargs) >= 2, (
-        f"{platform}: wait_for 只有 {len(ctx_kwargs)} 处探测传了 ctx（text/app 两个都要）"
+        f"{platform}: wait_for 既没有解析会话默认设备，也没有让两个探测都带 ctx —— "
+        "set_default_device 会静默失效"
     )
 
 
@@ -113,3 +123,14 @@ def test_batch_allowlist_has_no_dangerous_tools(parsed):
     assert allowlist, f"{name} 不存在"
     leaked = set(allowlist) & FORBIDDEN_IN_BATCH[platform]
     assert not leaked, f"{platform}: 白名单混入了不该批处理的工具 {leaked}"
+
+
+def test_android_wait_for_resolves_device_once(parsed):
+    """android 的 wait_for 必须**先解析** serial，再拿它调用探测（不再逐探测传 device）。"""
+    platform, tree = parsed
+    if platform != "android":
+        pytest.skip("android 专属")
+    func = _func(tree, "wait_for")
+    names = _called_names(func)
+    assert "_resolve_device" in names, "wait_for 没有解析目标设备"
+    assert "_get_session_default" in names, "解析时没有带上会话默认设备"
