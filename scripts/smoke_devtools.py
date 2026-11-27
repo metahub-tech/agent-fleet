@@ -193,12 +193,28 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          "empty = the server's 'isolated' default). "
                          "Do NOT wrap it in quotes — surrounding quotes are stripped "
                          "defensively because they otherwise become part of the path.")
+    ap.add_argument("--target-id-check", dest="target_id_check", action="store_true",
+                    help="Extra check: pass a real target_id from list_tabs straight to "
+                         "eval_in_profile (verifies the target_id plumbing; no click/typing)")
     ap.add_argument("--json", action="store_true", help="print machine-readable results")
     ap.add_argument("--timeout", type=float, default=180.0,
                     help="Overall wall-clock budget for the whole run (default 180s; "
                          f"values below {MIN_TIMEOUT_S:g}s are raised to it) — "
                          "a hung device must not hang your shell")
     return ap.parse_args(argv)
+
+
+def pick_target_id(tabs: list[dict]) -> str:
+    """取第一个带 `target_id` 的标签，用于验证「直传 target_id 的调用链」。
+
+    规则 2（全重复时回退 target_id）真正的风险不在"选择逻辑"，而在**下游能否用
+    `target_id` 跑通**（`eval_in_profile(target_id=…)` / `activate_tab(target_id=…)`）。
+    真机不必构造全重复 profile：随便挑一个真实 target_id 直传即可验这条链路。
+    """
+    for tab in tabs or []:
+        if isinstance(tab, dict) and tab.get("target_id"):
+            return str(tab["target_id"])
+    return ""
 
 
 def describe_target(url: str, target_id: str) -> str:
@@ -358,6 +374,16 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                                               url_part=target_url, target_id=target_id)
                 ok, detail = check_oversize_is_rejected(oversize_payload, 1024)
                 add("oversize rejected, not truncated", ok, detail)
+                if getattr(args, "target_id_check", False):
+                    tid = pick_target_id(tabs_payload.get("tabs") or [])
+                    if not tid:
+                        add("eval_in_profile via target_id", False, "list_tabs returned no target_id")
+                    else:
+                        tid_payload = await call("eval_in_profile", profile=profile, js="1",
+                                                 target_id=tid)
+                        add("eval_in_profile via target_id", bool(tid_payload.get("ok")),
+                            f"target_id={tid[:16]}… value={tid_payload.get('value')!r} "
+                            f"| {describe_target('', tid)}")
 
                 first_url = ""
                 for tab in tabs_payload.get("tabs") or []:

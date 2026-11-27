@@ -88,6 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **human_dom 状态扫描不再泄漏文件句柄**：`compute_status` / `_installed_on_disk` 用 `json.load(open(...))` 读 `meta.json` / `loaded.json`，关闭交给 GC；而 `human_dom_status` 每次会遍历所有 bake 目录（真机 34 个），句柄数随调用次数上涨。改为 `with open(...)`。
 
+- **`smoke_devtools --target-id-check`：不构造重复 profile 也能验 `target_id` 管线**：规则 2（全重复时回退 `target_id`）的真正风险不在选择逻辑，而在**下游能否用 `target_id` 跑通**。新增开关：从 `list_tabs` 取一个真实 `target_id` 直传 `eval_in_profile`，确认 `ok` 且能求值。默认关闭（不改变既有跑法）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

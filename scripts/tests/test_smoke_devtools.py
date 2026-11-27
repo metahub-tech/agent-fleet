@@ -233,3 +233,10 @@ def test_describe_target_falls_back_to_id():
 
 def test_describe_target_reports_none():
     assert sd.describe_target("", "").startswith("target=none")
+
+
+def test_pick_target_id():
+    tabs = [{"target_id": "A", "url": "https://a/1"}, {"target_id": "B", "url": "about:blank"}]
+    assert sd.pick_target_id(tabs) == "A"
+    assert sd.pick_target_id([]) == ""
+    assert sd.pick_target_id([{"url": "https://x"}]) == ""
