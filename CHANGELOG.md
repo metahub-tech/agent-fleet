@@ -61,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **发布 SOP 补「平台 × 原语适配矩阵」**：此前 playbook 只有公众号（PC 客户端）的具体步骤，而目标场景包含知乎/抖音。新增一节说明三者该用哪一端、哪套原语、以及各自的真机验证状态（公众号已验、知乎/抖音未验），并写清"网页端用 `human_browser` 而非 `agent_browser`"的原因（真账号零自动化痕迹 + 共享 profile 租约）。
 
+- **`dump_ui` 超时也留痕（与 `list_windows` 对齐）**：真机反馈指出此前只有 `list_windows` 会打 `[uia]` 日志，于是"日志里没有这行 ⇒ 正常返回"这种推断对 `dump_ui` 不成立。现在超时同样写一行（含实际等待秒数），下次定位偶发慢调用时判定依据一致。
+- **激活语义写进 SOP**：`activate_tab` / `eval_in_profile(activate=True)` 失败后重试一次；但真机实测"浏览器真忙时第二次大概率也卡 3s"（最坏 6.2s），因此调用方应把它当**"可以继续但没焦点"**：只读 eval 仍可 `activate=False`，粘贴/输入类动作必须重新确认前台，不要把整条链路判死。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

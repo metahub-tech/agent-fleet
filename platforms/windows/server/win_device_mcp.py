@@ -373,7 +373,16 @@ def _dump_tree_budgeted(win, max_depth: int | None) -> str:
     pathological accessibility provider; without this budget the whole MCP
     request thread stays stuck and the agent's tool call never returns.
     """
-    return run_with_timeout(lambda: _dump_window_tree(win, max_depth), UIA_TIMEOUT_S, "dump_ui")
+    started = time.monotonic()
+    try:
+        return run_with_timeout(lambda: _dump_window_tree(win, max_depth), UIA_TIMEOUT_S, "dump_ui")
+    except UiaTimeout:
+        # 与 list_windows 对齐：超时**也**要留痕。真机反馈指出此前只有 list_windows 会打日志，
+        # 于是"日志里没有这行 ⇒ 正常返回"这种推断对 dump_ui 不成立。
+        elapsed = time.monotonic() - started
+        print(f"[uia] dump_ui timed out after {UIA_TIMEOUT_S:g}s "
+              f"(waited {elapsed:.1f}s; budget applies to the tree walk)", file=sys.stderr)
+        raise
 
 
 # Ordered identifying attributes for find_elements/tap_element query matching;

@@ -163,6 +163,7 @@ run_actions(steps=[
 | `reason: "uia_timeout"` | 无障碍提供者忙/挂 | 重试一次；仍失败则 `take_screenshot` + 坐标 |
 | `find_elements` 查不到中文 | 「一字一节点」 | 已自动合并（看 `merged:true`）；仍无 → `vision_locate` |
 | `clipboard_set_html` `readback_failed` | 剪贴板内容没保住 | **不要粘**；重试一次；再降级 `human_dom_fill` |
+| 激活超时（`cdp_timeout`，约 3s 后重试一次） | 浏览器忙（真机实测：忙时 3.1–3.3s 超时，闲时 296ms） | **按"可以继续但没焦点"处理**：只读 `eval_in_profile(activate=False, url_part=…)` 仍可用；粘贴/输入类动作必须先用 `wait_for(kind="foreground")` 或 `list_tabs` 重新确认前台，再继续。**不要**因为一次激活失败就判定整条链路失败（最坏 3+0.2+3≈6.2s） |
 | `eval_in_profile` `frozen_background_tab` | 后台 tab 冻结 | `activate_tab` 后重试 |
 | `eval_in_profile` `page_ambiguous` | 多 tab 且未指定目标页 | 从 `list_tabs` 取目标页 url 子串，带 `url_part=` 重试 |
 | `wait_for` `probe_failed` | **一次都没探成**（探测本身报错，条件从未被评估） | 调大探测预算（`FLEET_WAIT_PROBE_BUDGET`）或看 `last_error`；**别**当成"条件不成立"去重试 |

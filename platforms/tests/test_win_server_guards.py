@@ -98,3 +98,15 @@ def test_wait_for_text_probe_uses_shorter_budget(tree):
     source = ast.unparse(func)
     assert "WAIT_PROBE_BUDGET_S" in source, "wait_for 的 text 探测又用回整段 UIA 预算"
     assert "budget_s=" in source, "find_elements 调用没有传 budget_s"
+
+
+def test_dump_ui_logs_timeouts(tree):
+    """`dump_ui` 超时也要留痕。
+
+    真机反馈：此前只有 `list_windows` 会打 `[uia]` 行，于是"日志里没有这行 ⇒ 正常返回"
+    这种推断对 `dump_ui` 不成立，直接导致一次误判（把 11.98s 当成未解异常）。
+    """
+    func = _func(tree, "_dump_tree_budgeted")
+    source = ast.unparse(func)
+    assert "[uia] dump_ui timed out after" in source, "dump_ui 超时不再留痕"
+    assert "monotonic" in _called_names(func), "没有记录实际等待时长"
