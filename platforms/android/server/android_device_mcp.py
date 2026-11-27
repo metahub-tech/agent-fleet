@@ -1523,6 +1523,7 @@ def wait_for(
     timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
     interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,
     device: Annotated[Optional[str], Field(description="serial or alias; omit if only 1 phone or you've set a default")] = None,
+    ctx: Context = None,
 ) -> dict:
     """Wait **on the device** until a condition holds — instead of sleeping blindly.
 
@@ -1545,14 +1546,14 @@ def wait_for(
     current_fn = getattr(current_app, "fn", current_app)
 
     def _probe_text():
-        res = find_fn(text=needle, device=device)
+        res = find_fn(text=needle, device=device, ctx=ctx)
         if isinstance(res, dict) and res.get("error"):
             raise RuntimeError(str(res["error"]))
         count = len(res.get("elements") or []) if isinstance(res, dict) else 0
         return count > 0, {"count": count, "elements": (res.get("elements") or [])[:3]}
 
     def _probe_app():
-        info = current_fn(device=device)
+        info = current_fn(device=device, ctx=ctx)
         text = f"{info.get('package') or ''} {info.get('activity') or ''}" if isinstance(info, dict) else ""
         return needle.lower() in text.lower(), info
 
@@ -1570,13 +1571,15 @@ _ANDROID_BATCH_ALLOWLIST = (
 )
 
 
-def _batch_registry() -> dict:
+def _batch_registry(ctx: Context = None) -> dict:
+    """把白名单工具包成可调用项；**注入 ctx**，否则 steps 里省略 device 时会丢掉
+    会话级默认设备（set_default_device 设了也用不上）。"""
     registry = {}
     for name in _ANDROID_BATCH_ALLOWLIST:
         obj = globals().get(name)
         fn = getattr(obj, "fn", obj)
         if callable(fn):
-            registry[name] = fn
+            registry[name] = _batch.make_caller(fn, {"ctx": ctx})
     return registry
 
 
@@ -1585,6 +1588,7 @@ def run_actions(
     steps: Annotated[list[dict], Field(description="Ordered steps: [{tool, args?, sleep_ms?}, …] (max 25)")],
     stop_on_error: Annotated[bool, Field(description="Stop at the first failed step (default)")] = True,
     delay_ms: Annotated[int, Field(ge=0, le=5000, description="Fixed pause between steps (ms)")] = 0,
+    ctx: Context = None,
 ) -> dict:
     """Run several device actions in **one** call (fewer round-trips, less state drift).
 
@@ -1594,7 +1598,7 @@ def run_actions(
     before anything runs. `stop_on_error=True` stops at the first failure and marks
     the rest `skipped`. Pass `device` inside each step's `args` for multi-device.
     """
-    registry = _batch_registry()
+    registry = _batch_registry(ctx)
     try:
         validated = _batch.validate_steps(steps, registry)
     except _batch.StepError as exc:

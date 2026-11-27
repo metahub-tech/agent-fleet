@@ -81,6 +81,36 @@ def validate_steps(steps: Any, registry: Mapping[str, Callable], max_steps: int 
     return out
 
 
+def make_caller(fn: Callable, extra_kwargs: Mapping[str, Any]) -> Callable:
+    """给工具函数包一层"默认参数注入"，**只在函数签名真的接受时才注入**。
+
+    用途：移动端 server 的工具靠 `ctx` 取会话级默认设备；批量执行器调用的是内层
+    函数（没有 FastMCP 注入的 ctx），不把 ctx 传下去就会出现"set_default_device 设了、
+    但批量和等待里用不上"的静默失效。桌面的工具没有 ctx 参数，所以必须按签名判断，
+    不能无脑多传一个 kwarg（否则 TypeError）。
+    """
+    import inspect
+
+    if not extra_kwargs:
+        return fn
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):        # 取不到签名（内置/C 扩展）→ 不注入
+        return fn
+    accepts_var_kw = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    injectable = {k: v for k, v in extra_kwargs.items()
+                  if accepts_var_kw or (k in params and params[k].kind in (
+                      inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY))}
+    if not injectable:
+        return fn
+
+    def wrapper(**kwargs):
+        merged = {**injectable, **kwargs}   # 调用方显式传的优先
+        return fn(**merged)
+
+    return wrapper
+
+
 def run_steps(
     steps: list[dict],
     registry: Mapping[str, Callable],

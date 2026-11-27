@@ -115,3 +115,39 @@ def test_binary_results_are_made_json_safe():
     # 结果必须能 JSON 化
     import json
     json.dumps(out)
+
+
+# --- make_caller：只在签名接受时注入默认参数（mobile ctx 场景） ----------
+
+def test_make_caller_injects_only_when_accepted():
+    from _batch import make_caller
+
+    def with_ctx(device=None, ctx=None):
+        return {"ctx": ctx, "device": device}
+
+    def without_ctx(device=None):
+        return {"device": device}
+
+    a = make_caller(with_ctx, {"ctx": "C1"})
+    assert a(device="d1") == {"ctx": "C1", "device": "d1"}
+
+    b = make_caller(without_ctx, {"ctx": "C1"})   # 不接受 ctx → 不得多传（否则 TypeError）
+    assert b(device="d2") == {"device": "d2"}
+
+
+def test_make_caller_explicit_kwargs_win():
+    from _batch import make_caller
+
+    def fn(ctx=None):
+        return ctx
+
+    assert make_caller(fn, {"ctx": "default"})(ctx="explicit") == "explicit"
+
+
+def test_make_caller_handles_var_kwargs():
+    from _batch import make_caller
+
+    def fn(**kwargs):
+        return kwargs
+
+    assert make_caller(fn, {"ctx": "C"})(device="d") == {"ctx": "C", "device": "d"}
