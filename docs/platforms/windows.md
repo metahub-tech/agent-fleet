@@ -321,7 +321,8 @@ MCP 的请求线程 ⇒ 工具调用**永不返回**。现在每次 UIA 遍历/�
 **验收（只读，不点不输）**：在**已启用 devtools 且浏览器已开着**的设备上跑
 
 ```bash
-python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fleet/<op-id>"
+python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id>
+# Windows PowerShell 里别给 --profile 加引号（脚本会剥掉，但加了容易把引号带进路径）
 ```
 
 它会依次断言：能力 `enabled`、`cdp_port` 存活（或给出可操作的 `reason`）、`list_tabs`

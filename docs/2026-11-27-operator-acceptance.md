@@ -68,6 +68,7 @@ python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
 | ☐ | 写一段带 `<h2>` 的 HTML | 返回 `ok=true, verified=true`，`readback` 字段给出比对方（`bytes_equal`/`fragment_equal`/`invariants_only`） |
 | ☐ | 看落地格式 | 返回的 `formats` **只有** `["HTML Format"]`（`only_html_format=true`）；出现 `CF_UNICODETEXT` 等即算不符 |
 | ☐ | 粘进公众号正文编辑器 | 正文非空白字数 / 稿源 ≥ 95%；无 `\ufffd`；H2 `border-left` = 4px；相邻 `<p>` 间距 ≈ 20px（`gapsSummary.median`=20、`max`=34） |
+| ☐ | 多标签 profile 的 eval | `eval_in_profile` **必须带** `url_part`（或用 `target_id`），否则 `page_ambiguous`；带上后应命中该页 |
 | ☐ | 负向：另一个进程正占着剪贴板 | `attempts=1` 时返回 `ok=false, reason="clipboard_busy"`；`attempts=2` 时第二轮成功且 `attempts=2` |
 
 > 证据：`formats` 列表原样贴出 + 粘贴后 `verify-draft` 的 JSON（含 `scriptVersion`）。
@@ -80,7 +81,8 @@ python3 scripts/smoke_ops.py --url http://<host>:8766/mcp --json
 确认（默认已开）：`list_capabilities()` 里 devtools 应为 `enabled`；若被本机 `.fleet/config.toml` 关掉，去掉该覆盖并重启 server。
 
 ```bash
-python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fleet/<op-id>"
+python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile ~/.fleet/<op-id>
+# --profile 不要加引号（脚本会剥，但加了容易把引号带进路径）；脚本会自动挑 list_tabs 里的第一个 http 页去 eval
 ```
 
 | 勾 | 判据（脚本已覆盖） |
