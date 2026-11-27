@@ -65,31 +65,49 @@ ACTIVATE_RETRIES = 1
 ACTIVATE_RETRY_DELAY_S = 0.2
 
 
+def should_retry_activation(error: Optional[dict]) -> bool:
+    """只有**超时**值得重试；连接已坏（send/recv 失败）重试只是再白等一个超时。
+
+    `_cdp.call` 把几种情况都归到 ``reason:"cdp_timeout"``，但 ``message`` 区分得开：
+    ``"… timed out"`` 是真超时，``"send failed: …"`` / ``"recv failed: …"`` 是链路坏了。
+    另外 CDP 层明确拒答（``cdp_error``）也不重试——重试同样会被拒。
+    """
+    if not error:
+        return False
+    if error.get("reason") != "cdp_timeout":
+        return False
+    message = str(error.get("message") or "")
+    return not (message.startswith("send failed") or message.startswith("recv failed"))
+
+
 def activate_with_retry(sock, target_id: str, *,
                         retries: int = ACTIVATE_RETRIES,
                         delay_s: float = ACTIVATE_RETRY_DELAY_S,
+                        first_cid: int = 1,
                         call=None,
                         sleep=None) -> tuple[Optional[dict], Optional[dict]]:
-    """`Target.activateTarget`，失败（超时/CDP 错误）后**重试一次**。
+    """`Target.activateTarget`，**超时**后重试（默认一次）。
 
     为什么值得重试：真机同一 profile、10 分钟内，`eval(activate=True)` 与
     `activate_tab` 都出现过 3.3s/3.1s 的 `cdp_timeout`（当时另一个发布流程在跑），
     而空闲时同一调用只要 **296ms**。激活是幂等操作，重试一次比把超时调大一倍更划算
     （最坏情况 3s+0.2s+3s，成功路径基本不变）。
 
+    但**不是所有失败都值得重试**：连接已坏（send/recv 失败）时再试只会白等一个超时，
+    见 :func:`should_retry_activation`。
+
     返回与 `_cdp.call` 相同：``(message, error)``。
     """
     caller = call or _cdp.call
     sleeper = sleep or time.sleep
     params = {"targetId": target_id}
-    msg, err = caller(sock, 1, "Target.activateTarget", params, timeout=ACTIVATE_TIMEOUT)
+    msg, err = caller(sock, first_cid, "Target.activateTarget", params, timeout=ACTIVATE_TIMEOUT)
     attempt = 0
-    while err is not None and attempt < retries:
+    while should_retry_activation(err) and attempt < retries:
         attempt += 1
         sleeper(delay_s)
-        msg2, err2 = caller(sock, 2 + attempt, "Target.activateTarget", params,
-                            timeout=ACTIVATE_TIMEOUT)
-        msg, err = msg2, err2
+        msg, err = caller(sock, first_cid + attempt, "Target.activateTarget", params,
+                          timeout=ACTIVATE_TIMEOUT)
     return msg, err
 
 

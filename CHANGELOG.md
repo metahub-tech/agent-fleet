@@ -70,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`smoke_devtools.choose_target` 的回退分支字段名写错（死代码）**：`list_tabs` 的 tab 契约是 `{target_id,url,title,visibility}`，回退分支却读 `tab["id"]`，于是"所有 http url 都重复时退回 target_id"这条路**永远返回空串**、等于没接通。已改为 `target_id`，并把测试夹具改成用真实的 `normalize_tab` 构造（此前夹具用的是 `{"id":…}`，正好与错误实现"互相印证"，把死代码测成了活的）。
 
+- **激活重试只在"真超时"时发生**：`_cdp.call` 把超时与链路故障都归到 `cdp_timeout`，但后者重试只是再白等一个超时。新增 `should_retry_activation()`：只有 `message` 为 `… timed out` 才重试；`send failed` / `recv failed` / `cdp_error` 一律不重试。重试的请求 id 也改为顺序（1→2），避免与其它调用混淆。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

@@ -381,7 +381,7 @@ def test_activate_with_retry_gives_up_after_one_retry():
 
     def always_fail(sock, cid, method, params, timeout=None):
         calls.append(cid)
-        return None, {"reason": "cdp_timeout"}
+        return None, {"reason": "cdp_timeout", "message": "Target.activateTarget timed out"}
 
     msg, err = dv.activate_with_retry(object(), "T", call=always_fail, sleep=lambda s: None)
     assert msg is None and err["reason"] == "cdp_timeout"
@@ -413,3 +413,41 @@ def test_normalize_tab_exposes_the_documented_keys():
     assert tab["target_id"] == "X1"
     assert "id" not in tab, "不要把 /json 的 `id` 混进工具契约"
     assert tab["visibility"] == "unknown"
+
+
+# --- 只有"真超时"才重试（连接坏了重试只是再白等）-------------------------
+
+def test_should_retry_activation_matrix():
+    assert dv.should_retry_activation(None) is False
+    assert dv.should_retry_activation({"reason": "cdp_error", "message": "x"}) is False
+    assert dv.should_retry_activation(
+        {"reason": "cdp_timeout", "message": "Target.activateTarget timed out"}) is True
+    assert dv.should_retry_activation(
+        {"reason": "cdp_timeout", "message": "recv failed: [Errno 9]"}) is False
+    assert dv.should_retry_activation(
+        {"reason": "cdp_timeout", "message": "send failed: broken pipe"}) is False
+
+
+def test_activate_with_retry_does_not_retry_on_broken_socket():
+    calls = []
+
+    def broken(sock, cid, method, params, timeout=None):
+        calls.append(cid)
+        return None, {"reason": "cdp_timeout", "message": "recv failed: [Errno 104]"}
+
+    msg, err = dv.activate_with_retry(object(), "T", call=broken, sleep=lambda s: None)
+    assert msg is None and err["message"].startswith("recv failed")
+    assert len(calls) == 1, "连接已坏时不应重试"
+
+
+def test_activate_with_retry_uses_sequential_ids():
+    ids = []
+
+    def flaky(sock, cid, method, params, timeout=None):
+        ids.append(cid)
+        if len(ids) == 1:
+            return None, {"reason": "cdp_timeout", "message": "timed out"}
+        return {"ok": 1}, None
+
+    dv.activate_with_retry(object(), "T", call=flaky, sleep=lambda s: None)
+    assert ids == [1, 2], ids
