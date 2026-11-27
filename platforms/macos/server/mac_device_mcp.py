@@ -1216,11 +1216,12 @@ def wait_for(
     Any kind also accepts a ``_gone`` suffix (``app_gone`` / ``foreground_gone`` /
     ``text_gone``) meaning "wait until it disappears" — e.g. confirming a sheet closed.
 
-    Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success and
-    ``{ok:false, reason:"timeout", ...}`` on expiry — a timeout is a **normal answer**,
-    so branch on `ok` and pick a fallback. Probe errors don't abort the wait; the last
-    one is reported as `last_error`.
-    """
+    Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success. On expiry the
+    reason is ``"timeout"`` (probes ran fine, the condition never held) or
+    ``"probe_failed"`` (every probe raised, so the condition was never actually evaluated —
+    check `last_error` / raise the probe budget). A timeout is a **normal answer**:
+    branch on `ok` and pick a fallback, do not retry in a loop.
+"""
     kind_norm = (kind or "").strip().lower()
     want_gone = kind_norm.endswith("_gone")
     base_kind = kind_norm[:-5] if want_gone else kind_norm

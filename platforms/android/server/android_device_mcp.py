@@ -1531,10 +1531,12 @@ def wait_for(
       * ``text`` — a UI element matching `target` exists (walks the device's UI dump);
       * ``app``  — the foreground package/activity contains `target`.
 
-    Returns ``{ok, matched, elapsed_ms, attempts}`` on success and
-    ``{ok:false, reason:"timeout", ...}`` on expiry — a timeout is a **normal answer**,
-    so branch on `ok` and pick a fallback instead of retrying blindly.
-    """
+    Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success. On expiry the
+    reason is ``"timeout"`` (probes ran fine, the condition never held) or
+    ``"probe_failed"`` (every probe raised, so the condition was never actually evaluated —
+    check `last_error` / raise the probe budget). A timeout is a **normal answer**:
+    branch on `ok` and pick a fallback, do not retry in a loop.
+"""
     kind_norm = (kind or "").strip().lower()
     want_gone = kind_norm.endswith("_gone")
     base_kind = kind_norm[:-5] if want_gone else kind_norm

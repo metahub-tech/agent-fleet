@@ -1376,8 +1376,11 @@ def wait_for(
     closed before the next action.
 
     Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success and
-    ``{ok:false, reason:"timeout", elapsed_ms, attempts, timeout_ms}`` on expiry —
-    a timeout is a **normal answer**, not an error: branch on `ok` and pick a fallback.
+    ``{ok:false, reason:"timeout", elapsed_ms, attempts, failed_probes}`` on expiry.
+    `reason` is ``"timeout"`` when probes ran fine but the condition never held, and
+    ``"probe_failed"`` when **every** probe raised (the condition was never actually
+    evaluated — check `last_error` / raise the probe budget). A timeout is a **normal
+    answer**, not an error: branch on `ok` and pick a fallback.
     Polling errors (e.g. a window being recreated) don't abort the wait; the last one
     is reported as `last_error`.
     """
