@@ -225,6 +225,33 @@ B3 = pass/fail（dump_ui 耗时=?ms）   B4 = pass/fail/N-A（应用名=?）
 **尚未验证**：B 组（后台标签 `frozen_background_tab`、剪贴板粘贴保真、UIA 卡死回归、
 中文元素 `merged`/`clicked_text_span`）——它们需要输入类操作，必须等设备空闲。
 
+
+---
+
+## 失败归因速查（smoke 报了 FAIL 时先查这里）
+
+> 目的是把「FAIL」在三秒内分成三类：**判据 bug（我方脚本）／实现 bug（我方代码）／环境问题（设备侧）**。
+> 分类不同，处理人也不同——判据 bug 我改脚本，实现 bug 我改代码，环境问题请设备侧处理。
+
+| FAIL 项 | 先看什么 | 大概率归因 |
+|---|---|---|
+| `required tools registered` | 报错里 `missing tools` 列了哪些、`got N live tools` 是多少 | 全缺 + 有 devtools ⇒ **设备跑的是旧码**（环境），不是缺陷 |
+| `binary round-trip (sha256)` | `file_put` 的 sha 与 `file_get` 的 sha 是否一致 | 一个对一个是 impl；两个都错是 put 侧 impl；`ok=false` 且 reason 明确 ⇒ 先看 reason |
+| `line-wrapped base64 accepted` | 报 `invalid_base64` ⇒ **实现 bug**（空白未剥离）；`ok=false` 其它 reason ⇒ 看 reason | 判据无歧义，`invalid_base64` 一定是实现问题 |
+| `oversize rejected` | `reason` 是否为 `file_too_large`、`bytes` 是否 = 5 MiB+1 | reason 对但 bytes 错 ⇒ impl；reason 是 `page_ambiguous` 之类 ⇒ 判据传参问题 |
+| `rich HTML clipboard + read-back` | `formats` 列表、`readback` 值 | `formats` 多出 CF_UNICODETEXT ⇒ 实现/系统合成；`verified=false` ⇒ 回读判据或落字问题 |
+| `clipboard retry path reports attempts` | `attempts` 是否在 1..2 | 越界 ⇒ impl；`clipboard_busy` ⇒ 环境（有别的进程占剪贴板） |
+| `wait_for honours budget` | `elapsed_ms` | 远小于预算 ⇒ impl（预算未被执行）；恰好超时 ⇒ 正常 |
+| `run_actions executes in order` | 哪一步 `status` 不是 ok | 单步失败 ⇒ 看该步 reason（多半是环境，如前台不是目标窗口） |
+| `run_actions rejects whole batch up-front` | 是否 `invalid_steps` + 无 steps | 有 steps ⇒ impl（先跑了再拒） |
+| `dump_ui / list_windows / find_elements returns within budget` | 耗时数字 | 耗时 < 预算+余量却判 FAIL ⇒ **判据 bug**（形状不认识）；耗时超限 ⇒ impl（预算没生效） |
+| `devtools capability enabled` | `status` 字段 | `disabled` ⇒ 配置被覆盖（环境）；`not registered` ⇒ 旧码（环境） |
+| `cdp_port` | `reason` | `port_file_missing` ⇒ 没开浏览器（环境）；`version_probe_failed` + `port_file_age_ms` 很大 ⇒ 陈旧端口（环境） |
+| `eval_in_profile read` | `reason` | `page_ambiguous` ⇒ 未传 `url_part`（判据/调用方式）；`frozen_background_tab` ⇒ 后台标签（预期）；`cdp_timeout` ⇒ 实现或页面卡死 |
+| `activate_tab` | `PAGE_AMBIGUOUS` + 候选数 | 候选 >1 ⇒ 给的 `url_part` 不够独特（调用方式），不是缺陷 |
+
+**通用原则**：先看 `reason` 字段再下结论——这批工具的失败都带稳定 reason，**"failed" 不是结论**。
+
 ## 报告模板（直接贴给 agent-fleet 侧）
 
 ```text
