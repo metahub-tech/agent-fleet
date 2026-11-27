@@ -191,3 +191,20 @@ def test_no_sleep_after_last_attempt():
                                 api=api, sleep=slept.append)
     assert result["ok"] is False
     assert slept == [0.5]                 # 只有第一次失败后睡，最后一轮之后不睡
+
+
+def test_write_failure_still_unlocks_and_frees():
+    """写内存抛异常时必须先 unlock 再 free（锁着的句柄 GlobalFree 会失败 → 泄漏）。"""
+    class BoomApi(FakeApi):
+        def write_memory(self, ptr, data):
+            raise OSError("memmove failed")
+
+    api = BoomApi()
+    result = set_clipboard_html(build_cf_html("<p>x</p>"), api=api)
+    assert result["ok"] is False
+    calls = api.calls
+    assert any(c.startswith("unlock:") for c in calls), calls
+    assert len(api.freed) == 1 and api.closed == 1
+    # unlock 必须在 free 之前
+    assert next(i for i, c in enumerate(calls) if c.startswith("unlock:")) < \
+           next(i for i, c in enumerate(calls) if c.startswith("free:"))

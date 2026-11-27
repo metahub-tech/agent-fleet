@@ -185,8 +185,14 @@ def _attempt_once(backend: Any, fmt: int, payload: bytes) -> tuple[bool, str, in
         if not ptr:
             return False, _REASON_BY_KIND["lock"], int(backend.last_error())
 
-        backend.write_memory(ptr, payload)
-        backend.global_unlock(handle)
+        try:
+            backend.write_memory(ptr, payload)
+        except Exception:
+            # 写内存失败也要解锁再 free（锁着的句柄 GlobalFree 会失败 ⇒ 泄漏），
+            # 并且转成结构化 reason，不把异常抛给调用方。
+            return False, _REASON_BY_KIND["set"], int(backend.last_error())
+        finally:
+            backend.global_unlock(handle)
 
         if not backend.set_clipboard_data(fmt, handle):
             return False, _REASON_BY_KIND["set"], int(backend.last_error())
