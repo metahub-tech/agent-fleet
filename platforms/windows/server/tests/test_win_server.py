@@ -141,3 +141,58 @@ def test_dpi_awareness_report_pure():
     import win_input
     assert win_input.dpi_awareness_report(True) is None
     assert "漂移" in win_input.dpi_awareness_report(False)
+
+
+# --- UIA 预算 + 「一字一节点」合并（2026-11-27，device-operator 社媒场景）---
+
+class _FakeInfo:
+    def __init__(self, name, control_type="Text", class_name="TextBlock", automation_id=""):
+        self.name = name
+        self.control_type = control_type
+        self.class_name = class_name
+        self.automation_id = automation_id
+
+
+class _FakeRect:
+    def __init__(self, left, top, width=20, height=24):
+        self.left = left
+        self.top = top
+        self.right = left + width
+        self.bottom = top + height
+
+
+class _FakeElement:
+    def __init__(self, name, left, top=0, control_type="Text", **kw):
+        self.element_info = _FakeInfo(name, control_type=control_type, **kw)
+        self._rect = _FakeRect(left, top)
+
+    def rectangle(self):
+        return self._rect
+
+
+def test_glyph_text_runs_merges_single_char_leaves():
+    descendants = [_FakeElement("订", 100), _FakeElement("阅", 120), _FakeElement("已", 140)]
+    runs, meta = srv._glyph_text_runs(descendants)
+    assert meta["applied"] is True and meta["glyph_nodes"] == 3
+    assert len(runs) == 1
+    assert runs[0]["name"] == "订阅已" and runs[0]["merged_from"] == 3
+
+
+def test_collect_run_matches_clicks_only_matched_span():
+    descendants = [_FakeElement("订", 100), _FakeElement("阅", 120), _FakeElement("已", 140)]
+    runs, _meta = srv._glyph_text_runs(descendants)
+    matched = srv._collect_run_matches(runs, "订阅", 1920, 1080)
+    assert len(matched) == 1
+    el = matched[0]
+    assert el["merged"] is True
+    # 「订阅」占前两个节点 → 中心 120，而不是整段中心 130
+    assert el["center"] == [120, 12]
+    assert el["rect"] == [100, 0, 140, 24]
+    assert el["full_rect"] == [100, 0, 160, 24]
+
+
+def test_glyph_merge_disabled_by_default_for_multi_char_labels():
+    # 正常两字标签不该被拼起来（默认 max_run_chars=1）
+    descendants = [_FakeElement("姓名", 100), _FakeElement("电话", 120)]
+    runs, meta = srv._glyph_text_runs(descendants)
+    assert runs == [] and meta["runs"] == 0
