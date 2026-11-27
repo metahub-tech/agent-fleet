@@ -96,3 +96,21 @@ def test_run_actions_executes_and_short_circuits(win, monkeypatch):
                {"tool": "tap", "args": {"x": 8, "y": 8}}])
     assert out2["ok"] is False and out2["failed_at"] == 0
     assert out2["steps"][1]["status"] == "skipped", out2
+
+
+def test_dump_tree_budgeted_times_out_and_logs(win, monkeypatch, capsys):
+    """超时必须①抛 UiaTimeout（不卡住）②打一行 `[uia] dump_ui timed out` 留痕。"""
+    import time as _time
+
+    from _uia_bounds import UiaTimeout
+
+    monkeypatch.setattr(win, "_dump_window_tree", lambda w, d: _time.sleep(2))
+    monkeypatch.setattr(win, "UIA_TIMEOUT_S", 0.05)
+
+    started = _time.monotonic()
+    with pytest.raises(UiaTimeout):
+        win._dump_tree_budgeted(object(), 4)
+    assert _time.monotonic() - started < 1.0, "预算没有生效"
+
+    err = capsys.readouterr().err
+    assert "[uia] dump_ui timed out after" in err, f"没有留痕：{err!r}"
