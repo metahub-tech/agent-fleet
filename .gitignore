@@ -87,4 +87,5 @@ platforms/ios/bin/
 # StarFlow onboarding local state (tokens / machine identity -- never commit)
 agent-profile.json
 .stariver/
+.starclow/
 AGENTS.md.bak-*
