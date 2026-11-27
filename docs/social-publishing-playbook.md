@@ -16,7 +16,7 @@ human_browser_open(profile=P, activate=True)
         └─ 填标题   : human_dom_fill(query="请在这里输入标题", text=..., profile=P)
         └─ 填正文   : clipboard_set_html(html) → press_key("ctrl+v") → wait_for(text=…)
         └─ 传图     : file_put(path, b64) → 触发上传 → 文件对话框（§4）
-        └─ 校验     : eval_in_profile(P, verify_js)（0 token、可断言）
+        └─ 校验     : eval_in_profile(P, verify_js, url_part=<目标页 url 子串>)（0 token、可断言）
         └─ 提交前   : hover_preview(x,y) 或不提交，交人确认
 ```
 
@@ -106,7 +106,10 @@ run_actions(steps=[
 
 ## 5. 提交前校验（0 token、可断言）
 
-用 `devtools.eval_in_profile` 跑一段只读 JS，把读数带回来（对应 device-operator 的 `verify-draft`）：
+用 `devtools.eval_in_profile` 跑一段只读 JS，把读数带回来（对应 device-operator 的 `verify-draft`）。
+
+> **真账号 profile 常有几十个标签页**（实测 33 个）：必须带 `url_part=`（取自 `list_tabs` 的 url 子串）
+> 或 `target_id=`，否则返回 `page_ambiguous`——这是刻意不猜，不是故障。
 
 ```javascript
 (() => ({
@@ -132,7 +135,7 @@ run_actions(steps=[
 | `find_elements` 查不到中文 | 「一字一节点」 | 已自动合并（看 `merged:true`）；仍无 → `vision_locate` |
 | `clipboard_set_html` `readback_failed` | 剪贴板内容没保住 | **不要粘**；重试一次；再降级 `human_dom_fill` |
 | `eval_in_profile` `frozen_background_tab` | 后台 tab 冻结 | `activate_tab` 后重试 |
-| `eval_in_profile` `page_ambiguous` | 多 tab 无法判前台 | 先 `activate_tab(url_part=…)` |
+| `eval_in_profile` `page_ambiguous` | 多 tab 且未指定目标页 | 从 `list_tabs` 取目标页 url 子串，带 `url_part=` 重试 |
 | `wait_for` `timeout` | 条件没在预算内成立 | 截图看实际状态；别原地重试超过 2 次 |
 | `device_leased` | 别的 session 持有设备 | 等 `auto_release_in_seconds` 或找持有者释放 |
 | 平台风控/验证码 | — | **停手**，交人（`team block --kind human_decision`） |
