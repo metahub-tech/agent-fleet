@@ -83,3 +83,8 @@ platforms/ios/bin/
 # Playwright MCP output dir (snapshots / console logs) + agent_browser profile
 **/.playwright-mcp/
 .fleet/
+
+# StarFlow onboarding local state (tokens / machine identity -- never commit)
+agent-profile.json
+.stariver/
+AGENTS.md.bak-*
