@@ -144,3 +144,66 @@ def test_ios_wait_for_text_probe_uses_budget_and_udid(ios, monkeypatch):
     assert seen["udid"] == "fake-udid"
     assert seen["using"] == "predicate string"
     assert 1.0 <= seen["timeout"] < 10.0
+
+
+# --- 端到端语义（不是静态契约）：timeout / *_gone / 批量短路 ----------------
+
+def test_android_wait_for_text_times_out_when_absent(android, monkeypatch):
+    monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake")
+    monkeypatch.setattr(android, "_find_elements_impl",
+                        lambda serial, **kw: {"ok": True, "elements": [], "total_matched": 0})
+    out = _tool_fn(android.wait_for)(kind="text", target="不存在", timeout_ms=300, ctx=None)
+    assert out["ok"] is False
+    assert out["reason"] == "timeout", out
+    assert out["attempts"] >= 2, "等待预算内应当至少探测两次"
+
+
+def test_android_wait_for_text_gone_succeeds_immediately(android, monkeypatch):
+    monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake")
+    monkeypatch.setattr(android, "_find_elements_impl",
+                        lambda serial, **kw: {"ok": True, "elements": [], "total_matched": 0})
+    out = _tool_fn(android.wait_for)(kind="text_gone", target="对话框", timeout_ms=2000, ctx=None)
+    assert out["ok"] is True and out["kind"] == "text_gone", out
+
+
+def test_android_wait_for_probe_failure_is_reported_as_probe_failed(android, monkeypatch):
+    """探测每次都抛 → 必须报 probe_failed，而不是 timeout（后者会被误读成"条件不成立"）。"""
+    monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake")
+
+    def boom(serial, **kw):
+        raise RuntimeError("uiautomator dump failed")
+
+    monkeypatch.setattr(android, "_find_elements_impl", boom)
+    out = _tool_fn(android.wait_for)(kind="text", target="x", timeout_ms=300, ctx=None)
+    assert out["ok"] is False
+    assert out["reason"] == "probe_failed", out
+    assert "uiautomator" in out.get("last_error", "")
+
+
+def test_android_run_actions_executes_and_short_circuits(android, monkeypatch):
+    calls = []
+
+    def fake_tap(x=None, y=None, **kwargs):
+        calls.append((x, y))
+        return {"ok": True}
+
+    def fake_fail(x=None, y=None, **kwargs):
+        calls.append("fail")
+        return {"ok": False, "reason": "boom"}
+
+    monkeypatch.setattr(android, "tap", fake_tap)
+    out = _tool_fn(android.run_actions)(
+        steps=[{"tool": "tap", "args": {"x": 1, "y": 2}},
+               {"tool": "tap", "args": {"x": 3, "y": 4}}],
+        ctx=None)
+    assert out["ok"] is True and out["completed"] == 2, out
+    assert calls == [(1, 2), (3, 4)]
+
+    monkeypatch.setattr(android, "tap", fake_fail)
+    out2 = _tool_fn(android.run_actions)(
+        steps=[{"tool": "tap", "args": {"x": 9, "y": 9}},
+               {"tool": "tap", "args": {"x": 8, "y": 8}}],
+        ctx=None)
+    assert out2["ok"] is False
+    assert out2["failed_at"] == 0
+    assert out2["steps"][1]["status"] == "skipped", out2
