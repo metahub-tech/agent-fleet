@@ -61,6 +61,7 @@ from capabilities import (
     AgentBrowserCapability,
     CapabilityRegistry,
     CoreCapability,
+    DevtoolsCapability,
     HumanBrowserCapability,
     HumanDomCapability,
     VisionCapability,
@@ -1155,6 +1156,7 @@ _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port))  # 起专用 profile 时 auto-bake human_dom 扩展副本
 _cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
+_cap_registry.add(DevtoolsCapability())  # CDP 直连原语（opt-in：需在 [capabilities].enabled 里加 devtools）
 _cap_registry.setup(mcp, _enabled_caps)
 
 

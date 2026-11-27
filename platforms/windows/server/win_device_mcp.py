@@ -28,6 +28,8 @@ import re
 import socket
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -57,6 +59,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common")
 import _fsops, _proc, _search
 import _cf_html, _clipboard
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
+from _uia_bounds import (  # UIA 不卡死 + Electron「一字一节点」合并（纯逻辑，跨平台可测）
+    UiaTimeout,
+    find_span,
+    is_text_like,
+    merge_text_runs,
+    rank_key,
+    run_with_timeout,
+    text_run_span_rect,
+)
 import _server_runtime
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
@@ -65,6 +76,7 @@ from capabilities import (
     AgentBrowserCapability,
     CapabilityRegistry,
     CoreCapability,
+    DevtoolsCapability,
     HumanBrowserCapability,
     HumanDomCapability,
     VisionCapability,
@@ -78,6 +90,19 @@ from _server_runtime import parse_server_args
 # Disable pyautogui's "mouse-to-corner = abort" failsafe (remote agents trip it accidentally).
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.05
+
+# ---------------------------------------------------------------------------
+# UIA 预算与「一字一节点」合并（2026-11-27，device-operator 反馈）
+#   FLEET_UIA_TIMEOUT      一次 UIA 遍历/树导出的硬预算（秒），超时立即返回结构化错误，
+#                          不再让卡住的 UIA 调用把 MCP 请求线程拖死。
+#   FLEET_UIA_GLYPH_MERGE  1/0：是否在找不到元素时把 Electron 的逐字文本叶子合并成词。
+#   FLEET_UIA_GLYPH_MAX_CHARS 允许合并的单个节点最大字数（默认 1 = 只拼真正的逐字节点）。
+#   FLEET_UIA_GLYPH_MAX_NODES 单次合并最多读取多少个文本叶子的矩形（保护慢 UIA）。
+# ---------------------------------------------------------------------------
+UIA_TIMEOUT_S = float(os.environ.get("FLEET_UIA_TIMEOUT", "8") or 8)
+UIA_GLYPH_MERGE = os.environ.get("FLEET_UIA_GLYPH_MERGE", "1") != "0"
+UIA_GLYPH_MAX_CHARS = int(os.environ.get("FLEET_UIA_GLYPH_MAX_CHARS", "1") or 1)
+UIA_GLYPH_MAX_NODES = int(os.environ.get("FLEET_UIA_GLYPH_MAX_NODES", "1500") or 1500)
 
 
 mcp = FastMCP("win-device")
@@ -197,25 +222,39 @@ def take_screenshot(
 @mcp.tool
 @with_touch
 def list_windows() -> list[dict]:
-    """List all visible top-level windows (title, class, rect, pid)."""
+    """List all visible top-level windows (title, class, rect, pid).
+
+    Bounded by the UIA budget: enumerating windows can itself block on a hung
+    accessibility provider. On timeout the windows collected so far are returned
+    (partial list) and a warning is written to the server log, rather than the
+    call hanging forever.
+    """
     out: list[dict] = []
-    for w in Desktop(backend="uia").windows():
-        try:
-            if w.is_visible() and w.window_text():
-                r = w.rectangle()
-                out.append(
-                    {
-                        "title": w.window_text(),
-                        "class_name": w.class_name(),
-                        "left": r.left,
-                        "top": r.top,
-                        "right": r.right,
-                        "bottom": r.bottom,
-                        "pid": w.process_id(),
-                    }
-                )
-        except Exception:
-            continue
+
+    def _collect() -> None:
+        for w in Desktop(backend="uia").windows():
+            try:
+                if w.is_visible() and w.window_text():
+                    r = w.rectangle()
+                    out.append(
+                        {
+                            "title": w.window_text(),
+                            "class_name": w.class_name(),
+                            "left": r.left,
+                            "top": r.top,
+                            "right": r.right,
+                            "bottom": r.bottom,
+                            "pid": w.process_id(),
+                        }
+                    )
+            except Exception:
+                continue
+
+    try:
+        run_with_timeout(_collect, UIA_TIMEOUT_S, "list_windows")
+    except UiaTimeout:
+        print(f"[uia] list_windows timed out after {UIA_TIMEOUT_S:g}s; "
+              f"returning {len(out)} window(s) collected so far", file=sys.stderr)
     return out
 
 
@@ -238,7 +277,9 @@ def inspect_window(
             cls = ""
         if _is_console_window(cls):
             return _console_skip_message(cls, target=f"window matching '{title_substring}'")
-        return _dump_window_tree(win, max_depth)
+        return _dump_tree_budgeted(win, max_depth)
+    except UiaTimeout:
+        return f"ERROR: {_uia_timeout_hint('inspect_window')}"
     except Exception as e:
         return f"ERROR: {type(e).__name__}: {e}"
 
@@ -275,15 +316,40 @@ def _dump_window_tree(win, max_depth: int | None) -> str:
     max_depth is passed to print_control_identifiers if provided;
     pywinauto's depth parameter is an int (no None support), so we
     default to 4 when not specified.
+
+    ``redirect_stdout`` is process-global, so two concurrent dumps would
+    otherwise interleave into each other's buffer — serialize them.
     """
     buf = io.StringIO()
     depth = max_depth if max_depth is not None else 4
-    with contextlib.redirect_stdout(buf):
+    with _DUMP_LOCK, contextlib.redirect_stdout(buf):
         win.print_control_identifiers(depth=depth)
     return buf.getvalue()
 
 
-import concurrent.futures as _cf
+_DUMP_LOCK = threading.Lock()
+
+
+def _uia_timeout_hint(what: str) -> str:
+    return (
+        f"{what} exceeded the UIA budget ({UIA_TIMEOUT_S:g}s) and was abandoned. "
+        "The target window's accessibility provider is probably busy or hung "
+        "(Electron/Chromium apps and consoles do this). Try: smaller max_depth, "
+        "find_elements(query=..., window_title=...) for a targeted lookup, or "
+        "take_screenshot + tap. Raise FLEET_UIA_TIMEOUT only if a single call is "
+        "legitimately slower than this."
+    )
+
+
+def _dump_tree_budgeted(win, max_depth: int | None) -> str:
+    """Run the (blocking) pywinauto tree dump under the UIA budget.
+
+    ``print_control_identifiers`` walks every descendant and can hang on a
+    pathological accessibility provider; without this budget the whole MCP
+    request thread stays stuck and the agent's tool call never returns.
+    """
+    return run_with_timeout(lambda: _dump_window_tree(win, max_depth), UIA_TIMEOUT_S, "dump_ui")
+
 
 # Ordered identifying attributes for find_elements/tap_element query matching;
 # earlier = higher priority (a Name hit ranks above a ControlType hit).
@@ -314,21 +380,19 @@ def _match_query(query: str, fields: dict) -> tuple:
     return (True, best[2], best[1]) if best else (False, "", False)
 
 
-def _uia_descendants_with_timeout(win, control_type, timeout_s: int = 8):
-    """Run pywinauto's `descendants()` under a hard timeout. UIA traversal can
+def _uia_descendants_with_timeout(win, control_type, timeout_s: float = UIA_TIMEOUT_S):
+    """Run pywinauto's `descendants()` under a hard budget. UIA traversal can
     block for seconds (or hang) on complex windows and would otherwise wedge the
-    whole MCP server; a worker thread + timeout keeps the tool responsive."""
-    ex = _cf.ThreadPoolExecutor(max_workers=1)
-    fut = ex.submit(
-        (lambda: win.descendants(control_type=control_type)) if control_type else win.descendants
+    whole MCP server; the budget keeps the tool responsive.
+
+    A hung call keeps running on its daemon thread (Python cannot kill it); the
+    caller returns immediately with ``UiaTimeout``.
+    """
+    return run_with_timeout(
+        (lambda: win.descendants(control_type=control_type)) if control_type else win.descendants,
+        timeout_s,
+        "find_elements",
     )
-    try:
-        return fut.result(timeout=timeout_s)
-    finally:
-        # NOT a `with` block: its shutdown(wait=True) would block on the wedged
-        # worker and defeat the timeout. Detach (wait=False) so a hung UIA call
-        # dies in the background while the tool returns promptly.
-        ex.shutdown(wait=False)
 
 
 def _resolve_uia_window(window_title):
@@ -365,13 +429,30 @@ def _win_find_elements(query, window_title, control_type, include_disabled, max_
     if err:
         return err
     try:
-        descendants = _uia_descendants_with_timeout(win, control_type, timeout_s=8)
-    except _cf.TimeoutError:
+        descendants = _uia_descendants_with_timeout(win, control_type)
+    except UiaTimeout:
         return {"ok": False, "reason": "uia_timeout",
-                "error": "UIA tree traversal timed out (8s); narrow with control_type or window_title"}
+                "error": _uia_timeout_hint("find_elements"),
+                "uia_budget_s": UIA_TIMEOUT_S}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
     sw, sh = pyautogui.size()
+    matched = _collect_matches(descendants, query, include_disabled, sw, sh)
+    merge_meta = None
+    if not matched and UIA_GLYPH_MERGE:
+        merged_runs, merge_meta = _glyph_text_runs(descendants)
+        matched = _collect_run_matches(merged_runs, query, sw, sh)
+    matched.sort(key=lambda m: rank_key(m, _WIN_MATCH_FIELDS))
+    total = len(matched)
+    result = {"ok": True, "count": min(total, max_results), "total_matched": total,
+              "truncated": total > max_results, "elements": matched[:max_results]}
+    if merge_meta is not None:
+        result["glyph_merge"] = merge_meta
+    return result
+
+
+def _collect_matches(descendants, query, include_disabled, sw, sh):
+    """按查询匹配原始节点（快路径：只对命中的元素读 enabled/rect）。"""
     matched = []
     for e in descendants:
         try:
@@ -400,12 +481,82 @@ def _win_find_elements(query, window_title, control_type, include_disabled, max_
             })
         except Exception:
             continue
-    # on-screen first (only those are clickable; avoids auto-picking off-screen
-    # zero-geometry nodes like closed menu items), then exact, then field priority.
-    matched.sort(key=lambda m: (0 if m["on_screen"] else 1, 0 if m["exact"] else 1, _WIN_MATCH_FIELDS.index(m["match_field"])))
-    total = len(matched)
-    return {"ok": True, "count": min(total, max_results), "total_matched": total,
-            "truncated": total > max_results, "elements": matched[:max_results]}
+    return matched
+
+
+def _glyph_text_runs(descendants):
+    """把 Electron/Chromium 的「一字一节点」文本叶子合并成可读的 run。
+
+    只在**零命中**时作为回退路径调用：读每个叶子的矩形比按名过滤贵得多，
+    所以既加节点上限，也受 UIA 预算约束（超出即停，返回已合并的部分）。
+
+    返回 ``(runs, meta)``；meta 记录「读了多少节点 / 合并出多少 run / 是否被预算截断」，
+    让调用方能从返回体判断这是完整结果还是部分结果。
+    """
+    started = time.monotonic()
+    glyphs: list[dict] = []
+    truncated = False
+    for e in descendants:
+        if len(glyphs) >= UIA_GLYPH_MAX_NODES:
+            truncated = True
+            break
+        if time.monotonic() - started > UIA_TIMEOUT_S:
+            truncated = True
+            break
+        try:
+            info = e.element_info
+            name = (info.name or "").strip()
+            if not name or len(name) > UIA_GLYPH_MAX_CHARS:
+                continue
+            if not is_text_like(info.control_type):
+                continue
+            r = e.rectangle()
+            glyphs.append({
+                "name": name, "control_type": info.control_type,
+                "class_name": info.class_name or "", "automation_id": info.automation_id or "",
+                "rect": [r.left, r.top, r.right, r.bottom],
+            })
+        except Exception:
+            continue
+    runs = merge_text_runs(glyphs, max_run_chars=UIA_GLYPH_MAX_CHARS)
+    runs = [run for run in runs if run.get("merged")]
+    meta = {
+        "applied": True,
+        "glyph_nodes": len(glyphs),
+        "runs": len(runs),
+        "truncated": truncated,
+        "elapsed_ms": int((time.monotonic() - started) * 1000),
+    }
+    return runs, meta
+
+
+def _collect_run_matches(runs, query, sw, sh):
+    """把合并出的文本 run 按查询匹配成候选。
+
+    命中的是 run 的一部分时，``rect``/``center`` 用**那一段**的几何（不是整段），
+    这样 tap_element 会点在查询词自己身上，而不是长句的中点。
+    """
+    matched = []
+    for run in runs:
+        ok, _field, exact = _match_query(query, {"name": run["name"]})
+        if not ok:
+            continue
+        span = find_span(run, query)
+        span_rect = text_run_span_rect(run, *span) if span else None
+        rect = list(span_rect) if span_rect else list(run["rect"])
+        cx, cy = (rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2
+        matched.append({
+            "name": run["name"], "automation_id": run.get("automation_id", ""),
+            "control_type": run.get("control_type", ""), "class_name": run.get("class_name", ""),
+            "rect": rect, "center": [cx, cy],
+            "enabled": None, "visible": None,
+            "on_screen": 0 <= cx < sw and 0 <= cy < sh,
+            "match_field": "name", "exact": exact,
+            "merged": True, "merged_from": run.get("merged_from"),
+            "full_rect": list(run["rect"]),
+            "glyph_span": list(span) if span else None,
+        })
+    return matched
 
 
 @mcp.tool
@@ -438,9 +589,15 @@ def dump_ui(
             return {"ok": False, "reason": "console_window", "error": _console_skip_message(cls)}
         win = Desktop(backend="uia").window(title_re=f".*{re.escape(title)}.*")
         win.wait("visible", timeout=3)
-        tree = _dump_window_tree(win, max_depth)
+        tree = _dump_tree_budgeted(win, max_depth)
         return {"ok": True, "window": title,
-                "max_depth": max_depth if max_depth is not None else 4, "tree": tree}
+                "max_depth": max_depth if max_depth is not None else 4, "tree": tree,
+                "uia_budget_s": UIA_TIMEOUT_S}
+    except UiaTimeout:
+        return {"ok": False, "reason": "uia_timeout",
+                "error": _uia_timeout_hint("dump_ui"),
+                "hint": "narrow max_depth / use find_elements for a targeted lookup / take_screenshot",
+                "uia_budget_s": UIA_TIMEOUT_S}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -502,9 +659,25 @@ def tap_element(
                 "error": f"{len(els)} elements matched query={query!r}; refine the query or pass nth",
                 "candidates": els[:10], "total_matched": res["total_matched"]}
     cx, cy = chosen["center"]
+    merged_span = None
+    if chosen.get("merged"):
+        # 合并 run 里只命中一部分时，center 已经是「那一段」的几何（见 _collect_run_matches）；
+        # 这里再算一次是为了把 span 一并回传，方便上层核对点的是不是查询词本身。
+        span = chosen.get("glyph_span") or find_span(chosen, query)
+        if span:
+            span_rect = text_run_span_rect(chosen, *span)
+            if span_rect:
+                cx, cy = (span_rect[0] + span_rect[2]) // 2, (span_rect[1] + span_rect[3]) // 2
+            merged_span = {"start": span[0], "end": span[1], "text": (chosen.get("name") or "")[span[0]:span[1]]}
     pyautogui.click(x=cx, y=cy, button=button)
     resp = {"ok": True, "action_type": "coordinate_click", "clicked_at": [cx, cy],
             "element": chosen, "total_matched": res["total_matched"]}
+    if merged_span:
+        resp["clicked_text_span"] = merged_span
+        resp["note"] = ("element came from merged per-glyph text nodes; the click targeted "
+                        "the matched characters, not the whole run")
+    if "glyph_merge" in res:
+        resp["glyph_merge"] = res["glyph_merge"]
     if not chosen["on_screen"]:
         resp["warning"] = "element_may_be_off_screen"
     return resp
@@ -1131,6 +1304,7 @@ _cap_registry.add(AgentBrowserCapability())
 _cap_registry.add(HumanBrowserCapability(bridge_port=_bridge_port, maximize_fn=foreground_chrome_window_for_udd))  # auto-bake human_dom 副本 + 起窗后 Win32 置前(activate 二态: 激活/非激活最大化)
 _cap_registry.add(VisionCapability(capture_fn=_capture_in_tap_space, tap_fn=_os_tap))
 _cap_registry.add(HumanDomCapability(_dom_bridge, tap_fn=_os_tap, fill_fn=_os_fill, bridge_port=_bridge_port))
+_cap_registry.add(DevtoolsCapability())  # CDP 直连原语（opt-in：需在 [capabilities].enabled 里加 devtools）
 _cap_registry.setup(mcp, _enabled_caps)
 
 

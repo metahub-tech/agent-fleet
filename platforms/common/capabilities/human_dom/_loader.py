@@ -11,67 +11,26 @@ moat: 起 Chrome 只加 `--remote-debugging-port=0`(临时端口/仅 127.0.0.1)�
 """
 from __future__ import annotations
 
-import base64
 import json
-import os
-import socket
-import struct
 import time
 import urllib.request
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
 
-_WS_OP_TIMEOUT = 8.0    # 单个 ws 连接/CDP 命令的上限(与整体连接预算区分, 避免最坏累加过大)
-_HTTP_TIMEOUT = 3.0     # /json、/json/version 单次 http 上限
-
-
-def _read_devtools_port(udd: str, timeout: float = 8.0, _sleep=time.sleep) -> Optional[int]:
-    """轮询 <udd>/DevToolsActivePort 拿 Chrome 起后写的临时 debug 端口(首行=端口)。"""
-    pf = Path(udd) / "DevToolsActivePort"
-    deadline = timeout
-    while deadline > 0:
-        p = _read_port_once(udd)
-        if p is not None:
-            return p
-        _sleep(0.2)
-        deadline -= 0.2
-    return None
-
-
-def _read_port_once(udd: str) -> Optional[int]:
-    try:
-        first = (Path(udd) / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()[0].strip()
-        return int(first) if first else None
-    except Exception:
-        return None
-
-
-def _ws_connect(ws_url: str, timeout: float = _WS_OP_TIMEOUT):
-    """连 CDP browser ws。不带 Origin 头(见模块注释)。"""
-    u = urlparse(ws_url)
-    sock = socket.create_connection((u.hostname, u.port), timeout=timeout)
-    sock.settimeout(timeout)
-    key = base64.b64encode(os.urandom(16)).decode()
-    req = (
-        f"GET {u.path} HTTP/1.1\r\n"
-        f"Host: {u.hostname}:{u.port}\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        f"Sec-WebSocket-Key: {key}\r\n"
-        "Sec-WebSocket-Version: 13\r\n\r\n"
-    )
-    sock.sendall(req.encode())
-    buf = b""
-    while b"\r\n\r\n" not in buf:
-        chunk = sock.recv(4096)
-        if not chunk:
-            raise ConnectionError("ws handshake: 对端关闭")
-        buf += chunk
-    status = buf.split(b"\r\n", 1)[0].decode("latin1")
-    if "101" not in status:
-        raise ConnectionError(f"ws handshake 失败: {status}")
-    return sock
+# 底层 CDP 原语已抽到平台共享的 `_cdp`（human_dom 与 devtools 能力共用）。
+# 这里沿用旧的私有名做**模块级别名**：既有调用方与单测（monkeypatch `_loader._http_json`
+# 等）语义保持不变；`_http_json` / `_connect_browser` / `_navigate` 仍在本模块，
+# 因为它们要接受测试注入的 opener。
+from _cdp import (  # noqa: E402  (与下方既有 import 同属模块级)
+    HTTP_TIMEOUT as _HTTP_TIMEOUT,
+    WS_OP_TIMEOUT as _WS_OP_TIMEOUT,
+    cdp_call as _cdp_call,
+    read_devtools_port as _read_devtools_port,
+    read_port_once as _read_port_once,
+    ws_connect as _ws_connect,
+    ws_recv_text as _ws_recv_text,
+    ws_send as _ws_send,
+)
 
 
 def _http_json(url: str, _open, timeout: float = _HTTP_TIMEOUT):
@@ -96,66 +55,6 @@ def _connect_browser(udd, overall_timeout, _open, _sleep):
         if time.time() >= end:
             return None, None
         _sleep(0.3)
-
-
-def _ws_send(sock, obj: dict) -> None:
-    """发一帧 masked text(client→server 必须掩码)。"""
-    data = json.dumps(obj).encode()
-    hdr = bytearray([0x81])  # FIN + opcode=text
-    n = len(data)
-    if n < 126:
-        hdr.append(0x80 | n)
-    elif n < 65536:
-        hdr.append(0x80 | 126)
-        hdr += struct.pack(">H", n)
-    else:
-        hdr.append(0x80 | 127)
-        hdr += struct.pack(">Q", n)
-    mask = os.urandom(4)
-    hdr += mask
-    hdr += bytes(b ^ mask[i % 4] for i, b in enumerate(data))
-    sock.sendall(bytes(hdr))
-
-
-def _ws_recv_text(sock) -> dict:
-    """读一帧 server→client(不掩码), 跳过控制帧, 返回 JSON。
-    CDP 命令响应体小, 不分片; 故只取单帧的 payload。"""
-    def rd(k):
-        r = b""
-        while len(r) < k:
-            c = sock.recv(k - len(r))
-            if not c:
-                raise ConnectionError("ws: 对端中途关闭")
-            r += c
-        return r
-    while True:
-        b0, b1 = rd(2)
-        opcode = b0 & 0x0f
-        ln = b1 & 0x7f
-        if ln == 126:
-            ln = struct.unpack(">H", rd(2))[0]
-        elif ln == 127:
-            ln = struct.unpack(">Q", rd(8))[0]
-        payload = rd(ln)
-        if opcode in (0x8, 0x9, 0xA):  # close/ping/pong → 跳过
-            if opcode == 0x8:
-                raise ConnectionError("ws: 收到 close")
-            continue
-        return json.loads(payload.decode("utf-8"))
-
-
-def _cdp_call(sock, cid: int, method: str, params: "Optional[dict]" = None, timeout: float = _WS_OP_TIMEOUT):
-    """发一条 CDP 命令, 读到 id 匹配的响应(丢弃中途的事件)。"""
-    _ws_send(sock, {"id": cid, "method": method, "params": params or {}})
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            msg = _ws_recv_text(sock)
-        except Exception:
-            return None
-        if msg.get("id") == cid:
-            return msg
-    return None
 
 
 def _navigate(port, url, _open):
