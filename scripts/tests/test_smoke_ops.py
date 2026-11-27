@@ -260,3 +260,12 @@ def test_exit_code_precedence_missing_tools_is_3(capsys):
     results = [{"check": "required tools registered (unknown)", "ok": False, "detail": "missing"}]
     assert so._finish("http://x/mcp", results, as_json=True, code=3) == 3
     assert so._finish("http://x/mcp", results, as_json=True) == 1
+
+
+# --- 整体预算 -------------------------------------------------------------
+
+def test_resolve_timeout_clamps_and_falls_back():
+    assert so.resolve_timeout(0.5) == so.MIN_TIMEOUT_S          # 太小 → 抬到下限
+    assert so.resolve_timeout(30) == 30.0
+    assert so.resolve_timeout("abc") == 180.0                   # 非法 → 默认
+    assert so.resolve_timeout(None) == 180.0

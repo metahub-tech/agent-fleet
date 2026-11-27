@@ -194,6 +194,10 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
                          "Do NOT wrap it in quotes — surrounding quotes are stripped "
                          "defensively because they otherwise become part of the path.")
     ap.add_argument("--json", action="store_true", help="print machine-readable results")
+    ap.add_argument("--timeout", type=float, default=180.0,
+                    help="Overall wall-clock budget for the whole run (default 180s; "
+                         f"values below {MIN_TIMEOUT_S:g}s are raised to it) — "
+                         "a hung device must not hang your shell")
     return ap.parse_args(argv)
 
 
@@ -204,6 +208,19 @@ def normalize_profile(value: str) -> str:
         if len(text) >= 2 and text.startswith(quote) and text.endswith(quote):
             text = text[1:-1].strip()
     return text
+
+
+#: 整体预算下限：低于这个值没有意义（连接+初始化就要几秒），统一抬到 5s。
+MIN_TIMEOUT_S = 5.0
+
+
+def resolve_timeout(value) -> float:
+    """把 --timeout 归一到 [MIN_TIMEOUT_S, ∞)；非法值回落到默认 180s。"""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return 180.0
+    return max(MIN_TIMEOUT_S, seconds)
 
 
 def _url(args: argparse.Namespace) -> str:
@@ -340,7 +357,13 @@ async def _run(url: str, args: argparse.Namespace) -> int:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv)
-    return asyncio.run(_run(_url(args), args))
+    timeout = resolve_timeout(getattr(args, "timeout", 180.0))
+    try:
+        return asyncio.run(asyncio.wait_for(_run(_url(args), args), timeout=timeout))
+    except asyncio.TimeoutError:
+        print(f"ERROR: run exceeded the overall budget ({timeout:g}s) — the device or one tool "
+              f"call is hung; the script aborted instead of blocking your shell.", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

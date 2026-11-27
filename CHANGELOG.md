@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
 
+- **两个验收脚本加整体超时（默认 180s，下限 5s）**：设备或某个工具调用卡住时，脚本不再把对方的 shell 挂住，而是打印明确的超时原因并以 `exit 2` 退出。已用"只接受不回包"的黑洞服务端到端验证：预算 4s（被抬到 5s）→ 5.8s 内返回 `run exceeded the overall budget (5s)` + exit 2。
+
 ### 修复
 
 - **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。

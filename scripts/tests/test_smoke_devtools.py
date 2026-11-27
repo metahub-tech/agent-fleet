@@ -170,3 +170,9 @@ def test_normalize_profile_leaves_plain_values_alone():
     assert sd.normalize_profile("~/.fleet/op-1") == "~/.fleet/op-1"
     assert sd.normalize_profile("") == ""
     assert sd.normalize_profile('"') == '"'          # 单字符不当引号处理
+
+
+def test_resolve_timeout_clamps_and_falls_back():
+    assert sd.resolve_timeout(1) == sd.MIN_TIMEOUT_S
+    assert sd.resolve_timeout(45) == 45.0
+    assert sd.resolve_timeout(object()) == 180.0
