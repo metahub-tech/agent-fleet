@@ -88,6 +88,7 @@ agent-fleet CLI
 ## scripts/
 
 **仓库级运维脚本**：
+- `scripts/_mcp_probe.py`
 - `scripts/check-blueprint-refs.sh` — check-blueprint-refs.sh
 - `scripts/check-ps-syntax.sh` — Validate PowerShell script syntax across the repo via AST parse.
 - `scripts/gen-blueprint-interface.sh` — gen-blueprint-interface.sh
@@ -96,6 +97,7 @@ agent-fleet CLI
 - `scripts/gen_docs.py`
 - `scripts/install-agent-side.py`
 - `scripts/install_skills.py`
+- `scripts/probe_multi.py`
 - `scripts/smoke_devtools.py`
 - `scripts/smoke_lease.py`
 - `scripts/smoke_ops.py`
