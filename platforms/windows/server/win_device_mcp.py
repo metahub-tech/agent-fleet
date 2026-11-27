@@ -56,7 +56,7 @@ from pywinauto import Desktop
 from win_input import _send_unicode, foreground_chrome_window_for_udd, read_scale_factor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-import _fsops, _proc, _search
+import _batch, _fsops, _proc, _search
 import _cf_html, _clipboard
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 from _uia_bounds import (  # UIA 不卡死 + Electron「一字一节点」合并（纯逻辑，跨平台可测）
@@ -1298,6 +1298,67 @@ except SystemExit:
 _bridge_port = resolve_bridge_port(_server_args.port, override=_server_args.dom_bridge_port)
 
 _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
+# ============================================================
+#                  BATCHED ACTIONS (turn reduction)
+# ============================================================
+
+#: Tools allowed inside `run_actions`. Deliberately an explicit allowlist:
+#: no reflection, no recursion (run_actions is not in it), and nothing that
+#: would make a batch unreviewable (shell / process / terminate are excluded).
+_BATCH_ALLOWLIST = (
+    "tap", "swipe", "move_mouse", "type_text", "paste_text", "press_key",
+    "tap_element", "find_elements", "focus_window", "launch_app",
+    "clipboard_set_html", "file_put", "file_get", "get_screen_size", "hover_preview",
+)
+
+
+def _batch_registry() -> dict:
+    """name → callable for the allowlisted tools (unwrapping FastMCP's wrapper)."""
+    import builtins  # noqa: F401  (kept local: only used for clarity)
+
+    registry = {}
+    for name in _BATCH_ALLOWLIST:
+        obj = globals().get(name)
+        fn = getattr(obj, "fn", obj)
+        if callable(fn):
+            registry[name] = fn
+    return registry
+
+
+@mcp.tool
+@with_touch
+def run_actions(
+    steps: Annotated[list[dict], Field(description="Ordered steps: [{tool, args?, sleep_ms?}, …] (max 25)")],
+    stop_on_error: Annotated[bool, Field(description="Stop at the first failed step (default). false keeps going and reports each")] = True,
+    delay_ms: Annotated[int, Field(ge=0, le=5000, description="Fixed pause between steps (ms)")] = 0,
+) -> dict:
+    """Run several device actions in **one** call (fewer round-trips, less state drift).
+
+    Each step is `{"tool": "<name>", "args": {...}, "sleep_ms": 0}`. Only an explicit
+    allowlist is accepted (`tap`, `tap_element`, `type_text`, `paste_text`, `press_key`,
+    `swipe`, `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`,
+    `file_put`, `file_get`, `get_screen_size`, `hover_preview`, `find_elements`) —
+    shell / process / terminate tools are intentionally **not** batchable.
+    `run_actions` itself is not allowed (no recursion).
+
+    Validation is all-or-nothing: a typo in step 6 rejects the whole batch before
+    anything runs, so you never end up half-executed. With `stop_on_error=True`
+    the first failure stops the batch and later steps are reported as `skipped`;
+    a step that raises is recorded as `status:"error"` and does not abort the call.
+
+    Returns `{ok, completed, total, steps:[{index, tool, status, elapsed_ms, result?}],
+    failed_at?, failed_tool?}`. Binary results (screenshots) are summarised, never
+    dumped into JSON.
+    """
+    registry = _batch_registry()
+    try:
+        validated = _batch.validate_steps(steps, registry)
+    except _batch.StepError as exc:
+        return {"ok": False, "reason": "invalid_steps", "error": str(exc),
+                "allowed_tools": sorted(registry)}
+    return _batch.run_steps(validated, registry, stop_on_error=stop_on_error, delay_ms=delay_ms)
+
+
 _cap_registry = CapabilityRegistry(host_os=current_host_os())
 _cap_registry.add(CoreCapability(skill="using-win"))
 _cap_registry.add(AgentBrowserCapability())

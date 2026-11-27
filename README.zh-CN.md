@@ -44,7 +44,7 @@
 
 | 组件 | 版本 | 状态 |
 |---|---|---|
-| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，**55 个固定工具**：47 core+发现工具、+4 devtools、+1 human_browser、+3 vision；`agent_browser` 数量随所装 @playwright/mcp 版本变化，以 `list_capabilities()` 为准；streamable-http）|
+| Windows 10/11 桥 | `0.2.0` | ✅ 已发布（win-device，**56 个固定工具**：48 core+发现工具、+4 devtools、+1 human_browser、+3 vision；`agent_browser` 数量随所装 @playwright/mcp 版本变化，以 `list_capabilities()` 为准；streamable-http）|
 | macOS 12+ 桥 | `0.3.0` | ✅ 已发布（mac-device，launchd，**51 个固定工具**：43 core+发现工具、+4 devtools、+1 human_browser、+3 vision；`agent_browser` 同上，以 `list_capabilities()` 为准；GUI 权限流程）|
 | Android 桥 | `0.7.0-alpha` | ✅ 已发布（android-device，**31 工具**，多设备 + USB + 无线 + 混合 ADB）|
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ 已发布（`uvx agent-fleet setup` 一键安装；6 框架配置生成）|

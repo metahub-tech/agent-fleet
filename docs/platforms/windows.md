@@ -336,7 +336,7 @@ python3 scripts/smoke_devtools.py --url http://<host>:8766/mcp --profile "~/.fle
 
 `win-device` MCP（FastMCP streamable-http，监听 `0.0.0.0:8766/mcp`）暴露的全部工具：
 
-### 附录 A · core 工具（46 个）
+### 附录 A · core 工具（47 个）
 
 server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具：
 
@@ -349,6 +349,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 | 鼠标 | `tap`, `move_mouse`, `swipe` |
 | 指针验证 | `hover_preview`（把真鼠标移到 (x,y) 但不点 + 截图 + 在 (x,y) 画确定性十字，供上层验证「这一点会不会落在目标上」；R5 起） |
 | 键盘 | `type_text`, `paste_text`, `press_key` |
+| 批量动作 | `run_actions(steps, stop_on_error, delay_ms)`（一次调用跑多步，白名单内工具，整体校验后执行；失败短路并标记 `skipped`） |
 | 剪贴板（富文本） | `clipboard_set_html`（把 HTML 以**唯一** `HTML Format` 条目写进剪贴板，供公众号编辑器等富文本粘贴；默认回读校验，失败即 `ok=false`） |
 | 元素操作 | `find_elements` / `tap_element`（按 query 语义找元素 / 点中心，canonical 跨平台） |
 | 进程 / 应用（一次性） | `launch_app`, `terminate_app`（按应用标识终止）, `kill_process`（按 PID 终止，平台扩展）, `list_processes` |
@@ -362,7 +363,7 @@ server 源码 `win_device_mcp.py` 里以 `@mcp.tool` 声明的全部 core 工具
 
 ### 附录 B · 浏览器能力（可选）
 
-除上面 46 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 55**（46 core + 1 `list_capabilities` + 4 devtools + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
+除上面 47 个 core 工具外，能力框架还会在运行时注入 **1 个能力发现工具 + 两个可选浏览器能力模块 + vision**。依赖齐全时**固定工具数 56**（47 core + 1 `list_capabilities` + 4 devtools + 1 human_browser + 3 vision）；`agent_browser` 的工具面由实际安装的 `@playwright/mcp` 决定，**不计入固定数，以 `list_capabilities()` 为准**。`human_dom` 为 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后另 +5，同样以运行时为准。
 
 可选能力按"渐进披露"设计：依赖齐全才 `status=available` 并把工具挂载出来；缺依赖时 `status=unavailable`、**不暴露**对应工具，core 工具不受影响。要查本机当前到底有哪些能力、哪些工具，调框架始终在线的发现工具：
 

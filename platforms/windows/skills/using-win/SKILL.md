@@ -57,6 +57,21 @@ tap_element(query="Submit")                 # default: locate by semantics, clic
 - **`reason: "uia_timeout"`** — the window's accessibility provider is busy or hung (common for Electron/Chromium apps and consoles). The call returns within the UIA budget instead of hanging, so retry once after the app settles, narrow with `window_title` / `control_type`, or drop to `take_screenshot` + `tap`. Do NOT raise `FLEET_UIA_TIMEOUT` just to "make it work".
 - **Electron / Chinese text ("一字一节点")** — some Electron apps report one `Text` node *per CJK character*, so a query like `订阅` would never match a single node. `find_elements` / `tap_element` now merge adjacent single-character leaves into a text run automatically (result carries `merged: true`, `merged_from`, and `glyph_merge` metadata), and `tap_element` clicks the matched characters (`clicked_text_span`), not the middle of the whole run. If the merged name looks over-joined, add `window_title` / `control_type` to narrow, or use the span info to verify before acting.
 
+### Batch several actions in one call (`run_actions`)
+
+For a fixed sequence (e.g. clipboard write → `ctrl+v` → wait → click), send it as ONE
+`run_actions(steps=[{tool, args, sleep_ms?}, …])` instead of one MCP call per step — fewer
+round-trips and much less state drift between steps.
+
+- **Allowlist only**: `tap`, `tap_element`, `type_text`, `paste_text`, `press_key`, `swipe`,
+  `move_mouse`, `focus_window`, `launch_app`, `clipboard_set_html`, `file_put`, `file_get`,
+  `get_screen_size`, `hover_preview`, `find_elements`. Shell/process/terminate are not batchable.
+- **All-or-nothing validation**: a typo in step 6 rejects the whole batch before anything runs.
+- `stop_on_error=True` (default) stops at the first failed/`ok:false` step and marks the rest
+  `skipped`; a step that raises is reported as `status:"error"` without aborting the call.
+- Max 25 steps; `sleep_ms` per step and `delay_ms` between steps (both capped at 5s).
+- Screenshot/binary results come back summarised — do not expect image bytes in the batch result.
+
 ### Long-running tasks: `start_process`, NOT `run_shell`
 
 `run_shell` caps at 60s default (max 600s). For anything that may exceed -- installs, builds, slow networks, downloads:

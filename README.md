@@ -44,7 +44,7 @@ This is infrastructure for **agent-driven software testing and cross-platform ve
 
 | Component | Version | Status |
 |---|---|---|
-| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, **55 fixed tools** — 47 core+discovery, +4 devtools, +1 human_browser, +3 vision; `agent_browser` count varies with the installed @playwright/mcp — call `list_capabilities()`; streamable-http) |
+| Windows 10/11 bridge | `0.2.0` | ✅ Released (win-device, **56 fixed tools** — 48 core+discovery, +4 devtools, +1 human_browser, +3 vision; `agent_browser` count varies with the installed @playwright/mcp — call `list_capabilities()`; streamable-http) |
 | macOS 12+ bridge | `0.3.0` | ✅ Released (mac-device, launchd, **51 fixed tools** — 43 core+discovery, +4 devtools, +1 human_browser, +3 vision; `agent_browser` count varies with the installed @playwright/mcp — call `list_capabilities()`; GUI-permission flow) |
 | Android bridge | `0.7.0-alpha` | ✅ Released (android-device, **31 tools**, multi-device + USB + Wireless + Hybrid ADB) |
 | agent-fleet CLI wizard | `0.5.0-alpha` | ✅ Released (`uvx agent-fleet setup` one-shot install; configs for 6 frameworks) |
