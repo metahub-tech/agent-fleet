@@ -122,3 +122,25 @@ def test_negate_probe_works_with_wait_until():
     out = wait_until(negate_probe(exists), timeout_s=5, interval_s=0.1,
                      clock=clock, sleep=clock.sleep)
     assert out["ok"] is True and out["attempts"] == 3
+
+
+def test_timeout_attempts_are_bounded():
+    """预算 0.3s / 间隔 0.1s 时，探测次数必须有界（正常路径 ~4 次）。
+
+    ⚠️ 诚实说明：这条**不能**复现历史上那个浮点忙等（`time.monotonic` 真时钟 + 4.5e-14
+    的 sleep 才会永不跨过预算）。FakeClock 的加法会因 ULP 舍入而前进，所以去掉
+    `_EPSILON` 护栏这条测试**仍然会绿**（已实测）。它守的是"次数不会失控"这一较弱性质；
+    屏障本身靠 `_EPSILON` 的代码注释说明，没有确定性回归用例。
+    """
+    clock = FakeClock()
+    calls = {"n": 0}
+
+    def probe():
+        calls["n"] += 1
+        if calls["n"] > 50:
+            raise AssertionError("wait_until 未在预算边界终止（浮点忙等回归）")
+        return (False, None)
+
+    out = wait_until(probe, timeout_s=0.3, interval_s=0.1, clock=clock, sleep=clock.sleep)
+    assert out["ok"] is False and out["reason"] == "timeout"
+    assert calls["n"] <= 10, f"probed {calls['n']} times — looks like a busy loop"
