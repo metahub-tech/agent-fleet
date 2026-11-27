@@ -94,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **playbook §2–§5 修正四处真机踩坑（operator 从操作台角度审阅）**：① §5 的验证 JS 用 `querySelector('[contenteditable]')` 会读到**标题**（公众号编辑页有 3 个 contenteditable，[0] 是标题 20 字、[2] 才是正文 1343 字），改为取最后一个 `.ProseMirror`；② 网页编辑器上 `wait_for(kind="text")` 走 UIA **永远等不到**（Chrome 网页不在 UIA 树），正文确认改用 `eval_in_profile` 读 `innerText`，批量里的该步若保留须 `stop_on_error=false`；③「上传」按钮是网页元素，`tap_element` 找不到，改用 `human_dom_tap`/`vision_tap`；④ 只读断言应先 `activate=false`（真机：`activate_tab` 忙时 6703ms 双次超时，而 `eval(activate=False)` 47–108ms）。另补两条：页面底部的字数计数器 ≠ `innerText` 长度（见过 15 vs 20）；粘正文前必须确认焦点在正文（填完标题后焦点还在标题框）。
 
+- **playbook §0.5 修正一处事实错误 + 新增 §0.6「平台差异（带读数）」**：① 公众号发布走的是**网页**（`mp.weixin.qq.com`），不是 PC 客户端——原写法会把原语写成 `find_elements`/`tap_element`，而 UIA 看不见网页内容，正是 §3/§4 刚修掉的坑；② 知乎**有**端到端真机记录（11 步 9 成功、7 项机器复验全绿、正文 1240/1240），真正缺记录的是抖音；③ 新增头条的关键差异：**草稿不落库**（页脚一直「草稿保存中...」、草稿箱 0 条、刷新即丢），且 h2→h1、内联样式被清洗 ⇒ 不能"填完就走"，必须加持久化判据（草稿箱条数 >0 或刷新后仍在）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

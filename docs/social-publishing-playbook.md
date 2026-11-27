@@ -25,16 +25,44 @@ human_browser_open(profile=P, activate=True)
 
 ## 0.5 平台 × 原语适配矩阵（这份 SOP 到底覆盖了什么）
 
-> 本文的**具体步骤**是按「公众号 PC 客户端」写的——因为那是唯一拿到真机验收的路径。
-> 知乎 / 抖音没有真机记录，所以这里只给**该用哪一端的哪套原语**，不写死步骤，
-> 避免把猜测当成 SOP。
+> 本文的**具体步骤**是按「**公众号网页**版（`mp.weixin.qq.com`）」写的——那是拿到最多真机验收的路径。
+> 知乎也有端到端记录（见 §0.6）；真正没有记录的是**抖音**，所以抖音只给"该用哪套原语"，不写死步骤。
 
 | 平台 | 形态 | 该用哪一端 | 该用哪套原语 | 真机验证 |
 |---|---|---|---|---|
-| 微信公众号 | PC 客户端（Electron） | `win-device` / `mac-device` | `find_elements` / `tap_element`（含中文逐字合并）+ `clipboard_set_html` 粘正文 + `wait_for` 等状态 + `eval_in_profile` 校验 | ✅ A 组 12/12；B2 前半通过、后半待做 |
-| 知乎 | 网页（创作中心） | `win-device` / `mac-device` + 浏览器 | `human_browser_open`（真账号、零自动化痕迹）→ `human_dom_locate/fill/tap`；需要读结构化数据时 `devtools.eval_in_profile(profile=P, url_part=…)` | ❌ 无 |
-| 抖音（创作服务平台） | 网页 | 同上 | 同知乎 | ❌ 无 |
-| 抖音（App） | 移动端 | `android-device` / `ios-device` | `dump_ui` / `find_elements` / `tap_element` / `wait_for`；输入用 `type_text`（Android 仅 ASCII，中文需先落到剪贴板或走 `adb` 输入法） | ❌ 无（移动端只有桩级测试） |
+| 微信公众号 | **网页**（`mp.weixin.qq.com`） | `win-device` / `mac-device` + 浏览器 | `human_browser_open` → `human_dom_locate/fill/tap` + `clipboard_set_html` 粘正文 + `devtools.eval_in_profile(url_part/target_id)` 校验 | ✅ A 组 12/12、devtools 7/7、B2 四项全绿、§5 JS 真机跑过 |
+| 知乎 | 网页（创作中心，Draft.js） | 同上 | 同公众号；保存提示 **20–40s** 才出现 ⇒ 等 45s 再判 | ✅ 端到端 11 步 9 成功、7 项机器复验全绿、正文 1240/1240（对方 lab，见 §0.6） |
+| 头条 | 网页（`profile_v4`） | 同上 | 同公众号，但**必须验草稿是否落库**（见 §0.6） | ⚠️ 有读数：**草稿不落库** |
+| 抖音（创作服务平台） | 网页 | 同上 | 同公众号 | ❌ **无记录** |
+| 抖音（App） | 移动端 | `android-device` / `ios-device` | `dump_ui` / `find_elements` / `tap_element` / `wait_for`；输入用 `type_text`（Android 仅 ASCII） | ❌ 无（移动端只有桩级测试） |
+
+> ⚠️ **公众号是网页，不是 PC 客户端**：微信 PC 客户端是聊天端，只在 B3（UIA 卡死回归）里出现过。
+> 这决定了原语选择——网页内容**不在 UIA 树里**，`find_elements`/`tap_element` 对网页元素一律无效，
+> 必须走 `human_dom` / `devtools` / `vision`（§3、§4 的修正就是这个原因）。
+
+## 0.6 平台差异（带读数，来源见每条）
+
+> 这是三个平台在**"草稿会不会被保存"**和**"富文本会不会被改写"**上的实测差异——
+> 直接决定"填完能不能走"。读数来自对方 labs，我未直接读取其文件，按回执转录。
+
+| 平台 | 草稿持久化 | 富文本改写 | 等待窗口 |
+|---|---|---|---|
+| 公众号 | **落库**：底部出现「已保存」 | 保留内联样式（`border-left` 实测 4px） | 保存很快 |
+| 知乎 | **落库**：保存提示 **20–40s** 才出现 | 未记录改写 | **等 45s** 再判定，15s 会误判超时 |
+| 头条 | **不落库**：页脚一直「草稿保存中...」，草稿箱「共 0 条内容」，**刷新即丢**（标题+正文全无） | **h2 → h1**（`class=pgc-h-forward-slash`）、内联样式被清洗，改由平台主题接管 | 无（等多久都不会落库） |
+
+**头条这条最要紧**：按公众号配方"填完就走"会**静默丢稿**。所以在头条必须加一条持久化判据：
+
+```
+粘完 → eval 读 chars（实测 125，与平台底部「共 125 字」一致）
+等 8s → 再读「草稿保存中...」是否变成已保存；或直接看草稿箱条数是否 >0
+刷新测试标签 → 标题与正文应仍在（头条实测：全部丢失）
+```
+
+判据：**只有"草稿箱条数 > 0"或"刷新后正文仍在"才算保存成功**；页脚文案不算。
+
+**公众号正文根**：页面上有 3 个 `contenteditable`（`[0]` 标题 20 字、`[2]` 正文），
+正文 = 最后一个 `.ProseMirror`；且需判 `editorLayout == "clean"`（见 §5、§5.1）。
 
 **为什么网页端要用 `human_browser` 而不是 `agent_browser`**：真账号发布要求零自动化痕迹
 （`navigator.webdriver` 等标志），`human_browser` 起的是宿主真实 Chrome；`agent_browser`
