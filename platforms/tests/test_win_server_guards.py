@@ -76,3 +76,17 @@ def test_wait_for_supports_gone_variant(tree):
     # 允许的 kind 列表里应出现拼接出的 *_gone（源码里是 f"{k}_gone"）
     source = ast.unparse(func)
     assert "_gone" in source, "wait_for 的 allowed_kinds 不再包含 *_gone"
+
+
+def test_list_windows_logs_slow_calls(tree):
+    """慢调用必须留痕。
+
+    真机出现过一次 `list_windows` 客户端观测 11.98s、但预算 8s 且既没超时也没异常——
+    没有"完成了但很慢"这行日志，就永远分不清是服务端慢还是客户端/session 开销。
+    """
+    func = _func(tree, "list_windows")
+    names = _called_names(func)
+    assert "monotonic" in names, "list_windows 不再计时 → 慢调用无法归因"
+    source = ast.unparse(func)
+    assert "UIA_SLOW_LOG_S" in source, "慢调用阈值没被使用"
+    assert "[uia] list_windows completed in" in source, "慢调用告警文案被移除"

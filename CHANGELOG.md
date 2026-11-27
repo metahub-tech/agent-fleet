@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`eval_in_profile` 返回耗时分解（真机反馈：偶发 9.3s）**：真机实测 `activate=True` 的 eval 有一次耗时 9265ms，贴着超时线。没有分解只能猜是哪一段慢，现在成功返回带上 `elapsed_ms` 与 `timings:{connect_ms, activate_ms, eval_ms}`；`activate_tab` 也补 `elapsed_ms`。
 
+- **`list_windows` 慢调用留痕（真机反馈：一次 11.98s 无法归因）**：那次客户端观测 11984ms，但 8s 预算既没报超时也没抛异常，因此分不清"服务端真慢"还是"慢在客户端/会话开销"。现在超过 `UIA_SLOW_LOG_S`（默认 5s，可用 `FLEET_UIA_SLOW_LOG` 覆盖）就写一行 `[uia] list_windows completed in X.Xs (... no timeout raised)`——下次同类现象可直接对照。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

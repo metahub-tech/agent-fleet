@@ -103,6 +103,10 @@ pyautogui.PAUSE = 0.05
 #   FLEET_UIA_GLYPH_MAX_NODES 单次合并最多读取多少个文本叶子的矩形（保护慢 UIA）。
 # ---------------------------------------------------------------------------
 UIA_TIMEOUT_S = float(os.environ.get("FLEET_UIA_TIMEOUT", "8") or 8)
+#: 慢调用告警阈值（秒）。超过它即使正常返回也打一行日志——真机出现过一次
+#: `list_windows` 客户端观测 11.98s、但预算 8s 且没有超时/异常记录，
+#: 有这行才能分辨"服务端真的慢"还是"慢在客户端/会话开销"。
+UIA_SLOW_LOG_S = float(os.environ.get("FLEET_UIA_SLOW_LOG", "5") or 5)
 UIA_GLYPH_MERGE = os.environ.get("FLEET_UIA_GLYPH_MERGE", "1") != "0"
 UIA_GLYPH_MAX_CHARS = int(os.environ.get("FLEET_UIA_GLYPH_MAX_CHARS", "1") or 1)
 UIA_GLYPH_MAX_NODES = int(os.environ.get("FLEET_UIA_GLYPH_MAX_NODES", "1500") or 1500)
@@ -233,6 +237,7 @@ def list_windows() -> list[dict]:
     call hanging forever.
     """
     out: list[dict] = []
+    started = time.monotonic()
 
     def _collect() -> None:
         for w in Desktop(backend="uia").windows():
@@ -263,6 +268,12 @@ def list_windows() -> list[dict]:
         # 契约是 list，不能返回 dict；兜住后返回已收集部分并把原因打到日志。
         print(f"[uia] list_windows failed after collecting {len(out)} window(s): "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
+    elapsed = time.monotonic() - started
+    if elapsed >= UIA_SLOW_LOG_S:
+        print(f"[uia] list_windows completed in {elapsed:.1f}s "
+              f"({len(out)} window(s); budget {UIA_TIMEOUT_S:g}s, no timeout raised) -- "
+              f"if a client measured much more than this, the difference is outside the tool",
+              file=sys.stderr)
     return out
 
 
