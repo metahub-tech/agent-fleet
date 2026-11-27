@@ -432,8 +432,10 @@ def test_should_retry_activation_matrix():
         {"reason": "cdp_timeout", "message": "recv failed: [Errno 9]"}) is False
     assert dv.should_retry_activation(
         {"reason": "cdp_timeout", "message": "send failed: broken pipe"}) is False
-    # 空 message（调用方没填）不重试：宁可少试一次，也不要为坏连接白等
-    assert dv.should_retry_activation({"reason": "cdp_timeout"}) is False
+    # 空 message（调用方没填）不重试：宁可少试一次，也不要为坏连接白等。
+    # 这里**故意**构造一个没有 message 的错误，是"极端输入"而不是"夹具偷懒"。
+    assert dv.should_retry_activation(  # noqa: fixture-no-message
+        {"reason": "cdp_timeout"}) is False
 
 
 def test_activate_with_retry_does_not_retry_on_broken_socket():

@@ -76,6 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **重试与"冻结"推断共用同一条超时判据**：`should_retry_activation` 此前对"空 message"也会重试（只要不是 send/recv 失败），与 `classify_eval_error` 的判据不一致。现在两者都要求 `message` 形如 `… timed out`；空 message 一律不重试、不推断冻结。
 
+- **新增"夹具保真度"元测试**：`test_fixture_fidelity.py` 扫描全部测试，禁止构造只有 `reason` 没有 `message` 的 CDP 错误。原因是实现靠 `message` 区分「真超时」与「链路故障」，夹具一旦省掉它，错误实现会被验成对的——同一个坑在本分支里踩过三次。确需构造极端输入时加 `# noqa: fixture-no-message` 并写明原因。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
