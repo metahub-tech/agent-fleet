@@ -165,9 +165,21 @@ python scripts/smoke_lease.py --url http://host:8766/mcp      # 或 --host host 
 它开两个独立 MCP session 验证：B 抢不到租约 / B 的 core 工具被拒 / A 调用自动续租 / **B 的能力工具（human_dom_status 等）也被拒** / release 后 B 立即可用。
 需要带 MCP client SDK 的解释器（server venv 或 `pip install mcp`）。
 
+**5) 能力原语验收（只读 A 组 + 零副作用探活）**
+
+```bash
+python3 scripts/smoke_ops.py --url http://host:8766/mcp --probe   # 只确认版本，无副作用
+python3 scripts/smoke_ops.py --url http://host:8766/mcp           # 全量（会写 %TEMP% 与剪贴板）
+python3 scripts/smoke_devtools.py --url http://host:8766/mcp --profile ~/.fleet/<id>
+```
+
+退出码：`0` 通过、`1` 有检查失败、`2` 连不上/超时、`3` 必需工具缺失（=设备不是这批代码）。两个脚本都兼容 MCP SDK 1.x/2.x，并带整体超时（默认 180s）。
+
 判据：
 
-- `core` 的 `tools` 数量应为 **win 44 / mac 43 / android 31 / ios 30**（含 `list_capabilities` 自身）。对不上说明 venv 装错或跑的是旧代码。
+- `core` 的 `tools` 数量应为 **win 49 / mac 45 / android 33 / ios 32**（含 `list_capabilities` 自身）。对不上说明 venv 装错或跑的是旧代码。
+- 只要「这台设备跑的是哪一版」的结论，用零副作用探活：
+  `python3 scripts/smoke_ops.py --url http://host:8766/mcp --probe`（退出码 0=这批代码、3=不是、2=连不上）。
 - `agent_browser` / `human_browser` / `vision` 的 `status` 可能是 `unavailable`（缺 Chrome / Node / rapidocr）。**这是正常的渐进披露，不要为了它反复重装。**
 
 ---
