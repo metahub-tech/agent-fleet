@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 修复
 
+- **`eval_in_profile` 增加目标页选择（真机验收反馈）**：真账号 profile 有 33 个标签页时，`eval_in_profile` 没有指定目标页的参数、只能报 `page_ambiguous`，等于不可用。新增**可选** `url_part` / `target_id`（来自 `list_tabs`）：给了就精确命中，都不给时行为不变（唯一页自动选、多页报 ambiguous）。选页逻辑抽成 `pick_page()` 并有 5 条单测。
+- **验收脚本两处判据修正（同一次真机验收）**：① `smoke_ops` 的 UIA 延迟检查不认 FastMCP 对 `-> list[dict]` 的包装 `{"result": [...]}`，把 562ms 正常返回误判成失败；② `smoke_devtools` 现在**剥掉 `--profile` 两端的引号**（PowerShell 里 `--profile "..."` 会连引号一起传进去，导致 `port_file_missing`），并自动用 `list_tabs` 里第一个 http 页的 URL 作为 `url_part`。
+
+
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
   - 任务计划带 **每 5 分钟重复触发器**，而 launcher 启动即 `kill-stale` → 新实例杀旧 python、旧 launcher 再拉起、抢 8766 连崩退出、任务计划再拉（实测 70 秒 3 个 launcher）。触发器改为 **6 小时兜底**，launcher 增加 **单实例命名互斥体**（重复实例直接退出，不碰运行中的 python）。
   - `ExecutionTimeLimit=PT72H` 会让健康服务每 72 小时被强杀一次 → 改为 **`PT0S`（不限时）**。

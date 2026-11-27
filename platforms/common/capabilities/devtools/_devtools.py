@@ -48,6 +48,28 @@ def normalize_tab(target: dict) -> dict:
     }
 
 
+def pick_page(pages: list[dict], *, target_id: str = "",
+              url_part: str = "") -> tuple[Optional[dict], Optional[str]]:
+    """按调用方给的线索选页：target_id 优先，其次 url 子串，最后"唯一页"。
+
+    为什么要这个：真账号 profile 常常有几十个标签页（实测 33 个），"唯一页"假设不成立，
+    而 CDP 的 `/json` 不暴露哪个是前台——所以不给线索时只能报 ambiguous；给了线索就精确命中。
+    """
+    tid = (target_id or "").strip()
+    if tid:
+        for page in pages:
+            if str(page.get("id") or "") == tid:
+                return page, None
+        return None, "no_target"
+    needle = (url_part or "").strip()
+    if needle:
+        page, hits = match_pages(pages, needle)
+        if page is not None:
+            return page, None
+        return None, ("page_ambiguous" if hits else "no_target")
+    return pick_single_page(pages)
+
+
 def pick_single_page(pages: list[dict]) -> tuple[Optional[dict], Optional[str]]:
     """没有明确目标时选页：唯一页直接用；多页**不猜**，返回 ambiguous。"""
     if not pages:
@@ -271,7 +293,8 @@ class DevtoolsCapability(CapabilityModule):
         @mcp.tool
         def eval_in_profile(profile: str = "", js: str = "", frame: str = "",
                             activate: bool = True,
-                            max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES) -> dict:
+                            max_result_bytes: int = DEFAULT_MAX_RESULT_BYTES,
+                            url_part: str = "", target_id: str = "") -> dict:
             """在该 profile 的页面里求值：{ok, value, activated, size_bytes, reason?}。
 
             - 默认先 `Target.activateTarget`（后台标签在冻结时 eval 会挂）；
@@ -279,7 +302,8 @@ class DevtoolsCapability(CapabilityModule):
             - 结果 `returnByValue`：超过 `max_result_bytes` → `result_too_large`（**不截断**）；
               不可序列化 → `not_serializable`；JS 抛错 → `js_exception`；
             - `frame` 按 frameId 精确或 url 子串匹配，找不到 → `frame_not_found`；
-            - 只有唯一页面时才会自动选页，多页 → `page_ambiguous`（先 activate_tab）。
+            - 选页：给 `target_id` 或 `url_part`（来自 list_tabs）就精确命中；
+              都不给且有多页 → `page_ambiguous`（真账号 profile 常有几十个标签页）。
             """
             started = time.monotonic()
             udd = resolve_udd(profile)
@@ -293,9 +317,11 @@ class DevtoolsCapability(CapabilityModule):
                 pages, reason = _cdp.page_targets(port)
                 if reason:
                     return {"ok": False, "activated": False, "reason": reason}
-                page, reason = pick_single_page(pages)
+                page, reason = pick_page(pages, target_id=target_id, url_part=url_part)
                 if page is None:
                     return {"ok": False, "activated": False, "reason": reason,
+                            "hint": ("pass url_part= (substring) or target_id= from list_tabs "
+                                     "when the profile has several tabs"),
                             "candidates": [normalize_tab(p) for p in pages[:10]]}
                 activated = bool(activate)
                 if activate:

@@ -218,6 +218,9 @@ def check_uia_latency(kind: str, payload: dict, elapsed_ms: int,
         return False, f"{kind} took {elapsed_ms}ms (> {limit}ms) — traversal is not bounded"
     if isinstance(payload, list):
         return True, f"{kind} returned {len(payload)} item(s) in {elapsed_ms}ms"
+    if isinstance(payload, dict) and isinstance(payload.get("result"), list):
+        # FastMCP 会把 `-> list[dict]` 的返回值包一层 {"result": [...]}
+        return True, f"{kind} returned {len(payload['result'])} item(s) in {elapsed_ms}ms"
     if not isinstance(payload, dict):
         return False, f"{kind} returned a non-dict/non-list payload: {type(payload).__name__}"
     ok = payload.get("ok")

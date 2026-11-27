@@ -156,3 +156,17 @@ def test_tab_visible_after_activate():
     assert sd.check_tab_visible_after_activate(hidden, "T1")[0] is False
     missing = {"ok": True, "tabs": []}
     assert sd.check_tab_visible_after_activate(missing, "T1")[0] is False
+
+
+# --- profile 引号剥离（真机回执：PowerShell 传成字面量导致 port_file_missing）---
+
+def test_normalize_profile_strips_quotes():
+    assert sd.normalize_profile('"~/.fleet/op-1"') == "~/.fleet/op-1"
+    assert sd.normalize_profile("'~/.fleet/op-1'") == "~/.fleet/op-1"
+    assert sd.normalize_profile('  "~/.fleet/op-1"  ') == "~/.fleet/op-1"
+
+
+def test_normalize_profile_leaves_plain_values_alone():
+    assert sd.normalize_profile("~/.fleet/op-1") == "~/.fleet/op-1"
+    assert sd.normalize_profile("") == ""
+    assert sd.normalize_profile('"') == '"'          # 单字符不当引号处理

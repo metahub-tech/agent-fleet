@@ -247,3 +247,9 @@ def test_detect_platform_unknown_when_tools_missing():
 def test_disabled_capabilities_do_not_count():
     caps = {"capabilities": [{"id": "core", "status": "disabled", "tools": ["file_put"]}]}
     assert so.detect_platform(caps) == "unknown"
+
+
+def test_list_windows_wrapped_shape_counts_as_ok():
+    """真机回执：list[dict] 会被 FastMCP 包成 {"result": [...]}，必须判 PASS。"""
+    ok, detail = so.check_uia_latency("list_windows", {"result": [{"title": "a"}, {"title": "b"}]}, 562)
+    assert ok is True and "2 item" in detail and "562ms" in detail

@@ -190,9 +190,20 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     ap.add_argument("--port", type=int, default=8766, help="device port (default 8766)")
     ap.add_argument("--profile", default="",
                     help="Chrome profile string (same value as human_browser_open; "
-                         "empty = the server's 'isolated' default)")
+                         "empty = the server's 'isolated' default). "
+                         "Do NOT wrap it in quotes — surrounding quotes are stripped "
+                         "defensively because they otherwise become part of the path.")
     ap.add_argument("--json", action="store_true", help="print machine-readable results")
     return ap.parse_args(argv)
+
+
+def normalize_profile(value: str) -> str:
+    """去掉误带的首尾引号（PowerShell 里 --profile "~/.fleet/x" 常传成字面量）。"""
+    text = (value or "").strip()
+    for quote in ("\"", "'"):
+        if len(text) >= 2 and text.startswith(quote) and text.endswith(quote):
+            text = text[1:-1].strip()
+    return text
 
 
 def _url(args: argparse.Namespace) -> str:
@@ -235,7 +246,8 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                         print(f"FAIL  devtools capability enabled: {detail}")
                     return 3
 
-                port_payload = await call("cdp_port", profile=args.profile)
+                profile = normalize_profile(args.profile)
+                port_payload = await call("cdp_port", profile=profile)
                 ok, detail = check_cdp_port(port_payload)
                 add("cdp_port", ok, detail)
                 if not ok:
@@ -247,17 +259,27 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                             print(f"{'PASS' if r['ok'] else 'FAIL'}  {r['check']}: {r['detail']}")
                     return 1
 
-                tabs_payload = await call("list_tabs", profile=args.profile)
+                tabs_payload = await call("list_tabs", profile=profile)
                 ok, detail = check_list_tabs(tabs_payload)
                 add("list_tabs shape + latency", ok, detail)
 
-                eval_payload = await call("eval_in_profile", profile=args.profile,
-                                          js="document.visibilityState")
+                target_url = ""
+                for tab in tabs_payload.get("tabs") or []:
+                    if isinstance(tab, dict) and str(tab.get("url") or "").startswith("http"):
+                        target_url = tab["url"]
+                        break
+
+                eval_payload = await call("eval_in_profile", profile=profile,
+                                          js="document.visibilityState",
+                                          url_part=target_url)
                 ok, detail = check_eval_visibility(eval_payload)
+                if not target_url:
+                    detail += "（该 profile 没有 http 页，无法指定目标页）"
                 add("eval_in_profile read", ok, detail)
 
-                oversize_payload = await call("eval_in_profile", profile=args.profile,
-                                              js="'x'.repeat(4096)", max_result_bytes=1024)
+                oversize_payload = await call("eval_in_profile", profile=profile,
+                                              js="'x'.repeat(4096)", max_result_bytes=1024,
+                                              url_part=target_url)
                 ok, detail = check_oversize_is_rejected(oversize_payload, 1024)
                 add("oversize rejected, not truncated", ok, detail)
 
@@ -267,11 +289,11 @@ async def _run(url: str, args: argparse.Namespace) -> int:
                         first_url = tab["url"]
                         break
                 if first_url:
-                    act_payload = await call("activate_tab", profile=args.profile, url_part=first_url)
+                    act_payload = await call("activate_tab", profile=profile, url_part=first_url)
                     ok, detail = check_activate(act_payload)
                     add("activate_tab", ok, detail)
                     if ok and act_payload.get("target_id"):
-                        after = await call("list_tabs", profile=args.profile)
+                        after = await call("list_tabs", profile=profile)
                         ok2, detail2 = check_tab_visible_after_activate(after, act_payload["target_id"])
                         add("tab visible after activate", ok2, detail2)
                 else:

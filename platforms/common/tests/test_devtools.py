@@ -262,3 +262,41 @@ def test_eval_frame_not_found(monkeypatch):
     monkeypatch.setattr(dv._cdp, "call", fake_call)
     r = _tools()["eval_in_profile"](profile="", js="1", frame="nope")
     assert r["ok"] is False and r["reason"] == "frame_not_found"
+
+
+# --- 选页：target_id / url_part（真机回执：profile 有 33 个标签页）-------
+
+def _pages(n=3):
+    return [{"id": f"T{i}", "url": f"https://example.com/p{i}", "title": f"p{i}",
+             "webSocketDebuggerUrl": f"ws://x/{i}"} for i in range(n)]
+
+
+def test_pick_page_by_target_id():
+    page, reason = dv.pick_page(_pages(), target_id="T2")
+    assert reason is None and page["id"] == "T2"
+
+
+def test_pick_page_by_url_part():
+    page, reason = dv.pick_page(_pages(), url_part="p1")
+    assert reason is None and page["id"] == "T1"
+
+
+def test_pick_page_url_part_ambiguous():
+    pages = _pages() + [{"id": "T9", "url": "https://example.com/p1-dup",
+                         "title": "dup", "webSocketDebuggerUrl": "ws://x/9"}]
+    page, reason = dv.pick_page(pages, url_part="p1")
+    assert page is None and reason == "page_ambiguous"
+
+
+def test_pick_page_no_match_is_no_target():
+    page, reason = dv.pick_page(_pages(), url_part="nope")
+    assert page is None and reason == "no_target"
+    page, reason = dv.pick_page(_pages(), target_id="T99")
+    assert page is None and reason == "no_target"
+
+
+def test_pick_page_falls_back_to_single_page_rule():
+    page, reason = dv.pick_page(_pages(1))
+    assert reason is None and page["id"] == "T0"
+    page, reason = dv.pick_page(_pages(3))
+    assert page is None and reason == "page_ambiguous"
