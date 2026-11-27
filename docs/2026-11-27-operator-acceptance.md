@@ -213,6 +213,24 @@ eval_in_profile(..., 默认参数)
 - 附带观察：`activate=True` 花了 **9265ms**，贴着超时线。已给 `eval_in_profile` 加
   `timings:{connect_ms, activate_ms, eval_ms}`，下次可直接定位是哪一段慢。
 
+### `target_id` 回退路径怎么验（真机不现实，离线可证）
+
+真机上要自然出现"所有 http 标签 URL 都重复"几乎不可能（他 36 个标签里只有 5 组重复、仍有大量唯一 URL）。
+所以这条路径的验证方式改为**离线构造 + 单测**：
+
+```python
+from capabilities.devtools._devtools import normalize_tab
+from smoke_devtools import choose_target
+
+tabs = [normalize_tab({"id": "A", "url": "https://x/dup", "title": "1"}),
+        normalize_tab({"id": "B", "url": "https://x/dup", "title": "2"})]
+assert choose_target(tabs) == ("", "A")      # 全部重复 ⇒ 退回 target_id
+```
+
+`scripts/tests/test_smoke_devtools.py::test_choose_target_falls_back_to_target_id_when_all_urls_duplicate`
+就是这个断言。**历史教训**：最初夹具手写成 `{"id": …}`，与"读错字段"的实现互相印证，
+把死代码测成了活的；现在夹具一律由真实 `normalize_tab` 生成，形状漂移会被立刻发现。
+
 ### 仍未闭环
 
 - `list_windows` 那次 **11984ms + 裸 `OSError [Errno 22]`**：对方已用 `start_process` 命令行

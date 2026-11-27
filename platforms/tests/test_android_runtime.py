@@ -77,7 +77,7 @@ def test_wait_for_text_probe_uses_smaller_budget(android, monkeypatch):
     def fake_find(serial, **kwargs):
         seen["serial"] = serial
         seen["kwargs"] = kwargs
-        return {"ok": True, "elements": [{"text": "命中"}], "total_matched": 1}
+        return {"ok": True, "count": 1, "elements": [{"text": "命中"}]}
 
     monkeypatch.setattr(android, "_find_elements_impl", fake_find)
     monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake-serial")
@@ -151,7 +151,7 @@ def test_ios_wait_for_text_probe_uses_budget_and_udid(ios, monkeypatch):
 def test_android_wait_for_text_times_out_when_absent(android, monkeypatch):
     monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake")
     monkeypatch.setattr(android, "_find_elements_impl",
-                        lambda serial, **kw: {"ok": True, "elements": [], "total_matched": 0})
+                        lambda serial, **kw: {"ok": True, "count": 0, "elements": []})
     out = _tool_fn(android.wait_for)(kind="text", target="不存在", timeout_ms=300, ctx=None)
     assert out["ok"] is False
     assert out["reason"] == "timeout", out
@@ -161,7 +161,7 @@ def test_android_wait_for_text_times_out_when_absent(android, monkeypatch):
 def test_android_wait_for_text_gone_succeeds_immediately(android, monkeypatch):
     monkeypatch.setattr(android, "_resolve_device", lambda device, default=None: "fake")
     monkeypatch.setattr(android, "_find_elements_impl",
-                        lambda serial, **kw: {"ok": True, "elements": [], "total_matched": 0})
+                        lambda serial, **kw: {"ok": True, "count": 0, "elements": []})
     out = _tool_fn(android.wait_for)(kind="text_gone", target="对话框", timeout_ms=2000, ctx=None)
     assert out["ok"] is True and out["kind"] == "text_gone", out
 

@@ -54,7 +54,7 @@ def test_wait_for_text_probe_receives_small_budget(mac, monkeypatch):
 
     def fake_find(*args, **kwargs):
         seen.update(kwargs)
-        return {"ok": True, "total_matched": 0, "elements": []}
+        return {"ok": True, "count": 0, "total_matched": 0, "elements": []}
 
     monkeypatch.setattr(mac, "_mac_find_elements", fake_find)
     out = _tool_fn(mac.wait_for)(kind="text", target="missing", timeout_ms=800)

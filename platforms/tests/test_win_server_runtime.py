@@ -40,14 +40,14 @@ def test_wait_for_rejects_unknown_kind_and_lists_gone_variants(win):
 
 def test_wait_for_text_gone_succeeds_when_absent(win, monkeypatch):
     monkeypatch.setattr(win, "_win_find_elements",
-                        lambda *a, **k: {"ok": True, "total_matched": 0, "elements": []})
+                        lambda *a, **k: {"ok": True, "count": 0, "total_matched": 0, "elements": []})
     out = _tool_fn(win.wait_for)(kind="text_gone", target="打开", timeout_ms=2000)
     assert out["ok"] is True and out["kind"] == "text_gone", out
 
 
 def test_wait_for_text_times_out_with_multiple_attempts(win, monkeypatch):
     monkeypatch.setattr(win, "_win_find_elements",
-                        lambda *a, **k: {"ok": True, "total_matched": 0, "elements": []})
+                        lambda *a, **k: {"ok": True, "count": 0, "total_matched": 0, "elements": []})
     out = _tool_fn(win.wait_for)(kind="text", target="不存在", timeout_ms=400)
     assert out["ok"] is False and out["reason"] == "timeout", out
     assert out["attempts"] >= 2, "预算内应当多次采样（探测预算不能吃满等待预算）"
