@@ -56,7 +56,7 @@ from pywinauto import Desktop
 from win_input import _send_unicode, foreground_chrome_window_for_udd, read_scale_factor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-import _batch, _fsops, _proc, _search
+import _batch, _fsops, _proc, _search, _wait
 import _cf_html, _clipboard
 from _marker import draw_crosshair  # R5 hover_preview: PNG 上画确定性十字@tap点
 from _uia_bounds import (  # UIA 不卡死 + Electron「一字一节点」合并（纯逻辑，跨平台可测）
@@ -1299,6 +1299,79 @@ _bridge_port = resolve_bridge_port(_server_args.port, override=_server_args.dom_
 
 _dom_bridge = DomBridge(token="")   # v1: 127.0.0.1-only, 暂无 WS token
 # ============================================================
+#                  WAIT ON DEVICE (no blind sleeps)
+# ============================================================
+
+@mcp.tool
+@with_touch
+def wait_for(
+    kind: Annotated[str, Field(description="What to wait for: 'window' | 'text' | 'foreground'")],
+    target: Annotated[str, Field(description="Window-title substring, UIA element query, or foreground-title substring")] = "",
+    timeout_ms: Annotated[int, Field(ge=0, le=60000, description="Total budget in ms (max 60000)")] = 10000,
+    interval_ms: Annotated[int, Field(ge=20, le=2000, description="Poll interval in ms")] = 200,
+    window_title: Annotated[Optional[str], Field(description="For kind='text': scope the UIA search to this window")] = None,
+) -> dict:
+    """Wait **on the device** until a condition holds — instead of sleeping blindly.
+
+    Kinds:
+      * ``window``     — any visible top-level window whose title contains `target`
+        (cheap: Win32 EnumWindows, no UIA);
+      * ``foreground`` — the current foreground window's title contains `target`;
+      * ``text``       — a UIA element matching `target` exists (optionally scoped by
+        `window_title`); this walks the accessibility tree, so keep the budget sane.
+
+    Returns ``{ok, matched, elapsed_ms, attempts, detail?}`` on success and
+    ``{ok:false, reason:"timeout", elapsed_ms, attempts, timeout_ms}`` on expiry —
+    a timeout is a **normal answer**, not an error: branch on `ok` and pick a fallback.
+    Polling errors (e.g. a window being recreated) don't abort the wait; the last one
+    is reported as `last_error`.
+    """
+    kind_norm = (kind or "").strip().lower()
+    if kind_norm not in ("window", "text", "foreground"):
+        return {"ok": False, "reason": "invalid_kind", "allowed_kinds": ["window", "text", "foreground"]}
+    needle = (target or "").strip()
+    if not needle:
+        return {"ok": False, "reason": "missing_target", "hint": "pass the title substring / element query in `target`"}
+
+    def _probe_window():
+        import win32gui
+        hits: list[dict] = []
+
+        def _cb(hwnd, _param):
+            try:
+                if not win32gui.IsWindowVisible(hwnd):
+                    return True
+                title = win32gui.GetWindowText(hwnd)
+                if title and needle.lower() in title.lower():
+                    hits.append({"title": title, "hwnd": int(hwnd)})
+            except Exception:
+                pass
+            return True
+
+        win32gui.EnumWindows(_cb, None)
+        return bool(hits), {"matches": hits[:5], "count": len(hits)}
+
+    def _probe_foreground():
+        import win32gui
+        hwnd = win32gui.GetForegroundWindow()
+        title = win32gui.GetWindowText(hwnd) if hwnd else ""
+        return (needle.lower() in (title or "").lower()), {"title": title, "hwnd": int(hwnd or 0)}
+
+    def _probe_text():
+        res = _win_find_elements(needle, window_title, None, False, 5)
+        if not res.get("ok"):
+            raise RuntimeError(f"find_elements failed: {res.get('reason') or res.get('error')}")
+        count = int(res.get("total_matched") or 0)
+        return count > 0, {"count": count, "elements": (res.get("elements") or [])[:3]}
+
+    probe = {"window": _probe_window, "foreground": _probe_foreground, "text": _probe_text}[kind_norm]
+    result = _wait.wait_until(probe, timeout_s=timeout_ms / 1000.0, interval_s=interval_ms / 1000.0)
+    result["kind"] = kind_norm
+    result["target"] = needle
+    return result
+
+
+# ============================================================
 #                  BATCHED ACTIONS (turn reduction)
 # ============================================================
 
@@ -1309,6 +1382,7 @@ _BATCH_ALLOWLIST = (
     "tap", "swipe", "move_mouse", "type_text", "paste_text", "press_key",
     "tap_element", "find_elements", "focus_window", "launch_app",
     "clipboard_set_html", "file_put", "file_get", "get_screen_size", "hover_preview",
+    "wait_for",
 )
 
 

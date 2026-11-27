@@ -39,7 +39,7 @@ agent-fleet 是一套**让 LLM agent 操作真实物理设备的 MCP 基座**—
 | ui-tree | `dump_ui` / `find_elements` / `tap_element` | 无障碍树（OS 级 UI 探查） |
 | pointer-verify | `hover_preview` | 移真鼠标到 (x,y) 不点 + 截图 + 画确定性十字（R5，desktop only） |
 
-**固定工具数**（core + `list_capabilities` + 本仓库实现的可选能力）：win 56 / mac 51 / android 31 / ios 30。`agent_browser` 是代理型能力，工具数随所装 `@playwright/mcp` 版本变化，以 `list_capabilities()` 为准；`human_dom` 是 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后 +5，同样以运行时为准。
+**固定工具数**（core + `list_capabilities` + 本仓库实现的可选能力）：win 57 / mac 51 / android 31 / ios 30。`agent_browser` 是代理型能力，工具数随所装 `@playwright/mcp` 版本变化，以 `list_capabilities()` 为准；`human_dom` 是 opt-in（需 `~/.fleet/human-dom-ready` 且扩展就绪），启用后 +5，同样以运行时为准。
 
 平台特定扩展（如 macOS / Win 的 `browser_*` 系列 + `human_browser_open`）由**能力框架运行时动态注入**——它们不是 `@mcp.tool` 静态装饰函数，因此**不在 `INTERFACE.md` 静态清单内**。取真实运行时清单的两条路：
 1. 装载时调 `list_capabilities()`（框架统一注入，每平台都有）

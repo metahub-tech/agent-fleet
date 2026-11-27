@@ -57,6 +57,21 @@ tap_element(query="Submit")                 # default: locate by semantics, clic
 - **`reason: "uia_timeout"`** — the window's accessibility provider is busy or hung (common for Electron/Chromium apps and consoles). The call returns within the UIA budget instead of hanging, so retry once after the app settles, narrow with `window_title` / `control_type`, or drop to `take_screenshot` + `tap`. Do NOT raise `FLEET_UIA_TIMEOUT` just to "make it work".
 - **Electron / Chinese text ("一字一节点")** — some Electron apps report one `Text` node *per CJK character*, so a query like `订阅` would never match a single node. `find_elements` / `tap_element` now merge adjacent single-character leaves into a text run automatically (result carries `merged: true`, `merged_from`, and `glyph_merge` metadata), and `tap_element` clicks the matched characters (`clicked_text_span`), not the middle of the whole run. If the merged name looks over-joined, add `window_title` / `control_type` to narrow, or use the span info to verify before acting.
 
+### Wait on the device, not in your head (`wait_for`)
+
+After an action that opens a window / dialog / panel, do **not** guess with `sleep` — call
+`wait_for(kind, target, timeout_ms)` and branch on the answer:
+
+| kind | target | when |
+|---|---|---|
+| `window` | title substring | waiting for a dialog/menu to appear (cheap: Win32 EnumWindows, no UIA) |
+| `foreground` | title substring | confirming the app actually took focus |
+| `text` | UIA element query | waiting for a control to render (walks the AX tree; keep the budget sane) |
+
+`{ok:true, elapsed_ms, attempts}` = it appeared; `{ok:false, reason:"timeout"}` = it did **not**
+appear within budget — that is a normal answer, so pick a fallback (screenshot / vision) instead of
+retrying blindly. `wait_for` is also allowed inside `run_actions` steps.
+
 ### Batch several actions in one call (`run_actions`)
 
 For a fixed sequence (e.g. clipboard write → `ctrl+v` → wait → click), send it as ONE

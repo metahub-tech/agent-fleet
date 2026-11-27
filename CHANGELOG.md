@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Windows core 工具 `run_actions`：批量动作（借鉴 mobile-mcp `batch_commands` / Windows-MCP `MultiEdit`）**：把「填标题 → 粘正文 → 按键 → 点发布」这类固定串放进**一次 MCP 调用**，turn 数按步数下降、且步与步之间不会因推理延迟让页面状态漂移。安全边界：**显式白名单**（15 个安全工具，shell/进程/终止类不可批处理）、**不递归**、最多 25 步、**整体校验后才执行**（第 6 步写错就一步都不跑，绝不半截执行）、失败短路并把后续步标记 `skipped`、单步异常记为 `status:"error"` 不炸整批、二进制返回摘要化不塞结果体。纯逻辑在 `platforms/common/_batch.py`（9 条单测覆盖校验/短路/继续模式/延迟/二进制）。win 固定工具数 **55 → 56**（core 46 → 47）。
 
+- **Windows core 工具 `wait_for`：设备侧条件等待（借鉴 Windows-MCP `WaitFor`）**：把「睡一会儿再看」从调用方挪到设备侧——`kind` 支持 `window`（标题子串，走 Win32 EnumWindows，不走 UIA，开销小）/ `foreground`（确认刚抢到前台）/ `text`（UIA 元素出现，可 `window_title` 限定范围）。命中返回 `{ok:true, elapsed_ms, attempts, detail}`；**超时是正常答案** `{ok:false, reason:"timeout", timeout_ms}`，调用方直接分支降级，而不是盲目重试。探测抛异常（窗口正在重建）不算失败、继续轮询，最后一次错误进 `last_error`；预算封顶 60s、间隔下限 20ms，并可与 `run_actions` 组合。纯逻辑在 `platforms/common/_wait.py`（7 条单测）。**单测抓到一个真实缺陷**：`budget=0.3` 与 `3×0.1` 的浮点累加差 1e-14 会让循环在最后一步 `sleep(~1e-14)`、永远跨不过预算 → 变成忙等死循环；已加 `_EPSILON` 护栏。win 固定工具数 **56 → 57**（core 47 → 48）。
+
 ### 修复
 
 - **设备端「用一会就掉线」的根因修复（test-win11 实测）**：MCP session 只活在进程内存，任何重启都会让所有客户端 404。定位到两条叠加原因并修掉：
