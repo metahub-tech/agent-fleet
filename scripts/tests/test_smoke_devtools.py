@@ -267,3 +267,19 @@ def test_freeze_state_ok_fails_when_page_still_answers():
 def test_freeze_state_ok_fails_on_unexpected_payload():
     ok, _ = sd.freeze_state_ok({"ok": False, "reason": "page_ambiguous"})
     assert ok is False
+
+
+# --- CLI 参数组合（新增开关不影响既有解析）------------------------------
+
+def test_cli_accepts_new_flags_together():
+    ns = sd._parse_args(["--url", "http://x/mcp", "--profile", "~/.fleet/p",
+                         "--target-id-check", "--freeze-check"])
+    assert ns.target_id_check is True
+    assert ns.freeze_check is True
+    assert ns.profile == "~/.fleet/p"
+
+
+def test_cli_flags_default_off():
+    ns = sd._parse_args(["--url", "http://x/mcp"])
+    assert ns.target_id_check is False
+    assert ns.freeze_check is False
