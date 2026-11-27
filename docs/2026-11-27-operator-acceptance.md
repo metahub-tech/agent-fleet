@@ -83,6 +83,20 @@ list_capabilities()   → core.tools 里应包含：
 | ☐ | server 已重启 | `list_capabilities()` 的 `core.tools` 含上述 3 个新工具名 |
 | ☐ | 版本一致 | 设备上的 checkout 是 `integ/operator-p0-p1`（`git -C <repo> log -1 --format=%h`） |
 | ☐ | skill 是**拷贝**模式（Windows 常态）时，pull 后要重装 | `python3 scripts/install_skills.py --platform win-device --target <你的技能目录> --force`；否则 agent 读到的仍是旧 SOP（符号链接模式会自动跟随，无需重装） |
+### 交付前：新增文件会触发另一个门禁
+
+`blueprint-check` 是 CI 的 **required** 检查，而它只看 `docs/internal/blueprint/MAP.md` 是否与
+仓库结构一致。所以**只要新增了 `scripts/`、`platforms/`、`cli/` 下的文件**，就必须重跑：
+
+```bash
+./scripts/gen-blueprint-map.sh            # 写
+./scripts/gen-blueprint-map.sh --check    # 验（应 exit 0）
+./scripts/gen-blueprint-interface.sh      # 改了工具签名时还要跑这个
+```
+
+我在本 PR 里就漏跑过一次，门禁当场报 `map=1`。这类"新增文件触发另一个门禁"和下面
+"端口归属"是同一性质：**动作本身没错，但有一个不在眼前的必做步骤**。
+
 ### 重启前必须做：确认端口上没有**陈旧监听进程**
 
 真机撞到过（2026-11-27）：父 wrapper 被 kill 后，**子 python 仍占着端口**，新实例启动直接

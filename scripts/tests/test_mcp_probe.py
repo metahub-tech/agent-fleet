@@ -91,7 +91,7 @@ def test_sample_cases_are_callable_shapes():
 
 
 def test_main_requires_url(capsys):
-    assert probe_multi.main([]) == 2
+    assert probe_multi.main([]) == 1
     assert "--url" in capsys.readouterr().err
 
 
@@ -99,3 +99,19 @@ def test_main_sample_prints_json(capsys):
     assert probe_multi.main(["--sample"]) == 0
     out = capsys.readouterr().out
     assert '"tool"' in out
+
+
+def test_usage_errors_are_1_and_runtime_errors_are_2(tmp_path, capsys):
+    """退出码语义：用法错=1、连不上=2；**不要**混进 smoke 的 0/1/2/3 约定。"""
+    assert probe_multi.main([]) == 1                       # 缺 --url
+    bad = tmp_path / "bad.json"
+    bad.write_text('"nope"', encoding="utf-8")
+    assert probe_multi.main(["--url", "http://127.0.0.1:9/mcp", "--cases", str(bad)]) == 1
+    capsys.readouterr()
+
+
+def test_sample_cases_contain_only_readonly_tools():
+    forbidden = {"tap", "tap_element", "press_key", "type_text", "clipboard_set_html",
+                 "run_shell", "launch_app", "terminate_app"}
+    names = {c["tool"] for c in probe_multi.SAMPLE_CASES}
+    assert not (names & forbidden), names

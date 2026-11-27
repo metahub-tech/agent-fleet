@@ -30,6 +30,19 @@
 
 每个用例打印一行 JSON；`--out` 另存整份列表（UTF-8、不转义）。`--sample` 可生成一份示例 cases。
 
+**退出码（与验收脚本刻意不同，别混用）**：
+
+| 码 | 含义 | 对照 `smoke_*.py` |
+|---|---|---|
+| `0` | 用例跑完了（**不代表"通过"**——本工具不判分） | smoke 的 `0` 是"全部检查通过" |
+| `1` | 用法错误（缺 `--url` / `--cases` 形状不对） | smoke 的 `1` 是"有检查失败" |
+| `2` | 连不上 / 超时 | 同 smoke 的 `2`；**smoke 的 `3` 在本工具里不存在**（那是"设备上不是这批代码"） |
+
+**`--sample` 的安全边界**：它会真的调工具。示例用例**只放只读工具**
+（`list_capabilities` / `get_screen_size`），**绝不放** `clipboard_set_html` / `tap` /
+`press_key` / `run_shell` —— 剪贴板是全局资源，`tap`/`press_key` 会改动别人的现场。
+自己写 cases 时同理：先确认每个工具是否只读。
+
 出处：本工具由 `agent:device-operator-lead` 在
 `labs/2026-11-28-win-p0p1-acceptance` 中首先实现（该 lab §15 有说明），此处按仓库脚本规范
 做了零依赖化（复用 `_mcp_probe`）与 CLI 补齐。
@@ -48,7 +61,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _mcp_probe import TRANSPORT_HINT, load_transport, payload_of  # noqa: E402
 
-#: `--sample` 生成的最小可用 cases（不触碰真账号状态：只读类调用）
+#: `--sample` 的用例：**只含只读工具**。不要往这里加 tap / press_key / clipboard_set_html /
+#: run_shell —— 它们会改动现场（剪贴板是全局资源，点击会打到别人的窗口）。
 SAMPLE_CASES = [
     {"label": "build identity", "tool": "list_capabilities", "args": {}},
     {"label": "screen size", "tool": "get_screen_size", "args": {}},
@@ -130,16 +144,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
     if not args.url:
         print("ERROR: --url is required (e.g. http://127.0.0.1:8767/mcp)", file=sys.stderr)
-        return 2
+        return 1
     if not args.cases:
         print("ERROR: --cases is required (or use --sample to see the shape)", file=sys.stderr)
-        return 2
+        return 1
 
     try:
         cases = load_cases(args.cases)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: bad --cases file: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 2
+        return 1
 
     timeout = resolve_timeout(args.timeout)
     try:

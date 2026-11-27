@@ -13,6 +13,19 @@
 
 这些脚本都是**直接运行**的（`python scripts/smoke_ops.py`），所以同目录 import 可用；
 `scripts/tests` 里通过 `import smoke_ops` 访问，仍然可用（各脚本保留同名兼容别名）。
+
+⚠️ **三条输出契约（改这里会同时影响三条验收脚本，改前先读）**：
+
+| 情形 | 归一化结果 | 谁依赖它 |
+|---|---|---|
+| 结构化内容是 dict | 原样返回 | 三者都用（`ok`/`reason` 直接读字段） |
+| 结构化内容是非 dict（如 list） | 调用方包成 `{"_value": …}` | `smoke_ops` / `smoke_devtools` / `smoke_lease` |
+| 只有 text 且能 `json.loads` | 返回解析值 | 同上 |
+| 只有 text 且不能解析 | `{"_raw": text}` | 同上（**不静默丢内容**，便于人看现场） |
+| 完全没有内容 | `[]`（调用方按空处理成 `{}`） | 同上 |
+
+这里的"顺手简化"（比如把 `_raw` 改成抛异常、或把 `_value` 拆平）会改变三份验收脚本的
+判定语义，而不是只改一个工具函数——请当成**跨脚本契约**对待。
 """
 from __future__ import annotations
 

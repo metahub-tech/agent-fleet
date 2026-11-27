@@ -105,6 +105,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增 `scripts/probe_multi.py`（定位工具）与 `scripts/_mcp_probe.py`（公共实现）**：`probe_multi` 在**一个** MCP 会话里按顺序打 N 个工具调用，把原始 payload 原样吐出——不断言、不判分、不设退出码分级，专用于"这个工具在现场到底返回什么形状"。与验收脚本**不是二选一**：验收用 `smoke_ops`/`smoke_devtools`，定位用 `probe_multi`。同时把三个验收脚本里重复的 payload 归一化与 SDK 连接器加载收敛到 `_mcp_probe`（此前三份实现容易对同一设备给出不同读数），并保留各脚本原有契约（非 dict 包 `_value`、纯文本包 `_raw`）。出处：由 `device-operator-lead` 在 labs §15 首实现，此处零依赖化 + 补 CLI（`--sample` / `--timeout` / `--json` / `--out`）。
 
+- **`probe_multi` 的退出码与 `--sample` 安全边界写进 help（采纳 operator 建议）**：① 退出码刻意与验收脚本区分——`0`=跑完（**不代表通过**，本工具不判分）、`1`=用法错、`2`=连不上/超时，**没有 3**（那是 smoke 的"设备上不是这批代码"）；② `--sample` 只放只读工具（`list_capabilities` / `get_screen_size`），并在 help 与代码注释里禁止加入 `tap`/`press_key`/`clipboard_set_html`/`run_shell`（剪贴板是全局资源、点击会打到别人窗口）。
+
+- **`_mcp_probe` 钉死三条跨脚本输出契约**：抽公共模块后，`payload_of` 的归一化不再只是本模块的测试契约，而是三条验收脚本的**输出契约**——非 dict → `{"_value": …}`、纯文本 → `{"_raw": …}`、空 → `[]`（调用方按 `{}` 处理）。docstring 里写明"改这里会同时影响三条验收"，防以后被顺手简化。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
