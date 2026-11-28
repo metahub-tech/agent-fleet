@@ -56,13 +56,21 @@ Stop 会先把**这条命令自己**掐掉，后续的 `Start-ScheduledTask` 根
 安全做法（任选其一，共同点都是**让重启动作脱离被重启的进程**）：
 
 ```powershell
-# A. 先起一个独立进程，延迟 3 秒再 stop/start；调用立即返回
+# A（本机唯一可用）：起一个独立进程，延迟 3 秒再 stop/start；调用立即返回
 Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-Command',
   'Start-Sleep 3; Stop-ScheduledTask -TaskName "MCP-WinDevice"; Start-Sleep 2; Start-ScheduledTask -TaskName "MCP-WinDevice"'
 
-# B. 用任务计划自身的"重新启动"能力（RestartCount / RestartInterval），只结束 python 进程
-Stop-Process -Id <PID>   # 交给 launcher 的 while 循环重新拉起
+# 也可用机器上现成的垫片（更稳）：
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-File',
+  'C:\Users\qjl\.fleet\restart-once.ps1'
 ```
+
+> ⚠️ **不存在的"B 方案"**：曾以为"只 `Stop-Process` 就行，launcher 的 while 循环会重新拉起"。
+> 2026-11-28 现场核实：这台机器上**没有守护循环**——`pid=273212`（`.venv\python.exe`）是
+> **包装器**、`pid=266180`（`c:\python311\python.exe`）才是真正监听的那个，两者是
+> "包装器 → 真身"，不是 supervisor。杀掉真身最可能的结果是**整条一起退出、任务停在 Stopped**，
+> 而不是自动重启。⇒ 本机只能走 A（任务计划 stop/start，且必须 detached）。
+> B 仅在**确认 launcher 是 supervisor 且有重试间隔**时成立，别默认套用。
 
 无论哪种，**部署后必须验证**：`/health` 200 → `list_capabilities()` 工具数 → 任意调用后
 `~/.agent-fleet/tool-audit.jsonl` 出现新行。
