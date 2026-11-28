@@ -121,6 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`analyze_tool_audit.py` 增加「会话序列」分析**（`--sessions N`）：按 `session` 还原工具调用顺序，并标记**同一会话跨 ≥2 个候选端点组**的情况。理由（operator 指出）：拆端点最大的代价不是"多连一次"，而是**跨端点会分裂会话态**——租约按 MCP session 绑定（在 A 端点 acquire、去 B 端点会被判 `device_leased`），前台窗口/操作顺序也无法跨端点保证。同一进程内多端点时模块级状态（registry / bridge / 租约）仍共享，真正分裂的是多进程/多端口。
 
+- **新增 `docs/mcp-endpoints-design.md`：多端点方案的三条硬约束（含本地 spike 实测）**：同进程挂多个 FastMCP 端点可行、工具可复制、审计共用一份文件；但 ① **租约按 MCP session 绑定** ⇒ 在 A 端点 acquire、到 B 端点调用会被判 `device_leased`（实测 `{reason:"device_leased"}`）——改绑 `holder_name` 可同时修掉"客户端重连后 lease 失效"；② `list_capabilities` 读模块级注册表，在子端点上**会说谎**（只挂 9 个工具仍报全部）；③ 操作顺序（切前台 → 粘贴）无法跨端点保证。结论：约束①未定案前不拆。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

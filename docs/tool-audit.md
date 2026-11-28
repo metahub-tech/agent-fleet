@@ -99,6 +99,10 @@ python3 scripts/analyze_tool_audit.py --days 7 --sessions 10
 
 所以拆之前至少量两件事：**典型任务跨几个工具**、**其中多少依赖同一份会话态**。
 
+> 端点拆分的可行性、三条硬约束（租约按 session 绑定 / `list_capabilities` 会说谎 /
+> 操作顺序无法跨端点保证）见 [`docs/mcp-endpoints-design.md`](mcp-endpoints-design.md)——
+> 那里有 2026-11-28 的本地 spike 实测结果。
+
 ## 已知局限
 
 1. **只有本服务进程视角**：一个设备被多个调用方用，审计是合并的（`session` 只能分组，不能反查是谁）；

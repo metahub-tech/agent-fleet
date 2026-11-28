@@ -114,6 +114,7 @@ agent-fleet CLI
 - `docs/architecture.md`
 - `docs/install-for-agents.md`
 - `docs/install-pattern.md`
+- `docs/mcp-endpoints-design.md`
 - `docs/project-map.md`
 - `docs/roadmap.md`
 - `docs/social-publishing-playbook.md`
