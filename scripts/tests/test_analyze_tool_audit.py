@@ -130,8 +130,11 @@ def test_main_sessions_mode_prints_sequences(tmp_path, capsys):
 
 # --- 重连碎片：不粘回去会系统性低估跨组耦合 ------------------------------
 
-def _r(tool, ts, session="s1", pid=100):
-    return {"ts": ts, "tool": tool, "ms": 5, "ok": True, "session": session, "pid": pid}
+def _r(tool, ts, session="s1", pid=100, holder=""):
+    rec = {"ts": ts, "tool": tool, "ms": 5, "ok": True, "session": session, "pid": pid}
+    if holder:
+        rec["holder"] = holder
+    return rec
 
 
 def test_stitch_merges_reconnect_fragments():
@@ -191,3 +194,38 @@ def test_main_warns_when_fragments_present(tmp_path, capsys):
     assert rc == 0
     assert "粘贴后单元" in out
     assert "下界" in out
+
+
+# --- 多 agent 同时段：同 pid 但不同 holder 不得粘连（上界方向）-----------
+
+def test_stitch_does_not_merge_different_holders():
+    """pid 是服务端进程、多 agent 共享；只有 holder 能区分。
+
+    否则会把 A 的 ops 调用和 B 的 gui 调用缝成一个"跨组单元"，让跨组率**虚高**
+    （与重连碎片导致的虚低方向相反）。
+    """
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", pid=7, holder="agent-A"),
+        _r("take_screenshot", "2026-11-27T00:00:10+00:00", pid=7, holder="agent-B"),
+    ]
+    units = ana.stitch_units(recs, gap_s=180)
+    assert len(units) == 2
+    assert all(not ana.unit_profile(u)["coupled"] for u in units)
+
+
+def test_stitch_merges_same_holder_across_sessions():
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", session="aaaa", pid=7, holder="agent-A"),
+        _r("take_screenshot", "2026-11-27T00:00:10+00:00", session="bbbb", pid=7, holder="agent-A"),
+    ]
+    units = ana.stitch_units(recs, gap_s=180)
+    assert len(units) == 1 and ana.unit_profile(units[0])["coupled"] is True
+
+
+def test_cut_pairs_counts_only_over_threshold():
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", pid=7, holder="A"),
+        _r("run_shell", "2026-11-27T00:00:10+00:00", pid=7, holder="A"),   # 10s：不切
+        _r("run_shell", "2026-11-27T00:10:00+00:00", pid=7, holder="A"),   # 590s：切
+    ]
+    assert ana.cut_pairs(recs, gap_s=180) == 1

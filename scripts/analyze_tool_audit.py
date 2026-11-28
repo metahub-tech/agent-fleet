@@ -172,7 +172,7 @@ def group_of(tool: str) -> str:
     return ""
 
 
-def stitch_units(records: list[dict], gap_s: float = 60.0) -> list[list[dict]]:
+def stitch_units(records: list[dict], gap_s: float = 180.0) -> list[list[dict]]:
     """按 ``pid`` + 相邻调用间隔把会话碎片粘回"真实工作单元"。
 
     为什么必须粘：审计里的 ``session`` 是**连接级**标识，客户端重连就会换新 id
@@ -182,12 +182,15 @@ def stitch_units(records: list[dict], gap_s: float = 60.0) -> list[list[dict]]:
     ``pid`` 在进程生命周期内不变，所以"同一 pid + 相邻调用间隔 < gap_s"近似一份工作流。
     粘出来的单元数一定 **≤** 原始会话数；两者差距大说明重连频繁，跨组率只能当下界看。
     """
-    by_pid: dict[str, list[dict]] = {}
+    # 归属键 = (pid, holder)：pid 是**服务端进程**（同一台机器的所有 agent 共享），
+    # 只有 holder（acquire 声明的名字）才能把不同 agent 的调用分开。
+    by_pid: dict[tuple, list[dict]] = {}
     for rec in records:
-        by_pid.setdefault(str(rec.get("pid") or "?"), []).append(rec)
+        key = (str(rec.get("pid") or "?"), str(rec.get("holder") or ""))
+        by_pid.setdefault(key, []).append(rec)
 
     units: list[list[dict]] = []
-    for pid, recs in by_pid.items():
+    for _key, recs in by_pid.items():
         recs_sorted = sorted(recs, key=_epoch)
         current: list[dict] = []
         last_ts = None
@@ -201,6 +204,19 @@ def stitch_units(records: list[dict], gap_s: float = 60.0) -> list[list[dict]]:
         if current:
             units.append(current)
     return units
+
+
+def cut_pairs(records: list[dict], gap_s: float) -> int:
+    """同一 (pid, holder) 内因**超过阈值**而被切开的相邻对数——阈值定得对不对看这个数。"""
+    buckets: dict[tuple, list[float]] = {}
+    for rec in records:
+        key = (str(rec.get("pid") or "?"), str(rec.get("holder") or ""))
+        buckets.setdefault(key, []).append(_epoch(rec))
+    count = 0
+    for stamps in buckets.values():
+        stamps.sort()
+        count += sum(1 for a, b in zip(stamps, stamps[1:]) if (b - a) > gap_s)
+    return count
 
 
 def unit_profile(unit: list[dict]) -> dict:
@@ -234,7 +250,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--profiles", default="", help="comma list of candidate profiles to score")
     ap.add_argument("--top", type=int, default=25, help="how many tools to list")
     ap.add_argument("--json", action="store_true", help="machine-readable summary")
-    ap.add_argument("--stitch-gap", type=float, default=60.0,
+    ap.add_argument("--stitch-gap", type=float, default=180.0,
                     help="stitch session fragments when the gap between calls is under N seconds "
                          "of the same pid (default 60; reconnect creates new session ids)")
     ap.add_argument("--sessions", type=int, default=0,
@@ -288,11 +304,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     for rec in records:
         raw_groups.setdefault(rec.get("session") or "(none)", []).append(rec)
     units = stitch_units(records, gap_s=args.stitch_gap)
+    with_holder = sum(1 for r in records if r.get("holder"))
+    cuts = cut_pairs(records, args.stitch_gap)
     raw_coupled = sum(1 for g in raw_groups.values() if unit_profile(g)["coupled"])
     unit_coupled = sum(1 for u in units if unit_profile(u)["coupled"])
     print(f"\n会话切分（gap≤{args.stitch_gap:g}s 且同 pid 视为同一工作单元）：")
     print(f"  原始会话数 {len(raw_groups)}（其中跨组 {raw_coupled}，{raw_coupled/max(1,len(raw_groups))*100:.1f}%）")
     print(f"  粘贴后单元 {len(units)}（其中跨组 {unit_coupled}，{unit_coupled/max(1,len(units))*100:.1f}%）")
+    print(f"  带 holder 的记录 {with_holder}/{len(records)}"
+          + ("　⚠ 无 holder 的记录只能按 pid 归并，可能把不同 agent 缝在一起（跨组率上界）"
+             if with_holder < len(records) else "　✅ 全部可归属"))
+    print(f"  因超过 {args.stitch_gap:g}s 被切开的相邻对：{cuts} 个"
+          + ("　⚠ 偏多说明阈值偏小" if cuts > max(3, len(units)) else ""))
     hist = call_count_histogram(units)
     print("  单元调用数分布: " + ", ".join(f"{k}次={v}" for k, v in hist.items()))
     if len(raw_groups) > len(units):

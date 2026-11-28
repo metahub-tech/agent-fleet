@@ -80,6 +80,7 @@ def append_record(
     max_bytes: Optional[int] = None,
     now: Optional[datetime] = None,
     session: str = "",
+    holder: str = "",
 ) -> None:
     """追加一行审计记录。**任何异常都吞掉**——审计绝不能影响工具调用本身。"""
     if not audit_enabled():
@@ -95,6 +96,7 @@ def append_record(
             "ok": bool(ok),
             "pid": os.getpid(),
             **({"session": session} if session else {}),
+            **({"holder": holder} if holder else {}),
         },
         ensure_ascii=True,
         separators=(",", ":"),
@@ -136,12 +138,43 @@ class ToolAuditLog(Middleware):
     （browser / vision / human_dom / devtools），不需要改任何工具签名。
     """
 
+    #: 只缓存最近的会话→holder 映射大小，避免长跑进程无限增长
+    _MAX_TRACKED_SESSIONS = 512
+
     def __init__(self, path: Optional[Path] = None, max_bytes: Optional[int] = None) -> None:
         self._path = path
         self._max_bytes = max_bytes
+        #: session_id -> holder_name（**唯一**从参数里取的字段；见模块 docstring）
+        self._holders: dict[str, str] = {}
+
+    def _holder_for(self, session: str) -> str:
+        return self._holders.get(session, "")
+
+    def _note_acquire(self, session: str, arguments: Any) -> str:
+        """记录 `acquire` 声明的 holder_name，并绑定到该会话，供后续调用归属。"""
+        holder = ""
+        try:
+            if isinstance(arguments, dict):
+                raw = arguments.get("holder_name")
+                if isinstance(raw, str):
+                    holder = raw[:64]
+        except Exception:
+            holder = ""
+        if holder and session:
+            if len(self._holders) >= self._MAX_TRACKED_SESSIONS:
+                # 丢最旧的（dict 保序）
+                self._holders.pop(next(iter(self._holders)), None)
+            self._holders[session] = holder
+        return holder
 
     async def on_call_tool(self, context: Any, call_next: Callable) -> Any:
         name = _tool_name(context)
+        session = _session_hint(context)
+        holder = ""
+        if name == "acquire":
+            holder = self._note_acquire(session, getattr(context.message, "arguments", None))
+        if not holder:
+            holder = self._holder_for(session)
         started = time.perf_counter()
         ok = True
         try:
@@ -154,5 +187,5 @@ class ToolAuditLog(Middleware):
             append_record(
                 name, elapsed_ms, ok,
                 path=self._path, max_bytes=self._max_bytes,
-                session=_session_hint(context),
+                session=session, holder=holder,
             )

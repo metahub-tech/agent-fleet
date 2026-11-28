@@ -94,3 +94,73 @@ def test_rotation_keeps_one_backup(tmp_path):
 def test_audit_enabled_default_on(monkeypatch):
     monkeypatch.delenv("FLEET_TOOL_AUDIT", raising=False)
     assert ta.audit_enabled() is True
+
+
+# --- holder 归属：只记 acquire 声明的名字，且绑定到会话 --------------------
+
+def test_middleware_records_holder_from_acquire(tmp_path):
+    import asyncio
+
+    class _Ctx:
+        class message:
+            name = "acquire"
+            arguments = {"holder_name": "agent-A"}
+
+    mw = ta.ToolAuditLog(path=tmp_path / "audit.jsonl")
+
+    async def call_next(_ctx):
+        return {"ok": True}
+
+    asyncio.run(mw.on_call_tool(_Ctx(), call_next))
+    rec = _lines(tmp_path / "audit.jsonl")[0]
+    assert rec["holder"] == "agent-A"
+    assert set(rec) <= {"ts", "tool", "ms", "ok", "pid", "session", "holder"}
+
+
+def _ctx(name, args=None, session="sess-1"):
+    """构造带 session 的上下文（形状与 fastmcp 一致）。"""
+    class _Inner:
+        pass
+    inner = _Inner()
+    inner.session_id = session
+
+    class _Ctx:
+        class message:
+            pass
+    _Ctx.message.name = name
+    _Ctx.message.arguments = args or {}
+    _Ctx.fastmcp_context = inner
+    return _Ctx
+
+
+def test_middleware_uses_cached_holder_for_later_calls(tmp_path):
+    """acquire 声明的 holder 要绑定到该会话，后续调用继承它（否则无法把多 agent 分开）。"""
+    import asyncio
+
+    mw = ta.ToolAuditLog(path=tmp_path / "audit.jsonl")
+
+    async def call_next(_ctx):
+        return {"ok": True}
+
+    asyncio.run(mw.on_call_tool(_ctx("acquire", {"holder_name": "agent-B"}), call_next))
+    asyncio.run(mw.on_call_tool(_ctx("get_screen_size"), call_next))
+    recs = _lines(tmp_path / "audit.jsonl")
+    assert recs[0]["holder"] == "agent-B"
+    assert recs[1]["holder"] == "agent-B"      # 继承
+    assert recs[0]["session"] == recs[1]["session"] == "sess-1"
+
+
+def test_holder_is_scoped_per_session(tmp_path):
+    """不同会话不共享 holder：A 的 acquire 不能让 B 的调用也带上 A 的名字。"""
+    import asyncio
+
+    mw = ta.ToolAuditLog(path=tmp_path / "audit.jsonl")
+
+    async def call_next(_ctx):
+        return {"ok": True}
+
+    asyncio.run(mw.on_call_tool(_ctx("acquire", {"holder_name": "agent-A"}, session="s1"), call_next))
+    asyncio.run(mw.on_call_tool(_ctx("get_screen_size", session="s2"), call_next))
+    recs = _lines(tmp_path / "audit.jsonl")
+    assert recs[0]["holder"] == "agent-A"
+    assert "holder" not in recs[1]
