@@ -58,6 +58,7 @@ from _aliases import DeviceInfo, load_aliases, resolve_aliases
 import _batch, _wait
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
+from _tool_audit import ToolAuditLog
 from _manifest import load_manifest
 from capabilities import (
     CapabilityRegistry,
@@ -1720,5 +1721,7 @@ if __name__ == "__main__":
     print("  transport = http (streamable) on 0.0.0.0:8768/mcp")
     # 清掉上次残留的后台上传子进程 + 暂存临时文件（孤儿清场）
     up.reap_orphans()
+    # 工具审计与租约门并列挂载：只记 工具名/耗时/成败，不记参数
+    mcp.add_middleware(ToolAuditLog())
     mcp.add_middleware(LeaseGate(_state_registry, serial_for=_lease_serial_for))
     mcp.run(transport="http", host="0.0.0.0", port=8768)

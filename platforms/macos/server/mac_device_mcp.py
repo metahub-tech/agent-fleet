@@ -57,6 +57,7 @@ from _capture_geom import resize_to_tap_space  # 截图→tap 空间归一(单�
 from mac_dpi import read_scale_factor          # 主屏 backingScaleFactor(仅自检/上报)
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
+from _tool_audit import ToolAuditLog
 from _manifest import load_manifest
 from capabilities import (
     AgentBrowserCapability,
@@ -1394,6 +1395,8 @@ def main() -> None:
     # token="")在 LAN 上裸奔。MCP server 仍按 --host 绑（默认 0.0.0.0）。
     run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=_bridge_port)
     print(f"[human_dom] bridge on 127.0.0.1:{_bridge_port}", file=sys.stderr)
+    # 工具审计与租约门并列挂载：只记 工具名/耗时/成败，不记参数
+    mcp.add_middleware(ToolAuditLog())
     mcp.add_middleware(LeaseGate(_state_registry, serial_for=lambda _ctx, _args: _SERIAL))
     _server_runtime.serve(mcp, prog="agent-fleet-mac", default_port=8767, args=_server_args)
 

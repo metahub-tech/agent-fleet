@@ -74,6 +74,7 @@ from _uia_bounds import (
 import _server_runtime
 from _device_state import DeviceStateRegistry
 from _lease_gate import LeaseGate, ctx_session_id
+from _tool_audit import ToolAuditLog
 from _manifest import load_manifest
 from capabilities import (
     AgentBrowserCapability,
@@ -1560,6 +1561,8 @@ def main() -> None:
     """
     run_bridge_loopback(_dom_bridge, host="127.0.0.1", port=_bridge_port)
     print(f"[human_dom] bridge on 127.0.0.1:{_bridge_port}", file=sys.stderr)
+    # 工具审计与租约门并列挂载：只记 工具名/耗时/成败，不记参数
+    mcp.add_middleware(ToolAuditLog())
     mcp.add_middleware(LeaseGate(_state_registry, serial_for=lambda _ctx, _args: _SERIAL))
     _server_runtime.serve(mcp, prog="agent-fleet-win", default_port=8766, args=_server_args)
 

@@ -117,6 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **跨机跑验收脚本不再被"客户端写超时"打断**：MCP SDK 2.x 自带的 httpx 默认超时只有 **5 秒**，而 `smoke_ops` 的超限用例要上传 4 MiB+1（base64 约 **5.6 MB**）——从 agent 主机跨机跑时设备一忙就 `httpx2.WriteTimeout`，整个 smoke 以 `ExceptionGroup` 收场，**看起来像设备坏了**。设备本机 loopback 跑不会触发（所以真机 12/12 一直是对的）。现在 `_mcp_probe.load_transport()` 给连接器注入 HTTP 层预算（connect 10s / read 120s / write 300s），工具自身预算（UIA 8s、`wait_for` timeout 等）不受影响。
 
+- **新增工具调用审计（决定「要不要拆 MCP 端点」的数据来源）**：每个工具调用记一行 JSONL（`ts/tool/ms/ok/pid/session`，**不记参数与返回值**），落在 `~/.agent-fleet/tool-audit.jsonl`，8 MiB 自动轮转；`FLEET_TOOL_AUDIT=0` 可关。实现为 FastMCP 中间件 `ToolAuditLog`（`platforms/common/_tool_audit.py`），在四端 `main()` 里与 `LeaseGate` 并列挂载，因此覆盖 core 与所有可选能力、无需改工具签名。配套 `scripts/analyze_tool_audit.py`（按天/工具/失败/慢调用汇总，并评估 `ops`/`gui`/`human`/`devtools` 候选端点的覆盖率）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

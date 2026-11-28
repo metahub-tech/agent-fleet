@@ -89,6 +89,7 @@ agent-fleet CLI
 
 **仓库级运维脚本**：
 - `scripts/_mcp_probe.py`
+- `scripts/analyze_tool_audit.py`
 - `scripts/check-blueprint-refs.sh` — check-blueprint-refs.sh
 - `scripts/check-ps-syntax.sh` — Validate PowerShell script syntax across the repo via AST parse.
 - `scripts/gen-blueprint-interface.sh` — gen-blueprint-interface.sh
@@ -116,5 +117,6 @@ agent-fleet CLI
 - `docs/project-map.md`
 - `docs/roadmap.md`
 - `docs/social-publishing-playbook.md`
+- `docs/tool-audit.md`
 - `docs/platforms/` _(各平台 setup guide)_
 
