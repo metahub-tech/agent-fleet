@@ -153,6 +153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **写明 `build`/`dirty` 是「进程启动快照」而非实时状态**（operator 提醒）：两者首次写审计时求值一次并缓存，因此"09:00 启动、10:00 手改文件"后，10:00 之后的记录里 `dirty` 仍是旧值——要反映改动必须重启。docstring 与 `docs/tool-audit.md` 都写明：**它回答"启动那一刻是否干净"，不是"调用此刻是否干净"**，避免被当成实时状态使用。
 
+- **新增「判据字段的适用范围」一节（含 `ok`）**：`ok` 只回答"工具按契约把结果交回来了"，**不回答"想要的效果发生了"**——`tap_element ok=true` 可能点偏 20px、`press_key ctrl+v ok=true` 在焦点不对时会粘到标题。操作性结论：**`ok` 之后必须再有一条读数**（eval 回读 / 截图比对 / 计数）才算完成；`ok` 只能当"没有异常"。连同 `ms`（墙钟含排队）、`session`（不能归属到人）、`build`（只代表 HEAD）、`dirty`（启动快照）合成一张表，并同步到 playbook §5 的校验段落。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
