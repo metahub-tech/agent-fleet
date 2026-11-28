@@ -862,12 +862,48 @@ activate_tab → 172ms 成功（紧接着下一条命令）
 因该 profile 无 `about:blank` 未跑成。所以 B1 冻结分支的状态是：
 **有野外观测证据、无脚本复现**——比"未验证"强，比"已验证可复现"弱，按这个口径引用。
 
-## 部署前须知：所有真机读数来自 side-car，生产端口从未跑过这批代码
+## 生产端口现状（2026-11-28 更新：**8766 已切到这批代码并通过 12/12**）
 
-- 真机验证全部在**独立实例**上完成（worktree + `127.0.0.1:8767`）；
-- 设备上的生产端口 **8766 仍是旧码**（`main`）；
-- ⇒ **"真机全绿"≠"已上线可用"**。合并后第一次重启 8766 本身是**未验证动作**，
-  必须按本文件 §0 前置检查执行：**端口归属 → 能力面 → 启动判活**。
+**前一阶段**：全部真机读数来自 side-car（worktree + `127.0.0.1:8767`），设备生产端口 8766 仍是 `main`。
+**现在（2026-11-28 03:2x UTC）**：8766 已重启为集成分支，实测如下。
+
+### 摄入证据（跨机、新会话）
+
+| 项 | 读数 |
+|---|---|
+| `list_capabilities()` | core 49 / agent_browser 29 / human_browser 1 / vision 3 / **human_dom 5** / **devtools 4** = **91 live tools** |
+| 5 个新工具 | `wait_for` / `run_actions` / `file_put` / `file_get` / `clipboard_set_html` **全部存在** |
+| `smoke_ops --probe` | `platform: windows`、`devtools: enabled`、verdict「这批代码已生效」、exit 0 |
+
+### `smoke_ops` 在 8766 上 **12/12**
+
+```
+PASS required tools registered (windows)      all 5 required tools are live
+PASS binary round-trip (sha256)               bytes=2048
+PASS line-wrapped base64 accepted             sha matches
+PASS oversize rejected, not truncated         rejected 4194305 bytes without truncation
+PASS rich HTML clipboard + read-back          formats=['HTML Format']
+PASS clipboard retry path reports attempts    attempt 1/2
+PASS wait_for honours budget                  timed out after 327ms (budget 300ms)
+PASS run_actions executes in order            2 steps ok
+PASS run_actions rejects whole batch up-front 15 tools allowed
+PASS dump_ui returns within budget            8764ms
+PASS list_windows returns within budget       902ms
+PASS find_elements returns within budget      2239ms
+```
+
+> 同一轮里另有一次 11/12：`dump_ui` 10634ms 超过脚本容差 10500ms（设备当时忙）。
+> 这不代表"遍历无界"——预算是 8s，该次墙钟 10.6s，仍在"预算 + 固定开销"范围内；
+> 慢设备可先调大 `FLEET_UIA_TIMEOUT`，或把这条当作负载读数而非回归。
+
+### 两个只会在"跨机 + 生产端口"暴露的问题（已修）
+
+1. **MCP 会话随重启失效**：harness 里缓存的 session 在设备重启后统一报
+   `Session has been terminated`；用脚本开**新会话**即可（`scripts/probe_multi.py` / `smoke_ops`）。
+2. **客户端写超时 5s**：`smoke_ops` 的超限用例要上传 4 MiB+1（base64 约 5.6 MB），
+   SDK 2.x 的 httpx 默认 5s → `httpx2.WriteTimeout`，表现为 `ExceptionGroup`，
+   **看起来像设备坏了**。已在 `_mcp_probe.load_transport()` 注入 HTTP 层预算（write 300s）修复。
+   设备本机 loopback 跑不会触发，所以此前 8767 上的 12/12 一直是对的。
 
 ## 长期证据以对方 labs 为准（设备侧临时目录会随重装消失）
 
