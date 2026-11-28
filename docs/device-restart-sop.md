@@ -83,6 +83,41 @@ python3 scripts/verify_restart.py --url http://<host>:<port>/mcp --old-pid <重�
 > 为什么要分开：人工跑时"这次没验成"不算失败是合理的；但进了 CI，退出码 0 会被读成"通过"，
 > 一个长期 SKIP 的检查就会静默退化成一盏永远亮的绿灯。`--strict` 让 CI 能把"未完整"当独立状态处理。
 
+## 3.2 在 CI 里怎么组合（**不要用 `&&` 串联**）
+
+`cmd1 && cmd2` 会在第一个非 0 处短路，后面的脚本**根本不会跑** —— 于是你失去
+"是版本问题（3）还是没验完（4）"的区分，只剩一个笼统的失败。
+
+正确做法：**各自跑、各自收集退出码，最后按优先级汇总**。
+
+```bash
+set +e
+python3 scripts/smoke_ops.py      --url "$URL"                 ; smoke=$?
+python3 scripts/verify_restart.py --url "$URL" --old-pid "$PID" --strict ; verify=$?
+set -e
+
+# 优先级：1（失败） > 3（版本/能力不符） > 4（未完整） > 0（全绿）
+for code in "$smoke" "$verify"; do
+  case "$code" in
+    1) echo "GATE: FAIL (有检查失败)"; exit 1 ;;
+  esac
+done
+for code in "$smoke" "$verify"; do
+  case "$code" in
+    3) echo "GATE: VERSION (设备上跑的不是这批代码)"; exit 3 ;;
+  esac
+done
+for code in "$smoke" "$verify"; do
+  case "$code" in
+    4) echo "GATE: INCOMPLETE (有检查被 SKIP)"; exit 4 ;;
+  esac
+done
+echo "GATE: GREEN"
+```
+
+> 为什么这个优先级：看到 1 先修失败；没有 1 但有 3 说明**代码没生效**（此时 4 的 skip
+> 多半是它导致的，先解决版本）；3 也没有但有 4，才是"跑了但没验全"。
+
 ## 4. 回滚（判据不是"服务活着"）
 
 **回滚判据**：验证失败，或 **pid 又换了一次但行为未变**（说明回到的还是旧码/错码）。
