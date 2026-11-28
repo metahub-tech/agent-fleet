@@ -30,7 +30,11 @@
 | `session` | MCP 会话 id 前 8 位（把一次批量操作归到同一会话） |
 | `holder` | `acquire` 时声明的 `holder_name`（**唯一**从参数里取的字段；≤64 字符） |
 | `build` | 当前代码的 git 短 HEAD（`FLEET_BUILD_ID` 可覆盖）—— 用于断言「跑的到底是哪份代码」 |
-| `dirty` | **代码目录**（`platforms/ scripts/ cli/`）里是否有改动或**新增的未跟踪文件**（`git status --porcelain --untracked-files=all -- platforms scripts cli` 非空；`.dsh/` 等本地资料不计）。**`dirty=true` 时 build 只代表 HEAD、不代表实际代码**，故 build 断言降级为 SKIP |
+| `dirty`（**启动快照**） | **代码目录**（`platforms/ scripts/ cli/`）里是否有改动或**新增的未跟踪文件**（`git status --porcelain --untracked-files=all -- platforms scripts cli` 非空；`.dsh/` 等本地资料不计）。**`dirty=true` 时 build 只代表 HEAD、不代表实际代码**，故 build 断言降级为 SKIP |
+
+> ⚠️ **`build` / `dirty` 都是「进程启动时」的快照**（首次写审计时求值一次并缓存）：
+> 启动后有人手改文件，后续记录的 `dirty` 仍是旧值 —— 要反映改动必须重启。
+> 它回答的是「启动那一刻是不是干净」，不是「调用此刻是否干净」。
 
 **不记**参数、返回值、异常消息。**唯一例外**是 `holder`：`acquire` 的 `holder_name`
 （客户端声明的短字符串，≤64 字符）——因为**同机所有 agent 共享同一个服务进程**，

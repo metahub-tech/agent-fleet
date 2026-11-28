@@ -55,7 +55,12 @@ def build_info() -> dict:
     直接改了文件却没提交，HEAD 不变但跑的代码已经不是那个提交了 —— 此时 `--expect-build`
     会**通过**，而实际代码不对。这正是"读数看起来对、其实验的是别的东西"。
 
-    `dirty` 在进程启动后第一次调用时算一次（**只看 `platforms/` `scripts/` `cli/`**，含新增的未跟踪文件；`.dsh/` 这类本地资料不计），
+    ⚠️ **这是"进程启动时"的快照，不是每条记录的实时状态**：首次写审计时求值一次并缓存
+    （`FLEET_BUILD_ID`/`FLEET_BUILD_DIRTY` 可覆盖）。所以「09:00 启动、10:00 有人手改了文件」
+    的情况下，10:00 之后的记录里 `dirty` 仍是 `false` —— 要反映改动必须重启。
+    **别拿它回答"调用此刻工作区是否干净"**，它只回答"启动那一刻是不是干净"。
+
+    `dirty` 只看 `platforms/` `scripts/` `cli/`（含新增的未跟踪文件；`.dsh/` 这类本地资料不计），
     之后缓存；`FLEET_BUILD_ID` / `FLEET_BUILD_DIRTY` 可覆盖（非 git 部署用）。
     """
     root = str(repo_root())

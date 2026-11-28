@@ -151,6 +151,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`dirty` 收窄到代码目录**：只忽略未跟踪文件会漏掉"往 `platforms/`/`scripts/` 里新增未跟踪 `.py` 并被 import"（HEAD 不变但行为已变）。改为 `git status --porcelain --untracked-files=all -- platforms scripts cli`：`.dsh/` 这类本地资料不计脏，而代码目录里**新增或修改**的文件都能抓到。4 条新单测（干净/本地资料/新增未跟踪 .py/已跟踪被改）。
 
+- **写明 `build`/`dirty` 是「进程启动快照」而非实时状态**（operator 提醒）：两者首次写审计时求值一次并缓存，因此"09:00 启动、10:00 手改文件"后，10:00 之后的记录里 `dirty` 仍是旧值——要反映改动必须重启。docstring 与 `docs/tool-audit.md` 都写明：**它回答"启动那一刻是否干净"，不是"调用此刻是否干净"**，避免被当成实时状态使用。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
