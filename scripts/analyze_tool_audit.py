@@ -154,6 +154,72 @@ def session_sequences(records: list[dict]) -> list[dict]:
     return out
 
 
+def _epoch(rec: dict) -> float:
+    try:
+        when = datetime.fromisoformat(str(rec.get("ts") or ""))
+    except ValueError:
+        return 0.0
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return when.timestamp()
+
+
+def group_of(tool: str) -> str:
+    """把工具归到一个候选端点组（未知工具返回 ''）。"""
+    for name, members in PROFILES.items():
+        if name != "all" and tool in members:
+            return name
+    return ""
+
+
+def stitch_units(records: list[dict], gap_s: float = 60.0) -> list[list[dict]]:
+    """按 ``pid`` + 相邻调用间隔把会话碎片粘回"真实工作单元"。
+
+    为什么必须粘：审计里的 ``session`` 是**连接级**标识，客户端重连就会换新 id
+    （2026-11-28 win 上重启后实测如此）。于是一条真实工作流会被切成两个"单组会话"，
+    **跨组耦合被系统性低估**——而低估的方向恰好指向"可以拆"，是最危险的偏差。
+
+    ``pid`` 在进程生命周期内不变，所以"同一 pid + 相邻调用间隔 < gap_s"近似一份工作流。
+    粘出来的单元数一定 **≤** 原始会话数；两者差距大说明重连频繁，跨组率只能当下界看。
+    """
+    by_pid: dict[str, list[dict]] = {}
+    for rec in records:
+        by_pid.setdefault(str(rec.get("pid") or "?"), []).append(rec)
+
+    units: list[list[dict]] = []
+    for pid, recs in by_pid.items():
+        recs_sorted = sorted(recs, key=_epoch)
+        current: list[dict] = []
+        last_ts = None
+        for rec in recs_sorted:
+            ts = _epoch(rec)
+            if current and last_ts is not None and (ts - last_ts) > gap_s:
+                units.append(current)
+                current = []
+            current.append(rec)
+            last_ts = ts
+        if current:
+            units.append(current)
+    return units
+
+
+def unit_profile(unit: list[dict]) -> dict:
+    tools = [r["tool"] for r in unit]
+    groups = collections.Counter(g for g in (group_of(t) for t in tools) if g)
+    return {"tools": tools, "groups": dict(groups), "coupled": len(groups) >= 2}
+
+
+def call_count_histogram(records_groups: list[list[dict]]) -> dict[str, int]:
+    """按每次会话/单元的调用数分桶：大量 1–2 次的桶多半是重连碎片。"""
+    buckets = {"1": 0, "2": 0, "3-5": 0, "6-20": 0, "21+": 0}
+    for group in records_groups:
+        n = len(group)
+        key = ("1" if n == 1 else "2" if n == 2 else "3-5" if n <= 5
+               else "6-20" if n <= 20 else "21+")
+        buckets[key] += 1
+    return buckets
+
+
 def profile_coverage(by_tool: collections.Counter, tools: set[str]) -> tuple[int, int]:
     """返回 (覆盖的调用数, 该端点需要挂的工具数)。"""
     covered = sum(count for name, count in by_tool.items() if name in tools)
@@ -168,6 +234,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--profiles", default="", help="comma list of candidate profiles to score")
     ap.add_argument("--top", type=int, default=25, help="how many tools to list")
     ap.add_argument("--json", action="store_true", help="machine-readable summary")
+    ap.add_argument("--stitch-gap", type=float, default=60.0,
+                    help="stitch session fragments when the gap between calls is under N seconds "
+                         "of the same pid (default 60; reconnect creates new session ids)")
     ap.add_argument("--sessions", type=int, default=0,
                     help="show the N busiest sessions as tool sequences (0 = off)")
     args = ap.parse_args(argv)
@@ -213,6 +282,23 @@ def main(argv: Optional[list[str]] = None) -> int:
             marks.append(f"slow≥2s={stats['slow'][name]}")
         extra = ("  [" + ", ".join(marks) + "]") if marks else ""
         print(f"  {count:6d}  {share:5.1f}%  {name}{extra}")
+
+    # 会话 vs 粘贴单元：差距大 = 重连频繁，跨组率只能当下界
+    raw_groups: dict[str, list[dict]] = {}
+    for rec in records:
+        raw_groups.setdefault(rec.get("session") or "(none)", []).append(rec)
+    units = stitch_units(records, gap_s=args.stitch_gap)
+    raw_coupled = sum(1 for g in raw_groups.values() if unit_profile(g)["coupled"])
+    unit_coupled = sum(1 for u in units if unit_profile(u)["coupled"])
+    print(f"\n会话切分（gap≤{args.stitch_gap:g}s 且同 pid 视为同一工作单元）：")
+    print(f"  原始会话数 {len(raw_groups)}（其中跨组 {raw_coupled}，{raw_coupled/max(1,len(raw_groups))*100:.1f}%）")
+    print(f"  粘贴后单元 {len(units)}（其中跨组 {unit_coupled}，{unit_coupled/max(1,len(units))*100:.1f}%）")
+    hist = call_count_histogram(units)
+    print("  单元调用数分布: " + ", ".join(f"{k}次={v}" for k, v in hist.items()))
+    if len(raw_groups) > len(units):
+        print("  ⚠ 存在重连碎片（会话数 > 单元数）⇒ **跨组率是下界**，不能读成精确值。")
+    if hist["1"] + hist["2"] > len(units) * 0.5 and units:
+        print("  ⚠ 过半单元只有 1–2 次调用：多半是碎片而非真实工作流，跨组率同样不可信。")
 
     if args.sessions > 0:
         seqs = session_sequences(records)

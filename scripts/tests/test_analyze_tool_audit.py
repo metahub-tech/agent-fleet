@@ -126,3 +126,68 @@ def test_main_sessions_mode_prints_sequences(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "会话序列" in out and "⚠ 跨组" in out
+
+
+# --- 重连碎片：不粘回去会系统性低估跨组耦合 ------------------------------
+
+def _r(tool, ts, session="s1", pid=100):
+    return {"ts": ts, "tool": tool, "ms": 5, "ok": True, "session": session, "pid": pid}
+
+
+def test_stitch_merges_reconnect_fragments():
+    """同一 pid、间隔 < 60s 的两段（不同 session）应粘成一个单元，且识别为跨组。
+
+    这是"拆端点"决策的关键偏差：重连把一条 ops→gui 的工作流切成两个单组会话，
+    不粘回去就会得出"没有跨组"的结论（恰好指向"可以拆"，最危险）。
+    """
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", session="aaaa", pid=7),
+        _r("run_shell", "2026-11-27T00:00:10+00:00", session="aaaa", pid=7),
+        _r("take_screenshot", "2026-11-27T00:00:20+00:00", session="bbbb", pid=7),  # 重连后新 session
+        _r("type_text", "2026-11-27T00:00:30+00:00", session="bbbb", pid=7),
+    ]
+    units = ana.stitch_units(recs, gap_s=60)
+    assert len(units) == 1
+    assert ana.unit_profile(units[0])["coupled"] is True
+    # 不粘时：两个单组会话
+    raw = {}
+    for r in recs:
+        raw.setdefault(r["session"], []).append(r)
+    assert sum(1 for g in raw.values() if ana.unit_profile(g)["coupled"]) == 0
+
+
+def test_stitch_splits_on_large_gap():
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", pid=7),
+        _r("run_shell", "2026-11-27T00:05:00+00:00", pid=7),   # 5 分钟空档 ⇒ 两个单元
+    ]
+    assert len(ana.stitch_units(recs, gap_s=60)) == 2
+
+
+def test_stitch_splits_across_pids():
+    recs = [
+        _r("run_shell", "2026-11-27T00:00:00+00:00", pid=1),
+        _r("run_shell", "2026-11-27T00:00:05+00:00", pid=2),
+    ]
+    assert len(ana.stitch_units(recs, gap_s=60)) == 2
+
+
+def test_call_count_histogram_buckets():
+    units = [[{}] * 1, [{}] * 2, [{}] * 4, [{}] * 10, [{}] * 30]
+    hist = ana.call_count_histogram(units)
+    assert hist == {"1": 1, "2": 1, "3-5": 1, "6-20": 1, "21+": 1}
+
+
+def test_main_warns_when_fragments_present(tmp_path, capsys):
+    path = tmp_path / "a.jsonl"
+    now = datetime.now(timezone.utc)
+    recs = [
+        _r("run_shell", (now - timedelta(seconds=30)).isoformat(), session="aaaa", pid=9),
+        _r("take_screenshot", now.isoformat(), session="bbbb", pid=9),
+    ]
+    _dump(path, recs)
+    rc = ana.main(["--path", str(path), "--days", "1"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "粘贴后单元" in out
+    assert "下界" in out
