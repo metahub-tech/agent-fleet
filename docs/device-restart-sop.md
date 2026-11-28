@@ -43,7 +43,7 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-Comman
 ## 3. 验证（四件，缺一不可）
 
 ```bash
-python3 scripts/verify_restart.py --url http://<host>:<port>/mcp --old-pid <重启前pid>
+python3 scripts/verify_restart.py --url http://test-win11:8766/mcp --old-pid 266180
 ```
 
 | # | 检查 | 证明什么 |
