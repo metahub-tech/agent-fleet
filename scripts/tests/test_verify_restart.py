@@ -62,3 +62,17 @@ def test_read_audit_handles_error_payload():
         return {"ok": False, "reason": "device_leased"}
 
     assert asyncio.run(vr._read_audit(call, "x")) == ""
+
+
+# --- 期望值集中管理：不要在脚本里硬编码 91 ------------------------------
+
+def test_expected_tools_lookup_by_host():
+    import _expectations as ex
+    assert ex.expected_tools_for("http://test-win11:8766/mcp") == 91
+    assert ex.expected_tools_for("http://unknown-host:1234/mcp") is None
+
+
+def test_expect_holder_flag_per_host():
+    import _expectations as ex
+    assert ex.expect_holder_for("http://test-win11:8766/mcp") is True
+    assert ex.expect_holder_for("http://other:1/mcp") is False

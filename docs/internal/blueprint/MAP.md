@@ -88,6 +88,7 @@ agent-fleet CLI
 ## scripts/
 
 **仓库级运维脚本**：
+- `scripts/_expectations.py`
 - `scripts/_mcp_probe.py`
 - `scripts/analyze_tool_audit.py`
 - `scripts/check-blueprint-refs.sh` — check-blueprint-refs.sh
@@ -113,6 +114,7 @@ agent-fleet CLI
 - `docs/2026-11-27-operator-acceptance.md`
 - `docs/agent-host-setup.md`
 - `docs/architecture.md`
+- `docs/device-restart-sop.md`
 - `docs/install-for-agents.md`
 - `docs/install-pattern.md`
 - `docs/mcp-endpoints-design.md`

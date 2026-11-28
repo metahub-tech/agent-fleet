@@ -38,6 +38,7 @@ from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _expectations import expect_holder_for, expected_tools_for  # noqa: E402
 from _mcp_probe import load_transport, payload_of  # noqa: E402
 
 #: 读审计尾部的 PowerShell 片段（设备是 Windows；mac/linux 用 --audit-cmd 覆盖）
@@ -119,8 +120,10 @@ async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[in
 
             caps = await call("list_capabilities", {})
             tools = count_tools(caps if isinstance(caps, dict) else {})
-            add("工具数", expect_tools is None or tools == expect_tools,
-                f"{tools}（期望 {expect_tools if expect_tools is not None else '任意'}）")
+            if expect_tools is None:
+                add("工具数", True, f"实际 {tools} / 期望（未指定，不做判定）")
+            else:
+                add("工具数", tools == expect_tools, f"实际 {tools} / 期望 {expect_tools}")
 
             # 触发一次调用，保证有"新行"
             await call("get_status", {})
@@ -142,17 +145,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--url", required=True, help="e.g. http://test-win11:8766/mcp")
     ap.add_argument("--old-pid", type=int, default=None,
                     help="pid observed BEFORE the restart (the key evidence)")
-    ap.add_argument("--expect-tools", type=int, default=None, help="expected tool count, e.g. 91")
+    ap.add_argument("--expect-tools", type=int, default=None,
+                    help="expected tool count; omit to look it up in scripts/_expectations.py by host")
     ap.add_argument("--expect-holder", action="store_true",
-                    help="require the holder field in the new audit lines")
+                    help="require the holder field in the new audit lines (auto per host when omitted)")
     ap.add_argument("--audit-cmd", default=WIN_TAIL,
                     help="command run on the device to print the audit tail")
     args = ap.parse_args(argv)
 
+    expect_tools = args.expect_tools if args.expect_tools is not None else expected_tools_for(args.url)
+    expect_holder = args.expect_holder or expect_holder_for(args.url)
     try:
         results = asyncio.run(asyncio.wait_for(
-            run_checks(args.url, args.old_pid, args.expect_tools,
-                       args.expect_holder, args.audit_cmd), timeout=120))
+            run_checks(args.url, args.old_pid, expect_tools,
+                       expect_holder, args.audit_cmd), timeout=120))
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2

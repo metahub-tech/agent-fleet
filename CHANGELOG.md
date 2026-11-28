@@ -133,6 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增 `scripts/verify_restart.py`：重启验证的第四件（pid 必须变）**：`/health` 200、工具数 91、审计有新行这三条**旧进程全都满足**，无法区分"新码进内存"与"旧进程还活着"。新脚本据此加第四条判据 **新审计行的 `pid` ≠ 重启前 `pid`**，并支持 `--expect-holder` 检查 `holder` 字段是否落地；回滚判据同样改为"pid 又换一次 + 行为回到上一版"，故重启前须记录 pid 与 `git HEAD`。实测（未重启时）：1–3 PASS、第 4 条 FAIL（`pid=266180` 未变）——正是它该有的表现。
 
+- **新增 `scripts/_expectations.py`（期望值唯一来源）与 `docs/device-restart-sop.md`（重启 SOP 草案）**：① 工具数不再硬编码——期望值按主机名集中到 `_expectations.py`，`verify_restart.py` 不传 `--expect-tools` 时自动查表，查不到就打印"期望（未指定）"**不做判定**（宁可不说也不猜）；输出统一为「实际 N / 期望 M」。② SOP 把权限拆成**两个分别留空**项：**发起/执行重启** 与 **回滚到上一版本**——执行的人常有 shell 但没有回滚决策权，合并会导致"卡住"。SOP 含前置 5 项（lease/发布进程/锚点 pid+HEAD/端口归属/变更说明）、detached 执行方式（并写明本机无 supervisor）、四件验证与回滚判据、执行后记录要求。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
