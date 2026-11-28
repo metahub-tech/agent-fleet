@@ -121,8 +121,15 @@ async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[in
                      expect_holder: bool, audit_cmd: str) -> list[dict]:
     results: list[dict] = []
 
-    def add(check: str, ok: bool, detail: str) -> None:
-        results.append({"check": check, "ok": bool(ok), "detail": detail})
+    def add(check: str, ok: bool, detail: str, skipped: bool = False) -> None:
+        """三状态：pass / fail / **skipped（本次没能验）**。
+
+        operator 的补充：判据要分「**能力不足**」与「**结论为否**」两类。
+        设备被占、没有 about:blank、acquire 失败 —— 这些是"没验成"，不是"验不过"；
+        硬塞进红或绿都会误导下一步动作。
+        """
+        results.append({"check": check, "ok": bool(ok), "skipped": bool(skipped),
+                        "detail": detail})
 
     ok, detail = health_ok(url)
     add("/health 200", ok, detail)
@@ -169,7 +176,7 @@ async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[in
                         stdout = await _read_audit(call, audit_cmd)
                         records = parse_audit_lines(stdout)
                 ok, detail = holder_verdict(pid_changed, acquired, records, marker)
-                add("holder 字段落地（自证）", ok, detail)
+                add("holder 字段落地（自证）", ok, detail, skipped=detail.startswith("skipped"))
     return results
 
 
@@ -197,9 +204,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     for row in results:
-        print(("PASS" if row["ok"] else "FAIL"), row["check"], "|", row["detail"])
+        label = "SKIP" if row.get("skipped") else ("PASS" if row["ok"] else "FAIL")
+        print(label, row["check"], "|", row["detail"])
     failed = [r for r in results if not r["ok"]]
-    print(f"\nSUMMARY: {len(results) - len(failed)}/{len(results)} passed")
+    skipped = [r for r in results if r.get("skipped")]
+    passed = len(results) - len(failed) - len(skipped)
+    print(f"\nSUMMARY: {passed} passed, {len(failed)} failed, {len(skipped)} skipped")
     return 0 if not failed else 1
 
 

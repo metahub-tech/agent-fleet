@@ -103,3 +103,35 @@ def test_holder_passes_with_self_created_evidence():
     ok, detail = vr.holder_verdict(pid_changed=True, acquired=True,
                                    records=[{"tool": "acquire", "holder": "m"}], marker="m")
     assert ok is True and "已自证" in detail
+
+
+# --- 三状态：pass / fail / skipped（"没验成"不是"验不过"）-------------
+
+def test_summary_marks_skipped_separately(capsys, tmp_path, monkeypatch):
+    """skipped 既不算通过也不算失败；退出码只看 fail。"""
+    async def fake_run_checks(*a, **k):
+        return [
+            {"check": "a", "ok": True, "skipped": False, "detail": ""},
+            {"check": "b", "ok": True, "skipped": True, "detail": "skipped: x"},
+            {"check": "c", "ok": False, "skipped": False, "detail": ""},
+        ]
+
+    monkeypatch.setattr(vr, "run_checks", fake_run_checks)
+    rc = vr.main(["--url", "http://h/mcp"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "1 passed, 1 failed, 1 skipped" in out
+    assert "SKIP b" in out
+
+
+def test_skipped_only_run_exits_zero(capsys, monkeypatch):
+    async def fake_run_checks(*a, **k):
+        return [
+            {"check": "a", "ok": True, "skipped": False, "detail": ""},
+            {"check": "b", "ok": True, "skipped": True, "detail": "skipped: 无法自证"},
+        ]
+
+    monkeypatch.setattr(vr, "run_checks", fake_run_checks)
+    rc = vr.main(["--url", "http://h/mcp"])
+    assert rc == 0
+    assert "1 passed, 0 failed, 1 skipped" in capsys.readouterr().out

@@ -137,6 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`verify_restart` 的 holder 判据改为「有序两段 + 自证」**：原措辞「未出现——说明跑的仍是旧码**或**该会话未 acquire」把两条因果绑在一起，红时分不出是"重启没生效"还是"验证没造出证据"。现在：① **pid 未变 ⇒ 直接判旧码，holder 记 skipped**，不再误报；② pid 已变 ⇒ 脚本自己 `acquire(holder_name="verify-restart-…")` + `release`，再断言审计出现该 holder（设备被他人持有时记 skipped"无法自证"，不判失败）。实测（未重启）：pid 红、holder 正确 skipped ⇒ 4/5。
 
+- **验证结果引入第三种状态 `SKIP`**（operator 补充）：判据要分「**能力不足**（本次没能验）」与「**结论为否**（验了不通过）」——设备被占、无 `about:blank`、缺依赖都属于前者，硬塞进红/绿会把"没法验"读成"验不过"。`verify_restart.py` 现在逐条标 `PASS/FAIL/SKIP`，汇总为 `X passed, Y failed, Z skipped`，**只有 FAIL 影响退出码**。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
