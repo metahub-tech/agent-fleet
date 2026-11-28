@@ -123,6 +123,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增 `docs/mcp-endpoints-design.md`：多端点方案的三条硬约束（含本地 spike 实测）**：同进程挂多个 FastMCP 端点可行、工具可复制、审计共用一份文件；但 ① **租约按 MCP session 绑定** ⇒ 在 A 端点 acquire、到 B 端点调用会被判 `device_leased`（实测 `{reason:"device_leased"}`）——改绑 `holder_name` 可同时修掉"客户端重连后 lease 失效"；② `list_capabilities` 读模块级注册表，在子端点上**会说谎**（只挂 9 个工具仍报全部）；③ 操作顺序（切前台 → 粘贴）无法跨端点保证。结论：约束①未定案前不拆。
 
+- **审计文档补「数据出处与口径」与阶段性结论**：2026-11-28 那份 1,945 次调用/167 会话的抽样来自**本机 DSH 会话日志**（`tool/call` 事件，算调用尝试、含失败、重试各记一次），**不是** `tool-audit.jsonl`（后者当天才落地，无重叠）。据此记录阶段性结论：**只有 `win-device` 承担 GUI/发布负载**（mac 侧 98% 是 `run_shell`，属 ops 机）⇒ 「拆端点」只需在 win-device 的数据上回答，mac 的验收重点应放在 shell/进程管理而非页面元素。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
