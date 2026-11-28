@@ -8,6 +8,8 @@
 **隐私与代价边界**（有意为之）：
 
 - **不记录参数、不记录返回值、不记录异常消息**——只记工具名、耗时、成败；
+  **`ms` 是从进入中间件到返回的墙钟，包含排队与事件循环争用**（真机见过毫秒级操作记 48–68s），
+  所以不能拿单条最大值当"工具慢"，排序请用 p50/p95；
 - 每个调用只多一次 `open(..., "a")` + 一行 JSON（约 120 字节），失败**绝不**影响工具调用；
 - 文件超过 `FLEET_TOOL_AUDIT_MAX_BYTES`（默认 8 MiB）自动轮转一份 `.1`，不会无限涨。
 
@@ -81,6 +83,7 @@ def append_record(
     now: Optional[datetime] = None,
     session: str = "",
     holder: str = "",
+    started_at: Optional[datetime] = None,
 ) -> None:
     """追加一行审计记录。**任何异常都吞掉**——审计绝不能影响工具调用本身。"""
     if not audit_enabled():
@@ -91,6 +94,7 @@ def append_record(
     line = json.dumps(
         {
             "ts": moment.isoformat(timespec="seconds"),
+            **({"started_at": started_at.isoformat(timespec="seconds")} if started_at else {}),
             "tool": tool or "?",
             "ms": int(ms),
             "ok": bool(ok),
@@ -170,6 +174,7 @@ class ToolAuditLog(Middleware):
     async def on_call_tool(self, context: Any, call_next: Callable) -> Any:
         name = _tool_name(context)
         session = _session_hint(context)
+        started_at = datetime.now(timezone.utc)
         holder = ""
         if name == "acquire":
             holder = self._note_acquire(session, getattr(context.message, "arguments", None))
@@ -188,4 +193,5 @@ class ToolAuditLog(Middleware):
                 name, elapsed_ms, ok,
                 path=self._path, max_bytes=self._max_bytes,
                 session=session, holder=holder,
+                started_at=started_at,
             )

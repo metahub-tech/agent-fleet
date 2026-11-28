@@ -229,3 +229,27 @@ def test_cut_pairs_counts_only_over_threshold():
         _r("run_shell", "2026-11-27T00:10:00+00:00", pid=7, holder="A"),   # 590s：切
     ]
     assert ana.cut_pairs(recs, gap_s=180) == 1
+
+
+# --- 延迟统计：墙钟含排队，必须用分位数 --------------------------------
+
+def test_percentile_basic():
+    vals = list(range(1, 101))
+    assert ana.percentile(vals, 0.50) in (50, 51)
+    assert ana.percentile(vals, 0.95) >= 95
+    assert ana.percentile([], 0.5) == 0
+
+
+def test_latency_stats_separates_outlier_from_typical():
+    """一条 68s 的离群值不该把 p50 拉高——这正是"服务器忙"与"工具慢"的区别。"""
+    recs = [{"tool": "run_shell", "ms": 5} for _ in range(9)]
+    recs.append({"tool": "run_shell", "ms": 68815})
+    stats = ana.latency_stats(recs)["run_shell"]
+    assert stats["n"] == 10
+    assert stats["p50"] == 5
+    assert stats["max"] == 68815
+
+
+def test_latency_stats_ignores_missing_ms():
+    stats = ana.latency_stats([{"tool": "tap"}, {"tool": "tap", "ms": 7}])
+    assert stats["tap"] == {"n": 1, "p50": 7, "p95": 7, "max": 7}

@@ -117,7 +117,35 @@ def summarize(records: list[dict]) -> dict:
         if isinstance(rec.get("ms"), int) and rec["ms"] >= 2000:
             slow[rec["tool"]] += 1
     return {"total": len(records), "by_tool": by_tool, "by_day": by_day,
-            "slow": slow, "failures": failures}
+            "slow": slow, "failures": failures, "latency": latency_stats(records)}
+
+
+def percentile(values: list[int], q: float) -> int:
+    """最近秩法分位数（q 取 0–1）。样本为空返回 0。"""
+    if not values:
+        return 0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, int(round(q * (len(ordered) - 1)))))
+    return int(ordered[idx])
+
+
+def latency_stats(records: list[dict]) -> dict[str, dict[str, int]]:
+    """按工具算 p50/p95/max/调用数。
+
+    **为什么必须用分位数**：审计的 `ms` 是从进入中间件到返回的墙钟，**包含排队与事件循环争用**
+    （真机见过"读 20 行文件"记 68815ms，而客户端感知是秒级）。单看最大值会把
+    "服务器忙的时候调用了 run_shell" 误读成 "run_shell 很慢"。
+    """
+    buckets: dict[str, list[int]] = {}
+    for rec in records:
+        ms = rec.get("ms")
+        if isinstance(ms, int):
+            buckets.setdefault(rec["tool"], []).append(ms)
+    out: dict[str, dict[str, int]] = {}
+    for name, values in buckets.items():
+        out[name] = {"n": len(values), "p50": percentile(values, 0.50),
+                     "p95": percentile(values, 0.95), "max": max(values)}
+    return out
 
 
 def session_sequences(records: list[dict]) -> list[dict]:
@@ -280,6 +308,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             "by_tool": dict(stats["by_tool"].most_common()),
             "failures": dict(stats["failures"].most_common()),
             "slow_2s": dict(stats["slow"].most_common()),
+            "latency": stats["latency"],
         }, ensure_ascii=False, indent=1))
         return 0
 
@@ -288,16 +317,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     print("按天：")
     for day, count in sorted(stats["by_day"].items()):
         print(f"  {day}  {count:6d}")
-    print(f"\n按工具（前 {args.top}）：")
+    print(f"\n按工具（前 {args.top}；ms 为墙钟，含排队/争用，排序看 p50 不看 max）：")
     for name, count in stats["by_tool"].most_common(args.top):
         share = count / max(1, stats["total"]) * 100
-        marks = []
+        lat = stats["latency"].get(name, {})
+        marks = [f"p50={lat.get('p50', 0)}ms", f"p95={lat.get('p95', 0)}ms"]
         if stats["failures"].get(name):
             marks.append(f"fail={stats['failures'][name]}")
-        if stats["slow"].get(name):
-            marks.append(f"slow≥2s={stats['slow'][name]}")
-        extra = ("  [" + ", ".join(marks) + "]") if marks else ""
-        print(f"  {count:6d}  {share:5.1f}%  {name}{extra}")
+        print(f"  {count:6d}  {share:5.1f}%  {name:<28s} " + "  ".join(marks))
 
     # 会话 vs 粘贴单元：差距大 = 重连频繁，跨组率只能当下界
     raw_groups: dict[str, list[dict]] = {}

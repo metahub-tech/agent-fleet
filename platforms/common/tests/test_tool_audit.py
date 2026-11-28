@@ -114,7 +114,8 @@ def test_middleware_records_holder_from_acquire(tmp_path):
     asyncio.run(mw.on_call_tool(_Ctx(), call_next))
     rec = _lines(tmp_path / "audit.jsonl")[0]
     assert rec["holder"] == "agent-A"
-    assert set(rec) <= {"ts", "tool", "ms", "ok", "pid", "session", "holder"}
+    assert set(rec) <= {"ts", "started_at", "tool", "ms", "ok", "pid", "session", "holder"}
+    assert "started_at" in rec      # 用于区分排队/争用与工具本身耗时
 
 
 def _ctx(name, args=None, session="sess-1"):
