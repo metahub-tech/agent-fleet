@@ -282,3 +282,33 @@ def test_stitch_health_ok_when_dense_and_short():
 def test_unit_duration_uses_first_and_last():
     unit = [{"ts": "2026-11-27T00:00:00+00:00"}, {"ts": "2026-11-27T00:02:30+00:00"}]
     assert ana.unit_duration_s(unit) == 150
+
+
+# --- 分组自检：全局健康但某 holder 失效 --------------------------------
+
+def _u(t0, t1, tool="run_shell", holder="A", pid=1, session="s1"):
+    return [{"ts": t0, "tool": tool, "holder": holder, "pid": pid, "session": session},
+            {"ts": t1, "tool": "take_screenshot", "holder": holder, "pid": pid, "session": session}]
+
+
+def test_health_by_holder_detects_single_degraded_group():
+    """A 组密集健康；B 组一条 40 分钟长单元 ⇒ 只有 B 该被判失效。"""
+    recs = []
+    for i in range(6):                       # A：6 个短单元 / 6 会话 → 比值 1.0
+        recs += _u(f"2026-11-27T0{i}:00:00+00:00", f"2026-11-27T0{i}:01:00+00:00",
+                   holder="A", pid=1, session=f"a{i}")
+    # B：一条 40 分钟的长单元（每 100s 一条记录，保证不会被 180s 阈值切开）
+    for k in range(25):
+        minute, second = divmod(k * 100, 60)
+        recs.append({"ts": f"2026-11-27T10:{minute:02d}:{second:02d}+00:00",
+                     "tool": "run_shell", "holder": "B", "pid": 1, "session": "b1"})
+
+    rows = {r["scope"]: r for r in ana.health_by_holder(recs, gap_s=180)}
+    assert rows["A"]["health"]["degraded"] is False
+    assert rows["B"]["health"]["degraded"] is True
+
+
+def test_health_by_holder_separates_no_holder_bucket():
+    recs = _u("2026-11-27T00:00:00+00:00", "2026-11-27T00:00:30+00:00", holder="", pid=1)
+    rows = ana.health_by_holder(recs, gap_s=180)
+    assert rows[0]["scope"] == "(no holder)"

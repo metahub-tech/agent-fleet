@@ -120,6 +120,25 @@ def summarize(records: list[dict]) -> dict:
             "slow": slow, "failures": failures, "latency": latency_stats(records)}
 
 
+def health_by_holder(records: list[dict], gap_s: float, **health_kw) -> list[dict]:
+    """**按 holder 分组**再跑一次粘法自检。
+
+    为什么不能只看全局：holder 落地后，全局比值可能看着健康（例如 0.6），
+    但某个 agent 的「单元/会话」可能只有 0.1 —— **总体正常、个别人被粘成时间桶**。
+    这种偏差会被全局均值掩盖，而它恰好会让那一个人的判断失真。
+    """
+    groups: dict[str, list[dict]] = {}
+    for rec in records:
+        groups.setdefault(str(rec.get("holder") or "(no holder)"), []).append(rec)
+    out: list[dict] = []
+    for scope, recs in sorted(groups.items()):
+        units = stitch_units(recs, gap_s=gap_s)
+        sessions = len({str(r.get("session") or "") for r in recs if r.get("session")}) or 0
+        out.append({"scope": scope, "units": len(units), "sessions": sessions,
+                    "health": stitch_health(units, sessions, **health_kw)})
+    return out
+
+
 def percentile(values: list[int], q: float) -> int:
     """最近秩法分位数（q 取 0–1）。样本为空返回 0。"""
     if not values:
@@ -385,12 +404,25 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("  ⚠ 存在重连碎片（会话数 > 单元数）⇒ **跨组率是下界**，不能读成精确值。")
     if hist["1"] + hist["2"] > len(units) * 0.5 and units:
         print("  ⚠ 过半单元只有 1–2 次调用：多半是碎片而非真实工作流，跨组率同样不可信。")
+    per_holder = health_by_holder(records, args.stitch_gap)
+    if len(per_holder) > 1:
+        print('  分组自检（按 holder；避免「总体正常、个别人被粘成时间桶」）：')
+        for row in per_holder:
+            flag = "⛔" if row["health"]["degraded"] else "ok"
+            print(f"    {flag} {row['scope']:<28s} 单元 {row['units']:2d} / 会话 {row['sessions']:2d}"
+                  f" ≈ {row['health']['ratio']:.2f}；时长中位数 {row['health']['median_unit_s']/60:.1f} 分钟")
+            for reason in row["health"]["reasons"]:
+                print(f"        - {reason}")
+
     if health["degraded"]:
         print("  ⛔ 粘法在当前密度下**失效**，本次不输出跨组结论：")
         for reason in health["reasons"]:
             print(f"     - {reason}")
         print("     正确读法：在 holder 落地前，按 session 出报告并注明「本次不能回答跨组问题」；"
               "宁可下界偏保守，也不要上界失真。")
+    elif any(row["health"]["degraded"] for row in per_holder):
+        bad = [row["scope"] for row in per_holder if row["health"]["degraded"]]
+        print(f"  ⛔ 全局看似健康，但分组自检失效：{', '.join(bad)} —— 这些组的跨组率不可用。")
 
     if args.sessions > 0:
         seqs = session_sequences(records)
