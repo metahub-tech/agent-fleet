@@ -78,6 +78,27 @@ python3 scripts/analyze_tool_audit.py --days 7 --profiles ops,gui,human,devtools
 - 换端点意味着调用方要换 URL，**频繁换端点比多几个工具更贵**；
 - 候选只是起点：`PROFILES` 在 `scripts/analyze_tool_audit.py` 顶部，按真实数据改。
 
+### 比"调用次数"更该看的：**同一会话内的工具序列**
+
+```bash
+python3 scripts/analyze_tool_audit.py --days 7 --sessions 10
+```
+
+输出每个会话的工具序列，并标记 `⚠ 跨组`（该会话同时用到 ≥2 个候选端点组）。
+**这类会话不适合拆端点**，原因不是"多连一次"，而是：
+
+| 跨端点会分裂的东西 | 后果 |
+|---|---|
+| **MCP session** | 租约（`LeaseGate`）是**按 session 绑定**的：在 `/ops/mcp` acquire、再去 `/gui/mcp` 调用，会被认成"另一个会话"⇒ `device_leased` |
+| 剪贴板 | 系统级全局资源，跨端点仍共享（这条反而没问题） |
+| 前台窗口 / Chrome 焦点 | 系统级共享，但**操作顺序**会被打断：拆开后无法保证"先切前台再粘贴"在同一会话里 |
+
+> 同一进程内多端点（多个 `FastMCP` 挂在同一个 uvicorn 上）时，`_state_registry`、租约、
+> human_dom bridge 都是**模块级单例**，不会各自一套；真正的分裂发生在**多进程/多端口**
+> （例如 side-car 实例）——2026-11-28 在 8767 side-car 上就见过"两个 server 各自一套 lease"。
+
+所以拆之前至少量两件事：**典型任务跨几个工具**、**其中多少依赖同一份会话态**。
+
 ## 已知局限
 
 1. **只有本服务进程视角**：一个设备被多个调用方用，审计是合并的（`session` 只能分组，不能反查是谁）；

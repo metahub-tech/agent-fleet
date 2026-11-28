@@ -119,6 +119,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增工具调用审计（决定「要不要拆 MCP 端点」的数据来源）**：每个工具调用记一行 JSONL（`ts/tool/ms/ok/pid/session`，**不记参数与返回值**），落在 `~/.agent-fleet/tool-audit.jsonl`，8 MiB 自动轮转；`FLEET_TOOL_AUDIT=0` 可关。实现为 FastMCP 中间件 `ToolAuditLog`（`platforms/common/_tool_audit.py`），在四端 `main()` 里与 `LeaseGate` 并列挂载，因此覆盖 core 与所有可选能力、无需改工具签名。配套 `scripts/analyze_tool_audit.py`（按天/工具/失败/慢调用汇总，并评估 `ops`/`gui`/`human`/`devtools` 候选端点的覆盖率）。
 
+- **`analyze_tool_audit.py` 增加「会话序列」分析**（`--sessions N`）：按 `session` 还原工具调用顺序，并标记**同一会话跨 ≥2 个候选端点组**的情况。理由（operator 指出）：拆端点最大的代价不是"多连一次"，而是**跨端点会分裂会话态**——租约按 MCP session 绑定（在 A 端点 acquire、去 B 端点会被判 `device_leased`），前台窗口/操作顺序也无法跨端点保证。同一进程内多端点时模块级状态（registry / bridge / 租约）仍共享，真正分裂的是多进程/多端口。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

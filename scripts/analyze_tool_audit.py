@@ -120,6 +120,40 @@ def summarize(records: list[dict]) -> dict:
             "slow": slow, "failures": failures}
 
 
+def session_sequences(records: list[dict]) -> list[dict]:
+    """按 `session` 还原每个会话的工具序列（时间升序）。
+
+    为什么需要它：**调用次数**只能说明"哪个工具热"，决定不了能不能拆端点。
+    拆端点的真实代价是**一次任务跨了多少个工具、其中多少依赖同一份会话态**
+    （lease 绑定 MCP session、剪贴板是全局资源、前台窗口只有一份）。所以要看序列。
+
+    返回 ``[{"session": id, "tools": [...], "groups": {组: 次数}, "coupled": bool}]``；
+    ``coupled=True`` 表示该会话同时用到 ≥2 个候选端点组的工具——拆了就要跨端点，
+    而跨端点意味着换 MCP session（lease 会认成另一个持有者）。
+    """
+    by_session: dict[str, list[dict]] = {}
+    for rec in records:
+        sid = rec.get("session") or ""
+        if not sid:
+            continue
+        by_session.setdefault(sid, []).append(rec)
+
+    out: list[dict] = []
+    for sid, recs in by_session.items():
+        recs_sorted = sorted(recs, key=lambda r: str(r.get("ts") or ""))
+        tools = [r["tool"] for r in recs_sorted]
+        groups: collections.Counter = collections.Counter()
+        for name in tools:
+            for group, members in PROFILES.items():
+                if group != "all" and name in members:
+                    groups[group] += 1
+                    break
+        out.append({"session": sid, "tools": tools, "groups": dict(groups),
+                    "coupled": len(groups) >= 2})
+    out.sort(key=lambda s: len(s["tools"]), reverse=True)
+    return out
+
+
 def profile_coverage(by_tool: collections.Counter, tools: set[str]) -> tuple[int, int]:
     """返回 (覆盖的调用数, 该端点需要挂的工具数)。"""
     covered = sum(count for name, count in by_tool.items() if name in tools)
@@ -134,6 +168,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--profiles", default="", help="comma list of candidate profiles to score")
     ap.add_argument("--top", type=int, default=25, help="how many tools to list")
     ap.add_argument("--json", action="store_true", help="machine-readable summary")
+    ap.add_argument("--sessions", type=int, default=0,
+                    help="show the N busiest sessions as tool sequences (0 = off)")
     args = ap.parse_args(argv)
 
     base = Path(args.path).expanduser()
@@ -177,6 +213,21 @@ def main(argv: Optional[list[str]] = None) -> int:
             marks.append(f"slow≥2s={stats['slow'][name]}")
         extra = ("  [" + ", ".join(marks) + "]") if marks else ""
         print(f"  {count:6d}  {share:5.1f}%  {name}{extra}")
+
+    if args.sessions > 0:
+        seqs = session_sequences(records)
+        if not seqs:
+            print("\n（没有 session 字段：审计来自旧版本或 FLEET_TOOL_AUDIT 关闭期间的记录）")
+        else:
+            coupled = [s for s in seqs if s["coupled"]]
+            print(f"\n会话序列（共 {len(seqs)} 个会话；跨 ≥2 组的 {len(coupled)} 个）：")
+            for seq in seqs[: args.sessions]:
+                flag = "  ⚠ 跨组" if seq["coupled"] else ""
+                shown = " → ".join(seq["tools"][:12])
+                more = f" …(+{len(seq['tools']) - 12})" if len(seq["tools"]) > 12 else ""
+                print(f"  [{seq['session']}] {len(seq['tools']):3d} calls{flag}: {shown}{more}")
+            print("\n读法：单个会话内频繁跨组 ⇒ 拆端点会把它拆成多次连接，"
+                  "而 lease 绑定 MCP session、剪贴板/前台窗口只有一份 —— 这类任务不适合拆。")
 
     if args.profiles:
         wanted = [p.strip() for p in args.profiles.split(",") if p.strip()]

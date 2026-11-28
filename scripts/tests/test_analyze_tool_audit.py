@@ -78,3 +78,51 @@ def test_main_json_mode(tmp_path, capsys):
     rc = ana.main(["--path", str(path), "--days", "5", "--json"])
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0 and payload["total"] == 1
+
+
+# --- 会话序列（拆端点前真正该看的指标）-------------------------------
+
+def _rec_s(tool, ts, session, ok=True):
+    return {"ts": ts, "tool": tool, "ms": 5, "ok": ok, "session": session}
+
+
+def test_session_sequences_orders_by_time():
+    recs = [
+        _rec_s("take_screenshot", "2026-11-27T00:00:02+00:00", "aaaa1111"),
+        _rec_s("run_shell", "2026-11-27T00:00:01+00:00", "aaaa1111"),
+    ]
+    seqs = ana.session_sequences(recs)
+    assert seqs[0]["tools"] == ["run_shell", "take_screenshot"]
+
+
+def test_session_sequences_flags_cross_group():
+    """一个会话同时用 ops 与 gui ⇒ coupled（拆端点会把它拆成两次连接）。"""
+    recs = [
+        _rec_s("run_shell", "2026-11-27T00:00:01+00:00", "mix00001"),
+        _rec_s("take_screenshot", "2026-11-27T00:00:02+00:00", "mix00001"),
+    ]
+    seqs = ana.session_sequences(recs)
+    assert seqs[0]["coupled"] is True
+    assert set(seqs[0]["groups"]) == {"ops", "gui"}
+
+
+def test_session_sequences_single_group_not_coupled():
+    recs = [
+        _rec_s("run_shell", "2026-11-27T00:00:01+00:00", "ops00001"),
+        _rec_s("write_file", "2026-11-27T00:00:02+00:00", "ops00001"),
+    ]
+    assert ana.session_sequences(recs)[0]["coupled"] is False
+
+
+def test_session_sequences_ignores_records_without_session():
+    assert ana.session_sequences([{"ts": "x", "tool": "tap"}]) == []
+
+
+def test_main_sessions_mode_prints_sequences(tmp_path, capsys):
+    path = tmp_path / "a.jsonl"
+    now = datetime.now(timezone.utc).isoformat()
+    _dump(path, [_rec_s("run_shell", now, "sess0001"), _rec_s("take_screenshot", now, "sess0001")])
+    rc = ana.main(["--path", str(path), "--days", "5", "--sessions", "3"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "会话序列" in out and "⚠ 跨组" in out
