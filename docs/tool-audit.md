@@ -62,6 +62,19 @@ Stop-Process -Id <PID>   # 交给 launcher 的 while 循环重新拉起
 无论哪种，**部署后必须验证**：`/health` 200 → `list_capabilities()` 工具数 → 任意调用后
 `~/.agent-fleet/tool-audit.jsonl` 出现新行。
 
+## 部署记录（2026-11-28，win-device 8766）
+
+| 步骤 | 读数 |
+|---|---|
+| 代码 | 设备仓 `C:\Users\qjl\agent-fleet` fast-forward 到含审计的提交 |
+| 启动 | `Start-ScheduledTask -TaskName "MCP-WinDevice"`（由人在 RDP/控制台执行） |
+| 启动耗时 | **约 195 秒**才 `/health` 200（此前已记录"这台机器 2–4 分钟"） |
+| 工具面 | `list_capabilities()` = **91**（core 49 / agent_browser 29 / human_browser 1 / vision 3 / human_dom 5 / devtools 4） |
+| 审计落盘 | `~/.agent-fleet/tool-audit.jsonl` **已生成**，记录形如 `{"ts":"…","tool":"list_capabilities","ms":150,"ok":true,"pid":266180,"session":"fecac181"}` |
+
+> 部署时**必须**按上一节的"致命细节"执行：重启动作要脱离被重启的进程，否则 Stop 会掐掉
+> 下发命令的自己（本次已真实发生，靠人工 RDP 才恢复）。
+
 ## 几天后怎么分析
 
 ```bash
