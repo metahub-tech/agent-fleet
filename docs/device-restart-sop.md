@@ -65,7 +65,11 @@ python3 scripts/verify_restart.py --url http://<host>:<port>/mcp --old-pid <重�
 | `FAIL` | 验了，不成立 | pid 未变（旧码）、工具数不符 | 1 |
 | `SKIP` | **本次没能验** | 设备被他人占用（acquire 失败）、无 `about:blank`、缺依赖 | 不影响 |
 
-`verify_restart.py` 的输出形如 `3 passed, 1 failed, 1 skipped`；**只有 FAIL 会让退出码非零**。
+`verify_restart.py` 的输出形如 `3 passed, 1 failed, 1 skipped`：
+**人工模式**只有 FAIL 让退出码非零；**CI 模式加 `--strict`**，有 SKIP 时返回 **3（未完整）**，不报绿。
+
+> 为什么要分开：人工跑时"这次没验成"不算失败是合理的；但进了 CI，退出码 0 会被读成"通过"，
+> 一个长期 SKIP 的检查就会静默退化成一盏永远亮的绿灯。`--strict` 让 CI 能把"未完整"当独立状态处理。
 
 ## 4. 回滚（判据不是"服务活着"）
 

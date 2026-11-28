@@ -135,3 +135,34 @@ def test_skipped_only_run_exits_zero(capsys, monkeypatch):
     rc = vr.main(["--url", "http://h/mcp"])
     assert rc == 0
     assert "1 passed, 0 failed, 1 skipped" in capsys.readouterr().out
+
+
+# --- CI 严格模式：SKIP 不能报绿 ----------------------------------------
+
+def test_strict_mode_returns_3_when_only_skips(capsys, monkeypatch):
+    async def fake_run_checks(*a, **k):
+        return [
+            {"check": "a", "ok": True, "skipped": False, "detail": ""},
+            {"check": "b", "ok": True, "skipped": True, "detail": "skipped: 无法自证"},
+        ]
+
+    monkeypatch.setattr(vr, "run_checks", fake_run_checks)
+    rc = vr.main(["--url", "http://h/mcp", "--strict"])
+    assert rc == 3
+    assert "未完整" in capsys.readouterr().err
+
+
+def test_strict_mode_still_returns_1_on_failure(capsys, monkeypatch):
+    async def fake_run_checks(*a, **k):
+        return [{"check": "c", "ok": False, "skipped": False, "detail": ""}]
+
+    monkeypatch.setattr(vr, "run_checks", fake_run_checks)
+    assert vr.main(["--url", "http://h/mcp", "--strict"]) == 1
+
+
+def test_non_strict_allows_skip(capsys, monkeypatch):
+    async def fake_run_checks(*a, **k):
+        return [{"check": "b", "ok": True, "skipped": True, "detail": "skipped: x"}]
+
+    monkeypatch.setattr(vr, "run_checks", fake_run_checks)
+    assert vr.main(["--url", "http://h/mcp"]) == 0

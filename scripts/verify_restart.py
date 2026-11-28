@@ -24,7 +24,17 @@
     python3 scripts/verify_restart.py --url http://test-win11:8766/mcp \
         --old-pid 266180 --expect-tools 91 --expect-holder
 
-退出码：0 全通过；1 有检查失败；2 连不上/用法错。
+退出码：
+
+| 码 | 含义 |
+|---|---|
+| 0 | 全部通过（人工模式允许有 SKIP） |
+| 1 | 有 FAIL |
+| 3 | **≥1 个 SKIP 且开了 `--strict`** —— "未完整"，**CI 里不应报绿** |
+| 2 | 用法错 / 连不上 |
+
+> 为什么要 3：只在人工模式下"这次没验成不算失败"才合理；进了 CI，退出码 0 会被读成"通过"，
+> 一个长期 SKIP 的检查就会静默退化成一盏永远亮的绿灯。
 """
 from __future__ import annotations
 
@@ -189,6 +199,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="expected tool count; omit to look it up in scripts/_expectations.py by host")
     ap.add_argument("--expect-holder", action="store_true",
                     help="require the holder field in the new audit lines (auto per host when omitted)")
+    ap.add_argument("--strict", action="store_true",
+                    help="CI 模式：有 SKIP 时不报绿，而是以退出码 3 表示「未完整」")
     ap.add_argument("--audit-cmd", default=WIN_TAIL,
                     help="command run on the device to print the audit tail")
     args = ap.parse_args(argv)
@@ -210,7 +222,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     skipped = [r for r in results if r.get("skipped")]
     passed = len(results) - len(failed) - len(skipped)
     print(f"\nSUMMARY: {passed} passed, {len(failed)} failed, {len(skipped)} skipped")
-    return 0 if not failed else 1
+    if failed:
+        return 1
+    if skipped and args.strict:
+        print("STRICT: 有检查被 SKIP ⇒ 判「未完整」，不报绿（CI 模式）", file=sys.stderr)
+        return 3
+    return 0
 
 
 if __name__ == "__main__":

@@ -139,6 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **验证结果引入第三种状态 `SKIP`**（operator 补充）：判据要分「**能力不足**（本次没能验）」与「**结论为否**（验了不通过）」——设备被占、无 `about:blank`、缺依赖都属于前者，硬塞进红/绿会把"没法验"读成"验不过"。`verify_restart.py` 现在逐条标 `PASS/FAIL/SKIP`，汇总为 `X passed, Y failed, Z skipped`，**只有 FAIL 影响退出码**。
 
+- **`verify_restart.py --strict`：CI 里 SKIP 不报绿**：人工模式下"这次没验成"不算失败是合理的（退出 0），但进 CI 后退出 0 会被读成"通过"，长期 SKIP 会静默退化成一盏永远亮的绿灯。`--strict` 在"无 FAIL 但有 SKIP"时返回 **3（未完整）**；文档列出退出码表（0/1/3/2）与两种模式的适用场景。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
