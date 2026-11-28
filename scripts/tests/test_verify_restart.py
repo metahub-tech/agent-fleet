@@ -196,3 +196,30 @@ def test_build_skipped_for_old_records_without_field():
     recs = [{"pid": 2}]
     ok, detail, skipped = vr.build_verdict(True, recs, "abc", 2)
     assert ok and skipped and "旧版审计" in detail
+
+
+# --- build 比较的形状归一 与 dirty 降级 --------------------------------
+
+def test_normalize_build_handles_short_long_and_case():
+    assert vr.normalize_build("5BB3A79") == vr.normalize_build("5bb3a79")
+    assert vr.normalize_build("5bb3a79abc123") == "5bb3a79"
+    assert vr.normalize_build("") == ""
+
+
+def test_build_match_across_shapes_is_not_false_red():
+    recs = [{"pid": 2, "build": "5bb3a79"}]
+    ok, _d, skipped = vr.build_verdict(True, recs, "5bb3a79abc123def", 2)
+    assert ok and not skipped
+
+
+def test_dirty_downgrades_build_assertion_to_skip():
+    """工作区脏 ⇒ HEAD 相同但代码可能不同，不能判 PASS。"""
+    recs = [{"pid": 2, "build": "abc", "dirty": True}]
+    ok, detail, skipped = vr.build_verdict(True, recs, "abc", 2)
+    assert ok is True and skipped is True and "dirty" in detail
+
+
+def test_clean_working_tree_allows_build_pass():
+    recs = [{"pid": 2, "build": "abc", "dirty": False}]
+    ok, _d, skipped = vr.build_verdict(True, recs, "abc", 2)
+    assert ok and not skipped

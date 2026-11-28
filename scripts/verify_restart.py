@@ -103,6 +103,15 @@ def health_ok(url: str, timeout_s: float = 5.0) -> tuple[bool, str]:
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def normalize_build(value: str) -> str:
+    """统一形状再比较：小写、取前 7 位（短 HEAD 7 / 长 HEAD 40 / 自定义串都可比）。
+
+    之前直接用 `==` 比较，会出现"同一个提交因形状不同（7 位 vs 40 位）被判不等"的假红。
+    """
+    text = (value or "").strip().lower()
+    return text[:7] if len(text) >= 7 else text
+
+
 def build_verdict(pid_changed: bool, records: list[dict], expect_build: str,
                   new_pid: Optional[int]) -> tuple[bool, str, bool]:
     """断言"**新进程跑的确实是期望的那份代码**"。
@@ -120,8 +129,12 @@ def build_verdict(pid_changed: bool, records: list[dict], expect_build: str,
     for rec in reversed(records):
         if rec.get("pid") == new_pid and rec.get("build"):
             got = str(rec["build"])
-            if got == expect_build:
-                return True, f"build={got}（与期望一致）", False
+            if rec.get("dirty") is True:
+                # 工作区有未提交改动 ⇒ HEAD 相同但代码可能不同，build 断言不可信
+                return True, (f"skipped: 工作区 dirty（build={got} 只代表 HEAD，"
+                              f"实际代码可能已改）"), True
+            if normalize_build(got) == normalize_build(expect_build):
+                return True, f"build={got}（与期望 {expect_build} 一致）", False
             return False, f"build={got}，期望 {expect_build}（跑的不是期望的代码）", False
     return True, "skipped: 新 pid 的记录里没有 build 字段（旧版审计）", True
 

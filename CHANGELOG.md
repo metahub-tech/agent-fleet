@@ -147,6 +147,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **审计记录带 `build`，重启验证改为直接断言"跑的是哪份代码"**：此前判断"新码是否生效"只能靠"审计里出现 holder 字段"这类**代理指标**（今天已因"拿时长推因果"栽过一次）。现在每条记录带 `build`（git 短 HEAD，`FLEET_BUILD_ID` 可覆盖，进程内缓存），`verify_restart.py --expect-build <sha>` 断言**新 pid 的记录 build == 期望 commit**；旧版审计无该字段时记 SKIP。SOP 的回滚锚点同时记录 **`pre_pull_head`（回滚目标）** 与 `deployed_head`——回滚必须回到 pull 之前真正在跑的版本。
 
+- **审计 `build` 增 `dirty` 标记；build 比较统一形状**：① 只记 HEAD 不够——若部署目录里有**已跟踪文件**被改而未提交，HEAD 不变但代码已不同，`--expect-build` 会假通过；新增 `dirty`（`git status --porcelain --untracked-files=no`，**忽略未跟踪文件**，否则 `.dsh/` 这类本地资料会让每台设备都判脏），`dirty=true` 时 build 断言**降级为 SKIP**并说明原因。② `normalize_build()` 统一小写取前 7 位，避免"7 位 vs 40 位同一提交被判不等"的假红。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

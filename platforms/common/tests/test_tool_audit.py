@@ -41,7 +41,7 @@ def test_record_has_no_arguments_or_result_fields(tmp_path):
     path = tmp_path / "audit.jsonl"
     ta.append_record("tap", 3, False, path=path, session="abcd1234")
     rec = _lines(path)[0]
-    assert set(rec) <= {"ts", "started_at", "tool", "ms", "ok", "pid", "session", "holder", "build"}
+    assert set(rec) <= {"ts", "started_at", "tool", "ms", "ok", "pid", "session", "holder", "build", "dirty"}
     assert rec["session"] == "abcd1234"
 
 
@@ -114,7 +114,7 @@ def test_middleware_records_holder_from_acquire(tmp_path):
     asyncio.run(mw.on_call_tool(_Ctx(), call_next))
     rec = _lines(tmp_path / "audit.jsonl")[0]
     assert rec["holder"] == "agent-A"
-    assert set(rec) <= {"ts", "started_at", "tool", "ms", "ok", "pid", "session", "holder", "build"}
+    assert set(rec) <= {"ts", "started_at", "tool", "ms", "ok", "pid", "session", "holder", "build", "dirty"}
     assert "started_at" in rec      # 用于区分排队/争用与工具本身耗时
 
 
@@ -171,9 +171,15 @@ def test_holder_is_scoped_per_session(tmp_path):
 
 def test_build_id_is_cached_and_env_overridable(monkeypatch):
     import _tool_audit as ta
+    ta._BUILD_CACHE.clear()
     monkeypatch.setenv("FLEET_BUILD_ID", "deadbee")
     assert ta.build_id() == "deadbee"          # 环境变量优先（CI/非 git 部署也能定版）
-    monkeypatch.delenv("FLEET_BUILD_ID")
+    monkeypatch.setenv("FLEET_BUILD_DIRTY", "true")
+    ta._BUILD_CACHE.clear()
+    info = ta.build_info()
+    assert info == {"build": "deadbee", "dirty": True}
+    monkeypatch.delenv("FLEET_BUILD_ID"); monkeypatch.delenv("FLEET_BUILD_DIRTY")
+    ta._BUILD_CACHE.clear()
     first = ta.build_id()
     assert first == ta.build_id()              # 有缓存，不会每条记录都 fork git
 

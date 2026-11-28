@@ -40,12 +40,48 @@ except Exception:  # pragma: no cover - 仅在不含 fastmcp 的测试环境
         """fastmcp 不可用时的占位基类。"""
 
 
-_BUILD_CACHE: dict[str, str] = {}
+_BUILD_CACHE: dict[str, dict] = {}
 
 
 def repo_root() -> Path:
     """`platforms/common/_tool_audit.py` → 仓库根。"""
     return Path(__file__).resolve().parents[2]
+
+
+def build_info() -> dict:
+    """返回 `{"build": <短HEAD>, "dirty": bool}`，进程内缓存。
+
+    **为什么要有 `dirty`**：`build` 只说 HEAD，不说工作区脏不脏。若有人在部署目录里
+    直接改了文件却没提交，HEAD 不变但跑的代码已经不是那个提交了 —— 此时 `--expect-build`
+    会**通过**，而实际代码不对。这正是"读数看起来对、其实验的是别的东西"。
+
+    `dirty` 在进程启动后第一次调用时算一次（`git status --porcelain` 是否为空），
+    之后缓存；`FLEET_BUILD_ID` / `FLEET_BUILD_DIRTY` 可覆盖（非 git 部署用）。
+    """
+    root = str(repo_root())
+    if root not in _BUILD_CACHE:
+        build, dirty = "unknown", False
+        env_id = os.environ.get("FLEET_BUILD_ID")
+        if env_id:
+            build = env_id.strip()[:40]
+            dirty = os.environ.get("FLEET_BUILD_DIRTY", "").strip().lower() in {"1", "true", "yes"}
+        else:
+            try:
+                import subprocess
+                head = subprocess.run(["git", "-C", root, "rev-parse", "--short", "HEAD"],
+                                      capture_output=True, text=True, timeout=5)
+                if head.returncode == 0:
+                    build = head.stdout.strip()[:40] or "unknown"
+                # **忽略未跟踪文件**：`.dsh/` 这类本地资料不影响运行代码；
+                # 只把"已跟踪文件被改动"算作 dirty，否则每台设备都会被判脏。
+                status = subprocess.run(
+                    ["git", "-C", root, "status", "--porcelain", "--untracked-files=no"],
+                    capture_output=True, text=True, timeout=5)
+                dirty = status.returncode == 0 and bool(status.stdout.strip())
+            except Exception:
+                pass
+        _BUILD_CACHE[root] = {"build": build, "dirty": dirty}
+    return _BUILD_CACHE[root]
 
 
 def build_id() -> str:
@@ -58,22 +94,7 @@ def build_id() -> str:
     取值顺序：`FLEET_BUILD_ID` 环境变量 → `git rev-parse --short HEAD` → `"unknown"`（非 git 部署）。
     结果按仓库根缓存，不会每条记录都 fork 一次 git。
     """
-    env = os.environ.get("FLEET_BUILD_ID")
-    if env:
-        return env.strip()[:16]
-    root = str(repo_root())
-    if root not in _BUILD_CACHE:
-        value = "unknown"
-        try:
-            import subprocess
-            out = subprocess.run(["git", "-C", root, "rev-parse", "--short", "HEAD"],
-                                 capture_output=True, text=True, timeout=5)
-            if out.returncode == 0:
-                value = out.stdout.strip()[:16] or "unknown"
-        except Exception:
-            pass
-        _BUILD_CACHE[root] = value
-    return _BUILD_CACHE[root]
+    return str(build_info()["build"])
 
 
 DEFAULT_PATH = "~/.agent-fleet/tool-audit.jsonl"
@@ -135,7 +156,8 @@ def append_record(
             "ms": int(ms),
             "ok": bool(ok),
             "pid": os.getpid(),
-            "build": build_id(),
+            "build": build_info()["build"],
+            "dirty": bool(build_info()["dirty"]),
             **({"session": session} if session else {}),
             **({"holder": holder} if holder else {}),
         },

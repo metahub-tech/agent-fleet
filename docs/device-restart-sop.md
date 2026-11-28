@@ -52,7 +52,7 @@ python3 scripts/verify_restart.py --url http://test-win11:8766/mcp --old-pid 266
 | 2 | 工具数 == 期望 | 功能面完整（期望值来自 `scripts/_expectations.py`，**不要硬编码**） |
 | 3 | 审计有新行 | 中间件在写 |
 | 4 | **新行 pid ≠ 重启前 pid** | **新代码进了内存**（关键；前三件旧进程也满足） |
-| 4b | **新 pid 的记录 `build` == `deployed_head`** | **跑的就是期望那份代码**——审计每行带 `build`（git 短 HEAD），这是直接读数；不要用「某字段出现了所以大概是新码」这类代理指标 |
+| 4b | **新 pid 的记录 `build` == `deployed_head`**（比较时统一小写取前 7 位；**`dirty=true` 时降级为 SKIP**，因为 HEAD 相同不代表代码相同） | **跑的就是期望那份代码**——审计每行带 `build`（git 短 HEAD），这是直接读数；不要用「某字段出现了所以大概是新码」这类代理指标 |
 | 5 | （可选）`holder` 字段 | 审计升级是否落地；**由脚本自己 acquire 一次自证**（pid 未变时 skipped） |
 
 ## 3.1 三种状态：通过 / 失败 / **无法验证**
