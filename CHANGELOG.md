@@ -145,6 +145,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **SOP 增加「CI 组合」小节**：`cmd1 && cmd2` 会在第一个非 0 处短路，后面的脚本根本不会跑 ⇒ 失去"版本问题（3）还是没验完（4）"的区分。改为**各自跑、各自收集退出码、按优先级汇总**（1 失败 > 3 版本不符 > 4 未完整 > 0 全绿），并给出可直接用的 bash 片段与优先级理由。
 
+- **审计记录带 `build`，重启验证改为直接断言"跑的是哪份代码"**：此前判断"新码是否生效"只能靠"审计里出现 holder 字段"这类**代理指标**（今天已因"拿时长推因果"栽过一次）。现在每条记录带 `build`（git 短 HEAD，`FLEET_BUILD_ID` 可覆盖，进程内缓存），`verify_restart.py --expect-build <sha>` 断言**新 pid 的记录 build == 期望 commit**；旧版审计无该字段时记 SKIP。SOP 的回滚锚点同时记录 **`pre_pull_head`（回滚目标）** 与 `deployed_head`——回滚必须回到 pull 之前真正在跑的版本。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

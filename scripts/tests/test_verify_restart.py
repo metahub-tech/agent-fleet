@@ -166,3 +166,33 @@ def test_non_strict_allows_skip(capsys, monkeypatch):
 
     monkeypatch.setattr(vr, "run_checks", fake_run_checks)
     assert vr.main(["--url", "http://h/mcp"]) == 0
+
+
+# --- build：直接断言"跑的是哪份代码"，而不是代理指标 ----------------------
+
+def test_build_skipped_when_pid_unchanged():
+    ok, detail, skipped = vr.build_verdict(False, [], "abc", 1)
+    assert ok is True and skipped is True and "旧码" in detail
+
+
+def test_build_skipped_without_expectation():
+    ok, detail, skipped = vr.build_verdict(True, [], "", 1)
+    assert ok and skipped and "未指定" in detail
+
+
+def test_build_matches_new_pid_record():
+    recs = [{"pid": 1, "build": "old"}, {"pid": 2, "build": "abc"}]
+    ok, detail, skipped = vr.build_verdict(True, recs, "abc", 2)
+    assert ok and not skipped and "一致" in detail
+
+
+def test_build_mismatch_is_failure():
+    recs = [{"pid": 2, "build": "zzz"}]
+    ok, detail, skipped = vr.build_verdict(True, recs, "abc", 2)
+    assert ok is False and "不是期望的代码" in detail
+
+
+def test_build_skipped_for_old_records_without_field():
+    recs = [{"pid": 2}]
+    ok, detail, skipped = vr.build_verdict(True, recs, "abc", 2)
+    assert ok and skipped and "旧版审计" in detail

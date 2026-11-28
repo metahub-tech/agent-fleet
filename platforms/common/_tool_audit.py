@@ -40,6 +40,42 @@ except Exception:  # pragma: no cover - 仅在不含 fastmcp 的测试环境
         """fastmcp 不可用时的占位基类。"""
 
 
+_BUILD_CACHE: dict[str, str] = {}
+
+
+def repo_root() -> Path:
+    """`platforms/common/_tool_audit.py` → 仓库根。"""
+    return Path(__file__).resolve().parents[2]
+
+
+def build_id() -> str:
+    """当前代码的构建标识（git 短 HEAD），**用于断言"跑的到底是哪份代码"**。
+
+    为什么要这个：之前只能靠"审计里出现 holder 字段"**间接推断**跑的是新码——那是代理指标，
+    不是事实（今天已经因为"拿时长推因果"栽过一次）。这里把 build 直接写进每条记录，
+    重启后就能断言 `新 pid 的 build == 期望 commit`。
+
+    取值顺序：`FLEET_BUILD_ID` 环境变量 → `git rev-parse --short HEAD` → `"unknown"`（非 git 部署）。
+    结果按仓库根缓存，不会每条记录都 fork 一次 git。
+    """
+    env = os.environ.get("FLEET_BUILD_ID")
+    if env:
+        return env.strip()[:16]
+    root = str(repo_root())
+    if root not in _BUILD_CACHE:
+        value = "unknown"
+        try:
+            import subprocess
+            out = subprocess.run(["git", "-C", root, "rev-parse", "--short", "HEAD"],
+                                 capture_output=True, text=True, timeout=5)
+            if out.returncode == 0:
+                value = out.stdout.strip()[:16] or "unknown"
+        except Exception:
+            pass
+        _BUILD_CACHE[root] = value
+    return _BUILD_CACHE[root]
+
+
 DEFAULT_PATH = "~/.agent-fleet/tool-audit.jsonl"
 DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 
@@ -99,6 +135,7 @@ def append_record(
             "ms": int(ms),
             "ok": bool(ok),
             "pid": os.getpid(),
+            "build": build_id(),
             **({"session": session} if session else {}),
             **({"holder": holder} if holder else {}),
         },

@@ -103,6 +103,29 @@ def health_ok(url: str, timeout_s: float = 5.0) -> tuple[bool, str]:
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def build_verdict(pid_changed: bool, records: list[dict], expect_build: str,
+                  new_pid: Optional[int]) -> tuple[bool, str, bool]:
+    """断言"**新进程跑的确实是期望的那份代码**"。
+
+    返回 `(ok, detail, skipped)`。这是**直接读数**，不是代理指标：
+    审计的每条记录都带 `build`（git 短 HEAD），所以能断言"新 pid 的 build == 期望 commit"，
+    而不是"某个字段出现了，所以大概是新码"。
+
+    旧版本的记录没有 `build` ⇒ 记 skipped（不能因此判失败，那会把"没法验"读成"验不过"）。
+    """
+    if not pid_changed:
+        return True, "skipped: pid 未变（旧码），不判 build", True
+    if not expect_build:
+        return True, "skipped: 未指定 --expect-build", True
+    for rec in reversed(records):
+        if rec.get("pid") == new_pid and rec.get("build"):
+            got = str(rec["build"])
+            if got == expect_build:
+                return True, f"build={got}（与期望一致）", False
+            return False, f"build={got}，期望 {expect_build}（跑的不是期望的代码）", False
+    return True, "skipped: 新 pid 的记录里没有 build 字段（旧版审计）", True
+
+
 def holder_verdict(pid_changed: bool, acquired: bool, records: list[dict],
                    marker: str) -> tuple[bool, str]:
     """判定 `holder` 字段是否落地——**有序两段**，且证据由本脚本自己造。
@@ -132,7 +155,8 @@ async def _read_audit(call, audit_cmd: str) -> str:
 
 
 async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[int],
-                     expect_holder: bool, audit_cmd: str) -> list[dict]:
+                     expect_holder: bool, audit_cmd: str,
+                     expect_build: str = "") -> list[dict]:
     results: list[dict] = []
 
     def add(check: str, ok: bool, detail: str, skipped: bool = False) -> None:
@@ -178,6 +202,10 @@ async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[in
             add("新码进内存（pid 变化）", pid_changed,
                 f"重启后 pid={pid}，重启前 pid={old_pid}")
 
+            ok_build, detail_build, skip_build = build_verdict(
+                pid_changed, records, expect_build, pid)
+            add("运行的代码版本（build）", ok_build, detail_build, skipped=skip_build)
+
             if expect_holder:
                 # 证据自己造：无条件 acquire 一次（唯一名字），再 release，然后读回审计
                 marker = f"verify-restart-{os.getpid()}-{int(time.time())}"
@@ -203,6 +231,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="expected tool count; omit to look it up in scripts/_expectations.py by host")
     ap.add_argument("--expect-holder", action="store_true",
                     help="require the holder field in the new audit lines (auto per host when omitted)")
+    ap.add_argument("--expect-build", default="",
+                    help="expected git short HEAD the device should be running (asserted via audit build field)")
     ap.add_argument("--strict", action="store_true",
                     help="CI 模式：有 SKIP 时不报绿，而是以退出码 3 表示「未完整」")
     ap.add_argument("--audit-cmd", default=WIN_TAIL,
@@ -214,7 +244,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         results = asyncio.run(asyncio.wait_for(
             run_checks(args.url, args.old_pid, expect_tools,
-                       expect_holder, args.audit_cmd), timeout=120))
+                       expect_holder, args.audit_cmd, args.expect_build), timeout=120))
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
