@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | 租约空闲 | `get_status` → `in_use: false` |
 | 2 | 无发布任务 | 发布类进程数为 0（按设备实际口径） |
-| 3 | 记录回滚锚点 | 当前 `pid`（审计尾行）+ `git -C <repo> rev-parse HEAD` |
+| 3 | 记录回滚锚点 | **`pre_pull_head`**（pull 前实际在跑的版本，回滚回到它）+ `pid`；另记 `deployed_head`（本次要装的版本）。**回滚锚点必须是 pull 之前的 HEAD**，否则回滚只能回到一个还没部署过的提交 |
 | 4 | 端口归属 | `Get-NetTCPConnection -LocalPort <port> -State Listen` 的 OwningProcess 是"你以为的那个进程" |
 | 5 | 变更内容明确 | 说清"改什么/为什么/期望工具数"（期望值取 `scripts/_expectations.py`） |
 
@@ -52,6 +52,7 @@ python3 scripts/verify_restart.py --url http://test-win11:8766/mcp --old-pid 266
 | 2 | 工具数 == 期望 | 功能面完整（期望值来自 `scripts/_expectations.py`，**不要硬编码**） |
 | 3 | 审计有新行 | 中间件在写 |
 | 4 | **新行 pid ≠ 重启前 pid** | **新代码进了内存**（关键；前三件旧进程也满足） |
+| 4b | **新 pid 的记录 `build` == `deployed_head`** | **跑的就是期望那份代码**——审计每行带 `build`（git 短 HEAD），这是直接读数；不要用「某字段出现了所以大概是新码」这类代理指标 |
 | 5 | （可选）`holder` 字段 | 审计升级是否落地；**由脚本自己 acquire 一次自证**（pid 未变时 skipped） |
 
 ## 3.1 三种状态：通过 / 失败 / **无法验证**

@@ -29,6 +29,7 @@
 | `pid` | 服务进程号（多实例时可区分） |
 | `session` | MCP 会话 id 前 8 位（把一次批量操作归到同一会话） |
 | `holder` | `acquire` 时声明的 `holder_name`（**唯一**从参数里取的字段；≤64 字符） |
+| `build` | 当前代码的 git 短 HEAD（`FLEET_BUILD_ID` 可覆盖）—— 用于断言「跑的到底是哪份代码」 |
 
 **不记**参数、返回值、异常消息。**唯一例外**是 `holder`：`acquire` 的 `holder_name`
 （客户端声明的短字符串，≤64 字符）——因为**同机所有 agent 共享同一个服务进程**，
@@ -103,6 +104,7 @@ python3 scripts/verify_restart.py --url http://test-win11:8766/mcp     --old-pid
 | 2 | 工具数 == 期望 | 功能面完整 |
 | 3 | 审计有新行 | 中间件在写 |
 | 4 | **新行 pid ≠ 重启前 pid** | **新代码进了内存** |
+| 4b | **新 pid 的记录 `build` == 期望 commit** | **跑的就是期望那份代码**（直接读数，不是代理指标） |
 | 5 | （可选）`holder` **自证** | 脚本自己 `acquire(holder_name="verify-restart-…")` 再 `release`，然后断言审计里出现该 holder —— **不依赖窗口里恰好有人 acquire**；pid 未变时直接 skipped，不误判成"字段未落地" |
 
 > 实测（2026-11-28，未重启时跑）：1–3 全 PASS、第 4 条 FAIL（`pid=266180` 与重启前相同）
