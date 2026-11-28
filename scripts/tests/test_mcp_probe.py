@@ -115,3 +115,22 @@ def test_sample_cases_contain_only_readonly_tools():
                  "run_shell", "launch_app", "terminate_app"}
     names = {c["tool"] for c in probe_multi.SAMPLE_CASES}
     assert not (names & forbidden), names
+
+
+# --- 传输层超时：SDK 2.x 默认 5s，写大请求体会超时 ----------------------
+
+def test_http_timeout_is_generous_enough_for_oversize_upload():
+    """超限用例要上传 4 MiB+1（base64 约 5.6 MB），写超时必须远大于 SDK 默认的 5s。
+
+    真机教训：从 agent 主机跨机跑 `smoke_ops` 时报 `httpx2.WriteTimeout` 并以
+    "ExceptionGroup" 收场——看起来像设备坏了，其实是客户端写超时（默认 5s）。
+    设备本机 loopback 跑不会触发，所以这个坑只在跨机时出现。
+    """
+    assert _mcp_probe._HTTP_TIMEOUT["write"] >= 120
+    assert _mcp_probe._HTTP_TIMEOUT["read"] >= 60
+    assert _mcp_probe._HTTP_TIMEOUT["connect"] >= 5
+
+
+def test_load_transport_returns_callable_wrapper():
+    t = _mcp_probe.load_transport()
+    assert t is None or callable(t)

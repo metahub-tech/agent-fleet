@@ -60,16 +60,53 @@ def payload_of(result: Any) -> Any:
     return parts
 
 
+#: 单次 HTTP 阶段的预算（秒）。**不是**工具调用预算，见下面的原因。
+_HTTP_TIMEOUT = {"connect": 10.0, "read": 120.0, "write": 300.0, "pool": 10.0}
+
+
+def _wrap_with_budgets(fn: Any, sdk_major: int) -> Any:
+    """给 SDK 的连接器套一层"充裕的 HTTP 超时"。
+
+    为什么必须做：MCP SDK 2.x 自带的 httpx 默认超时是 **5 秒**，而 `smoke_ops` 的超限用例要
+    上传 `MAX_TRANSFER_BYTES + 1`（4 MiB 二进制 → base64 后约 **5.6 MB** 请求体）。跨机
+    （agent 主机 → 设备）时设备侧一忙，5 秒内的写操作直接 `httpx2.WriteTimeout`，
+    整个 smoke 就以 "ExceptionGroup" 收场——**看起来像设备坏了，其实是客户端超时太短**。
+    设备本机 loopback 跑同一脚本不会触发（所以真机 12/12 一直是对的）。
+
+    这里只放宽 HTTP 层；工具本身的预算（UIA 8s、wait_for 的 timeout 等）不受影响。
+    """
+    if sdk_major == 2:
+        import contextlib
+
+        @contextlib.asynccontextmanager
+        async def transport(url: str, **kwargs: Any):
+            import httpx2
+
+            client = httpx2.AsyncClient(timeout=httpx2.Timeout(**_HTTP_TIMEOUT))
+            kwargs.setdefault("http_client", client)
+            try:
+                async with fn(url, **kwargs) as streams:
+                    yield streams
+            finally:
+                await client.aclose()
+
+        return transport
+
+    # 1.x：连接器自带 timeout / sse_read_timeout 参数
+    return lambda url, **kwargs: fn(url, **{"timeout": _HTTP_TIMEOUT["read"],
+                                            "sse_read_timeout": _HTTP_TIMEOUT["read"], **kwargs})
+
+
 def load_transport() -> Optional[Any]:
     """返回 streamable-http 连接器；两个 SDK 版本的名字都试一遍，都拿不到时返回 None。"""
     try:
         from mcp.client.streamable_http import streamablehttp_client as _t   # 1.x
-        return _t
+        return _wrap_with_budgets(_t, 1)
     except Exception:
         pass
     try:
         from mcp.client.streamable_http import streamable_http_client as _t  # 2.x
-        return _t
+        return _wrap_with_budgets(_t, 2)
     except Exception:
         return None
 

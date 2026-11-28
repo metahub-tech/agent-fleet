@@ -115,6 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **收紧 L3 定义并按定义降档**：L3 = **不同现场状态**下重复通过（换 profile / 换一天 / 换机器），同机同 profile 连跑三次**仍属 L2**。据此把 `smoke_ops` 从 L3 降为 **L2**（它的两轮是不同 tip 但同一台机器同一个 34 标签 profile），并在文档写明"要升 L3 需要换现场状态，不是再跑一遍"。
 
+- **跨机跑验收脚本不再被"客户端写超时"打断**：MCP SDK 2.x 自带的 httpx 默认超时只有 **5 秒**，而 `smoke_ops` 的超限用例要上传 4 MiB+1（base64 约 **5.6 MB**）——从 agent 主机跨机跑时设备一忙就 `httpx2.WriteTimeout`，整个 smoke 以 `ExceptionGroup` 收场，**看起来像设备坏了**。设备本机 loopback 跑不会触发（所以真机 12/12 一直是对的）。现在 `_mcp_probe.load_transport()` 给连接器注入 HTTP 层预算（connect 10s / read 120s / write 300s），工具自身预算（UIA 8s、`wait_for` timeout 等）不受影响。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
