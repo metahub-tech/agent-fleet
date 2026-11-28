@@ -141,6 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`verify_restart.py --strict`：CI 里 SKIP 不报绿**：人工模式下"这次没验成"不算失败是合理的（退出 0），但进 CI 后退出 0 会被读成"通过"，长期 SKIP 会静默退化成一盏永远亮的绿灯。`--strict` 在"无 FAIL 但有 SKIP"时返回 **3（未完整）**；文档列出退出码表（0/1/3/2）与两种模式的适用场景。
 
+- **退出码命名空间修正：`verify_restart --strict` 的「未完整」由 3 改为 4**：`smoke_ops` / `smoke_devtools` 里 **3 = 「设备上跑的不是这批代码」**，与"这次没验完"完全不同的因果；同一台机器的 CI 里两个 3 会让人先去查版本。现在 3 独占"版本/环境不符"一族，"未完整"用 **4**。SOP 补一张**脚本家族退出码并列表**，并规定 **CI 判绿只看 0**（看到 3 查版本，看到 4 看 SKIP）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

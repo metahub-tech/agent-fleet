@@ -139,7 +139,7 @@ def test_skipped_only_run_exits_zero(capsys, monkeypatch):
 
 # --- CI 严格模式：SKIP 不能报绿 ----------------------------------------
 
-def test_strict_mode_returns_3_when_only_skips(capsys, monkeypatch):
+def test_strict_mode_returns_4_when_only_skips(capsys, monkeypatch):
     async def fake_run_checks(*a, **k):
         return [
             {"check": "a", "ok": True, "skipped": False, "detail": ""},
@@ -148,7 +148,7 @@ def test_strict_mode_returns_3_when_only_skips(capsys, monkeypatch):
 
     monkeypatch.setattr(vr, "run_checks", fake_run_checks)
     rc = vr.main(["--url", "http://h/mcp", "--strict"])
-    assert rc == 3
+    assert rc == 4
     assert "未完整" in capsys.readouterr().err
 
 

@@ -30,10 +30,14 @@
 |---|---|
 | 0 | 全部通过（人工模式允许有 SKIP） |
 | 1 | 有 FAIL |
-| 3 | **≥1 个 SKIP 且开了 `--strict`** —— "未完整"，**CI 里不应报绿** |
+| 4 | **≥1 个 SKIP 且开了 `--strict`** —— "未完整"，**CI 里不应报绿** |
 | 2 | 用法错 / 连不上 |
 
-> 为什么要 3：只在人工模式下"这次没验成不算失败"才合理；进了 CI，退出码 0 会被读成"通过"，
+> 为什么不用 3：`smoke_ops` / `smoke_devtools` 里 **3 = 「设备上跑的不是这批代码」**。
+> 同一台机器的 CI 里两个 3 指向完全不同的事，排障的人看到 3 会先去查版本而不是看 skip。
+> 所以"未完整"独占 **4**，3 留给"版本/环境不符"那一族。
+
+> 为什么要单独一档：只在人工模式下"这次没验成不算失败"才合理；进了 CI，退出码 0 会被读成"通过"，
 > 一个长期 SKIP 的检查就会静默退化成一盏永远亮的绿灯。
 """
 from __future__ import annotations
@@ -226,7 +230,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
     if skipped and args.strict:
         print("STRICT: 有检查被 SKIP ⇒ 判「未完整」，不报绿（CI 模式）", file=sys.stderr)
-        return 3
+        return 4
     return 0
 
 
