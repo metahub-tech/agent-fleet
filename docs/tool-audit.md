@@ -85,6 +85,31 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-File',
 | 工具面 | `list_capabilities()` = **91**（core 49 / agent_browser 29 / human_browser 1 / vision 3 / human_dom 5 / devtools 4） |
 | 审计落盘 | `~/.agent-fleet/tool-audit.jsonl` **已生成**，记录形如 `{"ts":"…","tool":"list_capabilities","ms":150,"ok":true,"pid":266180,"session":"fecac181"}` |
 
+### 重启后验证：**必须**检查 `pid` 变了（否则验的是旧进程）
+
+`/health` 200、工具数 91、审计出现新行 —— **旧进程全都满足**，它们只能证明"有个进程在服务"。
+唯一能证明"新代码进了内存"的判据是 **pid 变了**（审计每行都带 `pid`）。
+
+脚本：`scripts/verify_restart.py`
+
+```bash
+# 重启前先记下 pid（例如从审计尾行读）与 git HEAD
+python3 scripts/verify_restart.py --url http://test-win11:8766/mcp     --old-pid 266180 --expect-tools 91 --expect-holder
+```
+
+| # | 检查 | 证明什么 |
+|---|---|---|
+| 1 | `/health` 200 | 服务在监听 |
+| 2 | 工具数 == 期望 | 功能面完整 |
+| 3 | 审计有新行 | 中间件在写 |
+| 4 | **新行 pid ≠ 重启前 pid** | **新代码进了内存** |
+
+> 实测（2026-11-28，未重启时跑）：1–3 全 PASS、第 4 条 FAIL（`pid=266180` 与重启前相同）
+> —— 这正是第 4 条存在的意义。
+
+**回滚判据**：也不是"服务活着"，而是 **pid 又换了一次 + 工具数/审计行为回到上一版**。
+所以重启前必须记录 **当前 pid 与 `git HEAD`**（回滚要回到哪一版才有据可查）。
+
 > 部署时**必须**按上一节的"致命细节"执行：重启动作要脱离被重启的进程，否则 Stop 会掐掉
 > 下发命令的自己（本次已真实发生，靠人工 RDP 才恢复）。
 

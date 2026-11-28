@@ -131,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **审计补 `started_at` 并把"慢工具"改为按分位数看**：`ms` 是**从进入中间件到返回的墙钟，包含排队与事件循环争用**（真机见过"读 20 行文件"记 68815ms，而客户端感知是秒级）。记录里新增 `started_at`；`analyze_tool_audit.py` 按工具输出 **p50 / p95 / max** 并在文本里直接标 `p50=`，避免用单条最大值把"服务器忙"误读成"工具慢"。文档另记：同一 pid 下 7 分钟内 6 个 session 且真实交错 ⇒ `session` 无法归属到人，只能靠 `holder`。
 
+- **新增 `scripts/verify_restart.py`：重启验证的第四件（pid 必须变）**：`/health` 200、工具数 91、审计有新行这三条**旧进程全都满足**，无法区分"新码进内存"与"旧进程还活着"。新脚本据此加第四条判据 **新审计行的 `pid` ≠ 重启前 `pid`**，并支持 `--expect-holder` 检查 `holder` 字段是否落地；回滚判据同样改为"pid 又换一次 + 行为回到上一版"，故重启前须记录 pid 与 `git HEAD`。实测（未重启时）：1–3 PASS、第 4 条 FAIL（`pid=266180` 未变）——正是它该有的表现。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
