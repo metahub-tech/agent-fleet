@@ -42,6 +42,26 @@
 在每个 server 的 `main()` 里与 `LeaseGate` 并列挂载——因此覆盖 core 与所有可选能力，
 不需要改任何工具签名。**重启 server 后生效。**
 
+### 部署时的一个致命细节（2026-11-28 事故）
+
+**不要在 server 提供的 shell 里直接 `Stop-ScheduledTask`**：`run_shell` 由被重启的那个进程服务，
+Stop 会先把**这条命令自己**掐掉，后续的 `Start-ScheduledTask` 根本执行不到 —— 设备会直接停在那里
+（8766 曾因此停服，只能由有控制台的人重新 `Start-ScheduledTask -TaskName "MCP-WinDevice"`）。
+
+安全做法（任选其一，共同点都是**让重启动作脱离被重启的进程**）：
+
+```powershell
+# A. 先起一个独立进程，延迟 3 秒再 stop/start；调用立即返回
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-Command',
+  'Start-Sleep 3; Stop-ScheduledTask -TaskName "MCP-WinDevice"; Start-Sleep 2; Start-ScheduledTask -TaskName "MCP-WinDevice"'
+
+# B. 用任务计划自身的"重新启动"能力（RestartCount / RestartInterval），只结束 python 进程
+Stop-Process -Id <PID>   # 交给 launcher 的 while 循环重新拉起
+```
+
+无论哪种，**部署后必须验证**：`/health` 200 → `list_capabilities()` 工具数 → 任意调用后
+`~/.agent-fleet/tool-audit.jsonl` 出现新行。
+
 ## 几天后怎么分析
 
 ```bash
