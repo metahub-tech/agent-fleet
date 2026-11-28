@@ -55,7 +55,7 @@ def build_info() -> dict:
     直接改了文件却没提交，HEAD 不变但跑的代码已经不是那个提交了 —— 此时 `--expect-build`
     会**通过**，而实际代码不对。这正是"读数看起来对、其实验的是别的东西"。
 
-    `dirty` 在进程启动后第一次调用时算一次（`git status --porcelain` 是否为空），
+    `dirty` 在进程启动后第一次调用时算一次（**只看 `platforms/` `scripts/` `cli/`**，含新增的未跟踪文件；`.dsh/` 这类本地资料不计），
     之后缓存；`FLEET_BUILD_ID` / `FLEET_BUILD_DIRTY` 可覆盖（非 git 部署用）。
     """
     root = str(repo_root())
@@ -72,10 +72,12 @@ def build_info() -> dict:
                                       capture_output=True, text=True, timeout=5)
                 if head.returncode == 0:
                     build = head.stdout.strip()[:40] or "unknown"
-                # **忽略未跟踪文件**：`.dsh/` 这类本地资料不影响运行代码；
-                # 只把"已跟踪文件被改动"算作 dirty，否则每台设备都会被判脏。
+                # 收窄到**代码目录**再看：`.dsh/` 这类本地资料不应让设备判脏，
+                # 但 `platforms/ scripts/ cli/` 里**新增的未跟踪文件**（例如新加的 .py 被 import）
+                # 同样会改变运行行为，必须被抓到 —— 所以用 `--untracked-files=all` + pathspec。
                 status = subprocess.run(
-                    ["git", "-C", root, "status", "--porcelain", "--untracked-files=no"],
+                    ["git", "-C", root, "status", "--porcelain", "--untracked-files=all",
+                     "--", "platforms", "scripts", "cli"],
                     capture_output=True, text=True, timeout=5)
                 dirty = status.returncode == 0 and bool(status.stdout.strip())
             except Exception:

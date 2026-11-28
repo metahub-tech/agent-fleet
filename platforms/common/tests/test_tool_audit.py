@@ -189,3 +189,53 @@ def test_record_carries_build(tmp_path):
     ta.append_record("tap", 1, True, path=path)
     rec = _lines(path)[0]
     assert rec["build"]
+
+
+# --- dirty 的作用域：代码目录里的新增文件也算脏，本地资料不算 -------------
+
+def _git_repo(path):
+    import subprocess
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@e.st"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=path, check=True)
+    (path / "platforms").mkdir(); (path / "scripts").mkdir()
+    (path / "platforms" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=path, check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=path, check=True)
+
+
+def test_dirty_false_on_clean_code_dirs(tmp_path, monkeypatch):
+    import _tool_audit as ta
+    _git_repo(tmp_path)
+    monkeypatch.setattr(ta, "repo_root", lambda: tmp_path)
+    ta._BUILD_CACHE.clear()
+    assert ta.build_info()["dirty"] is False
+
+
+def test_untracked_local_notes_do_not_mark_dirty(tmp_path, monkeypatch):
+    """.dsh/ 这类本地资料不该让设备判脏。"""
+    import _tool_audit as ta
+    _git_repo(tmp_path)
+    (tmp_path / ".dsh").mkdir(); (tmp_path / ".dsh" / "notes.md").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(ta, "repo_root", lambda: tmp_path)
+    ta._BUILD_CACHE.clear()
+    assert ta.build_info()["dirty"] is False
+
+
+def test_untracked_new_py_in_code_dir_is_dirty(tmp_path, monkeypatch):
+    """代码目录里新增未跟踪 .py（可能被 import）必须算脏 —— 这是 operator 指出的盲点。"""
+    import _tool_audit as ta
+    _git_repo(tmp_path)
+    (tmp_path / "scripts" / "new_helper.py").write_text("y = 2\n", encoding="utf-8")
+    monkeypatch.setattr(ta, "repo_root", lambda: tmp_path)
+    ta._BUILD_CACHE.clear()
+    assert ta.build_info()["dirty"] is True
+
+
+def test_modified_tracked_file_is_dirty(tmp_path, monkeypatch):
+    import _tool_audit as ta
+    _git_repo(tmp_path)
+    (tmp_path / "platforms" / "a.py").write_text("x = 2\n", encoding="utf-8")
+    monkeypatch.setattr(ta, "repo_root", lambda: tmp_path)
+    ta._BUILD_CACHE.clear()
+    assert ta.build_info()["dirty"] is True

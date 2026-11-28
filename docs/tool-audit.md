@@ -30,7 +30,7 @@
 | `session` | MCP 会话 id 前 8 位（把一次批量操作归到同一会话） |
 | `holder` | `acquire` 时声明的 `holder_name`（**唯一**从参数里取的字段；≤64 字符） |
 | `build` | 当前代码的 git 短 HEAD（`FLEET_BUILD_ID` 可覆盖）—— 用于断言「跑的到底是哪份代码」 |
-| `dirty` | 工作区是否有**已跟踪文件**被改动（`git status --porcelain --untracked-files=no` 非空）。**`dirty=true` 时 build 只代表 HEAD、不代表实际代码**，故 build 断言降级为 SKIP |
+| `dirty` | **代码目录**（`platforms/ scripts/ cli/`）里是否有改动或**新增的未跟踪文件**（`git status --porcelain --untracked-files=all -- platforms scripts cli` 非空；`.dsh/` 等本地资料不计）。**`dirty=true` 时 build 只代表 HEAD、不代表实际代码**，故 build 断言降级为 SKIP |
 
 **不记**参数、返回值、异常消息。**唯一例外**是 `holder`：`acquire` 的 `holder_name`
 （客户端声明的短字符串，≤64 字符）——因为**同机所有 agent 共享同一个服务进程**，

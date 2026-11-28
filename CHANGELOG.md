@@ -149,6 +149,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **审计 `build` 增 `dirty` 标记；build 比较统一形状**：① 只记 HEAD 不够——若部署目录里有**已跟踪文件**被改而未提交，HEAD 不变但代码已不同，`--expect-build` 会假通过；新增 `dirty`（`git status --porcelain --untracked-files=no`，**忽略未跟踪文件**，否则 `.dsh/` 这类本地资料会让每台设备都判脏），`dirty=true` 时 build 断言**降级为 SKIP**并说明原因。② `normalize_build()` 统一小写取前 7 位，避免"7 位 vs 40 位同一提交被判不等"的假红。
 
+- **`dirty` 收窄到代码目录**：只忽略未跟踪文件会漏掉"往 `platforms/`/`scripts/` 里新增未跟踪 `.py` 并被 import"（HEAD 不变但行为已变）。改为 `git status --porcelain --untracked-files=all -- platforms scripts cli`：`.dsh/` 这类本地资料不计脏，而代码目录里**新增或修改**的文件都能抓到。4 条新单测（干净/本地资料/新增未跟踪 .py/已跟踪被改）。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。
