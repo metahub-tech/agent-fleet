@@ -247,6 +247,39 @@ def cut_pairs(records: list[dict], gap_s: float) -> int:
     return count
 
 
+def unit_duration_s(unit: list[dict]) -> float:
+    """单元首末调用的时间跨度（秒）。"""
+    if not unit:
+        return 0.0
+    stamps = sorted(_epoch(r) for r in unit)
+    return max(0.0, stamps[-1] - stamps[0])
+
+
+def stitch_health(units: list[list[dict]], session_count: int,
+                  max_unit_minutes: float = 30.0,
+                  min_ratio: float = 0.3) -> dict:
+    """自检：这套"按 pid(+holder) 粘回"的方法**在当前数据密度下还成不成立**。
+
+    判据来自一次真实教训：83 次调用被粘成 3 个单元（比值 3/32≈0.09），每个单元跨多个操作者 ——
+    那既不是下界也不是上界，而是"把整段时间当一个单元"的人为产物；用它做决策会得出
+    "什么都在跨组"，对"要不要拆端点"没有信息量。
+
+    返回 `{"degraded": bool, "reasons": [...], "ratio": float, "median_unit_s": float}`。
+    ``degraded=True`` 时调用方**不应输出跨组结论**。
+    """
+    reasons: list[str] = []
+    ratio = (len(units) / session_count) if session_count else 0.0
+    durations = sorted(unit_duration_s(u) for u in units)
+    median_s = durations[len(durations) // 2] if durations else 0.0
+    if session_count and ratio < min_ratio:
+        reasons.append(f"单元数/会话数 = {len(units)}/{session_count} ≈ {ratio:.2f}（< {min_ratio}）"
+                       f"——粘成了时间桶，不是工作单元")
+    if median_s > max_unit_minutes * 60:
+        reasons.append(f"单元时长中位数 {median_s/60:.1f} 分钟（> {max_unit_minutes:g} 分钟）")
+    return {"degraded": bool(reasons), "reasons": reasons,
+            "ratio": ratio, "median_unit_s": median_s}
+
+
 def unit_profile(unit: list[dict]) -> dict:
     tools = [r["tool"] for r in unit]
     groups = collections.Counter(g for g in (group_of(t) for t in tools) if g)
@@ -343,12 +376,21 @@ def main(argv: Optional[list[str]] = None) -> int:
              if with_holder < len(records) else "　✅ 全部可归属"))
     print(f"  因超过 {args.stitch_gap:g}s 被切开的相邻对：{cuts} 个"
           + ("　⚠ 偏多说明阈值偏小" if cuts > max(3, len(units)) else ""))
+    health = stitch_health(units, len(raw_groups))
+    print(f"  自检：单元时长中位数 {health['median_unit_s']/60:.1f} 分钟；"
+          f"单元/会话 比值 {len(units)}/{len(raw_groups)} ≈ {health['ratio']:.2f}")
     hist = call_count_histogram(units)
     print("  单元调用数分布: " + ", ".join(f"{k}次={v}" for k, v in hist.items()))
     if len(raw_groups) > len(units):
         print("  ⚠ 存在重连碎片（会话数 > 单元数）⇒ **跨组率是下界**，不能读成精确值。")
     if hist["1"] + hist["2"] > len(units) * 0.5 and units:
         print("  ⚠ 过半单元只有 1–2 次调用：多半是碎片而非真实工作流，跨组率同样不可信。")
+    if health["degraded"]:
+        print("  ⛔ 粘法在当前密度下**失效**，本次不输出跨组结论：")
+        for reason in health["reasons"]:
+            print(f"     - {reason}")
+        print("     正确读法：在 holder 落地前，按 session 出报告并注明「本次不能回答跨组问题」；"
+              "宁可下界偏保守，也不要上界失真。")
 
     if args.sessions > 0:
         seqs = session_sequences(records)
@@ -376,7 +418,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             covered, needed = profile_coverage(stats["by_tool"], tools)
             share = covered / max(1, stats["total"]) * 100
             verdict = "值得单开" if share >= 95 else ("只覆盖多数" if share >= 70 else "覆盖不足，别拆")
-            print(f"  {name:12s} 覆盖 {share:5.1f}% 的调用，需挂 {needed:2d} 个工具  → {verdict}")
+            suffix = "（参考：粘法失效时该数不宜作结论）" if health["degraded"] else ""
+            print(f"  {name:12s} 覆盖 {share:5.1f}% 的调用，需挂 {needed:2d} 个工具  → {verdict}{suffix}")
         print("\n判定建议：覆盖 ≥95% 且工具数明显更少才单开；换端点要换 URL，"
               "频繁换端点比多几个工具更贵。")
     return 0

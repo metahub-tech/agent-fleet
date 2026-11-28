@@ -253,3 +253,32 @@ def test_latency_stats_separates_outlier_from_typical():
 def test_latency_stats_ignores_missing_ms():
     stats = ana.latency_stats([{"tool": "tap"}, {"tool": "tap", "ms": 7}])
     assert stats["tap"] == {"n": 1, "p50": 7, "p95": 7, "max": 7}
+
+
+# --- 粘法自检：失效时不该出跨组结论 ------------------------------------
+
+def test_stitch_health_flags_low_unit_ratio():
+    units = [[{"ts": "2026-11-27T00:00:00+00:00", "tool": "run_shell"}]]   # 1 单元
+    h = ana.stitch_health(units, session_count=32)
+    assert h["degraded"] is True
+    assert any("粘成了时间桶" in r for r in h["reasons"])
+
+
+def test_stitch_health_flags_long_units():
+    unit = [{"ts": "2026-11-27T00:00:00+00:00", "tool": "run_shell"},
+            {"ts": "2026-11-27T01:00:00+00:00", "tool": "take_screenshot"}]
+    h = ana.stitch_health([unit, unit], session_count=2)      # 比值 1.0，但时长 60 分钟
+    assert h["degraded"] is True
+    assert any("时长中位数" in r for r in h["reasons"])
+
+
+def test_stitch_health_ok_when_dense_and_short():
+    unit = [{"ts": "2026-11-27T00:00:00+00:00", "tool": "run_shell"},
+            {"ts": "2026-11-27T00:01:00+00:00", "tool": "write_file"}]
+    h = ana.stitch_health([unit, unit, unit], session_count=3)
+    assert h["degraded"] is False and h["reasons"] == []
+
+
+def test_unit_duration_uses_first_and_last():
+    unit = [{"ts": "2026-11-27T00:00:00+00:00"}, {"ts": "2026-11-27T00:02:30+00:00"}]
+    assert ana.unit_duration_s(unit) == 150
