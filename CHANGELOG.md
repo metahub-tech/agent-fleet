@@ -135,6 +135,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **新增 `scripts/_expectations.py`（期望值唯一来源）与 `docs/device-restart-sop.md`（重启 SOP 草案）**：① 工具数不再硬编码——期望值按主机名集中到 `_expectations.py`，`verify_restart.py` 不传 `--expect-tools` 时自动查表，查不到就打印"期望（未指定）"**不做判定**（宁可不说也不猜）；输出统一为「实际 N / 期望 M」。② SOP 把权限拆成**两个分别留空**项：**发起/执行重启** 与 **回滚到上一版本**——执行的人常有 shell 但没有回滚决策权，合并会导致"卡住"。SOP 含前置 5 项（lease/发布进程/锚点 pid+HEAD/端口归属/变更说明）、detached 执行方式（并写明本机无 supervisor）、四件验证与回滚判据、执行后记录要求。
 
+- **`verify_restart` 的 holder 判据改为「有序两段 + 自证」**：原措辞「未出现——说明跑的仍是旧码**或**该会话未 acquire」把两条因果绑在一起，红时分不出是"重启没生效"还是"验证没造出证据"。现在：① **pid 未变 ⇒ 直接判旧码，holder 记 skipped**，不再误报；② pid 已变 ⇒ 脚本自己 `acquire(holder_name="verify-restart-…")` + `release`，再断言审计出现该 holder（设备被他人持有时记 skipped"无法自证"，不判失败）。实测（未重启）：pid 红、holder 正确 skipped ⇒ 4/5。
+
 ### 修复
 
 - **`run_actions` 白名单去掉 `file_get`**：它会把最多 4 MiB 的 base64 塞进**一个**批量响应，既撑爆上下文，也让其它步的结果被淹没。取字节应当是一次单独、有意识的调用；其余工具不受影响。

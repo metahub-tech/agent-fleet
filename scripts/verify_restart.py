@@ -31,7 +31,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
+import time
 import urllib.request
 from pathlib import Path
 from typing import Any, Optional
@@ -87,6 +89,26 @@ def health_ok(url: str, timeout_s: float = 5.0) -> tuple[bool, str]:
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def holder_verdict(pid_changed: bool, acquired: bool, records: list[dict],
+                   marker: str) -> tuple[bool, str]:
+    """判定 `holder` 字段是否落地——**有序两段**，且证据由本脚本自己造。
+
+    为什么要拆：原措辞「未出现——说明跑的仍是旧码**或**该会话未 acquire」把两条因果绑在一起，
+    红的时候分不出是"重启没生效"还是"验证方法没造出证据"，而这两者的下一步动作完全不同。
+
+    - `pid_changed == False` ⇒ 直接判「旧码，重启未生效」，**不再看 holder**；
+    - `pid_changed == True` ⇒ 只看本脚本以 `marker` 身份 acquire 之后写下的那条记录。
+    """
+    if not pid_changed:
+        return True, "skipped: pid 未变（旧码），不判 holder"
+    if not acquired:
+        return True, "skipped: 设备被他人持有，无法自证（不代表字段未落地）"
+    hit = [r for r in records if r.get("holder") == marker]
+    if hit:
+        return True, f"已自证：holder={marker}"
+    return False, f"未找到 holder={marker} 的记录——字段未落地（重启成功但跑的是旧码？）"
+
+
 async def _read_audit(call, audit_cmd: str) -> str:
     """`call` 已经做过 payload 归一化；**不要**再包一层 payload_of（会把 dict 变成 []）。"""
     payload = await call("run_shell", {"script": audit_cmd})
@@ -131,12 +153,23 @@ async def run_checks(url: str, old_pid: Optional[int], expect_tools: Optional[in
             records = parse_audit_lines(stdout)
             pid = latest_pid(records)
             add("审计有新行", bool(records), f"{len(records)} 行（tail 5）")
-            add("新码进内存（pid 变化）", old_pid is None or (pid is not None and pid != old_pid),
+            pid_changed = old_pid is None or (pid is not None and pid != old_pid)
+            add("新码进内存（pid 变化）", pid_changed,
                 f"重启后 pid={pid}，重启前 pid={old_pid}")
+
             if expect_holder:
-                has_holder = any("holder" in r for r in records)
-                add("holder 字段落地", has_holder,
-                    "已出现" if has_holder else "未出现——说明跑的仍是旧码或该会话未 acquire")
+                # 证据自己造：无条件 acquire 一次（唯一名字），再 release，然后读回审计
+                marker = f"verify-restart-{os.getpid()}-{int(time.time())}"
+                acquired = False
+                if pid_changed:
+                    acq = await call("acquire", {"holder_name": marker})
+                    acquired = bool(isinstance(acq, dict) and acq.get("acquired"))
+                    if acquired:
+                        await call("release", {"holder_name": marker})
+                        stdout = await _read_audit(call, audit_cmd)
+                        records = parse_audit_lines(stdout)
+                ok, detail = holder_verdict(pid_changed, acquired, records, marker)
+                add("holder 字段落地（自证）", ok, detail)
     return results
 
 

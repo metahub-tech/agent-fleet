@@ -76,3 +76,30 @@ def test_expect_holder_flag_per_host():
     import _expectations as ex
     assert ex.expect_holder_for("http://test-win11:8766/mcp") is True
     assert ex.expect_holder_for("http://other:1/mcp") is False
+
+
+# --- holder 判据：有序两段，证据自造 -----------------------------------
+
+def test_holder_skipped_when_pid_unchanged():
+    """pid 未变 = 旧码：不再看 holder，也不把"没造证据"写成"字段未落地"。"""
+    ok, detail = vr.holder_verdict(pid_changed=False, acquired=False,
+                                   records=[], marker="m")
+    assert ok is True and "skipped" in detail and "旧码" in detail
+
+
+def test_holder_skipped_when_device_held_by_other():
+    ok, detail = vr.holder_verdict(pid_changed=True, acquired=False,
+                                   records=[], marker="m")
+    assert ok is True and "无法自证" in detail
+
+
+def test_holder_fails_only_when_pid_changed_and_no_evidence():
+    ok, detail = vr.holder_verdict(pid_changed=True, acquired=True,
+                                   records=[{"tool": "acquire", "holder": "other"}], marker="m")
+    assert ok is False and "未找到 holder=m" in detail
+
+
+def test_holder_passes_with_self_created_evidence():
+    ok, detail = vr.holder_verdict(pid_changed=True, acquired=True,
+                                   records=[{"tool": "acquire", "holder": "m"}], marker="m")
+    assert ok is True and "已自证" in detail

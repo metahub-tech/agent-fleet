@@ -52,7 +52,7 @@ python3 scripts/verify_restart.py --url http://<host>:<port>/mcp --old-pid <重�
 | 2 | 工具数 == 期望 | 功能面完整（期望值来自 `scripts/_expectations.py`，**不要硬编码**） |
 | 3 | 审计有新行 | 中间件在写 |
 | 4 | **新行 pid ≠ 重启前 pid** | **新代码进了内存**（关键；前三件旧进程也满足） |
-| 5 | （可选）`holder` 字段 | 审计升级是否落地 |
+| 5 | （可选）`holder` 字段 | 审计升级是否落地；**由脚本自己 acquire 一次自证**（pid 未变时 skipped） |
 
 ## 4. 回滚（判据不是"服务活着"）
 
